@@ -6,6 +6,8 @@ const navItems = [
   { href: "/login", label: "Login" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/gemini", label: "Gemini" },
+  { href: "/drive", label: "Drive" },
+  { href: "/products", label: "Products" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -15,9 +17,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="brand-block">
           <div>
             <p className="eyebrow">Affiliate AI Content OS</p>
-            <h1 className="brand-title">Sprint 1 auth foundation</h1>
+            <h1 className="brand-title">Metadata foundation</h1>
           </div>
-          <span className="status-pill">Next.js PWA shell</span>
+          <span className="status-pill">Supabase-backed control plane</span>
         </div>
         <nav aria-label="Primary" className="nav-row">
           {navItems.map((item) => (
@@ -30,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="shell-main">{children}</main>
       <footer className="shell-footer">
         <span>Single-owner MVP control center</span>
-        <span>Auth foundation only, no product workflows yet</span>
+        <span>Auth, Gemini, Drive, and product metadata foundations</span>
       </footer>
     </div>
   );
