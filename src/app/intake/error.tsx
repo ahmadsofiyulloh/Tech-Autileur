@@ -1,22 +1,26 @@
 "use client";
 
-import { FormActions } from "@/components/operator/form-actions";
+import { Inbox, RotateCcw } from "lucide-react";
+import { EmptyState } from "@/components/operator/empty-state";
+import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 
-export default function IntakeError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function IntakeError({ reset }: { reset: () => void }) {
   return (
-    <SectionCard badge="Error" title="Unable to load intake." description={error.message}>
-      <FormActions>
-        <button className="button primary" type="button" onClick={reset}>
-          Retry
-        </button>
-      </FormActions>
-    </SectionCard>
+    <div className="stack">
+      <PageHeader icon={Inbox} badge="Error" title="Intake" description="Unable to load." />
+      <SectionCard icon={Inbox} title="Intake unavailable">
+        <EmptyState
+          icon={Inbox}
+          title="Try again."
+          action={
+            <button className="button" type="button" onClick={reset}>
+              <RotateCcw size={16} aria-hidden="true" />
+              Retry
+            </button>
+          }
+        />
+      </SectionCard>
+    </div>
   );
 }
