@@ -4,10 +4,36 @@ import { Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
+import { setCurrentWorkspaceFromShell } from "@/app/settings/actions";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
 import { RouteToaster } from "@/components/operator/route-toaster";
 
-export function AppShell({ children }: { children: ReactNode }) {
+type AppShellWorkspaceState = {
+  schemaReady: boolean;
+  errorMessage: string | null;
+  workspaces: Array<{
+    id: string;
+    workspace_code: string;
+    workspace_name: string;
+    is_default: boolean;
+  }>;
+  currentWorkspaceId: string | null;
+};
+
+const emptyWorkspaceState: AppShellWorkspaceState = {
+  schemaReady: true,
+  errorMessage: null,
+  workspaces: [],
+  currentWorkspaceId: null,
+};
+
+export function AppShell({
+  children,
+  workspaceState = emptyWorkspaceState,
+}: {
+  children: ReactNode;
+  workspaceState?: AppShellWorkspaceState;
+}) {
   const pathname = usePathname();
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
   const activeTitle =
@@ -83,12 +109,29 @@ export function AppShell({ children }: { children: ReactNode }) {
             <h1>{activeTitle}</h1>
           </div>
           <div className="topbar-tools">
-            <label className="workspace-selector" htmlFor="workspace-selector">
-              <span>Workspace/profile</span>
-              <select id="workspace-selector" defaultValue="default" aria-label="Current workspace/profile placeholder">
-                <option value="default">Default workspace/profile</option>
+            <form className="workspace-selector" action={setCurrentWorkspaceFromShell}>
+              <input type="hidden" name="return_to" value={pathname} />
+              <label htmlFor="workspace-selector">
+                <span>Workspace/profile</span>
+              </label>
+              <select
+                aria-label="Current workspace/profile"
+                defaultValue={workspaceState.currentWorkspaceId ?? ""}
+                disabled={!workspaceState.schemaReady || workspaceState.workspaces.length === 0}
+                id="workspace-selector"
+                name="current_workspace_id"
+                onChange={(event) => event.currentTarget.form?.requestSubmit()}
+                title={workspaceState.errorMessage ?? "Current workspace/profile"}
+              >
+                <option value="">No workspace</option>
+                {workspaceState.workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.workspace_name}
+                    {workspace.is_default ? " (default)" : ""}
+                  </option>
+                ))}
               </select>
-            </label>
+            </form>
             <Link className="topbar-action" href="/settings" aria-label="Open settings">
               <Settings aria-hidden="true" size={18} />
               <span>Settings</span>
