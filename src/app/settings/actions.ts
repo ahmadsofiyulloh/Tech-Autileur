@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  archiveAffiliateProfile,
+  createAffiliateProfile,
+  updateAffiliateProfile,
+} from "@/lib/server/affiliate-profiles";
+import {
   archiveWorkspace,
   createWorkspace,
   setCurrentWorkspace,
@@ -30,6 +35,10 @@ function done(message: string): never {
 function revalidateWorkspaceSurfaces() {
   revalidatePath("/settings");
   revalidatePath("/", "layout");
+}
+
+function revalidateSettingsSurface() {
+  revalidatePath("/settings");
 }
 
 function safeReturnPath(value: string) {
@@ -101,6 +110,91 @@ export async function saveWorkspace(formData: FormData) {
   }
 
   revalidateWorkspaceSurfaces();
+  done(message);
+}
+
+function affiliateProfileInputFromForm(formData: FormData) {
+  return {
+    workspace_id: readText(formData, "workspace_id"),
+    profile_code: readText(formData, "profile_code"),
+    profile_name: readText(formData, "profile_name"),
+    platform: readText(formData, "platform"),
+    account_label: readText(formData, "account_label"),
+    niche: readText(formData, "niche"),
+    affiliate_url: readText(formData, "affiliate_url"),
+    notes: readText(formData, "notes"),
+    i2i_prompt_rules: readText(formData, "i2i_prompt_rules"),
+    i2v_prompt_rules: readText(formData, "i2v_prompt_rules"),
+    caption_rules: readText(formData, "caption_rules"),
+    hashtag_rules: readText(formData, "hashtag_rules"),
+    negative_prompt_rules: readText(formData, "negative_prompt_rules"),
+    product_positioning_notes: readText(formData, "product_positioning_notes"),
+    lock_seed_character: readBoolean(formData, "lock_seed_character"),
+    seed_character_notes: readText(formData, "seed_character_notes"),
+    seed_character_drive_item_ref_id: readText(formData, "seed_character_drive_item_ref_id"),
+    lock_environment: readBoolean(formData, "lock_environment"),
+    environment_notes: readText(formData, "environment_notes"),
+    environment_drive_item_ref_id: readText(formData, "environment_drive_item_ref_id"),
+    status: readText(formData, "status"),
+  };
+}
+
+function affiliateProfilePersonalizationInputFromForm(formData: FormData) {
+  return {
+    i2i_prompt_rules: readText(formData, "i2i_prompt_rules"),
+    i2v_prompt_rules: readText(formData, "i2v_prompt_rules"),
+    caption_rules: readText(formData, "caption_rules"),
+    hashtag_rules: readText(formData, "hashtag_rules"),
+    negative_prompt_rules: readText(formData, "negative_prompt_rules"),
+    product_positioning_notes: readText(formData, "product_positioning_notes"),
+    lock_seed_character: readBoolean(formData, "lock_seed_character"),
+    seed_character_notes: readText(formData, "seed_character_notes"),
+    seed_character_drive_item_ref_id: readText(formData, "seed_character_drive_item_ref_id"),
+    lock_environment: readBoolean(formData, "lock_environment"),
+    environment_notes: readText(formData, "environment_notes"),
+    environment_drive_item_ref_id: readText(formData, "environment_drive_item_ref_id"),
+  };
+}
+
+export async function saveAffiliateProfile(formData: FormData) {
+  const intent = readText(formData, "intent");
+  const id = readText(formData, "id");
+  let message = "Affiliate profile saved";
+
+  try {
+    if (intent === "create_affiliate_profile") {
+      await createAffiliateProfile(affiliateProfileInputFromForm(formData));
+      message = "Affiliate profile created";
+    } else if (intent === "update_affiliate_profile") {
+      if (!id) {
+        throw new Error("Missing affiliate profile id.");
+      }
+
+      await updateAffiliateProfile(id, affiliateProfileInputFromForm(formData));
+      message = "Affiliate profile updated";
+    } else if (intent === "update_affiliate_personalization") {
+      if (!id) {
+        throw new Error("Missing affiliate profile id.");
+      }
+
+      await updateAffiliateProfile(id, affiliateProfilePersonalizationInputFromForm(formData));
+      message = "Prompt personalization updated";
+    } else if (intent === "archive_affiliate_profile") {
+      if (!id) {
+        throw new Error("Missing affiliate profile id.");
+      }
+
+      await archiveAffiliateProfile(id);
+      message = "Affiliate profile archived";
+    } else {
+      throw new Error("Unsupported affiliate profile action.");
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Affiliate profile operation failed.";
+    fail(errorMessage);
+  }
+
+  revalidateSettingsSurface();
   done(message);
 }
 
