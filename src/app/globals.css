@@ -50,6 +50,38 @@ select {
   font: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+label {
+  display: block;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  color: var(--text);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(148, 163, 184, 0.7);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgba(103, 232, 249, 0.55);
+  outline-offset: 2px;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
@@ -305,6 +337,46 @@ select {
   padding: 20px;
 }
 
+.auth-form {
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.auth-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auth-field {
+  gap: 8px;
+}
+
+.auth-field span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-notice {
+  border-style: solid;
+}
+
+.auth-success {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(20, 83, 45, 0.2);
+}
+
+.auth-error {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(127, 29, 29, 0.18);
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 0;
@@ -318,6 +390,10 @@ select {
 @media (max-width: 860px) {
   .grid.two-up,
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-grid {
     grid-template-columns: 1fr;
   }
 }
