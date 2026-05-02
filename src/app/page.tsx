@@ -1,27 +1,32 @@
 import Link from "next/link";
+import { ArrowRight, Inbox, LayoutDashboard, Package, Settings, FileText } from "lucide-react";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 
 const foundationItems = [
   {
     title: "Intake",
-    body: "Reserved for mobile product intake. Links, photos, screenshots, and parsed metadata are not active yet.",
+    body: "Capture queue.",
     href: "/intake",
+    icon: Inbox,
   },
   {
     title: "Products",
-    body: "Current product registry and source image metadata manager.",
+    body: "Product records.",
     href: "/products",
+    icon: Package,
   },
   {
     title: "Prompts",
-    body: "Prompt pack generation, mock fallback, and task status tracking.",
+    body: "Prompt packs.",
     href: "/prompts",
+    icon: FileText,
   },
   {
     title: "Settings",
-    body: "Gemini keys, Drive metadata, account logout, and future Flow or affiliate settings.",
+    body: "Config hub.",
     href: "/settings",
+    icon: Settings,
   },
 ];
 
@@ -29,16 +34,18 @@ export default function HomePage() {
   return (
     <div className="stack">
       <PageHeader
+        icon={LayoutDashboard}
         badge="Operator"
-        eyebrow="Private workspace"
-        title="Open the production control surface."
-        description="Use the current metadata and prompt tools from one compact workspace. Intake, Flow, and output package routes are placeholders until their approved sprints."
+        title="Control surface"
+        description="Daily production starts from the app shell."
         actions={
           <>
             <Link className="button" href="/dashboard">
+              <LayoutDashboard size={16} aria-hidden="true" />
               Dashboard
             </Link>
             <Link className="button primary" href="/intake">
+              <Inbox size={16} aria-hidden="true" />
               Intake
             </Link>
           </>
@@ -49,9 +56,11 @@ export default function HomePage() {
         {foundationItems.map((item) => (
           <SectionCard
             key={item.title}
+            icon={item.icon}
             title={item.title}
             actions={
               <Link className="button compact" href={item.href}>
+                <ArrowRight size={15} aria-hidden="true" />
                 Open
               </Link>
             }

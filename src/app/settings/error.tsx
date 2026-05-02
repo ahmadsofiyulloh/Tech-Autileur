@@ -11,7 +11,7 @@ export default function SettingsError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Settings error" title="Unable to load settings." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load settings." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

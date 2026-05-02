@@ -11,7 +11,7 @@ export default function GeminiError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Gemini manager error" title="Unable to load Gemini metadata." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load Gemini." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

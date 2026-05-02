@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Archive, FileText, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
@@ -21,24 +22,25 @@ export default async function OutputsPage() {
   return (
     <div className="stack">
       <PageHeader
-        badge="Placeholder"
-        eyebrow="Phase 1"
-        title="Content outputs"
-        description="Final clips, captions, tags, affiliate links, copy actions, upload status, and post URLs will be added in a later approved sprint."
+        icon={Archive}
+        badge="Queued"
+        title="Outputs"
+        description="Clips and upload packages land here later."
         stats={[
-          { label: "Status", value: <StatusBadge status="Placeholder" tone="neutral" /> },
-          { label: "Uploads", value: "Manual only" },
-          { label: "Automation", value: "Not enabled" },
+          { label: "Status", value: <StatusBadge status="Reserved" tone="neutral" /> },
+          { label: "Upload", value: "Manual" },
+          { label: "Flow", value: <Link className="button compact" href="/flow"><Workflow size={15} aria-hidden="true" />Open</Link> },
         ]}
       />
 
-      <SectionCard title="No output package features are active yet.">
+      <SectionCard icon={Archive} title="No outputs yet.">
         <EmptyState
-          title="Use prompts for current generation work."
-          description="This route is reserved for the mobile output package view. It does not upload to TikTok or Shopee."
+          icon={Archive}
+          title="Use Prompts for now."
           action={
             <Link className="button primary" href="/prompts">
-              Open prompts
+              <FileText size={16} aria-hidden="true" />
+              Prompts
             </Link>
           }
         />

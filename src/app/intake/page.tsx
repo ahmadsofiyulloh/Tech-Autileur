@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Inbox, Package } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
@@ -21,24 +22,25 @@ export default async function IntakePage() {
   return (
     <div className="stack">
       <PageHeader
-        badge="Placeholder"
-        eyebrow="Phase 1"
-        title="Product intake"
-        description="Mobile intake for Shopee links, TikTok links, product photos, screenshots, and metadata review will be implemented in a later approved sprint."
+        icon={Inbox}
+        badge="Queued"
+        title="Intake"
+        description="Product capture starts here later."
         stats={[
-          { label: "Status", value: <StatusBadge status="Placeholder" tone="neutral" /> },
-          { label: "Uploads", value: "Not enabled" },
-          { label: "Parsing", value: "Not enabled" },
+          { label: "Status", value: <StatusBadge status="Reserved" tone="neutral" /> },
+          { label: "Upload", value: "Off" },
+          { label: "Parse", value: "Off" },
         ]}
       />
 
-      <SectionCard title="No intake features are active yet.">
+      <SectionCard icon={Inbox} title="No intake yet.">
         <EmptyState
-          title="Use products for current metadata work."
-          description="This route is reserved for the revised mobile-first intake flow. It does not upload files, parse marketplaces, or call Gemini."
+          icon={Inbox}
+          title="Use Products for now."
           action={
             <Link className="button primary" href="/products">
-              Open products
+              <Package size={16} aria-hidden="true" />
+              Products
             </Link>
           }
         />

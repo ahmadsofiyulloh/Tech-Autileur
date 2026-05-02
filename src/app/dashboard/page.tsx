@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
@@ -25,10 +26,11 @@ export default async function DashboardPage() {
 
   if (profileError) {
     return (
-      <SectionCard badge="Dashboard error" title="Unable to load the protected profile." description={profileError.message}>
+      <SectionCard icon={LayoutDashboard} badge="Error" title="Dashboard unavailable." description={profileError.message}>
         <EmptyState
-          title="Profile data is unavailable."
-          description="The bootstrap record should exist for the signed-in owner. Reload after confirming the account if the row is still warming up."
+          icon={UserRound}
+          title="Profile unavailable."
+          description="Reload after sign-in."
         />
       </SectionCard>
     );
@@ -37,13 +39,14 @@ export default async function DashboardPage() {
   return (
     <div className="stack">
       <PageHeader
-        badge="Protected route"
-        eyebrow="Affiliate AI Content OS"
-        title="Signed-in control surface is scaffolded."
-        description="This page stays intentionally small. Sprint 1 authenticates the owner and bootstraps the profile row."
+        icon={LayoutDashboard}
+        badge="Today"
+        title="Dashboard"
+        description="Owner status and quick account check."
         actions={
           <form action="/auth/signout" method="post">
             <button className="button primary" type="submit">
+              <LogOut size={16} aria-hidden="true" />
               Sign out
             </button>
           </form>
@@ -51,11 +54,11 @@ export default async function DashboardPage() {
         stats={[
           { label: "User", value: profile?.email ?? user.email ?? "Signed in" },
           { label: "Timezone", value: profile?.timezone ?? "Asia/Jakarta" },
-          { label: "Access", value: <StatusBadge status="Owner only" tone="success" /> },
+          { label: "Access", value: <StatusBadge status="Owner" tone="success" /> },
         ]}
       />
 
-      <SectionCard badge="Profile bootstrap" title="No operational data exists yet.">
+      <SectionCard icon={UserRound} title="Profile">
         {profile ? (
           <ul className="list" aria-label="Protected profile details">
             <li>
@@ -73,8 +76,9 @@ export default async function DashboardPage() {
           </ul>
         ) : (
           <EmptyState
-            title="Profile row not visible yet."
-            description="The auth bootstrap trigger should create this row automatically for the signed-in owner."
+            icon={UserRound}
+            title="Profile not visible."
+            description="Reload after sign-in."
           />
         )}
       </SectionCard>

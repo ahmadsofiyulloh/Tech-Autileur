@@ -11,7 +11,7 @@ export default function DriveError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Drive manager error" title="Unable to load Drive metadata." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load Drive." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

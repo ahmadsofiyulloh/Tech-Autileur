@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Ban, KeyRound, Save } from "lucide-react";
 import { saveGeminiKey } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -9,21 +10,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ACCOUNT_STATUSES, GEMINI_KEY_ROLES, GEMINI_MODELS } from "@/lib/gemini/validation";
 
 export const dynamic = "force-dynamic";
-
-type GeminiPageProps = {
-  searchParams?: {
-    message?: string | string[];
-    error?: string | string[];
-  };
-};
-
-function readSearchParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value ?? null;
-}
 
 function selectOptions(values: readonly string[]) {
   return values.map((value) => (
@@ -37,7 +23,7 @@ function fieldValue(value: string | number | null | undefined) {
   return value ?? "";
 }
 
-export default async function GeminiPage({ searchParams }: GeminiPageProps) {
+export default async function GeminiPage() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -57,40 +43,35 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
 
   if (error) {
     return (
-      <SectionCard badge="Gemini manager error" title="Unable to load Gemini metadata." description={error.message}>
+      <SectionCard icon={KeyRound} badge="Error" title="Unable to load Gemini." description={error.message}>
         <EmptyState
-          title="Gemini records are unavailable."
-          description="The database query for owner-scoped Gemini metadata failed before the page could render."
+          icon={KeyRound}
+          title="Gemini unavailable."
+          description="Try again."
         />
       </SectionCard>
     );
   }
 
-  const message = readSearchParam(searchParams?.message);
-  const pageError = readSearchParam(searchParams?.error);
-
   return (
     <div className="stack">
       <PageHeader
-        badge="Sprint 2 Gemini manager"
-        eyebrow="Affiliate AI Content OS"
-        title="Gemini projects and keys are owner-scoped."
-        description="Metadata stays in Supabase. Raw keys are written once, encrypted on the server, and kept out of client reads."
+        icon={KeyRound}
+        badge="Config"
+        title="Gemini"
+        description="Keys, roles, and limits."
         stats={[
           { label: "Keys", value: geminiKeys?.length ?? 0 },
-          { label: "Recommended", value: "3-project setup" },
-          { label: "Storage", value: <StatusBadge status="Server-side only" tone="success" /> },
+          { label: "Target", value: "3 keys" },
+          { label: "Secrets", value: <StatusBadge status="Private" tone="success" /> },
         ]}
       />
 
-      {message ? <section className="muted-box" role="status">{message}</section> : null}
-
-      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
-
       <SectionCard
-        badge="Create key"
-        title="Add a Gemini project/key record."
-        description="Use the locked roles and model names. The raw API key is encrypted server-side and never rendered back."
+        icon={KeyRound}
+        badge="New"
+        title="Add key"
+        description="Set role, model, and quota."
       >
         <form className="stack" action={saveGeminiKey}>
           <input type="hidden" name="intent" value="create" />
@@ -152,17 +133,18 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
           </div>
           <label className="stack auth-field" htmlFor="create-notes">
             <span>Notes</span>
-            <textarea id="create-notes" name="notes" rows={3} placeholder="Optional operational notes" />
+            <textarea id="create-notes" name="notes" rows={3} placeholder="Optional notes" />
           </label>
           <label className="stack auth-field" htmlFor="create-raw-api-key">
             <span>Raw API Key</span>
             <input id="create-raw-api-key" name="raw_api_key" type="password" autoComplete="off" required />
           </label>
           <p className="subtle">
-            The API key is encrypted server-side with <code>APP_ENCRYPTION_KEY</code> and never rendered back to the browser.
+            Secret values are write-only.
           </p>
           <FormActions>
             <button className="button primary" type="submit">
+              <Save size={16} aria-hidden="true" />
               Save Gemini key
             </button>
           </FormActions>
@@ -174,8 +156,9 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
           {geminiKeys.map((key) => (
             <SectionCard
               badge={key.key_code}
+              icon={KeyRound}
               title={key.label}
-              description={key.project_label ?? key.google_account_label ?? "No project metadata yet."}
+              description={key.project_label ?? key.google_account_label ?? "No project set."}
               key={key.id}
               actions={<StatusBadge status={key.status} />}
             >
@@ -301,10 +284,11 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
                   />
                 </label>
                 <p className="subtle">
-                  Leave the key blank to preserve the encrypted secret. Do not paste the same value into the page unless you intend to rotate it.
+                  Leave blank to keep the current secret.
                 </p>
                 <FormActions>
                   <button className="button primary" type="submit">
+                    <Save size={16} aria-hidden="true" />
                     Save changes
                   </button>
                 </FormActions>
@@ -315,6 +299,7 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
                   <input type="hidden" name="intent" value="disable" />
                   <input type="hidden" name="id" value={key.id} />
                   <button className="button" type="submit">
+                    <Ban size={16} aria-hidden="true" />
                     Disable key
                   </button>
                 </form>
@@ -324,8 +309,9 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
         </section>
       ) : (
         <EmptyState
+          icon={KeyRound}
           title="No Gemini keys yet."
-          description="Add the three recommended keys first if you want to follow the locked routing setup: Pro for vision, Flash-Lite for i2i, and Flash for i2v plus consistency/repair."
+          description="Add a key to start."
         />
       )}
     </div>

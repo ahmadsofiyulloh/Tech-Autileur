@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function LoadingPromptsPage() {
   return (
-    <SectionCard badge="Loading prompts" title="Preparing prompt pack metadata.">
+    <SectionCard badge="Loading" title="Prompts">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />
@@ -23,4 +23,3 @@ export default function LoadingPromptsPage() {
     </SectionCard>
   );
 }
-

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Archive, FileText, FlaskConical, Package, Play, Save } from "lucide-react";
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -17,21 +18,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type PromptsPageProps = {
-  searchParams?: {
-    message?: string | string[];
-    error?: string | string[];
-  };
-};
-
-function readSearchParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value ?? null;
-}
-
 function selectOptions(values: readonly string[]) {
   return values.map((value) => (
     <option key={value} value={value}>
@@ -45,10 +31,10 @@ function fieldValue(value: string | number | null | undefined) {
 }
 
 function prettyJson(value: unknown) {
-  return value ? JSON.stringify(value, null, 2) : "No structured output yet.";
+  return value ? JSON.stringify(value, null, 2) : "No output yet.";
 }
 
-export default async function PromptsPage({ searchParams }: PromptsPageProps) {
+export default async function PromptsPage() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -71,19 +57,17 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       listDriveItems({ limit: 200 }),
     ]);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load prompt metadata.";
+    const message = error instanceof Error ? error.message : "Unable to load prompts.";
     return (
-      <SectionCard badge="Prompts error" title="Unable to load prompt metadata." description={message}>
+      <SectionCard badge="Error" title="Unable to load prompts." description={message}>
         <EmptyState
-          title="Prompt packs are unavailable."
-          description="The owner-scoped metadata query failed before the page could render."
+          icon={FileText}
+          title="Prompts unavailable."
+          description="Try again."
         />
       </SectionCard>
     );
   }
-
-  const message = readSearchParam(searchParams?.message);
-  const pageError = readSearchParam(searchParams?.error);
 
   const productMap = new Map(products.map((product) => [product.id, product]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
@@ -100,10 +84,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
   if (promptPackTasks.error) {
     return (
-      <SectionCard badge="Prompts error" title="Unable to load prompt task metadata." description={promptPackTasks.error.message}>
+      <SectionCard badge="Error" title="Unable to load tasks." description={promptPackTasks.error.message}>
         <EmptyState
-          title="Prompt tasks are unavailable."
-          description="The owner-scoped AI task lookup failed before the page could render."
+          icon={FileText}
+          title="Tasks unavailable."
+          description="Try again."
         />
       </SectionCard>
     );
@@ -134,10 +119,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   return (
     <div className="stack">
       <PageHeader
-        badge="Sprint 8 prompt packs"
-        eyebrow="Affiliate AI Content OS"
-        title="Prompt pack metadata stays versioned in Supabase."
-        description="Each prompt pack stores one vision analysis payload, four i2i prompt slots, two i2v prompt slots, and consistency rules. Live Gemini generation runs server-side and mock generation stays available for dev fallback."
+        icon={FileText}
+        badge="Work"
+        title="Prompts"
+        description="Prompt packs and generation state."
         stats={[
           { label: "Prompt packs", value: promptPacks.length },
           { label: "Drafts", value: draftCount },
@@ -147,14 +132,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
         ]}
       />
 
-      {message ? <section className="muted-box" role="status">{message}</section> : null}
-
-      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
-
       <SectionCard
-        badge="Locked workload"
-        title="Prompt pack output contract."
-        description="One vision analysis, four i2i prompts, two i2v prompts, and consistency rules. Live Gemini generation must satisfy the structured JSON contract."
+        icon={FileText}
+        badge="Shape"
+        title="Prompt set"
+        description="Vision, i2i, and i2v slots."
       >
         <div className="metric-grid">
           <div className="metric">
@@ -174,9 +156,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
       {products.length ? (
       <SectionCard
-        badge="Create prompt pack"
-        title="Add a versioned prompt pack for a product."
-        description="Select a product, optionally attach a source product image row, and save prompt pack metadata before generating output."
+        icon={FileText}
+        badge="New"
+        title="Add prompt pack"
+        description="Choose a product and version."
       >
           <form className="stack" action={savePromptPack}>
             <input type="hidden" name="intent" value="create" />
@@ -209,13 +192,13 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
               </label>
             </div>
             <label className="stack auth-field" htmlFor="create-source-product-image-id">
-              <span>Source Product Image Row ID</span>
+              <span>Source image row</span>
               <input
                 id="create-source-product-image-id"
                 name="source_product_image_id"
                 type="text"
                 list="prompt-source-image-options"
-                placeholder="Optional product_images row id"
+                placeholder="Optional row id"
               />
             </label>
             <datalist id="prompt-source-image-options">
@@ -227,13 +210,14 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
             </datalist>
             <label className="stack auth-field" htmlFor="create-notes">
               <span>Notes</span>
-              <textarea id="create-notes" name="notes" rows={3} placeholder="Optional prompt pack notes" />
+              <textarea id="create-notes" name="notes" rows={3} placeholder="Optional notes" />
             </label>
             <p className="subtle">
-              The source image reference is the local <code>product_images</code> row id. It may be left blank for a draft pack.
+              Source image is optional for drafts.
             </p>
             <FormActions>
               <button className="button primary" type="submit">
+                <Save size={16} aria-hidden="true" />
                 Save prompt pack
               </button>
             </FormActions>
@@ -241,8 +225,9 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
         </SectionCard>
       ) : (
         <EmptyState
+          icon={Package}
           title="Create a product first."
-          description="Prompt packs are linked to owner-scoped products. Add product metadata before creating a prompt pack."
+          description="Prompts need a product."
           action={
             <a className="button primary" href="/products">
               Open products
@@ -266,6 +251,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
             return (
               <SectionCard
                 badge={pack.prompt_code}
+                icon={FileText}
                 title={`${product?.product_name ?? "Unknown product"} - v${pack.version}`}
                 description={[
                   product?.product_code ? `Product ${product.product_code}` : null,
@@ -273,7 +259,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                   sourceDriveItem?.name ?? sourceDriveItem?.drive_path ?? null,
                 ]
                   .filter(Boolean)
-                  .join(" - ") || "No source product image attached yet."}
+                  .join(" - ") || "No source image."}
                 key={pack.id}
                 actions={<StatusBadge status={pack.status} />}
               >
@@ -343,14 +329,14 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     </label>
                   </div>
                   <label className="stack auth-field" htmlFor={`source-product-image-id-${pack.id}`}>
-                    <span>Source Product Image Row ID</span>
+                    <span>Source image row</span>
                     <input
                       id={`source-product-image-id-${pack.id}`}
                       name="source_product_image_id"
                       type="text"
                       list="prompt-source-image-options"
                       defaultValue={fieldValue(pack.source_product_image_id)}
-                      placeholder="Optional product_images row id"
+                      placeholder="Optional row id"
                     />
                   </label>
                   <label className="stack auth-field" htmlFor={`notes-${pack.id}`}>
@@ -358,10 +344,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <textarea id={`notes-${pack.id}`} name="notes" rows={3} defaultValue={fieldValue(pack.notes)} />
                   </label>
                   <FormActions>
-                    <button className="button primary" type="submit">
-                      Save changes
-                    </button>
-                  </FormActions>
+                  <button className="button primary" type="submit">
+                    <Save size={16} aria-hidden="true" />
+                    Save changes
+                  </button>
+                </FormActions>
                 </form>
 
                 <FormActions>
@@ -370,6 +357,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <input type="hidden" name="generation_mode" value="gemini" />
                     <input type="hidden" name="id" value={pack.id} />
                     <button className="button primary" type="submit">
+                      <Play size={16} aria-hidden="true" />
                       Generate with Gemini
                     </button>
                   </form>
@@ -378,6 +366,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <input type="hidden" name="generation_mode" value="mock" />
                     <input type="hidden" name="id" value={pack.id} />
                     <button className="button" type="submit">
+                      <FlaskConical size={16} aria-hidden="true" />
                       Generate mock
                     </button>
                   </form>
@@ -385,35 +374,37 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <input type="hidden" name="intent" value="archive" />
                     <input type="hidden" name="id" value={pack.id} />
                     <button className="button" type="submit">
+                      <Archive size={16} aria-hidden="true" />
                       Archive pack
                     </button>
                   </form>
                 </FormActions>
 
                 <details open>
-                  <summary>Vision analysis JSON</summary>
-                  <pre className="json-block">{analysisJson}</pre>
-                </details>
-                <details>
-                  <summary>I2I prompts JSON</summary>
-                  <pre className="json-block">{i2iJson}</pre>
-                </details>
-                <details>
-                  <summary>I2V prompts JSON</summary>
-                  <pre className="json-block">{i2vJson}</pre>
-                </details>
-                <details>
-                  <summary>Consistency rules JSON</summary>
-                  <pre className="json-block">{rulesJson}</pre>
-                </details>
+                <summary>Vision analysis</summary>
+                <pre className="json-block">{analysisJson}</pre>
+              </details>
+              <details>
+                <summary>I2I prompts</summary>
+                <pre className="json-block">{i2iJson}</pre>
+              </details>
+              <details>
+                <summary>I2V prompts</summary>
+                <pre className="json-block">{i2vJson}</pre>
+              </details>
+              <details>
+                <summary>Consistency rules</summary>
+                <pre className="json-block">{rulesJson}</pre>
+              </details>
               </SectionCard>
             );
           })}
         </section>
       ) : (
         <EmptyState
+          icon={FileText}
           title="No prompt packs yet."
-          description="Create the first versioned prompt pack for a product. You can keep it in draft until mock output is generated."
+          description="Create a pack for a product."
         />
       )}
     </div>

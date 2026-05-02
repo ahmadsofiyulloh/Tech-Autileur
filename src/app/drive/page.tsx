@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Archive, HardDrive, Save } from "lucide-react";
 import { saveDriveItem } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -15,21 +16,6 @@ import { listDriveItems } from "@/lib/server/drive-items";
 
 export const dynamic = "force-dynamic";
 
-type DrivePageProps = {
-  searchParams?: {
-    message?: string | string[];
-    error?: string | string[];
-  };
-};
-
-function readSearchParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value ?? null;
-}
-
 function selectOptions(values: readonly string[]) {
   return values.map((value) => (
     <option key={value} value={value}>
@@ -42,7 +28,7 @@ function fieldValue(value: string | number | null | undefined) {
   return value ?? "";
 }
 
-export default async function DrivePage({ searchParams }: DrivePageProps) {
+export default async function DrivePage() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -57,42 +43,37 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
   try {
     driveItems = await listDriveItems({ limit: 200 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load Drive metadata.";
+    const message = error instanceof Error ? error.message : "Unable to load Drive.";
     return (
-      <SectionCard badge="Drive manager error" title="Unable to load Drive metadata." description={message}>
+      <SectionCard icon={HardDrive} badge="Error" title="Unable to load Drive." description={message}>
         <EmptyState
-          title="Drive items are unavailable."
-          description="The owner-scoped metadata query failed before the page could render."
+          icon={HardDrive}
+          title="Drive unavailable."
+          description="Try again."
         />
       </SectionCard>
     );
   }
 
-  const message = readSearchParam(searchParams?.message);
-  const pageError = readSearchParam(searchParams?.error);
-
   return (
     <div className="stack">
       <PageHeader
-        badge="Sprint 4 Drive manager"
-        eyebrow="Affiliate AI Content OS"
-        title="Google Drive metadata stays in Supabase."
-        description="Drive files and folders are registered here as metadata only. Large assets stay in Google Drive and are never uploaded to Supabase Storage."
+        icon={HardDrive}
+        badge="Config"
+        title="Drive"
+        description="Folders, files, and links."
         stats={[
           { label: "Items", value: driveItems.length },
-          { label: "Source", value: "Google Drive" },
-          { label: "Storage", value: <StatusBadge status="Metadata only" tone="success" /> },
+          { label: "Source", value: "Drive" },
+          { label: "Mode", value: <StatusBadge status="Reference" tone="success" /> },
         ]}
       />
 
-      {message ? <section className="muted-box" role="status">{message}</section> : null}
-
-      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
-
       <SectionCard
-        badge="Manual registration"
-        title="Add a Drive file or folder metadata record."
-        description="Drive paths are metadata only. Use the locked folder structure, but do not expect this page to create real folders or upload files."
+        icon={HardDrive}
+        badge="New"
+        title="Add Drive item"
+        description="Register a link and path."
       >
         <form className="stack" action={saveDriveItem}>
           <input type="hidden" name="intent" value="create" />
@@ -163,14 +144,15 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
           </label>
           <label className="stack auth-field" htmlFor="create-notes">
             <span>Notes</span>
-            <textarea id="create-notes" name="notes" rows={3} placeholder="Optional operational notes" />
+            <textarea id="create-notes" name="notes" rows={3} placeholder="Optional notes" />
           </label>
           <p className="subtle">
-            Drive paths are metadata only. Use the locked folder structure, but do not expect this page to create real folders or upload files.
+            Use the standard folder path.
           </p>
           <FormActions>
             <button className="button primary" type="submit">
-              Save Drive metadata
+              <Save size={16} aria-hidden="true" />
+              Save Drive item
             </button>
           </FormActions>
         </form>
@@ -181,6 +163,7 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
           {driveItems.map((item) => (
             <SectionCard
               badge={item.name}
+              icon={HardDrive}
               title={item.item_type}
               description={item.drive_path}
               key={item.id}
@@ -199,7 +182,7 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
                 </div>
                 <div className="metric">
                   <span>Source</span>
-                  <strong>Metadata only</strong>
+                  <strong>Reference</strong>
                 </div>
               </div>
 
@@ -294,6 +277,7 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
                 </label>
                 <FormActions>
                   <button className="button primary" type="submit">
+                    <Save size={16} aria-hidden="true" />
                     Save changes
                   </button>
                 </FormActions>
@@ -304,6 +288,7 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
                   <input type="hidden" name="intent" value="archive" />
                   <input type="hidden" name="id" value={item.id} />
                   <button className="button" type="submit">
+                    <Archive size={16} aria-hidden="true" />
                     Archive item
                   </button>
                 </form>
@@ -313,8 +298,9 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
         </section>
       ) : (
         <EmptyState
+          icon={HardDrive}
           title="No Drive items yet."
-          description="Register the standard Drive folders and files as metadata first. Real Drive creation, OAuth, and file upload are intentionally out of scope for Sprint 4."
+          description="Add a Drive reference."
         />
       )}
     </div>

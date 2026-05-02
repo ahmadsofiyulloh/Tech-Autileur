@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowRight, HardDrive, KeyRound, LogOut, Settings, UserRound, Users, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { PageHeader } from "@/components/operator/page-header";
@@ -22,62 +23,67 @@ export default async function SettingsPage() {
   return (
     <div className="stack">
       <PageHeader
-        badge="Settings"
-        eyebrow="Configuration"
-        title="Operator settings"
-        description="Manage the services and accounts that support production. Feature work stays on the main workflow routes."
+        icon={Settings}
+        badge="Config"
+        title="Settings"
+        description="Keys, Drive, accounts, and session."
         stats={[
-          { label: "Gemini", value: <StatusBadge status="Active manager" tone="success" /> },
-          { label: "Drive", value: <StatusBadge status="Metadata manager" tone="success" /> },
+          { label: "Gemini", value: <StatusBadge status="Active" tone="success" /> },
+          { label: "Drive", value: <StatusBadge status="Ready" tone="success" /> },
           { label: "Owner", value: user.email ?? "Signed in" },
         ]}
       />
 
       <section className="grid two-up">
         <SectionCard
-          badge="Gemini"
-          title="Gemini keys"
-          description="Models, roles, cooldowns, and encrypted key rotation."
+          icon={KeyRound}
+          title="Gemini"
+          description="Keys, models, and roles."
           actions={
             <Link className="button primary" href="/gemini">
-              Open Gemini
+              <ArrowRight size={16} aria-hidden="true" />
+              Open
             </Link>
           }
         >
-          <p>Use the existing Gemini manager for key metadata and server-side encrypted secrets.</p>
+          <StatusBadge status="Configured here" tone="info" />
         </SectionCard>
 
         <SectionCard
-          badge="Drive"
-          title="Drive metadata"
-          description="Folder and file references for Google Drive assets."
+          icon={HardDrive}
+          title="Drive"
+          description="Folders, files, and links."
           actions={
             <Link className="button primary" href="/drive">
-              Open Drive
+              <ArrowRight size={16} aria-hidden="true" />
+              Open
             </Link>
           }
         >
-          <p>Use the existing Drive manager for metadata only. Large files remain in Google Drive.</p>
+          <StatusBadge status="Configured here" tone="info" />
         </SectionCard>
 
-        <SectionCard badge="Flow" title="Flow accounts" description="Placeholder for Google Flow account setup.">
+        <SectionCard icon={Workflow} title="Flow accounts" description="Not active yet.">
           <EmptyState
-            title="Flow account setup is not implemented yet."
-            description="This sprint only reserves the settings surface. Google Flow execution remains manual and external."
+            icon={Workflow}
+            title="Reserved"
+            description="Add accounts later."
           />
         </SectionCard>
 
-        <SectionCard badge="Affiliate" title="Affiliate accounts and links" description="Placeholder for TikTok and Shopee account setup.">
+        <SectionCard icon={Users} title="Affiliate accounts" description="Not active yet.">
           <EmptyState
-            title="Affiliate account settings are not implemented yet."
-            description="Manual upload and affiliate link management will be added in a later approved sprint."
+            icon={Users}
+            title="Reserved"
+            description="Links and accounts come later."
           />
         </SectionCard>
 
-        <SectionCard badge="Account" title="Signed-in owner" description={user.email ?? "Owner session is active."}>
+        <SectionCard icon={UserRound} title="Account" description={user.email ?? "Signed in"}>
           <FormActions>
             <form action="/auth/signout" method="post">
               <button className="button" type="submit">
+                <LogOut size={16} aria-hidden="true" />
                 Sign out
               </button>
             </form>

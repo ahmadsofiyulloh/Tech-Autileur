@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Archive, Image, Package, Save } from "lucide-react";
 import { saveProduct, saveProductImage } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -12,21 +13,6 @@ import { PRODUCT_IMAGE_STATUSES, PRODUCT_STATUSES } from "@/lib/products/validat
 
 export const dynamic = "force-dynamic";
 
-type ProductsPageProps = {
-  searchParams?: {
-    message?: string | string[];
-    error?: string | string[];
-  };
-};
-
-function readSearchParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value ?? null;
-}
-
 function selectOptions(values: readonly string[]) {
   return values.map((value) => (
     <option key={value} value={value}>
@@ -39,7 +25,7 @@ function fieldValue(value: string | number | null | undefined) {
   return value ?? "";
 }
 
-export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+export default async function ProductsPage() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -55,42 +41,37 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   try {
     [products, driveItems] = await Promise.all([listProducts({ limit: 200 }), listDriveItems({ limit: 200 })]);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load product metadata.";
+    const message = error instanceof Error ? error.message : "Unable to load products.";
     return (
-      <SectionCard badge="Products error" title="Unable to load product metadata." description={message}>
+      <SectionCard icon={Package} badge="Error" title="Unable to load products." description={message}>
         <EmptyState
-          title="Product records are unavailable."
-          description="The metadata queries for products or Drive references failed before the page could render."
+          icon={Package}
+          title="Products unavailable."
+          description="Try again."
         />
       </SectionCard>
     );
   }
 
-  const message = readSearchParam(searchParams?.message);
-  const pageError = readSearchParam(searchParams?.error);
-
   return (
     <div className="stack">
       <PageHeader
-        badge="Sprint 5 products"
-        eyebrow="Affiliate AI Content OS"
-        title="Product metadata and source images are owner-scoped."
-        description="Products stay in Supabase. Source images link back to Drive metadata, not Supabase Storage or direct file uploads."
+        icon={Package}
+        badge="Work"
+        title="Products"
+        description="Product records and source images."
         stats={[
           { label: "Products", value: products.length },
           { label: "Drive refs", value: driveItems.length },
-          { label: "Pipeline", value: <StatusBadge status="Deferred" tone="neutral" /> },
+          { label: "Pipeline", value: <StatusBadge status="Queued" tone="neutral" /> },
         ]}
       />
 
-      {message ? <section className="muted-box" role="status">{message}</section> : null}
-
-      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
-
       <SectionCard
-        badge="Create product"
-        title="Add product metadata."
-        description="Save the product record first, then attach source images from existing Drive metadata rows."
+        icon={Package}
+        badge="New"
+        title="Add product"
+        description="Save the record, then attach an image."
       >
         <form className="stack" action={saveProduct}>
           <input type="hidden" name="intent" value="create" />
@@ -132,11 +113,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </label>
             <label className="stack auth-field" htmlFor="create-notes">
               <span>Notes</span>
-              <textarea id="create-notes" name="notes" rows={3} placeholder="Optional operational notes" />
+              <textarea id="create-notes" name="notes" rows={3} placeholder="Optional notes" />
             </label>
           </div>
           <FormActions>
             <button className="button primary" type="submit">
+              <Save size={16} aria-hidden="true" />
               Save product
             </button>
           </FormActions>
@@ -151,8 +133,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             return (
               <SectionCard
                 badge={product.product_code}
+                icon={Package}
                 title={product.product_name}
-                description={[product.marketplace, product.niche].filter(Boolean).join(" · ") || "No marketplace or niche set yet."}
+                description={[product.marketplace, product.niche].filter(Boolean).join(" - ") || "No marketplace set."}
                 key={product.id}
                 actions={<StatusBadge status={product.status} />}
               >
@@ -236,12 +219,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   </div>
                   <FormActions>
                     <button className="button primary" type="submit">
+                      <Save size={16} aria-hidden="true" />
                       Save changes
                     </button>
                   </FormActions>
                 </form>
 
-                <SectionCard badge="Attach source image" title="Link an existing Drive item metadata row.">
+                <SectionCard icon={Image} badge="Image" title="Attach source image" description="Use an existing Drive reference.">
                   <form className="stack" action={saveProductImage}>
                     <input type="hidden" name="product_id" value={product.id} />
                     <datalist id={driveItemListId}>
@@ -259,7 +243,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                           name="drive_item_ref_id"
                           type="text"
                           list={driveItemListId}
-                          placeholder="Select or enter a Drive metadata row id"
+                          placeholder="Select or enter a Drive row id"
                           required
                         />
                       </label>
@@ -281,10 +265,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       </label>
                     </div>
                     <p className="subtle">
-                      Only existing Drive metadata rows can be attached. No upload, no Drive API call, and no Supabase Storage are used here.
+                      Select an existing Drive item.
                     </p>
                     <FormActions>
                       <button className="button" type="submit">
+                        <Image size={16} aria-hidden="true" />
                         Attach source image
                       </button>
                     </FormActions>
@@ -296,6 +281,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <input type="hidden" name="intent" value="archive" />
                     <input type="hidden" name="id" value={product.id} />
                     <button className="button" type="submit">
+                      <Archive size={16} aria-hidden="true" />
                       Archive product
                     </button>
                   </form>
@@ -306,8 +292,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </section>
       ) : (
         <EmptyState
+          icon={Package}
           title="No products yet."
-          description="Add product metadata first, then attach a source image from an existing Drive metadata row. Prompt pipeline work remains deferred for later sprints."
+          description="Add a product to start."
         />
       )}
     </div>

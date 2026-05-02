@@ -30,7 +30,7 @@ function inferTone(status: string): StatusTone {
     return "info";
   }
 
-  if (value.includes("COOLDOWN") || value.includes("RATE") || value.includes("NEEDS")) {
+  if (value.includes("COOLDOWN") || value.includes("RATE") || value.includes("NEED")) {
     return "warning";
   }
 
@@ -45,8 +45,12 @@ function inferTone(status: string): StatusTone {
   return "info";
 }
 
+function formatStatus(status: string) {
+  return status.replaceAll("_", " ");
+}
+
 export function StatusBadge({ status, tone }: StatusBadgeProps) {
   const resolvedTone = tone ?? inferTone(status);
 
-  return <span className={`status-badge status-badge--${resolvedTone}`}>{status}</span>;
+  return <span className={`status-badge status-badge--${resolvedTone}`}>{formatStatus(status)}</span>;
 }

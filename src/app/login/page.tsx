@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { LockKeyhole } from "lucide-react";
 import { LoginForm } from "./login-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -32,14 +33,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className="stack">
       <section className="hero">
-        <div className="chip">Sprint 1 auth</div>
-        <div className="stack">
-          <p className="eyebrow">Affiliate AI Content OS</p>
-          <h2>Protected single-owner workspace.</h2>
-          <p>
-            Auth now fronts the MVP. Log in to reach the protected dashboard and let Supabase bootstrap your profile
-            row automatically.
-          </p>
+        <div className="page-header__main">
+          <span className="icon-frame" aria-hidden="true">
+            <LockKeyhole size={19} />
+          </span>
+          <div className="stack-tight">
+            <div className="chip">Private</div>
+            <h2>Operator sign in</h2>
+            <p>Use the owner account.</p>
+          </div>
         </div>
       </section>
 

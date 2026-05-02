@@ -11,7 +11,7 @@ export default function IntakeError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Intake error" title="Unable to load intake." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load intake." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

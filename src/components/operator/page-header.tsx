@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
 type PageHeaderStat = {
   label: string;
@@ -8,6 +9,7 @@ type PageHeaderStat = {
 type PageHeaderProps = {
   badge?: string;
   eyebrow?: string;
+  icon?: LucideIcon;
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
@@ -18,6 +20,7 @@ type PageHeaderProps = {
 export function PageHeader({
   badge,
   eyebrow,
+  icon: Icon,
   title,
   description,
   actions,
@@ -26,11 +29,18 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <section className={`hero page-header stack ${className ?? ""}`.trim()}>
-      {badge ? <div className="chip">{badge}</div> : null}
-      <div className="stack">
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h2>{title}</h2>
-        {description ? <p>{description}</p> : null}
+      <div className="page-header__main">
+        {Icon ? (
+          <span className="icon-frame page-header__icon" aria-hidden="true">
+            <Icon size={19} />
+          </span>
+        ) : null}
+        <div className="stack page-header__copy">
+          {badge ? <div className="chip">{badge}</div> : null}
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+          <h2>{title}</h2>
+          {description ? <p>{description}</p> : null}
+        </div>
       </div>
       {actions ? <div className="hero-actions page-header__actions">{actions}</div> : null}
       {stats?.length ? (

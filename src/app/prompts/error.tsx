@@ -11,7 +11,7 @@ export default function PromptsError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Prompts error" title="Unable to load prompt metadata." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load prompts." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry
@@ -20,4 +20,3 @@ export default function PromptsError({
     </SectionCard>
   );
 }
-

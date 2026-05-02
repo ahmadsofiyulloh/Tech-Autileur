@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FileText, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
@@ -21,24 +22,25 @@ export default async function FlowPage() {
   return (
     <div className="stack">
       <PageHeader
-        badge="Placeholder"
-        eyebrow="Desktop workflow"
-        title="Google Flow control"
-        description="Flow accounts, batch prompts, Chrome profile handoff, and execution tracking are reserved for later approved sprints."
+        icon={Workflow}
+        badge="Queued"
+        title="Flow"
+        description="Batch handoff comes later."
         stats={[
-          { label: "Status", value: <StatusBadge status="Placeholder" tone="neutral" /> },
-          { label: "Execution", value: "Manual external" },
-          { label: "Automation", value: "Not enabled" },
+          { label: "Status", value: <StatusBadge status="Reserved" tone="neutral" /> },
+          { label: "Run", value: "Manual" },
+          { label: "Auto", value: "Off" },
         ]}
       />
 
-      <SectionCard title="No Flow execution features are active yet.">
+      <SectionCard icon={Workflow} title="No Flow queue yet.">
         <EmptyState
-          title="Use prompt packs for current prompt output."
-          description="This route does not call Google Flow, Drive APIs, or browser automation."
+          icon={Workflow}
+          title="Use Prompts for now."
           action={
             <Link className="button primary" href="/prompts">
-              Open prompts
+              <FileText size={16} aria-hidden="true" />
+              Prompts
             </Link>
           }
         />

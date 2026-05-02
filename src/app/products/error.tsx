@@ -11,7 +11,7 @@ export default function ProductsError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Products error" title="Unable to load product metadata." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load products." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

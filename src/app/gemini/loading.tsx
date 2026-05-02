@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function GeminiLoading() {
   return (
-    <SectionCard badge="Loading Gemini manager" title="Preparing Gemini metadata.">
+    <SectionCard badge="Loading" title="Gemini">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />

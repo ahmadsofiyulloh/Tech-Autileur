@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function IntakeLoading() {
   return (
-    <SectionCard badge="Loading intake" title="Preparing intake placeholder.">
+    <SectionCard badge="Loading" title="Intake">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />

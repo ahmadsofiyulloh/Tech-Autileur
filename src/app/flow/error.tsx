@@ -11,7 +11,7 @@ export default function FlowError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Flow error" title="Unable to load Flow." description={error.message}>
+    <SectionCard badge="Error" title="Unable to load Flow." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

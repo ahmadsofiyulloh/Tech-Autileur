@@ -1,39 +1,11 @@
 "use client";
 
+import { Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
-
-const mobileNavItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/intake", label: "Intake" },
-  { href: "/products", label: "Products" },
-  { href: "/prompts", label: "Prompts" },
-  { href: "/outputs", label: "Outputs" },
-  { href: "/settings", label: "Settings" },
-];
-
-const desktopNavItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/intake", label: "Intake" },
-  { href: "/products", label: "Products" },
-  { href: "/prompts", label: "Prompts" },
-  { href: "/outputs", label: "Outputs" },
-  { href: "/flow", label: "Flow" },
-  { href: "/settings", label: "Settings" },
-];
-
-const routeTitles = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/intake", label: "Intake" },
-  { href: "/products", label: "Products" },
-  { href: "/prompts", label: "Prompts" },
-  { href: "/outputs", label: "Outputs" },
-  { href: "/flow", label: "Flow" },
-  { href: "/settings", label: "Settings" },
-  { href: "/gemini", label: "Gemini settings" },
-  { href: "/drive", label: "Drive settings" },
-];
+import { Suspense, type ReactNode } from "react";
+import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
+import { RouteToaster } from "@/components/operator/route-toaster";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -56,6 +28,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (isPublicRoute) {
     return (
       <div className="public-shell">
+        <Suspense fallback={null}>
+          <RouteToaster />
+        </Suspense>
         <main className="public-main">{children}</main>
       </div>
     );
@@ -65,53 +40,69 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="operator-shell">
       <aside className="sidebar" aria-label="Operator navigation">
         <Link className="sidebar-brand" href="/dashboard">
-          <span className="sidebar-brand__mark">AI</span>
+          <span className="sidebar-brand__mark" aria-hidden="true">
+            <Workflow size={18} />
+          </span>
           <span>
             <strong>Operator</strong>
             <small>Content OS</small>
           </span>
         </Link>
         <nav className="sidebar-nav">
-          {desktopNavItems.map((item) => (
-            <Link
-              aria-current={isActive(item.href) ? "page" : undefined}
-              className="nav-link sidebar-link"
-              data-active={isActive(item.href) ? "true" : undefined}
-              href={item.href}
-              key={item.href}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {desktopNavItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <Link
+                aria-current={isActive(item.href) ? "page" : undefined}
+                className="nav-link sidebar-link"
+                data-active={isActive(item.href) ? "true" : undefined}
+                href={item.href}
+                key={item.href}
+              >
+                <Icon className="nav-link__icon" aria-hidden="true" size={17} />
+                <span className="nav-link__label">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
 
       <div className="operator-workspace">
         <header className="operator-topbar">
           <div>
-            <p className="eyebrow">Private operator tool</p>
+            <p className="eyebrow">Private tool</p>
             <h1>{activeTitle}</h1>
           </div>
-          <Link className="button compact" href="/settings">
-            Settings
+          <Link className="topbar-action" href="/settings" aria-label="Open settings">
+            <Settings aria-hidden="true" size={18} />
+            <span>Settings</span>
           </Link>
         </header>
         <main className="shell-main">{children}</main>
       </div>
 
       <nav className="bottom-nav" aria-label="Mobile operator navigation">
-        {mobileNavItems.map((item) => (
-          <Link
-            aria-current={isActive(item.href) ? "page" : undefined}
-            className="bottom-nav__link"
-            data-active={isActive(item.href) ? "true" : undefined}
-            href={item.href}
-            key={item.href}
-          >
-            {item.label}
-          </Link>
-        ))}
+        {mobileNavItems.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <Link
+              aria-current={isActive(item.href) ? "page" : undefined}
+              className="bottom-nav__link"
+              data-active={isActive(item.href) ? "true" : undefined}
+              href={item.href}
+              key={item.href}
+            >
+              <Icon className="bottom-nav__icon" aria-hidden="true" size={19} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
+      <Suspense fallback={null}>
+        <RouteToaster />
+      </Suspense>
     </div>
   );
 }

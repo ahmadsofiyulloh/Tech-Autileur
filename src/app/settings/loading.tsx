@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function SettingsLoading() {
   return (
-    <SectionCard badge="Loading settings" title="Preparing operator settings.">
+    <SectionCard badge="Loading" title="Settings">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />
