@@ -296,9 +296,19 @@ async function loadIntakeSessionById(
   return data as IntakeSessionRecord;
 }
 
-async function getIntakeSessionById(id: string) {
+export async function getIntakeSessionById(id: string) {
   const { supabase, user } = await requireUser();
   return await loadIntakeSessionById(supabase, user.id, id);
+}
+
+export async function getLatestIntakeSessionForProduct(productId: string, workspaceId?: string | null) {
+  const sessions = await listIntakeSessions({
+    productId,
+    workspaceId: workspaceId ?? undefined,
+    limit: 1,
+  });
+
+  return sessions[0] ?? null;
 }
 
 function intakePayload(input: IntakeSessionInput) {

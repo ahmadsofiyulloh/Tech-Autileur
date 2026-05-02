@@ -6,6 +6,9 @@ import { FormActions } from "@/components/operator/form-actions";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
+import { listIntakeSessions } from "@/lib/server/intake";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listProductImages, listProducts } from "@/lib/server/products";
@@ -34,6 +37,10 @@ function prettyJson(value: unknown) {
   return value ? JSON.stringify(value, null, 2) : "No output yet.";
 }
 
+function workspaceLabel(workspace: { workspace_code: string; workspace_name: string } | null) {
+  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "No workspace";
+}
+
 export default async function PromptsPage() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -44,17 +51,24 @@ export default async function PromptsPage() {
     redirect("/login");
   }
 
+  const currentWorkspace = await getCurrentWorkspace();
+  const workspaceId = currentWorkspace?.id ?? undefined;
+
   let promptPacks;
   let products;
   let productImages;
   let driveItems;
+  let intakeSessions;
+  let affiliateProfiles;
 
   try {
-    [promptPacks, products, productImages, driveItems] = await Promise.all([
-      listPromptPacks({ limit: 200 }),
-      listProducts({ limit: 200 }),
+    [promptPacks, products, productImages, driveItems, intakeSessions, affiliateProfiles] = await Promise.all([
+      listPromptPacks({ workspaceId, limit: 200 }),
+      listProducts({ workspaceId, limit: 200 }),
       listProductImages({ limit: 200 }),
       listDriveItems({ limit: 200 }),
+      listIntakeSessions({ workspaceId, limit: 200 }),
+      listAffiliateProfiles({ workspaceId, status: "ACTIVE", limit: 200 }),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load prompts.";
@@ -72,6 +86,8 @@ export default async function PromptsPage() {
   const productMap = new Map(products.map((product) => [product.id, product]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const sourceImageMap = new Map(productImages.map((image) => [image.id, image]));
+  const intakeSessionMap = new Map(intakeSessions.map((session) => [session.id, session]));
+  const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
   const aiTaskIds = Array.from(new Set(promptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))));
   const promptPackTasks = aiTaskIds.length
     ? await supabase
@@ -101,7 +117,9 @@ export default async function PromptsPage() {
   const reviewCount = promptPacks.filter((pack) => pack.status === "NEEDS_REVIEW").length;
   const archivedCount = promptPacks.filter((pack) => pack.status === "ARCHIVED").length;
 
-  const sourceImageOptions = productImages.map((image) => {
+  const sourceImageOptions = productImages
+    .filter((image) => productMap.has(image.product_id))
+    .map((image) => {
     const product = productMap.get(image.product_id);
     const driveItem = driveItemMap.get(image.drive_item_ref_id);
     const label = [
@@ -115,6 +133,31 @@ export default async function PromptsPage() {
 
     return { value: image.id, label };
   });
+  const intakeSessionOptions = intakeSessions.map((session) => {
+    const product = session.product_id ? productMap.get(session.product_id) : null;
+
+    return {
+      value: session.id,
+      label: [
+        session.intake_code,
+        session.product_title ?? product?.product_name ?? null,
+        session.status,
+      ]
+        .filter(Boolean)
+        .join(" - "),
+    };
+  });
+  const affiliateProfileOptions = affiliateProfiles.map((profile) => ({
+    value: profile.id,
+    label: [
+      profile.profile_code,
+      profile.profile_name,
+      profile.platform,
+      profile.account_label,
+    ]
+      .filter(Boolean)
+      .join(" - "),
+  }));
 
   return (
     <div className="stack">
@@ -122,8 +165,9 @@ export default async function PromptsPage() {
         icon={FileText}
         badge="Compatibility"
         title="Prompts"
-        description="Compatibility manager. Product Detail is the main prompt history surface; Controller is the execution surface."
+        description={`Compatibility manager. Workspace: ${workspaceLabel(currentWorkspace)}. Product Detail is the main prompt history surface; Controller is the execution surface.`}
         stats={[
+          { label: "Workspace", value: workspaceLabel(currentWorkspace) },
           { label: "Prompt packs", value: promptPacks.length },
           { label: "Drafts", value: draftCount },
           { label: "Generated", value: generatedCount },
@@ -159,7 +203,7 @@ export default async function PromptsPage() {
         icon={FileText}
         badge="New"
         title="Add prompt pack"
-        description="Choose a product and version."
+        description="Choose a product, intake, and profile."
       >
           <form className="stack" action={savePromptPack}>
             <input type="hidden" name="intent" value="create" />
@@ -177,6 +221,30 @@ export default async function PromptsPage() {
               <label className="stack auth-field" htmlFor="create-prompt-code">
                 <span>Prompt Code</span>
                 <input id="create-prompt-code" name="prompt_code" type="text" placeholder="HORG0001-PROMPT" required />
+              </label>
+            </div>
+            <div className="grid two-up">
+              <label className="stack auth-field" htmlFor="create-intake-session-id">
+                <span>Intake session</span>
+                <select id="create-intake-session-id" name="intake_session_id" defaultValue="">
+                  <option value="">Latest workspace intake</option>
+                  {intakeSessionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack auth-field" htmlFor="create-affiliate-profile-id">
+                <span>Affiliate profile</span>
+                <select id="create-affiliate-profile-id" name="affiliate_profile_id" defaultValue="">
+                  <option value="">Workspace default</option>
+                  {affiliateProfileOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             <div className="grid two-up">
@@ -213,7 +281,7 @@ export default async function PromptsPage() {
               <textarea id="create-notes" name="notes" rows={3} placeholder="Optional notes" />
             </label>
             <p className="subtle">
-              Source image is optional for drafts.
+              Blank intake or affiliate selections fall back to the current workspace context at generation time.
             </p>
             <FormActions>
               <button className="button primary" type="submit">
@@ -238,6 +306,8 @@ export default async function PromptsPage() {
         <section className="stack">
           {promptPacks.map((pack) => {
             const product = productMap.get(pack.product_id);
+            const intakeSession = pack.intake_session_id ? intakeSessionMap.get(pack.intake_session_id) ?? null : null;
+            const affiliateProfile = pack.affiliate_profile_id ? affiliateProfileMap.get(pack.affiliate_profile_id) ?? null : null;
             const sourceImage = pack.source_product_image_id ? sourceImageMap.get(pack.source_product_image_id) ?? null : null;
             const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
             const generationTask = pack.ai_task_id ? promptTaskMap.get(pack.ai_task_id) ?? null : null;
@@ -245,6 +315,9 @@ export default async function PromptsPage() {
             const i2iJson = prettyJson(pack.i2i_prompts_json);
             const i2vJson = prettyJson(pack.i2v_prompts_json);
             const rulesJson = prettyJson(pack.consistency_rules_json);
+            const negativeRulesJson = prettyJson(pack.negative_rules_json);
+            const personalizationJson = prettyJson(pack.personalization_json);
+            const promptContextJson = prettyJson((pack.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
 
             return (
               <SectionCard
@@ -253,6 +326,8 @@ export default async function PromptsPage() {
                 title={`${product?.product_name ?? "Unknown product"} - v${pack.version}`}
                 description={[
                   product?.product_code ? `Product ${product.product_code}` : null,
+                  intakeSession ? `Intake ${intakeSession.intake_code}` : null,
+                  affiliateProfile ? `Profile ${affiliateProfile.profile_code}` : null,
                   sourceImage ? `Source image ${sourceImage.id}` : null,
                   sourceDriveItem?.name ?? sourceDriveItem?.drive_path ?? null,
                 ]
@@ -266,6 +341,14 @@ export default async function PromptsPage() {
                   <span>Product</span>
                   <strong>{product?.product_name ?? "Unknown"}</strong>
                 </div>
+                  <div className="metric">
+                    <span>Intake</span>
+                    <strong>{intakeSession?.intake_code ?? pack.intake_session_id ?? "Latest workspace intake"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Affiliate profile</span>
+                    <strong>{affiliateProfile?.profile_name ?? pack.affiliate_profile_id ?? "Workspace default"}</strong>
+                  </div>
                   <div className="metric">
                     <span>Source image</span>
                     <strong>{sourceImage ? (sourceDriveItem?.name ?? sourceImage.id) : "Not attached"}</strong>
@@ -312,6 +395,30 @@ export default async function PromptsPage() {
                     <label className="stack auth-field" htmlFor={`prompt-code-${pack.id}`}>
                       <span>Prompt Code</span>
                       <input id={`prompt-code-${pack.id}`} name="prompt_code" type="text" defaultValue={pack.prompt_code} required />
+                    </label>
+                  </div>
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor={`intake-session-id-${pack.id}`}>
+                      <span>Intake session</span>
+                      <select id={`intake-session-id-${pack.id}`} name="intake_session_id" defaultValue={pack.intake_session_id ?? ""}>
+                        <option value="">Latest workspace intake</option>
+                        {intakeSessionOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="stack auth-field" htmlFor={`affiliate-profile-id-${pack.id}`}>
+                      <span>Affiliate profile</span>
+                      <select id={`affiliate-profile-id-${pack.id}`} name="affiliate_profile_id" defaultValue={pack.affiliate_profile_id ?? ""}>
+                        <option value="">Workspace default</option>
+                        {affiliateProfileOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                   </div>
                   <div className="grid two-up">
@@ -393,6 +500,18 @@ export default async function PromptsPage() {
               <details>
                 <summary>Consistency rules</summary>
                 <pre className="json-block">{rulesJson}</pre>
+              </details>
+              <details>
+                <summary>Negative rules</summary>
+                <pre className="json-block">{negativeRulesJson}</pre>
+              </details>
+              <details>
+                <summary>Personalization</summary>
+                <pre className="json-block">{personalizationJson}</pre>
+              </details>
+              <details>
+                <summary>Prompt context</summary>
+                <pre className="json-block">{promptContextJson}</pre>
               </details>
               </SectionCard>
             );

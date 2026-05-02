@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { listDriveItems } from "@/lib/server/drive-items";
+import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductAnchors } from "@/lib/server/product-anchors";
 import { listProductMarketplaceSources } from "@/lib/server/product-marketplace-sources";
@@ -96,9 +97,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   let anchors;
   let promptPacks;
   let workspaces;
+  let affiliateProfiles;
 
   try {
-    [productImages, driveItems, marketplaceSources, anchors, promptPacks, intakeSessions, workspaces] = await Promise.all([
+    [productImages, driveItems, marketplaceSources, anchors, promptPacks, intakeSessions, workspaces, affiliateProfiles] = await Promise.all([
       listProductImages({ productId: product.id, limit: 200 }),
       listDriveItems({ limit: 200 }),
       listProductMarketplaceSources({ productId: product.id, limit: 200 }),
@@ -106,6 +108,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       listPromptPacks({ productId: product.id, limit: 200 }),
       listIntakeSessions({ productId: product.id, limit: 200 }),
       listWorkspaces({ limit: 200 }),
+      listAffiliateProfiles({ workspaceId: product.workspace_id ?? undefined, limit: 200 }),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load product detail.";
@@ -132,6 +135,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+  const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const generatedPromptCount = promptPacks.filter((pack) => pack.status === "GENERATED").length;
@@ -410,11 +414,20 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
           <SectionCard icon={FileText} title="Prompt history" description="Prompt packs remain product history. Prompt editing starts from the intake workflow.">
             {promptPacks.length ? (
               <section className="stack">
-                {promptPacks.map((pack) => {
+              {promptPacks.map((pack) => {
+                  const intakeSession = pack.intake_session_id
+                    ? intakeSessions.find((session) => session.id === pack.intake_session_id) ?? null
+                    : null;
+                  const affiliateProfile = pack.affiliate_profile_id
+                    ? affiliateProfileMap.get(pack.affiliate_profile_id) ?? null
+                    : null;
                   const sourceImage = pack.source_product_image_id
                     ? productImages.find((image) => image.id === pack.source_product_image_id) ?? null
                     : null;
                   const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
+                  const negativeRulesJson = prettyJson(pack.negative_rules_json);
+                  const personalizationJson = prettyJson(pack.personalization_json);
+                  const promptContextJson = prettyJson((pack.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
 
                   return (
                     <SectionCard
@@ -423,7 +436,13 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                       icon={FileText}
                       key={pack.id}
                       title={`Version ${pack.version}`}
-                      description={sourceDriveItem?.name ?? "No source image selected."}
+                      description={[
+                        intakeSession ? `Intake ${intakeSession.intake_code}` : null,
+                        affiliateProfile ? `Profile ${affiliateProfile.profile_code}` : null,
+                        sourceDriveItem?.name ?? null,
+                      ]
+                        .filter(Boolean)
+                        .join(" - ") || "No source image selected."}
                     >
                       <div className="metric-grid">
                         <div className="metric">
@@ -431,6 +450,14 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                           <strong>
                             <StatusBadge status={pack.status} />
                           </strong>
+                        </div>
+                        <div className="metric">
+                          <span>Intake</span>
+                          <strong>{intakeSession?.intake_code ?? "Latest workspace intake"}</strong>
+                        </div>
+                        <div className="metric">
+                          <span>Affiliate profile</span>
+                          <strong>{affiliateProfile?.profile_name ?? "Workspace default"}</strong>
                         </div>
                         <div className="metric">
                           <span>Created</span>
@@ -457,6 +484,18 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                       <details>
                         <summary>Consistency rules</summary>
                         <pre className="json-block">{prettyJson(pack.consistency_rules_json)}</pre>
+                      </details>
+                      <details>
+                        <summary>Negative rules</summary>
+                        <pre className="json-block">{negativeRulesJson}</pre>
+                      </details>
+                      <details>
+                        <summary>Personalization</summary>
+                        <pre className="json-block">{personalizationJson}</pre>
+                      </details>
+                      <details>
+                        <summary>Prompt context</summary>
+                        <pre className="json-block">{promptContextJson}</pre>
                       </details>
                     </SectionCard>
                   );

@@ -352,6 +352,22 @@ export async function listWorkspaces(input?: { status?: WorkspaceStatus | string
   return await listWorkspacesForContext(context, input);
 }
 
+export async function getWorkspaceById(id: string) {
+  const context = await requireUser();
+  const { data, error } = await context.supabase
+    .from("workspaces")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", context.user.id)
+    .maybeSingle();
+
+  if (error) {
+    throwWorkspaceError(error);
+  }
+
+  return (data ?? null) as WorkspaceRecord | null;
+}
+
 export async function updateWorkspace(id: string, input: WorkspaceUpdateInput) {
   const context = await requireUser();
   const payload = buildWorkspaceUpdatePayload(input);

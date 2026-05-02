@@ -58,6 +58,8 @@ export async function savePromptPack(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
   const productId = readText(formData, "product_id");
+  const intakeSessionId = readNullableText(formData, "intake_session_id");
+  const affiliateProfileId = readNullableText(formData, "affiliate_profile_id");
   const sourceProductImageId = readNullableText(formData, "source_product_image_id");
   const promptCode = readText(formData, "prompt_code");
   const version = readVersion(formData, "version");
@@ -106,6 +108,8 @@ export async function savePromptPack(formData: FormData) {
 
     await createPromptPack({
       product_id: productId,
+      intake_session_id: intakeSessionId,
+      affiliate_profile_id: affiliateProfileId,
       source_product_image_id: sourceProductImageId,
       prompt_code: promptCode,
       version,
@@ -137,6 +141,8 @@ export async function savePromptPack(formData: FormData) {
 
   await updatePromptPack(id, {
     product_id: productId,
+    intake_session_id: intakeSessionId,
+    affiliate_profile_id: affiliateProfileId,
     source_product_image_id: sourceProductImageId,
     prompt_code: promptCode,
     version,

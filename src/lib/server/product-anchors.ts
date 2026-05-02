@@ -188,3 +188,18 @@ export async function listProductAnchors(input?: {
 
   return (data ?? []) as ProductAnchorRecord[];
 }
+
+export async function getLatestProductAnchor(input: {
+  productId: string;
+  workspaceId?: string | null;
+  intakeSessionId?: string | null;
+}) {
+  const anchors = await listProductAnchors({
+    productId: input.productId,
+    intakeSessionId: input.intakeSessionId ?? undefined,
+    workspaceId: input.workspaceId ?? undefined,
+    limit: 1,
+  });
+
+  return anchors[0] ?? null;
+}

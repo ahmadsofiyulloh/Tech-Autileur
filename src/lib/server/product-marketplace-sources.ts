@@ -193,3 +193,20 @@ export async function listProductMarketplaceSources(input?: {
 
   return (data ?? []) as MarketplaceSourceRecord[];
 }
+
+export async function getLatestMarketplaceSourceContext(input: {
+  productId: string;
+  workspaceId?: string | null;
+  limit?: number;
+}) {
+  const sources = await listProductMarketplaceSources({
+    productId: input.productId,
+    workspaceId: input.workspaceId ?? undefined,
+    limit: input.limit ?? 10,
+  });
+
+  return {
+    sources,
+    primarySource: sources[0] ?? null,
+  };
+}

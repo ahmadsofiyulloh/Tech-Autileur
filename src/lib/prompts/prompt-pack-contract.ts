@@ -1,4 +1,4 @@
-import { PROMPT_I2I_SLOT_KEYS, PROMPT_I2V_SLOT_KEYS } from "@/lib/prompts/validation";
+import { PROMPT_I2I_SLOT_KEYS, PROMPT_I2V_SLOT_KEYS, PROMPT_PACK_OUTPUT_KEYS } from "@/lib/prompts/validation";
 
 type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
@@ -31,11 +31,32 @@ type PromptPackSourceImageRecord = {
   drive_item: PromptPackSourceDriveItemRecord | null;
 };
 
+type PromptPackLockStateJson = {
+  locked: boolean;
+  notes: string;
+  drive_item_ref_id: string | null;
+};
+
 export type PromptPackGenerationOutput = {
+  product_analysis: JsonObject;
+  prompt_context: JsonObject;
+  i2i_prompts: Record<(typeof PROMPT_I2I_SLOT_KEYS)[number], JsonObject>;
+  i2v_prompts: Record<(typeof PROMPT_I2V_SLOT_KEYS)[number], JsonObject>;
+  caption_rules: string[];
+  hashtag_rules: string[];
+  negative_prompt_rules: string[];
+  consistency_rules: string[];
+  seed_character: PromptPackLockStateJson;
+  environment: PromptPackLockStateJson;
+};
+
+export type PromptPackStoragePayload = {
   product_analysis_json: JsonObject;
   i2i_prompts_json: Record<(typeof PROMPT_I2I_SLOT_KEYS)[number], JsonObject>;
   i2v_prompts_json: Record<(typeof PROMPT_I2V_SLOT_KEYS)[number], JsonObject>;
   consistency_rules_json: JsonObject;
+  negative_rules_json: JsonObject;
+  personalization_json: JsonObject;
 };
 
 type PromptPackAnalysisJson = {
@@ -71,19 +92,7 @@ type PromptPackI2vSlot = PromptPackPromptSlot & {
 };
 
 type PromptPackConsistencyRulesJson = {
-  mode: string;
-  prompt_code: string;
-  version: number;
-  product_name: string;
-  rules: string[];
-  notes?: string[];
-};
-
-export type PromptPackGenerationContract = {
-  product_analysis_json: PromptPackAnalysisJson;
-  i2i_prompts_json: Record<(typeof PROMPT_I2I_SLOT_KEYS)[number], PromptPackI2iSlot>;
-  i2v_prompts_json: Record<(typeof PROMPT_I2V_SLOT_KEYS)[number], PromptPackI2vSlot>;
-  consistency_rules_json: PromptPackConsistencyRulesJson;
+  consistency_rules: string[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -98,6 +107,14 @@ function requireRecord(value: unknown, label: string) {
   return value;
 }
 
+function requireExactKeys(value: Record<string, unknown>, expectedKeys: readonly string[], label: string) {
+  const keys = Object.keys(value);
+
+  if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => key in value)) {
+    throw new Error(`${label} must contain exactly these keys: ${expectedKeys.join(", ")}.`);
+  }
+}
+
 function requireString(value: unknown, label: string) {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${label} must be a non-empty string.`);
@@ -109,6 +126,14 @@ function requireString(value: unknown, label: string) {
 function requireNumber(value: unknown, label: string) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`${label} must be a number.`);
+  }
+
+  return value;
+}
+
+function requireBoolean(value: unknown, label: string) {
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean.`);
   }
 
   return value;
@@ -157,38 +182,42 @@ function requireMaybeSourceImage(value: unknown, label: string) {
 }
 
 function requirePromptAnalysisJson(value: unknown) {
-  const record = requireRecord(value, "product_analysis_json");
-  const product = requireRecord(record.product, "product_analysis_json.product");
-  const coverage = requireRecord(record.coverage, "product_analysis_json.coverage");
-  const visionAnalysis = requireRecord(record.vision_analysis, "product_analysis_json.vision_analysis");
+  const record = requireRecord(value, "product_analysis");
+  const product = requireRecord(record.product, "product_analysis.product");
+  const coverage = requireRecord(record.coverage, "product_analysis.coverage");
+  const visionAnalysis = requireRecord(record.vision_analysis, "product_analysis.vision_analysis");
 
   return {
-    mode: requireString(record.mode, "product_analysis_json.mode"),
-    prompt_code: requireString(record.prompt_code, "product_analysis_json.prompt_code"),
-    version: requireNumber(record.version, "product_analysis_json.version"),
+    mode: requireString(record.mode, "product_analysis.mode"),
+    prompt_code: requireString(record.prompt_code, "product_analysis.prompt_code"),
+    version: requireNumber(record.version, "product_analysis.version"),
     product: {
-      id: requireString(product.id, "product_analysis_json.product.id"),
-      product_code: requireString(product.product_code, "product_analysis_json.product.product_code"),
-      product_name: requireString(product.product_name, "product_analysis_json.product.product_name"),
+      id: requireString(product.id, "product_analysis.product.id"),
+      product_code: requireString(product.product_code, "product_analysis.product.product_code"),
+      product_name: requireString(product.product_name, "product_analysis.product.product_name"),
       niche: typeof product.niche === "string" ? product.niche.trim() : null,
       marketplace: typeof product.marketplace === "string" ? product.marketplace.trim() : null,
       marketplace_product_link:
         typeof product.marketplace_product_link === "string" ? product.marketplace_product_link.trim() : null,
-      status: requireString(product.status, "product_analysis_json.product.status"),
+      status: requireString(product.status, "product_analysis.product.status"),
     },
-    source_image: requireMaybeSourceImage(record.source_image, "product_analysis_json.source_image"),
+    source_image: requireMaybeSourceImage(record.source_image, "product_analysis.source_image"),
     coverage: {
-      vision_analysis: requireNumber(coverage.vision_analysis, "product_analysis_json.coverage.vision_analysis"),
-      i2i_prompts: requireNumber(coverage.i2i_prompts, "product_analysis_json.coverage.i2i_prompts"),
-      i2v_prompts: requireNumber(coverage.i2v_prompts, "product_analysis_json.coverage.i2v_prompts"),
+      vision_analysis: requireNumber(coverage.vision_analysis, "product_analysis.coverage.vision_analysis"),
+      i2i_prompts: requireNumber(coverage.i2i_prompts, "product_analysis.coverage.i2i_prompts"),
+      i2v_prompts: requireNumber(coverage.i2v_prompts, "product_analysis.coverage.i2v_prompts"),
     },
     vision_analysis: {
-      summary: requireString(visionAnalysis.summary, "product_analysis_json.vision_analysis.summary"),
-      hero_direction: requireString(visionAnalysis.hero_direction, "product_analysis_json.vision_analysis.hero_direction"),
-      scene_constraints: requireStringArray(visionAnalysis.scene_constraints, "product_analysis_json.vision_analysis.scene_constraints"),
-      risks: requireStringArray(visionAnalysis.risks, "product_analysis_json.vision_analysis.risks"),
+      summary: requireString(visionAnalysis.summary, "product_analysis.vision_analysis.summary"),
+      hero_direction: requireString(visionAnalysis.hero_direction, "product_analysis.vision_analysis.hero_direction"),
+      scene_constraints: requireStringArray(visionAnalysis.scene_constraints, "product_analysis.vision_analysis.scene_constraints"),
+      risks: requireStringArray(visionAnalysis.risks, "product_analysis.vision_analysis.risks"),
     },
   } as PromptPackAnalysisJson;
+}
+
+function requirePromptContextJson(value: unknown) {
+  return requireRecord(value, "prompt_context") as JsonObject;
 }
 
 function requirePromptSlotJson(
@@ -213,8 +242,14 @@ function requirePromptSlotJson(
   } as PromptPackI2iSlot | PromptPackI2vSlot;
 }
 
-function requirePromptSlotMap(value: unknown, label: string, slotKeys: readonly string[], extraField: "composition" | "motion_notes") {
+function requirePromptSlotMap(
+  value: unknown,
+  label: string,
+  slotKeys: readonly string[],
+  extraField: "composition" | "motion_notes",
+) {
   const record = requireRecord(value, label);
+  requireExactKeys(record, slotKeys, label);
   const result = {} as Record<string, JsonObject>;
 
   for (const slotKey of slotKeys) {
@@ -225,19 +260,30 @@ function requirePromptSlotMap(value: unknown, label: string, slotKeys: readonly 
   return result;
 }
 
-function requireConsistencyRulesJson(value: unknown) {
-  const record = requireRecord(value, "consistency_rules_json");
+function requireLockStateJson(value: unknown, label: string) {
+  const record = requireRecord(value, label);
+  requireExactKeys(record, ["locked", "notes", "drive_item_ref_id"], label);
 
   return {
-    mode: requireString(record.mode, "consistency_rules_json.mode"),
-    prompt_code: requireString(record.prompt_code, "consistency_rules_json.prompt_code"),
-    version: requireNumber(record.version, "consistency_rules_json.version"),
-    product_name: requireString(record.product_name, "consistency_rules_json.product_name"),
-    rules: requireStringArray(record.rules, "consistency_rules_json.rules"),
-    ...(record.notes !== undefined
-      ? { notes: requireStringArray(record.notes, "consistency_rules_json.notes") }
-      : {}),
+    locked: requireBoolean(record.locked, `${label}.locked`),
+    notes: requireString(record.notes, `${label}.notes`),
+    drive_item_ref_id:
+      record.drive_item_ref_id === null
+        ? null
+        : requireString(record.drive_item_ref_id, `${label}.drive_item_ref_id`),
+  } as PromptPackLockStateJson;
+}
+
+function requireConsistencyRulesJson(value: unknown) {
+  const record = requireRecord(value, "consistency_rules");
+
+  return {
+    consistency_rules: requireStringArray(record.consistency_rules, "consistency_rules.consistency_rules"),
   } as PromptPackConsistencyRulesJson;
+}
+
+function requirePromptRulesArray(value: unknown, label: string) {
+  return requireStringArray(value, label);
 }
 
 function extractJsonText(rawText: string) {
@@ -290,25 +336,43 @@ function recoverJsonText(rawText: string) {
   throw new Error("Gemini output did not contain valid JSON.");
 }
 
-export function parsePromptPackGenerationOutput(rawText: string): PromptPackGenerationContract {
+export function parsePromptPackGenerationOutput(rawText: string): PromptPackGenerationOutput {
   const jsonText = recoverJsonText(rawText);
   const parsed: unknown = JSON.parse(jsonText);
   const record = requireRecord(parsed, "Gemini output");
+  requireExactKeys(record, PROMPT_PACK_OUTPUT_KEYS, "Gemini output");
 
   return {
-    product_analysis_json: requirePromptAnalysisJson(record.product_analysis_json),
-    i2i_prompts_json: requirePromptSlotMap(
-      record.i2i_prompts_json,
-      "i2i_prompts_json",
-      PROMPT_I2I_SLOT_KEYS,
-      "composition",
-    ) as PromptPackGenerationContract["i2i_prompts_json"],
-    i2v_prompts_json: requirePromptSlotMap(
-      record.i2v_prompts_json,
-      "i2v_prompts_json",
-      PROMPT_I2V_SLOT_KEYS,
-      "motion_notes",
-    ) as PromptPackGenerationContract["i2v_prompts_json"],
-    consistency_rules_json: requireConsistencyRulesJson(record.consistency_rules_json),
+    product_analysis: requirePromptAnalysisJson(record.product_analysis),
+    prompt_context: requirePromptContextJson(record.prompt_context),
+    i2i_prompts: requirePromptSlotMap(record.i2i_prompts, "i2i_prompts", PROMPT_I2I_SLOT_KEYS, "composition") as PromptPackGenerationOutput["i2i_prompts"],
+    i2v_prompts: requirePromptSlotMap(record.i2v_prompts, "i2v_prompts", PROMPT_I2V_SLOT_KEYS, "motion_notes") as PromptPackGenerationOutput["i2v_prompts"],
+    caption_rules: requirePromptRulesArray(record.caption_rules, "caption_rules"),
+    hashtag_rules: requirePromptRulesArray(record.hashtag_rules, "hashtag_rules"),
+    negative_prompt_rules: requirePromptRulesArray(record.negative_prompt_rules, "negative_prompt_rules"),
+    consistency_rules: requirePromptRulesArray(record.consistency_rules, "consistency_rules"),
+    seed_character: requireLockStateJson(record.seed_character, "seed_character"),
+    environment: requireLockStateJson(record.environment, "environment"),
+  };
+}
+
+export function buildPromptPackStoragePayload(output: PromptPackGenerationOutput): PromptPackStoragePayload {
+  return {
+    product_analysis_json: output.product_analysis,
+    i2i_prompts_json: output.i2i_prompts,
+    i2v_prompts_json: output.i2v_prompts,
+    consistency_rules_json: {
+      consistency_rules: output.consistency_rules,
+    },
+    negative_rules_json: {
+      negative_prompt_rules: output.negative_prompt_rules,
+    },
+    personalization_json: {
+      prompt_context: output.prompt_context,
+      caption_rules: output.caption_rules,
+      hashtag_rules: output.hashtag_rules,
+      seed_character: output.seed_character,
+      environment: output.environment,
+    },
   };
 }
