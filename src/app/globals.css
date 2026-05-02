@@ -345,6 +345,74 @@ button:focus-visible {
   flex-wrap: wrap;
 }
 
+details {
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.56);
+  padding: 14px 16px;
+}
+
+details + details {
+  margin-top: 12px;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+}
+
+summary::marker {
+  color: var(--accent);
+}
+
+.json-block {
+  margin: 12px 0 0;
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(2, 6, 23, 0.62);
+  padding: 14px;
+  color: #dbeafe;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.data-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.data-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+
 .empty-state {
   margin: 0;
 }

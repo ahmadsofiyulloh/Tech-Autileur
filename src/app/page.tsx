@@ -15,6 +15,10 @@ const foundationItems = [
     title: "Profile bootstrap",
     body: "New auth users automatically receive a matching public.profiles row with Asia/Jakarta timezone.",
   },
+  {
+    title: "Prompt pack foundation",
+    body: "Versioned prompt packs are now stored in Supabase with mock/manual outputs and product-linked source images.",
+  },
 ];
 
 export default function HomePage() {

@@ -32,6 +32,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/gemini") ||
     pathname.startsWith("/drive") ||
     pathname.startsWith("/products") ||
+    pathname.startsWith("/prompts") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth");
 
@@ -45,7 +46,8 @@ export async function updateSession(request: NextRequest) {
       (pathname.startsWith("/dashboard") ||
         pathname.startsWith("/gemini") ||
         pathname.startsWith("/drive") ||
-        pathname.startsWith("/products"))
+        pathname.startsWith("/products") ||
+        pathname.startsWith("/prompts"))
     ) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/login";
