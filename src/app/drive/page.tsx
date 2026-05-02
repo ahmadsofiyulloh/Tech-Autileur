@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
 import { saveDriveItem } from "./actions";
+import { EmptyState } from "@/components/operator/empty-state";
+import { FormActions } from "@/components/operator/form-actions";
+import { PageHeader } from "@/components/operator/page-header";
+import { SectionCard } from "@/components/operator/section-card";
+import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   DRIVE_ITEM_PURPOSES,
@@ -54,13 +59,12 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load Drive metadata.";
     return (
-      <section className="error-box stack" role="alert">
-        <div className="stack">
-          <p className="eyebrow">Drive manager error</p>
-          <h2>Unable to load Drive metadata.</h2>
-          <p>{message}</p>
-        </div>
-      </section>
+      <SectionCard badge="Drive manager error" title="Unable to load Drive metadata." description={message}>
+        <EmptyState
+          title="Drive items are unavailable."
+          description="The owner-scoped metadata query failed before the page could render."
+        />
+      </SectionCard>
     );
   }
 
@@ -69,49 +73,27 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
 
   return (
     <div className="stack">
-      <section className="hero">
-        <div className="chip">Sprint 4 Drive manager</div>
-        <div className="stack">
-          <p className="eyebrow">Affiliate AI Content OS</p>
-          <h2>Google Drive metadata stays in Supabase.</h2>
-          <p>
-            Drive files and folders are registered here as metadata only. Large assets stay in Google Drive and are
-            never uploaded to Supabase Storage.
-          </p>
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span>Source</span>
-            <strong>Google Drive</strong>
-          </div>
-          <div className="metric">
-            <span>Storage</span>
-            <strong>Metadata only</strong>
-          </div>
-          <div className="metric">
-            <span>Scope</span>
-            <strong>Sprint 4</strong>
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        badge="Sprint 4 Drive manager"
+        eyebrow="Affiliate AI Content OS"
+        title="Google Drive metadata stays in Supabase."
+        description="Drive files and folders are registered here as metadata only. Large assets stay in Google Drive and are never uploaded to Supabase Storage."
+        stats={[
+          { label: "Items", value: driveItems.length },
+          { label: "Source", value: "Google Drive" },
+          { label: "Storage", value: <StatusBadge status="Metadata only" tone="success" /> },
+        ]}
+      />
 
-      {message ? (
-        <section className="muted-box" role="status">
-          {message}
-        </section>
-      ) : null}
+      {message ? <section className="muted-box" role="status">{message}</section> : null}
 
-      {pageError ? (
-        <section className="error-box" role="alert">
-          {pageError}
-        </section>
-      ) : null}
+      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
 
-      <section className="panel stack">
-        <div className="stack">
-          <p className="eyebrow">Manual registration</p>
-          <h3>Add a Drive file or folder metadata record.</h3>
-        </div>
+      <SectionCard
+        badge="Manual registration"
+        title="Add a Drive file or folder metadata record."
+        description="Drive paths are metadata only. Use the locked folder structure, but do not expect this page to create real folders or upload files."
+      >
         <form className="stack" action={saveDriveItem}>
           <input type="hidden" name="intent" value="create" />
           <div className="grid two-up">
@@ -184,38 +166,40 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
             <textarea id="create-notes" name="notes" rows={3} placeholder="Optional operational notes" />
           </label>
           <p className="subtle">
-            Drive paths are metadata only. Use the locked folder structure, but do not expect this page to create real
-            folders or upload files.
+            Drive paths are metadata only. Use the locked folder structure, but do not expect this page to create real folders or upload files.
           </p>
-          <div className="auth-actions">
+          <FormActions>
             <button className="button primary" type="submit">
               Save Drive metadata
             </button>
-          </div>
+          </FormActions>
         </form>
-      </section>
+      </SectionCard>
 
       {driveItems.length ? (
         <section className="stack">
           {driveItems.map((item) => (
-            <article className="panel stack" key={item.id}>
-              <div className="stack">
-                <p className="eyebrow">{item.name}</p>
-                <h3>{item.item_type}</h3>
-              </div>
-
+            <SectionCard
+              badge={item.name}
+              title={item.item_type}
+              description={item.drive_path}
+              key={item.id}
+              actions={<StatusBadge status={item.status} />}
+            >
               <div className="metric-grid">
                 <div className="metric">
                   <span>Purpose</span>
-                  <strong>{item.purpose}</strong>
-                </div>
-                <div className="metric">
-                  <span>Status</span>
-                  <strong>{item.status}</strong>
+                  <strong>
+                    <StatusBadge status={item.purpose} tone="info" />
+                  </strong>
                 </div>
                 <div className="metric">
                   <span>Drive ID</span>
                   <strong>{item.drive_item_id ?? "Manual only"}</strong>
+                </div>
+                <div className="metric">
+                  <span>Source</span>
+                  <strong>Metadata only</strong>
                 </div>
               </div>
 
@@ -308,36 +292,30 @@ export default async function DrivePage({ searchParams }: DrivePageProps) {
                   <span>Notes</span>
                   <textarea id={`notes-${item.id}`} name="notes" rows={3} defaultValue={fieldValue(item.notes)} />
                 </label>
-                <div className="auth-actions">
+                <FormActions>
                   <button className="button primary" type="submit">
                     Save changes
                   </button>
-                </div>
+                </FormActions>
               </form>
 
-              <form action={saveDriveItem}>
-                <input type="hidden" name="intent" value="archive" />
-                <input type="hidden" name="id" value={item.id} />
-                <button className="button" type="submit">
-                  Archive item
-                </button>
-              </form>
-            </article>
+              <FormActions>
+                <form action={saveDriveItem}>
+                  <input type="hidden" name="intent" value="archive" />
+                  <input type="hidden" name="id" value={item.id} />
+                  <button className="button" type="submit">
+                    Archive item
+                  </button>
+                </form>
+              </FormActions>
+            </SectionCard>
           ))}
         </section>
       ) : (
-        <section className="panel stack">
-          <div>
-            <p className="eyebrow">Empty state</p>
-            <h3>No Drive items yet.</h3>
-          </div>
-          <div className="muted-box">
-            <p>
-              Register the standard Drive folders and files as metadata first. Real Drive creation, OAuth, and file
-              upload are intentionally out of scope for Sprint 4.
-            </p>
-          </div>
-        </section>
+        <EmptyState
+          title="No Drive items yet."
+          description="Register the standard Drive folders and files as metadata first. Real Drive creation, OAuth, and file upload are intentionally out of scope for Sprint 4."
+        />
       )}
     </div>
   );

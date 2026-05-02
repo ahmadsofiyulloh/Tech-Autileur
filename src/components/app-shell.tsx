@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const navItems = [
@@ -11,19 +14,35 @@ const navItems = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  function isActive(href: string) {
+    if (href === "/") {
+      return pathname === "/";
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
   return (
     <div className="app-shell">
       <header className="shell-header">
         <div className="brand-block">
           <div>
             <p className="eyebrow">Affiliate AI Content OS</p>
-            <h1 className="brand-title">Metadata foundation</h1>
+            <h1 className="brand-title">Operator dashboard</h1>
           </div>
-          <span className="status-pill">Supabase-backed control plane</span>
+          <span className="status-pill">Single-owner control plane</span>
         </div>
         <nav aria-label="Primary" className="nav-row">
           {navItems.map((item) => (
-            <Link className="nav-link" href={item.href} key={item.href}>
+            <Link
+              aria-current={isActive(item.href) ? "page" : undefined}
+              className="nav-link"
+              data-active={isActive(item.href) ? "true" : undefined}
+              href={item.href}
+              key={item.href}
+            >
               {item.label}
             </Link>
           ))}

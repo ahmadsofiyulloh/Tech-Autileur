@@ -1,4 +1,8 @@
 import { redirect } from "next/navigation";
+import { EmptyState } from "@/components/operator/empty-state";
+import { PageHeader } from "@/components/operator/page-header";
+import { SectionCard } from "@/components/operator/section-card";
+import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -21,48 +25,37 @@ export default async function DashboardPage() {
 
   if (profileError) {
     return (
-      <section className="error-box stack" role="alert">
-        <div className="stack">
-          <p className="eyebrow">Dashboard error</p>
-          <h2>Unable to load the protected profile.</h2>
-          <p>{profileError.message}</p>
-        </div>
-      </section>
+      <SectionCard badge="Dashboard error" title="Unable to load the protected profile." description={profileError.message}>
+        <EmptyState
+          title="Profile data is unavailable."
+          description="The bootstrap record should exist for the signed-in owner. Reload after confirming the account if the row is still warming up."
+        />
+      </SectionCard>
     );
   }
 
   return (
     <div className="stack">
-      <section className="hero">
-        <div className="chip">Protected route</div>
-        <div className="stack">
-          <p className="eyebrow">Dashboard placeholder</p>
-          <h2>Signed-in control surface is scaffolded.</h2>
-          <p>
-            This page is intentionally minimal. Sprint 1 now authenticates the owner and bootstraps the profile row.
-          </p>
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span>User</span>
-            <strong>{profile?.email ?? user.email ?? "Signed in"}</strong>
-          </div>
-          <div className="metric">
-            <span>Timezone</span>
-            <strong>{profile?.timezone ?? "Asia/Jakarta"}</strong>
-          </div>
-          <div className="metric">
-            <span>Scope</span>
-            <strong>Sprint 1</strong>
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        badge="Protected route"
+        eyebrow="Affiliate AI Content OS"
+        title="Signed-in control surface is scaffolded."
+        description="This page stays intentionally small. Sprint 1 authenticates the owner and bootstraps the profile row."
+        actions={
+          <form action="/auth/signout" method="post">
+            <button className="button primary" type="submit">
+              Sign out
+            </button>
+          </form>
+        }
+        stats={[
+          { label: "User", value: profile?.email ?? user.email ?? "Signed in" },
+          { label: "Timezone", value: profile?.timezone ?? "Asia/Jakarta" },
+          { label: "Access", value: <StatusBadge status="Owner only" tone="success" /> },
+        ]}
+      />
 
-      <section className="panel stack">
-        <div>
-          <p className="eyebrow">Profile bootstrap</p>
-          <h3>No operational data exists yet.</h3>
-        </div>
+      <SectionCard badge="Profile bootstrap" title="No operational data exists yet.">
         {profile ? (
           <ul className="list" aria-label="Protected profile details">
             <li>
@@ -79,19 +72,12 @@ export default async function DashboardPage() {
             </li>
           </ul>
         ) : (
-          <div className="muted-box">
-            <p>
-              The auth bootstrap trigger should create this row automatically for the signed-in owner. Refresh after
-              confirming the account if the row is still warming up.
-            </p>
-          </div>
+          <EmptyState
+            title="Profile row not visible yet."
+            description="The auth bootstrap trigger should create this row automatically for the signed-in owner."
+          />
         )}
-        <form action="/auth/signout" method="post">
-          <button className="button primary" type="submit">
-            Sign out
-          </button>
-        </form>
-      </section>
+      </SectionCard>
     </div>
   );
 }

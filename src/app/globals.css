@@ -163,6 +163,12 @@ button:focus-visible {
   background: rgba(30, 41, 59, 0.96);
 }
 
+.nav-link[data-active="true"] {
+  border-color: rgba(103, 232, 249, 0.6);
+  background: rgba(103, 232, 249, 0.12);
+  color: #f8fafc;
+}
+
 .shell-main {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
@@ -279,6 +285,68 @@ button:focus-visible {
 .metric strong {
   display: block;
   font-size: 1.2rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.42rem 0.76rem;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge--success {
+  color: #bbf7d0;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.status-badge--info {
+  color: #c4b5fd;
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.status-badge--warning {
+  color: #fde68a;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.status-badge--danger {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.status-badge--neutral {
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.section-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.section-card__actions,
+.empty-state__action,
+.form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.empty-state {
+  margin: 0;
 }
 
 .list {
@@ -414,6 +482,23 @@ button:focus-visible {
 }
 
 @media (max-width: 860px) {
+  .shell-header {
+    align-items: stretch;
+  }
+
+  .nav-row {
+    width: 100%;
+  }
+
+  .nav-link {
+    flex: 1 1 140px;
+    text-align: center;
+  }
+
+  .shell-footer {
+    flex-direction: column;
+  }
+
   .grid.two-up,
   .metric-grid {
     grid-template-columns: 1fr;
@@ -421,5 +506,14 @@ button:focus-visible {
 
   .auth-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hero,
+  .panel,
+  .shell-header,
+  .shell-footer {
+    width: min(1120px, calc(100% - 20px));
+    padding-left: 18px;
+    padding-right: 18px;
   }
 }

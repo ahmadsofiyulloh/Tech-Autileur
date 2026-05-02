@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
 import { saveGeminiKey } from "./actions";
+import { EmptyState } from "@/components/operator/empty-state";
+import { FormActions } from "@/components/operator/form-actions";
+import { PageHeader } from "@/components/operator/page-header";
+import { SectionCard } from "@/components/operator/section-card";
+import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ACCOUNT_STATUSES, GEMINI_KEY_ROLES, GEMINI_MODELS } from "@/lib/gemini/validation";
 
@@ -52,13 +57,12 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
 
   if (error) {
     return (
-      <section className="error-box stack" role="alert">
-        <div className="stack">
-          <p className="eyebrow">Gemini manager error</p>
-          <h2>Unable to load Gemini metadata.</h2>
-          <p>{error.message}</p>
-        </div>
-      </section>
+      <SectionCard badge="Gemini manager error" title="Unable to load Gemini metadata." description={error.message}>
+        <EmptyState
+          title="Gemini records are unavailable."
+          description="The database query for owner-scoped Gemini metadata failed before the page could render."
+        />
+      </SectionCard>
     );
   }
 
@@ -67,49 +71,27 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
 
   return (
     <div className="stack">
-      <section className="hero">
-        <div className="chip">Sprint 2 Gemini manager</div>
-        <div className="stack">
-          <p className="eyebrow">Affiliate AI Content OS</p>
-          <h2>Gemini projects and keys are now owner-scoped.</h2>
-          <p>
-            Metadata stays in Supabase. Raw keys are written once, encrypted on the server, and kept out of client
-            reads.
-          </p>
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span>Recommended 1</span>
-            <strong>Gemini 2.5 Pro</strong>
-          </div>
-          <div className="metric">
-            <span>Recommended 2</span>
-            <strong>Gemini 2.5 Flash-Lite</strong>
-          </div>
-          <div className="metric">
-            <span>Recommended 3</span>
-            <strong>Gemini 2.5 Flash</strong>
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        badge="Sprint 2 Gemini manager"
+        eyebrow="Affiliate AI Content OS"
+        title="Gemini projects and keys are owner-scoped."
+        description="Metadata stays in Supabase. Raw keys are written once, encrypted on the server, and kept out of client reads."
+        stats={[
+          { label: "Keys", value: geminiKeys?.length ?? 0 },
+          { label: "Recommended", value: "3-project setup" },
+          { label: "Storage", value: <StatusBadge status="Server-side only" tone="success" /> },
+        ]}
+      />
 
-      {message ? (
-        <section className="muted-box" role="status">
-          {message}
-        </section>
-      ) : null}
+      {message ? <section className="muted-box" role="status">{message}</section> : null}
 
-      {pageError ? (
-        <section className="error-box" role="alert">
-          {pageError}
-        </section>
-      ) : null}
+      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
 
-      <section className="panel stack">
-        <div className="stack">
-          <p className="eyebrow">Create key</p>
-          <h3>Add a Gemini project/key record.</h3>
-        </div>
+      <SectionCard
+        badge="Create key"
+        title="Add a Gemini project/key record."
+        description="Use the locked roles and model names. The raw API key is encrypted server-side and never rendered back."
+      >
         <form className="stack" action={saveGeminiKey}>
           <input type="hidden" name="intent" value="create" />
           <div className="grid two-up">
@@ -177,26 +159,26 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
             <input id="create-raw-api-key" name="raw_api_key" type="password" autoComplete="off" required />
           </label>
           <p className="subtle">
-            The API key is encrypted server-side with <code>APP_ENCRYPTION_KEY</code> and never rendered back to the
-            browser.
+            The API key is encrypted server-side with <code>APP_ENCRYPTION_KEY</code> and never rendered back to the browser.
           </p>
-          <div className="auth-actions">
+          <FormActions>
             <button className="button primary" type="submit">
               Save Gemini key
             </button>
-          </div>
+          </FormActions>
         </form>
-      </section>
+      </SectionCard>
 
       {geminiKeys?.length ? (
         <section className="stack">
           {geminiKeys.map((key) => (
-            <article className="panel stack" key={key.id}>
-              <div className="stack">
-                <p className="eyebrow">{key.label}</p>
-                <h3>{key.key_code}</h3>
-              </div>
-
+            <SectionCard
+              badge={key.key_code}
+              title={key.label}
+              description={key.project_label ?? key.google_account_label ?? "No project metadata yet."}
+              key={key.id}
+              actions={<StatusBadge status={key.status} />}
+            >
               <div className="metric-grid">
                 <div className="metric">
                   <span>Model</span>
@@ -204,11 +186,13 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
                 </div>
                 <div className="metric">
                   <span>Role</span>
-                  <strong>{key.role}</strong>
+                  <strong>
+                    <StatusBadge status={key.role} tone="info" />
+                  </strong>
                 </div>
                 <div className="metric">
-                  <span>Status</span>
-                  <strong>{key.status}</strong>
+                  <span>Requests Today</span>
+                  <strong>{key.requests_today}</strong>
                 </div>
               </div>
 
@@ -317,39 +301,32 @@ export default async function GeminiPage({ searchParams }: GeminiPageProps) {
                   />
                 </label>
                 <p className="subtle">
-                  Leave the key blank to preserve the encrypted secret. Do not paste the same value into the page
-                  unless you intend to rotate it.
+                  Leave the key blank to preserve the encrypted secret. Do not paste the same value into the page unless you intend to rotate it.
                 </p>
-                <div className="auth-actions">
+                <FormActions>
                   <button className="button primary" type="submit">
                     Save changes
                   </button>
-                </div>
+                </FormActions>
               </form>
 
-              <form action={saveGeminiKey}>
-                <input type="hidden" name="intent" value="disable" />
-                <input type="hidden" name="id" value={key.id} />
-                <button className="button" type="submit">
-                  Disable key
-                </button>
-              </form>
-            </article>
+              <FormActions>
+                <form action={saveGeminiKey}>
+                  <input type="hidden" name="intent" value="disable" />
+                  <input type="hidden" name="id" value={key.id} />
+                  <button className="button" type="submit">
+                    Disable key
+                  </button>
+                </form>
+              </FormActions>
+            </SectionCard>
           ))}
         </section>
       ) : (
-        <section className="panel stack">
-          <div>
-            <p className="eyebrow">Empty state</p>
-            <h3>No Gemini keys yet.</h3>
-          </div>
-          <div className="muted-box">
-            <p>
-              Add the three recommended keys first if you want to follow the locked routing setup: Pro for vision,
-              Flash-Lite for i2i, and Flash for i2v plus consistency/repair.
-            </p>
-          </div>
-        </section>
+        <EmptyState
+          title="No Gemini keys yet."
+          description="Add the three recommended keys first if you want to follow the locked routing setup: Pro for vision, Flash-Lite for i2i, and Flash for i2v plus consistency/repair."
+        />
       )}
     </div>
   );

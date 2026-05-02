@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
 import { saveProduct, saveProductImage } from "./actions";
+import { EmptyState } from "@/components/operator/empty-state";
+import { FormActions } from "@/components/operator/form-actions";
+import { PageHeader } from "@/components/operator/page-header";
+import { SectionCard } from "@/components/operator/section-card";
+import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listProducts } from "@/lib/server/products";
@@ -52,13 +57,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load product metadata.";
     return (
-      <section className="error-box stack" role="alert">
-        <div className="stack">
-          <p className="eyebrow">Products error</p>
-          <h2>Unable to load product metadata.</h2>
-          <p>{message}</p>
-        </div>
-      </section>
+      <SectionCard badge="Products error" title="Unable to load product metadata." description={message}>
+        <EmptyState
+          title="Product records are unavailable."
+          description="The metadata queries for products or Drive references failed before the page could render."
+        />
+      </SectionCard>
     );
   }
 
@@ -67,49 +71,27 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <div className="stack">
-      <section className="hero">
-        <div className="chip">Sprint 5 products</div>
-        <div className="stack">
-          <p className="eyebrow">Affiliate AI Content OS</p>
-          <h2>Product metadata and source images are owner-scoped.</h2>
-          <p>
-            Products stay in Supabase. Source images link back to Drive metadata, not Supabase Storage or direct file
-            uploads.
-          </p>
-        </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span>Product scope</span>
-            <strong>Metadata only</strong>
-          </div>
-          <div className="metric">
-            <span>Source images</span>
-            <strong>Drive-backed</strong>
-          </div>
-          <div className="metric">
-            <span>Pipeline</span>
-            <strong>Deferred</strong>
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        badge="Sprint 5 products"
+        eyebrow="Affiliate AI Content OS"
+        title="Product metadata and source images are owner-scoped."
+        description="Products stay in Supabase. Source images link back to Drive metadata, not Supabase Storage or direct file uploads."
+        stats={[
+          { label: "Products", value: products.length },
+          { label: "Drive refs", value: driveItems.length },
+          { label: "Pipeline", value: <StatusBadge status="Deferred" tone="neutral" /> },
+        ]}
+      />
 
-      {message ? (
-        <section className="muted-box" role="status">
-          {message}
-        </section>
-      ) : null}
+      {message ? <section className="muted-box" role="status">{message}</section> : null}
 
-      {pageError ? (
-        <section className="error-box" role="alert">
-          {pageError}
-        </section>
-      ) : null}
+      {pageError ? <section className="error-box" role="alert">{pageError}</section> : null}
 
-      <section className="panel stack">
-        <div className="stack">
-          <p className="eyebrow">Create product</p>
-          <h3>Add product metadata.</h3>
-        </div>
+      <SectionCard
+        badge="Create product"
+        title="Add product metadata."
+        description="Save the product record first, then attach source images from existing Drive metadata rows."
+      >
         <form className="stack" action={saveProduct}>
           <input type="hidden" name="intent" value="create" />
           <div className="grid two-up">
@@ -153,13 +135,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               <textarea id="create-notes" name="notes" rows={3} placeholder="Optional operational notes" />
             </label>
           </div>
-          <div className="auth-actions">
+          <FormActions>
             <button className="button primary" type="submit">
               Save product
             </button>
-          </div>
+          </FormActions>
         </form>
-      </section>
+      </SectionCard>
 
       {products.length ? (
         <section className="stack">
@@ -167,16 +149,19 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const driveItemListId = `drive-items-${product.id}`;
 
             return (
-              <article className="panel stack" key={product.id}>
-                <div className="stack">
-                  <p className="eyebrow">{product.product_name}</p>
-                  <h3>{product.product_code}</h3>
-                </div>
-
+              <SectionCard
+                badge={product.product_code}
+                title={product.product_name}
+                description={[product.marketplace, product.niche].filter(Boolean).join(" · ") || "No marketplace or niche set yet."}
+                key={product.id}
+                actions={<StatusBadge status={product.status} />}
+              >
                 <div className="metric-grid">
                   <div className="metric">
                     <span>Status</span>
-                    <strong>{product.status}</strong>
+                    <strong>
+                      <StatusBadge status={product.status} />
+                    </strong>
                   </div>
                   <div className="metric">
                     <span>Marketplace</span>
@@ -249,18 +234,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       <textarea id={`notes-${product.id}`} name="notes" rows={3} defaultValue={fieldValue(product.notes)} />
                     </label>
                   </div>
-                  <div className="auth-actions">
+                  <FormActions>
                     <button className="button primary" type="submit">
                       Save changes
                     </button>
-                  </div>
+                  </FormActions>
                 </form>
 
-                <section className="panel stack">
-                  <div className="stack">
-                    <p className="eyebrow">Attach source image</p>
-                    <h4>Link an existing Drive item metadata row.</h4>
-                  </div>
+                <SectionCard badge="Attach source image" title="Link an existing Drive item metadata row.">
                   <form className="stack" action={saveProductImage}>
                     <input type="hidden" name="product_id" value={product.id} />
                     <datalist id={driveItemListId}>
@@ -300,41 +281,34 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       </label>
                     </div>
                     <p className="subtle">
-                      Only existing Drive metadata rows can be attached. No upload, no Drive API call, and no Supabase
-                      Storage are used here.
+                      Only existing Drive metadata rows can be attached. No upload, no Drive API call, and no Supabase Storage are used here.
                     </p>
-                    <div className="auth-actions">
+                    <FormActions>
                       <button className="button" type="submit">
                         Attach source image
                       </button>
-                    </div>
+                    </FormActions>
                   </form>
-                </section>
+                </SectionCard>
 
-                <form action={saveProduct}>
-                  <input type="hidden" name="intent" value="archive" />
-                  <input type="hidden" name="id" value={product.id} />
-                  <button className="button" type="submit">
-                    Archive product
-                  </button>
-                </form>
-              </article>
+                <FormActions>
+                  <form action={saveProduct}>
+                    <input type="hidden" name="intent" value="archive" />
+                    <input type="hidden" name="id" value={product.id} />
+                    <button className="button" type="submit">
+                      Archive product
+                    </button>
+                  </form>
+                </FormActions>
+              </SectionCard>
             );
           })}
         </section>
       ) : (
-        <section className="panel stack">
-          <div>
-            <p className="eyebrow">Empty state</p>
-            <h3>No products yet.</h3>
-          </div>
-          <div className="muted-box">
-            <p>
-              Add product metadata first, then attach a source image from an existing Drive metadata row. Prompt
-              pipeline work remains deferred for later sprints.
-            </p>
-          </div>
-        </section>
+        <EmptyState
+          title="No products yet."
+          description="Add product metadata first, then attach a source image from an existing Drive metadata row. Prompt pipeline work remains deferred for later sprints."
+        />
       )}
     </div>
   );

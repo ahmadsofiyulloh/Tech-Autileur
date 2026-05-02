@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/operator/page-header";
+import { SectionCard } from "@/components/operator/section-card";
 
 const foundationItems = [
   {
@@ -18,35 +20,28 @@ const foundationItems = [
 export default function HomePage() {
   return (
     <div className="stack">
-      <section className="hero">
-        <div className="chip">Sprint 1 auth foundation</div>
-        <div className="stack">
-          <p className="eyebrow">Affiliate AI Content OS</p>
-          <h2>Foundation ready for the MVP control center.</h2>
-          <p>
-            The repo now has a normalized Next.js shell, strict TypeScript config, Supabase auth scaffolding, a
-            protected dashboard, and a bootstrap profile path. No production workflow logic is active yet.
-          </p>
-        </div>
-        <div className="hero-actions">
-          <Link className="button primary" href="/login">
-            Open login
-          </Link>
-          <Link className="button" href="/dashboard">
-            Protected dashboard
-          </Link>
-          <span className="button" aria-hidden="true">
-            No feature data yet
-          </span>
-        </div>
-      </section>
+      <PageHeader
+        badge="Sprint 5.5 UI foundation"
+        eyebrow="Affiliate AI Content OS"
+        title="Operator dashboard foundation is in place."
+        description="The repo now has a normalized Next.js shell, Supabase auth scaffolding, and the first metadata operator surfaces. No production workflow logic is active yet."
+        actions={
+          <>
+            <Link className="button primary" href="/login">
+              Open login
+            </Link>
+            <Link className="button" href="/dashboard">
+              Protected dashboard
+            </Link>
+          </>
+        }
+      />
 
       <section className="grid two-up">
         {foundationItems.map((item) => (
-          <article className="panel" key={item.title}>
-            <p className="eyebrow">{item.title}</p>
+          <SectionCard key={item.title} title={item.title}>
             <p>{item.body}</p>
-          </article>
+          </SectionCard>
         ))}
       </section>
     </div>

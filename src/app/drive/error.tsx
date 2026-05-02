@@ -1,5 +1,8 @@
 "use client";
 
+import { FormActions } from "@/components/operator/form-actions";
+import { SectionCard } from "@/components/operator/section-card";
+
 export default function DriveError({
   error,
   reset,
@@ -8,15 +11,12 @@ export default function DriveError({
   reset: () => void;
 }) {
   return (
-    <section className="error-box stack" role="alert">
-      <div className="stack">
-        <p className="eyebrow">Drive manager error</p>
-        <h2>Unable to load Drive metadata.</h2>
-        <p>{error.message}</p>
-      </div>
-      <button className="button primary" type="button" onClick={reset}>
-        Retry
-      </button>
-    </section>
+    <SectionCard badge="Drive manager error" title="Unable to load Drive metadata." description={error.message}>
+      <FormActions>
+        <button className="button primary" type="button" onClick={reset}>
+          Retry
+        </button>
+      </FormActions>
+    </SectionCard>
   );
 }
