@@ -56,7 +56,8 @@ export default async function SettingsPage() {
   let workspaceState: WorkspaceSelectionState | null = null;
   let workspaceError: string | null = null;
   let affiliateProfiles: AffiliateProfileRecord[] = [];
-  let affiliateProfileError: string | null = null;
+  let affiliateProfileSchemaMissing = false;
+  let affiliateProfileLoadError: string | null = null;
   let driveItems: DriveItemRecord[] = [];
   let driveItemsError: string | null = null;
 
@@ -72,9 +73,9 @@ export default async function SettingsPage() {
   try {
     affiliateProfiles = await listAffiliateProfiles({ limit: 200 });
   } catch (error) {
-    affiliateProfileError =
-      isAffiliateProfileSchemaMissingError(error) ?
-        "Apply the local Sprint 13 migration before using affiliate profiles."
+    affiliateProfileSchemaMissing = isAffiliateProfileSchemaMissingError(error);
+    affiliateProfileLoadError = affiliateProfileSchemaMissing
+      ? "Apply the local Sprint 13 migration before using affiliate profiles."
       : errorMessage(error);
   }
 
@@ -110,7 +111,13 @@ export default async function SettingsPage() {
         description="Configuration hub for workspace placeholders, services, tools, profiles, and account."
         stats={[
           { label: "Workspaces", value: workspaceError ? <StatusBadge status="Pending" tone="warning" /> : workspaces.length },
-          { label: "Affiliate profiles", value: affiliateProfileError ? <StatusBadge status="Pending" tone="warning" /> : affiliateProfiles.length },
+          {
+            label: "Affiliate profiles",
+            value:
+              affiliateProfileSchemaMissing ? <StatusBadge status="Pending" tone="warning" />
+              : affiliateProfileLoadError ? <StatusBadge status="Error" tone="danger" />
+              : affiliateProfiles.length,
+          },
           { label: "Gemini", value: <StatusBadge status="Active" tone="success" /> },
           { label: "Drive", value: <StatusBadge status="Ready" tone="success" /> },
           { label: "Owner", value: user.email ?? "Signed in" },
@@ -292,10 +299,16 @@ export default async function SettingsPage() {
           icon={Users}
           title="Affiliate Profiles"
           description="Unlimited workspace-scoped affiliate context."
-          actions={affiliateProfileError ? <StatusBadge status="Schema pending" tone="warning" /> : <StatusBadge status={`${activeAffiliateProfiles.length} active`} tone="info" />}
+          actions={
+            affiliateProfileSchemaMissing ? <StatusBadge status="Schema pending" tone="warning" />
+            : affiliateProfileLoadError ? <StatusBadge status="Load error" tone="danger" />
+            : <StatusBadge status={`${activeAffiliateProfiles.length} active`} tone="info" />
+          }
         >
-          {affiliateProfileError ? (
-            <EmptyState icon={Users} title="Affiliate profile schema pending." description={affiliateProfileError} />
+          {affiliateProfileSchemaMissing ? (
+            <EmptyState icon={Users} title="Affiliate profile schema pending." description={affiliateProfileLoadError ?? "Apply the Sprint 13 migration first."} />
+          ) : affiliateProfileLoadError ? (
+            <EmptyState icon={Users} title="Affiliate profiles unavailable." description={affiliateProfileLoadError} />
           ) : !activeWorkspaces.length ? (
             <EmptyState icon={Users} title="Create a workspace first." description="Affiliate profiles are workspace-scoped." />
           ) : (
@@ -508,10 +521,16 @@ export default async function SettingsPage() {
           icon={SlidersHorizontal}
           title="Prompt Personalization"
           description="Editable prompt rules and locked reference controls per affiliate profile."
-          actions={affiliateProfileError ? null : <StatusBadge status={`${promptedProfileCount} configured`} tone="info" />}
+          actions={affiliateProfileSchemaMissing ? null : affiliateProfileLoadError ? <StatusBadge status="Load error" tone="danger" /> : <StatusBadge status={`${promptedProfileCount} configured`} tone="info" />}
         >
-          {affiliateProfileError ? (
-            <EmptyState icon={SlidersHorizontal} title="Prompt personalization schema pending." description={affiliateProfileError} />
+          {affiliateProfileSchemaMissing ? (
+            <EmptyState
+              icon={SlidersHorizontal}
+              title="Prompt personalization schema pending."
+              description={affiliateProfileLoadError ?? "Apply the Sprint 13 migration first."}
+            />
+          ) : affiliateProfileLoadError ? (
+            <EmptyState icon={SlidersHorizontal} title="Prompt personalization unavailable." description={affiliateProfileLoadError} />
           ) : affiliateProfiles.length ? (
             <div className="stack">
               <div className="metric-grid">
