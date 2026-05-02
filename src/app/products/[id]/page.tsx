@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 
 const detailTabs = [
   { key: "metadata", label: "Metadata" },
-  { key: "prompt", label: "Prompt" },
   { key: "output", label: "Output" },
   { key: "history", label: "History" },
 ] as const;
@@ -362,13 +361,53 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
         </section>
       ) : null}
 
-      {activeTab === "prompt" ? (
+      {activeTab === "output" ? (
         <section className="stack">
           <SectionCard
-            icon={FileText}
-            title="Prompt pack history"
-            description="Prompt packs for this product. Controller uses ready prompts for execution."
+            icon={Archive}
+            title="Output"
+            description="Clips, captions, tags, links, and upload status will live on the product."
           >
+            <div className="metric-grid">
+              <div className="metric">
+                <span>Clips</span>
+                <strong>Not built</strong>
+              </div>
+              <div className="metric">
+                <span>Caption</span>
+                <strong>Not built</strong>
+              </div>
+              <div className="metric">
+                <span>Upload status</span>
+                <strong>Not built</strong>
+              </div>
+            </div>
+            <EmptyState
+              icon={Archive}
+              title="Output package is not implemented in Sprint 12A."
+              description="Controller will show output/import status during execution workflow scaffolding."
+            />
+          </SectionCard>
+        </section>
+      ) : null}
+
+      {activeTab === "history" ? (
+        <section className="stack">
+          <SectionCard icon={Clock3} title="History" description="Simple product timeline from existing records.">
+            <ol className="timeline">
+              {timelineItems.map((item, index) => (
+                <li className="timeline-item" key={`${item.title}-${item.at}-${index}`}>
+                  <div className="timeline-item__body">
+                    <span className="subtle">{formatDate(item.at)}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.description}</p>
+                  </div>
+                  <StatusBadge status={item.status} />
+                </li>
+              ))}
+            </ol>
+          </SectionCard>
+          <SectionCard icon={FileText} title="Prompt history" description="Prompt packs remain product history. Prompt editing starts from the intake workflow.">
             {promptPacks.length ? (
               <section className="stack">
                 {promptPacks.map((pack) => {
@@ -424,66 +463,8 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 })}
               </section>
             ) : (
-              <EmptyState
-                icon={FileText}
-                title="No prompt packs yet."
-                description="Prompt packs created for this product will appear here."
-                action={
-                  <Link className="button" href="/prompts">
-                    Compatibility prompt manager
-                  </Link>
-                }
-              />
+              <EmptyState icon={FileText} title="No prompt packs yet." description="Prompt packs created for this product will appear here." />
             )}
-          </SectionCard>
-        </section>
-      ) : null}
-
-      {activeTab === "output" ? (
-        <section className="stack">
-          <SectionCard
-            icon={Archive}
-            title="Output"
-            description="Clips, captions, tags, links, and upload status will live on the product."
-          >
-            <div className="metric-grid">
-              <div className="metric">
-                <span>Clips</span>
-                <strong>Not built</strong>
-              </div>
-              <div className="metric">
-                <span>Caption</span>
-                <strong>Not built</strong>
-              </div>
-              <div className="metric">
-                <span>Upload status</span>
-                <strong>Not built</strong>
-              </div>
-            </div>
-            <EmptyState
-              icon={Archive}
-              title="Output package is not implemented in Sprint 12A."
-              description="Controller will show output/import status during execution workflow scaffolding."
-            />
-          </SectionCard>
-        </section>
-      ) : null}
-
-      {activeTab === "history" ? (
-        <section className="stack">
-          <SectionCard icon={Clock3} title="History" description="Simple product timeline from existing records.">
-            <ol className="timeline">
-              {timelineItems.map((item, index) => (
-                <li className="timeline-item" key={`${item.title}-${item.at}-${index}`}>
-                  <div className="timeline-item__body">
-                    <span className="subtle">{formatDate(item.at)}</span>
-                    <strong>{item.title}</strong>
-                    <p>{item.description}</p>
-                  </div>
-                  <StatusBadge status={item.status} />
-                </li>
-              ))}
-            </ol>
           </SectionCard>
         </section>
       ) : null}

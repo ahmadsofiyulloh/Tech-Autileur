@@ -1,26 +1,26 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Inbox, Link2, Package, Save } from "lucide-react";
-import { saveIntake } from "@/app/intake/actions";
+import { ArrowLeft, FileText, Inbox, Link2, Package } from "lucide-react";
+import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
-import { FormActions } from "@/components/operator/form-actions";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { listDriveItems } from "@/lib/server/drive-items";
 import { listIntakeSessions } from "@/lib/server/intake";
-import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 type NewProductPageProps = {
-  searchParams: Promise<{ workspace?: string | string[] }>;
+  searchParams: Promise<{
+    error?: string | string[];
+    intake_id?: string | string[];
+    message?: string | string[];
+    step?: string | string[];
+    workspace?: string | string[];
+  }>;
 };
-
-function driveItemLabel(item: { name: string; purpose: string; drive_path: string }) {
-  return [item.name, item.purpose, item.drive_path].filter(Boolean).join(" - ");
-}
 
 function fieldValue(value: string | number | null | undefined) {
   return value ?? "Not set";
@@ -28,6 +28,15 @@ function fieldValue(value: string | number | null | undefined) {
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
+  if (!workspaceId) {
+    return "Unassigned";
+  }
+
+  const workspace = workspaceMap.get(workspaceId);
+  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
 }
 
 export default async function NewProductPage({ searchParams }: NewProductPageProps) {
@@ -42,18 +51,18 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   const query = await searchParams;
   const showAllWorkspaces = firstParam(query.workspace) === "all";
-  let driveItems;
   let sessions;
   let currentWorkspace;
+  let workspaces;
 
   try {
     currentWorkspace = await getCurrentWorkspace();
-    [driveItems, sessions] = await Promise.all([
-      listDriveItems({ limit: 200 }),
+    [sessions, workspaces] = await Promise.all([
       listIntakeSessions({
         limit: 20,
         workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
       }),
+      listWorkspaces({ limit: 200 }),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load intake.";
@@ -65,8 +74,21 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     );
   }
 
+  const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "All workspaces";
   const linkedCount = sessions.filter((session) => session.product_id).length;
+  const requestedStep = firstParam(query.step);
+  const intakeId = firstParam(query.intake_id);
+  let selectedSession = intakeId ? sessions.find((session) => session.id === intakeId) ?? null : null;
+
+  if (!selectedSession && requestedStep === "prompt") {
+    selectedSession = sessions[0] ?? null;
+  }
+
+  const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
+  const message = firstParam(query.message) ?? null;
+  const errorMessage = firstParam(query.error) ?? null;
+  const savedSessionWorkspaceName = selectedSession ? workspaceLabel(selectedSession.workspace_id, workspaceMap) : null;
 
   return (
     <div className="stack">
@@ -74,7 +96,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
         icon={Inbox}
         badge="Product intake"
         title="New product intake"
-        description={`Capture product links, Drive references, and notes. Scope: ${scopeLabel}.`}
+        description={`Capture product links, local image previews, and notes. Scope: ${scopeLabel}.`}
         actions={
           <>
             {currentWorkspace ? (
@@ -90,80 +112,26 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
         }
         stats={[
           { label: "Scope", value: scopeLabel },
-          { label: "Drive refs", value: driveItems.length },
           { label: "Recent intake", value: sessions.length },
           { label: "Linked", value: linkedCount },
+          { label: "Preview", value: "Local only" },
         ]}
       />
 
       <SectionCard
         icon={Inbox}
         badge="New"
-        title="Product intake form"
-        description="Images and screenshots are Drive reference placeholders in this sprint. No upload, scraping, or link-based visual parsing is added."
+        title="Product intake workflow"
+        description="Save a valid intake, then review deterministic prompt context in the same workflow. No upload, scraping, or Gemini call is added."
       >
-        <form className="stack" action={saveIntake}>
-          <input type="hidden" name="intent" value="create_session" />
-          <label className="stack auth-field" htmlFor="create-product-title">
-            <span>Product title</span>
-            <input id="create-product-title" name="product_title" type="text" placeholder="Product name" />
-          </label>
-          <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="create-shopee-url">
-              <span>Shopee link</span>
-              <input id="create-shopee-url" name="shopee_url" type="url" placeholder="https://..." />
-            </label>
-            <label className="stack auth-field" htmlFor="create-tiktok-url">
-              <span>TikTok link</span>
-              <input id="create-tiktok-url" name="tiktok_url" type="url" placeholder="https://..." />
-            </label>
-          </div>
-          <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="create-product-photo-ref">
-              <span>Product image reference</span>
-              <select id="create-product-photo-ref" name="product_photo_drive_item_ref_id" defaultValue="">
-                <option value="">None</option>
-                {driveItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {driveItemLabel(item)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack auth-field" htmlFor="create-screenshot-ref">
-              <span>Screenshot image reference</span>
-              <select id="create-screenshot-ref" name="screenshot_drive_item_ref_id" defaultValue="">
-                <option value="">None</option>
-                {driveItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {driveItemLabel(item)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label className="stack auth-field" htmlFor="create-raw-notes">
-            <span>Notes</span>
-            <textarea id="create-raw-notes" name="raw_notes" rows={3} placeholder="Manual notes" />
-          </label>
-          <div className="muted-box stack-tight">
-            <strong>Workspace</strong>
-            <p>{currentWorkspace ? `New intake saves to ${currentWorkspace.workspace_name}.` : "No workspace selected. Intake saves unassigned."}</p>
-          </div>
-          <div className="muted-box stack-tight">
-            <strong>Visual parsing rule</strong>
-            <p>
-              Product links are metadata only. If image bytes are unavailable, Gemini intake parsing uses the current text-only
-              fallback and states that limitation.
-            </p>
-          </div>
-          <FormActions>
-            <button className="button primary" type="submit">
-              <Save size={16} aria-hidden="true" />
-              Save intake
-            </button>
-          </FormActions>
-        </form>
+        <IntakeWorkflowForm
+          currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
+          errorMessage={errorMessage}
+          initialStep={initialStep}
+          message={message}
+          savedSession={selectedSession}
+          savedSessionWorkspaceName={savedSessionWorkspaceName}
+        />
       </SectionCard>
 
       <SectionCard icon={Package} title="Recent intake" description={`Newest intake sessions. Scope: ${scopeLabel}.`}>
@@ -181,6 +149,13 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
                 </div>
                 <div className="section-card__actions">
                   <StatusBadge status={session.status} />
+                  <Link
+                    className="button compact"
+                    href={`/products/new?step=prompt&intake_id=${session.id}${showAllWorkspaces ? "&workspace=all" : ""}`}
+                  >
+                    <FileText size={15} aria-hidden="true" />
+                    Preview
+                  </Link>
                   {session.product_id ? (
                     <Link className="button compact" href={`/products/${session.product_id}`}>
                       <Link2 size={15} aria-hidden="true" />

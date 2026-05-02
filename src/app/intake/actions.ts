@@ -29,11 +29,18 @@ function readLines(formData: FormData, key: string) {
 }
 
 function redirectWithError(message: string): never {
-  redirect(`${INTAKE_RETURN_PATH}?error=${encodeURIComponent(message)}`);
+  const searchParams = new URLSearchParams({ error: message });
+  redirect(`${INTAKE_RETURN_PATH}?${searchParams.toString()}`);
 }
 
-function redirectWithMessage(message: string): never {
-  redirect(`${INTAKE_RETURN_PATH}?message=${encodeURIComponent(message)}`);
+function redirectWithMessage(message: string, params?: Record<string, string>): never {
+  const searchParams = new URLSearchParams({ message });
+
+  for (const [key, value] of Object.entries(params ?? {})) {
+    searchParams.set(key, value);
+  }
+
+  redirect(`${INTAKE_RETURN_PATH}?${searchParams.toString()}`);
 }
 
 function reviewedMetadataFromForm(formData: FormData): JsonRecord {
@@ -81,18 +88,21 @@ export async function saveIntake(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
   let message = "Intake saved";
+  let redirectParams: Record<string, string> | undefined;
 
   try {
     if (intent === "create_session") {
-      await createIntakeSession({
+      const session = await createIntakeSession({
         product_title: readText(formData, "product_title"),
         shopee_url: readText(formData, "shopee_url"),
         tiktok_url: readText(formData, "tiktok_url"),
         product_photo_drive_item_ref_id: readText(formData, "product_photo_drive_item_ref_id"),
         screenshot_drive_item_ref_id: readText(formData, "screenshot_drive_item_ref_id"),
         raw_notes: readText(formData, "raw_notes"),
+        status: "SUBMITTED",
       });
       message = "Intake saved";
+      redirectParams = { step: "prompt", intake_id: session.id };
     } else if (intent === "update_session") {
       if (!id) {
         throw new Error("Missing intake id.");
@@ -178,5 +188,5 @@ export async function saveIntake(formData: FormData) {
 
   revalidatePath("/intake");
   revalidatePath(INTAKE_RETURN_PATH);
-  redirectWithMessage(message);
+  redirectWithMessage(message, redirectParams);
 }

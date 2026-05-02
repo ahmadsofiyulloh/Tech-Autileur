@@ -640,7 +640,7 @@ async function updateIntakeSessionRecord(
 
 export async function createIntakeSession(input: IntakeSessionInput) {
   const { supabase, user } = await requireUser();
-  const status = input.status ?? "DRAFT";
+  const status = input.status ?? "SUBMITTED";
   assertIntakeStatus(status);
 
   if (!hasMinimumIntakeInput(input)) {
