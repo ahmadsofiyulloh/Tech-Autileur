@@ -1,7 +1,19 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import {
+  createAITask,
+  listAvailableGeminiKeysByRole,
+  markTaskFailed,
+  markTaskRunning,
+  markTaskSuccess,
+  markTaskWaitingForKey,
+} from "@/lib/server/ai-task-queue";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
+import { GeminiClientError, generateGeminiJsonText } from "@/lib/server/gemini-client";
+import { appendUniqueNote, normalizeIntakeVisionOutput, parseIntakeVisionOutput, type IntakeVisionParseOutput } from "@/lib/intake/vision-contract";
 import {
   INTAKE_STATUSES,
   type IntakeStatus,
@@ -11,12 +23,112 @@ import {
   normalizeIntakeText,
   readIntakeText,
 } from "@/lib/intake/validation";
-import { buildProductCode, createProduct, getProductById } from "@/lib/server/products";
-import { buildProductAnchorCode, createProductAnchor } from "@/lib/server/product-anchors";
+import { type GeminiModelName } from "@/lib/gemini/validation";
+import { buildProductCode, createProduct, getProductById, listProductImages } from "@/lib/server/products";
+import { buildProductAnchorCode, createProductAnchor, listProductAnchors, type ProductAnchorRecord } from "@/lib/server/product-anchors";
 import {
   type MarketplaceSourceInput,
+  type MarketplaceSourceRecord,
   createMarketplaceSource,
+  listProductMarketplaceSources,
 } from "@/lib/server/product-marketplace-sources";
+
+type ProductRecord = {
+  id: string;
+  user_id: string;
+  product_code: string;
+  product_name: string;
+  niche: string | null;
+  marketplace: string | null;
+  marketplace_product_link: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ProductImageRecord = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  drive_item_ref_id: string;
+  source_type: string;
+  is_primary: boolean;
+  analysis_json: JsonRecord | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DriveItemRecord = {
+  id: string;
+  user_id: string;
+  item_type: string;
+  drive_item_id: string | null;
+  parent_id: string | null;
+  parent_drive_item_id: string | null;
+  name: string;
+  drive_url: string;
+  drive_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  purpose: string;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AiTaskRecord = {
+  id: string;
+  user_id: string;
+  gemini_api_key_id: string | null;
+  task_type: string;
+  status: string;
+  input_json: JsonRecord;
+  output_json: JsonRecord | null;
+  error_message: string | null;
+  retry_count: number;
+  max_retries: number;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type GeminiSelectedKey = {
+  id: string;
+  user_id: string;
+  key_code: string;
+  label: string;
+  provider: string;
+  google_account_label: string | null;
+  project_label: string | null;
+  model_name: string;
+  role: string;
+  rpm_limit: number | null;
+  rpd_limit: number | null;
+  tpm_limit: number | null;
+  requests_today: number;
+  last_used_at: string | null;
+  cooldown_until: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type IntakeWorkspace = {
+  product: ProductRecord | null;
+  productImages: ProductImageRecord[];
+  marketplaceSources: MarketplaceSourceRecord[];
+  driveItems: Map<string, DriveItemRecord>;
+  productPhotoDriveItem: DriveItemRecord | null;
+  screenshotDriveItem: DriveItemRecord | null;
+  selectedSourceImage: ProductImageRecord | null;
+  selectedSourceImageDriveItem: DriveItemRecord | null;
+};
 
 export type IntakeSessionRecord = {
   id: string;
@@ -54,6 +166,72 @@ export type IntakeSessionInput = {
 
 type ManualSourceInput = Omit<MarketplaceSourceInput, "product_id" | "platform">;
 
+const INTAKE_GEMINI_KEY_PRIORITY = ["VISION_ANALYSIS", "CONSISTENCY_CHECK", "FALLBACK"] as const;
+
+function readText(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readJsonText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readTextArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+}
+
+function buildReviewedMetadataFromInput(metadata: JsonRecord) {
+  return normalizeIntakeVisionOutput({
+    product_title: readJsonText(metadata.product_title),
+    marketplace: readJsonText(metadata.marketplace),
+    category: readJsonText(metadata.category),
+    rating_text: readJsonText(metadata.rating_text),
+    sold_count_text: readJsonText(metadata.sold_count_text),
+    price_text: readJsonText(metadata.price_text),
+    shop_name: readJsonText(metadata.shop_name),
+    visible_product_attributes: readTextArray(metadata.visible_product_attributes),
+    risk_notes: readTextArray(metadata.risk_notes),
+    confidence_notes: readTextArray(metadata.confidence_notes),
+  });
+}
+
+function toReviewedMetadataJson(metadata: IntakeVisionParseOutput) {
+  return {
+    product_title: metadata.product_title,
+    marketplace: metadata.marketplace,
+    category: metadata.category,
+    rating_text: metadata.rating_text,
+    sold_count_text: metadata.sold_count_text,
+    price_text: metadata.price_text,
+    shop_name: metadata.shop_name,
+    visible_product_attributes: metadata.visible_product_attributes,
+    risk_notes: metadata.risk_notes,
+    confidence_notes: metadata.confidence_notes,
+  } satisfies JsonRecord;
+}
+
+function hasSourceMarketplace(value: string) {
+  return value === "SHOPEE" || value === "TIKTOK";
+}
+
+function safeErrorMessage(error: unknown) {
+  if (error instanceof GeminiClientError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unable to process intake.";
+}
+
 async function requireUser() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -81,13 +259,16 @@ function buildIntakeCode(input: IntakeSessionInput) {
   return `${base}-${stamp}`;
 }
 
-async function getIntakeSessionById(id: string) {
-  const { supabase, user } = await requireUser();
+async function loadIntakeSessionById(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  id: string,
+) {
   const { data, error } = await supabase
     .from("product_intake_sessions")
     .select("*")
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
@@ -99,6 +280,11 @@ async function getIntakeSessionById(id: string) {
   }
 
   return data as IntakeSessionRecord;
+}
+
+async function getIntakeSessionById(id: string) {
+  const { supabase, user } = await requireUser();
+  return await loadIntakeSessionById(supabase, user.id, id);
 }
 
 function intakePayload(input: IntakeSessionInput) {
@@ -119,6 +305,322 @@ function intakePayload(input: IntakeSessionInput) {
     ...(input.reviewed_metadata_json !== undefined ? { reviewed_metadata_json: input.reviewed_metadata_json } : {}),
     ...(input.error_message !== undefined ? { error_message: normalizeIntakeText(input.error_message) } : {}),
   };
+}
+
+async function loadDriveItemsByIds(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  ids: string[],
+) {
+  const uniqueIds = [...new Set(ids.map((id) => readText(id)).filter(Boolean))];
+
+  if (!uniqueIds.length) {
+    return new Map<string, DriveItemRecord>();
+  }
+
+  const { data, error } = await supabase
+    .from("drive_items")
+    .select("*")
+    .eq("user_id", userId)
+    .in("id", uniqueIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return new Map((data ?? []).map((item) => [item.id, item as DriveItemRecord]));
+}
+
+async function loadIntakeWorkspace(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  session: IntakeSessionRecord,
+): Promise<IntakeWorkspace> {
+  const [product, productImages, marketplaceSources] = await Promise.all([
+    session.product_id ? getProductById(session.product_id) : Promise.resolve<ProductRecord | null>(null),
+    session.product_id ? listProductImages({ productId: session.product_id, limit: 200 }) : Promise.resolve([]),
+    session.product_id ? listProductMarketplaceSources({ productId: session.product_id, limit: 200 }) : Promise.resolve([]),
+  ]);
+
+  const productImageRecords = productImages as ProductImageRecord[];
+  const marketplaceSourceRecords = marketplaceSources as MarketplaceSourceRecord[];
+
+  const driveItems = await loadDriveItemsByIds(
+    supabase,
+    userId,
+    [
+      session.product_photo_drive_item_ref_id,
+      session.screenshot_drive_item_ref_id,
+      ...productImageRecords.map((image) => image.drive_item_ref_id),
+      ...marketplaceSourceRecords
+        .map((source) => source.screenshot_drive_item_ref_id)
+        .filter((value): value is string => Boolean(value)),
+    ].filter(Boolean) as string[],
+  );
+
+  const selectedSourceImage = productImageRecords.find((image) => image.is_primary) ?? productImageRecords[0] ?? null;
+  const selectedSourceImageDriveItem = selectedSourceImage
+    ? driveItems.get(selectedSourceImage.drive_item_ref_id) ?? null
+    : null;
+
+  return {
+    product: product as ProductRecord | null,
+    productImages: productImageRecords,
+    marketplaceSources: marketplaceSourceRecords,
+    driveItems,
+    productPhotoDriveItem: session.product_photo_drive_item_ref_id ? driveItems.get(session.product_photo_drive_item_ref_id) ?? null : null,
+    screenshotDriveItem: session.screenshot_drive_item_ref_id ? driveItems.get(session.screenshot_drive_item_ref_id) ?? null : null,
+    selectedSourceImage,
+    selectedSourceImageDriveItem,
+  };
+}
+
+function buildDriveItemSnapshot(item: DriveItemRecord | null) {
+  if (!item) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    drive_path: item.drive_path,
+    drive_url: item.drive_url,
+    mime_type: item.mime_type,
+    purpose: item.purpose,
+    status: item.status,
+    notes: item.notes,
+  };
+}
+
+function buildProductImageSnapshot(image: ProductImageRecord | null, driveItem: DriveItemRecord | null) {
+  if (!image) {
+    return null;
+  }
+
+  return {
+    id: image.id,
+    drive_item_ref_id: image.drive_item_ref_id,
+    source_type: image.source_type,
+    is_primary: image.is_primary,
+    status: image.status,
+    notes: image.notes,
+    analysis_json: image.analysis_json,
+    drive_item: buildDriveItemSnapshot(driveItem),
+  };
+}
+
+function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
+  return {
+    id: source.id,
+    platform: source.platform,
+    product_url: source.product_url,
+    affiliate_url: source.affiliate_url,
+    title: source.title,
+    category: source.category,
+    rating_text: source.rating_text,
+    sold_count_text: source.sold_count_text,
+    price_text: source.price_text,
+    shop_name: source.shop_name,
+    screenshot_drive_item_ref_id: source.screenshot_drive_item_ref_id,
+    status: source.status,
+    notes: source.notes,
+    parsed_metadata_json: source.parsed_metadata_json,
+  };
+}
+
+function buildIntakeParsePrompt(session: IntakeSessionRecord, workspace: IntakeWorkspace) {
+  return [
+    "You are parsing intake metadata for a single-owner operator workflow.",
+    "Return JSON only. Do not use markdown, code fences, or commentary.",
+    "Return exactly one JSON object with these keys and no extras:",
+    '{ "product_title": "", "marketplace": "", "category": "", "rating_text": "", "sold_count_text": "", "price_text": "", "shop_name": "", "visible_product_attributes": [], "risk_notes": [], "confidence_notes": [] }',
+    "Use short operator-friendly values.",
+    "If a field is unknown, return an empty string or empty array.",
+    "Do not claim image inspection unless image bytes are present. This run only provides metadata, so treat it as text-only fallback.",
+    "",
+    "Intake metadata:",
+    JSON.stringify(
+      {
+        intake_session: {
+          id: session.id,
+          intake_code: session.intake_code,
+          status: session.status,
+          product_title: session.product_title,
+          shopee_url: session.shopee_url,
+          tiktok_url: session.tiktok_url,
+          raw_notes: session.raw_notes,
+          product_photo_drive_item_ref_id: session.product_photo_drive_item_ref_id,
+          screenshot_drive_item_ref_id: session.screenshot_drive_item_ref_id,
+        },
+        product: workspace.product
+          ? {
+              id: workspace.product.id,
+              product_code: workspace.product.product_code,
+              product_name: workspace.product.product_name,
+              niche: workspace.product.niche,
+              marketplace: workspace.product.marketplace,
+              marketplace_product_link: workspace.product.marketplace_product_link,
+              notes: workspace.product.notes,
+            }
+          : null,
+        drive_items: {
+          product_photo: buildDriveItemSnapshot(workspace.productPhotoDriveItem),
+          screenshot: buildDriveItemSnapshot(workspace.screenshotDriveItem),
+        },
+        source_image: buildProductImageSnapshot(workspace.selectedSourceImage, workspace.selectedSourceImageDriveItem),
+        marketplace_sources: workspace.marketplaceSources.map(buildMarketplaceSourceSnapshot),
+      },
+      null,
+      2,
+    ),
+  ].join("\n");
+}
+
+function buildIntakeAnchorJson(session: IntakeSessionRecord, workspace: IntakeWorkspace, metadata: IntakeVisionParseOutput) {
+  return {
+    mode: "intake_review",
+    intake_session: {
+      id: session.id,
+      intake_code: session.intake_code,
+      status: session.status,
+      product_title: session.product_title,
+      shopee_url: session.shopee_url,
+      tiktok_url: session.tiktok_url,
+      raw_notes: session.raw_notes,
+      parsed_metadata_json: session.parsed_metadata_json,
+      reviewed_metadata_json: session.reviewed_metadata_json,
+    },
+    product: workspace.product
+      ? {
+          id: workspace.product.id,
+          product_code: workspace.product.product_code,
+          product_name: workspace.product.product_name,
+          niche: workspace.product.niche,
+          marketplace: workspace.product.marketplace,
+          marketplace_product_link: workspace.product.marketplace_product_link,
+          notes: workspace.product.notes,
+        }
+      : null,
+    selected_metadata: metadata,
+    marketplace_sources: workspace.marketplaceSources.map(buildMarketplaceSourceSnapshot),
+    source_image: buildProductImageSnapshot(workspace.selectedSourceImage, workspace.selectedSourceImageDriveItem),
+    notes: {
+      intake: session.raw_notes,
+      product: workspace.product?.notes ?? null,
+    },
+  } satisfies JsonRecord;
+}
+
+async function syncMarketplaceSourceMetadata(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  session: IntakeSessionRecord,
+  metadata: IntakeVisionParseOutput,
+) {
+  if (!session.product_id || !hasSourceMarketplace(metadata.marketplace)) {
+    return;
+  }
+
+  const { data: source, error } = await supabase
+    .from("product_marketplace_sources")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("product_id", session.product_id)
+    .eq("platform", metadata.marketplace)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!source) {
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from("product_marketplace_sources")
+    .update({
+      parsed_metadata_json: toReviewedMetadataJson(metadata),
+    })
+    .eq("id", source.id)
+    .eq("user_id", userId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+}
+
+async function readGeminiSecretForKey(
+  serviceClient: ReturnType<typeof createSupabaseServiceRoleClient>,
+  userId: string,
+  geminiKeyId: string,
+) {
+  const { data, error } = await serviceClient
+    .from("gemini_api_key_secrets")
+    .select("encrypted_api_key")
+    .eq("gemini_api_key_id", geminiKeyId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data?.encrypted_api_key) {
+    return null;
+  }
+
+  return decryptGeminiApiKey(data.encrypted_api_key);
+}
+
+async function selectGeminiKeyForIntake(userId: string) {
+  const serviceClient = createSupabaseServiceRoleClient();
+
+  for (const role of INTAKE_GEMINI_KEY_PRIORITY) {
+    const geminiKeys = (await listAvailableGeminiKeysByRole(role)) as GeminiSelectedKey[];
+
+    for (const geminiKey of geminiKeys) {
+      const secret = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
+
+      if (!secret) {
+        continue;
+      }
+
+      return {
+        key: geminiKey,
+        secret,
+        role,
+      };
+    }
+  }
+
+  return null;
+}
+
+async function updateIntakeSessionRecord(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  id: string,
+  input: Partial<Pick<IntakeSessionInput, "status" | "error_message" | "parsed_metadata_json" | "reviewed_metadata_json">>,
+) {
+  const { data, error } = await supabase
+    .from("product_intake_sessions")
+    .update({
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.error_message !== undefined ? { error_message: normalizeIntakeText(input.error_message) } : {}),
+      ...(input.parsed_metadata_json !== undefined ? { parsed_metadata_json: input.parsed_metadata_json } : {}),
+      ...(input.reviewed_metadata_json !== undefined ? { reviewed_metadata_json: input.reviewed_metadata_json } : {}),
+    })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as IntakeSessionRecord;
 }
 
 export async function createIntakeSession(input: IntakeSessionInput) {
@@ -196,8 +698,21 @@ export async function updateIntakeSession(id: string, input: IntakeSessionInput)
   const { data, error } = await supabase
     .from("product_intake_sessions")
     .update({
-      ...intakePayload(input),
+      ...(input.product_id !== undefined ? { product_id: normalizeIntakeText(input.product_id) } : {}),
+      ...(input.product_title !== undefined ? { product_title: normalizeIntakeText(input.product_title) } : {}),
+      ...(input.shopee_url !== undefined ? { shopee_url: normalizeIntakeText(input.shopee_url) } : {}),
+      ...(input.tiktok_url !== undefined ? { tiktok_url: normalizeIntakeText(input.tiktok_url) } : {}),
+      ...(input.product_photo_drive_item_ref_id !== undefined
+        ? { product_photo_drive_item_ref_id: normalizeIntakeText(input.product_photo_drive_item_ref_id) }
+        : {}),
+      ...(input.screenshot_drive_item_ref_id !== undefined
+        ? { screenshot_drive_item_ref_id: normalizeIntakeText(input.screenshot_drive_item_ref_id) }
+        : {}),
+      ...(input.raw_notes !== undefined ? { raw_notes: normalizeIntakeText(input.raw_notes) } : {}),
+      ...(input.parsed_metadata_json !== undefined ? { parsed_metadata_json: input.parsed_metadata_json } : {}),
+      ...(input.reviewed_metadata_json !== undefined ? { reviewed_metadata_json: input.reviewed_metadata_json } : {}),
       ...(input.status ? { status: input.status } : {}),
+      ...(input.error_message !== undefined ? { error_message: normalizeIntakeText(input.error_message) } : {}),
     })
     .eq("id", id)
     .eq("user_id", user.id)
@@ -213,10 +728,20 @@ export async function updateIntakeSession(id: string, input: IntakeSessionInput)
 }
 
 export async function reviewIntakeMetadata(id: string, metadata: JsonRecord) {
-  return await updateIntakeSession(id, {
-    reviewed_metadata_json: metadata,
+  const { supabase, user } = await requireUser();
+  const session = await loadIntakeSessionById(supabase, user.id, id);
+  const normalized = buildReviewedMetadataFromInput(metadata);
+  const reviewedJson = toReviewedMetadataJson(normalized);
+
+  const updatedSession = await updateIntakeSession(id, {
+    reviewed_metadata_json: reviewedJson,
     status: "REVIEWED",
+    error_message: null,
   });
+
+  await syncMarketplaceSourceMetadata(supabase, user.id, session, normalized).catch(() => undefined);
+
+  return updatedSession;
 }
 
 export async function linkProductToIntake(intakeSessionId: string, productId: string) {
@@ -330,6 +855,123 @@ export async function createMarketplaceSourcesFromIntake(
   return saved;
 }
 
+export async function parseIntakeWithGemini(intakeSessionId: string) {
+  const { supabase, user } = await requireUser();
+  const session = await loadIntakeSessionById(supabase, user.id, intakeSessionId);
+  const task = (await createAITask({
+    taskType: "VISION_ANALYSIS",
+    inputJson: {
+      intake_session_id: session.id,
+      intake_code: session.intake_code,
+      product_id: session.product_id,
+      product_title: session.product_title,
+      shopee_url: session.shopee_url,
+      tiktok_url: session.tiktok_url,
+      product_photo_drive_item_ref_id: session.product_photo_drive_item_ref_id,
+      screenshot_drive_item_ref_id: session.screenshot_drive_item_ref_id,
+      parser_mode: "TEXT_ONLY_FALLBACK",
+    },
+    maxRetries: 0,
+  })) as AiTaskRecord;
+
+  try {
+    const parsingSession = await updateIntakeSessionRecord(supabase, user.id, session.id, {
+      status: "SUBMITTED",
+      error_message: null,
+    });
+
+    const selectedKey = await selectGeminiKeyForIntake(user.id);
+
+    if (!selectedKey) {
+      const message = "No Gemini key is ready for intake parsing.";
+      const waitingTask = await markTaskWaitingForKey(task.id, message);
+
+      await updateIntakeSessionRecord(supabase, user.id, session.id, {
+        error_message: message,
+      }).catch(() => undefined);
+
+      revalidatePath("/intake");
+      return {
+        task: waitingTask,
+        session: parsingSession,
+        message,
+      };
+    }
+
+    const { error: taskKeyUpdateError } = await supabase
+      .from("ai_tasks")
+      .update({
+        gemini_api_key_id: selectedKey.key.id,
+      })
+      .eq("id", task.id)
+      .eq("user_id", user.id);
+
+    if (taskKeyUpdateError) {
+      throw new Error(taskKeyUpdateError.message);
+    }
+
+    const workspace = await loadIntakeWorkspace(supabase, user.id, session);
+    const prompt = buildIntakeParsePrompt(session, workspace);
+
+    await markTaskRunning(task.id);
+
+    const response = await generateGeminiJsonText({
+      modelName: selectedKey.key.model_name as GeminiModelName,
+      apiKey: selectedKey.secret,
+      prompt,
+      temperature: 0.1,
+      maxOutputTokens: 2048,
+    });
+
+    const parsed = parseIntakeVisionOutput(response.text);
+    const parsedWithFallbackNote: IntakeVisionParseOutput = {
+      ...parsed,
+      confidence_notes: appendUniqueNote(
+        parsed.confidence_notes,
+        "Text-only fallback used; direct image bytes were not available.",
+      ),
+    };
+    const parsedJson = toReviewedMetadataJson(parsedWithFallbackNote);
+
+    const updatedSession = await updateIntakeSessionRecord(supabase, user.id, session.id, {
+      parsed_metadata_json: parsedJson,
+      status: "NEEDS_REVIEW",
+      error_message: null,
+    });
+
+    await syncMarketplaceSourceMetadata(supabase, user.id, session, parsedWithFallbackNote).catch(() => undefined);
+
+    const completedTask = await markTaskSuccess(task.id, parsedJson);
+
+    revalidatePath("/intake");
+    return {
+      task: completedTask,
+      session: updatedSession,
+      parsed: parsedJson,
+      message: "Parsed with Gemini.",
+    };
+  } catch (error) {
+    const message = safeErrorMessage(error);
+
+      try {
+        await markTaskFailed(task.id, message, { retryable: false });
+      } catch {
+        // Keep the intake recoverable even if task failure update fails.
+      }
+
+      try {
+        await updateIntakeSessionRecord(supabase, user.id, session.id, {
+          error_message: message,
+        });
+      } catch {
+        // Preserve the original failure if the intake row update also fails.
+      }
+
+      revalidatePath("/intake");
+      throw new Error(message);
+    }
+  }
+
 export async function createProductAnchorFromIntake(
   intakeSessionId: string,
   input?: {
@@ -338,7 +980,8 @@ export async function createProductAnchorFromIntake(
     notes?: string | null;
   },
 ) {
-  const session = await getIntakeSessionById(intakeSessionId);
+  const { supabase, user } = await requireUser();
+  const session = await loadIntakeSessionById(supabase, user.id, intakeSessionId);
 
   if (!session.product_id) {
     throw new Error("Link a product first.");
@@ -350,23 +993,87 @@ export async function createProductAnchorFromIntake(
     throw new Error("Product not found.");
   }
 
+  const workspace = await loadIntakeWorkspace(supabase, user.id, session);
+  const selectedMetadataJson = session.reviewed_metadata_json ?? session.parsed_metadata_json;
+
+  if (!selectedMetadataJson) {
+    throw new Error("Parse metadata first.");
+  }
+
+  const metadata = buildReviewedMetadataFromInput(selectedMetadataJson);
+  const existingAnchor = (await listProductAnchors({ intakeSessionId: session.id, limit: 10 }))[0] ?? null;
+  const requestedSourceImage = input?.source_product_image_id
+    ? workspace.productImages.find((image) => image.id === input.source_product_image_id) ?? null
+    : null;
+  const preservedSourceImage = existingAnchor?.source_product_image_id
+    ? workspace.productImages.find((image) => image.id === existingAnchor.source_product_image_id) ?? null
+    : null;
+  const sourceImage = requestedSourceImage ?? preservedSourceImage ?? workspace.selectedSourceImage;
+  const sourceImageDriveItem = sourceImage ? workspace.driveItems.get(sourceImage.drive_item_ref_id) ?? null : null;
+  const anchorJson = buildIntakeAnchorJson(
+    session,
+    {
+      ...workspace,
+      selectedSourceImage: sourceImage,
+      selectedSourceImageDriveItem: sourceImageDriveItem,
+    },
+    metadata,
+  );
+  const marketplaceSummaryJson: JsonRecord = {
+    selected_marketplace: metadata.marketplace,
+    source_count: workspace.marketplaceSources.length,
+    platforms: workspace.marketplaceSources.map((source) => source.platform),
+    reviewed_metadata: toReviewedMetadataJson(metadata),
+  };
+  const visionAnalysisJson: JsonRecord = {
+    mode: "text_only_fallback",
+    intake_session_id: session.id,
+    source_image: buildProductImageSnapshot(sourceImage, sourceImageDriveItem),
+    confidence_notes: metadata.confidence_notes,
+  };
+  const anchorCode = readIntakeText(input?.anchor_code) || existingAnchor?.anchor_code || buildProductAnchorCode(product.product_code);
+  const notes = normalizeIntakeText(input?.notes) ?? existingAnchor?.notes ?? session.raw_notes;
+
+  if (existingAnchor) {
+    const { data, error } = await supabase
+      .from("product_anchors")
+      .update({
+        product_id: product.id,
+        intake_session_id: session.id,
+        source_product_image_id: sourceImage?.id ?? null,
+        anchor_code: anchorCode,
+        version: existingAnchor.version,
+        anchor_json: anchorJson,
+        vision_analysis_json: visionAnalysisJson,
+        marketplace_summary_json: marketplaceSummaryJson,
+        status: "READY",
+        notes,
+      })
+      .eq("id", existingAnchor.id)
+      .eq("user_id", user.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    await updateIntakeSession(session.id, { status: "ANCHOR_READY" });
+    revalidatePath("/intake");
+    return data as ProductAnchorRecord;
+  }
+
   const anchor = await createProductAnchor({
     product_id: product.id,
     intake_session_id: session.id,
-    source_product_image_id: normalizeIntakeText(input?.source_product_image_id),
-    anchor_code: readIntakeText(input?.anchor_code) || buildProductAnchorCode(product.product_code),
+    source_product_image_id: sourceImage?.id ?? null,
+    anchor_code: anchorCode,
     version: 1,
-    anchor_json: {
-      entry_mode: "manual_intake",
-      intake_session_id: session.id,
-      product_title: session.product_title,
-      shopee_url: session.shopee_url,
-      tiktok_url: session.tiktok_url,
-    },
-    vision_analysis_json: null,
-    marketplace_summary_json: session.reviewed_metadata_json,
-    status: "DRAFT",
-    notes: normalizeIntakeText(input?.notes),
+    anchor_json: anchorJson,
+    vision_analysis_json: visionAnalysisJson,
+    marketplace_summary_json: marketplaceSummaryJson,
+    status: "READY",
+    notes,
   });
 
   await updateIntakeSession(session.id, { status: "ANCHOR_READY" });

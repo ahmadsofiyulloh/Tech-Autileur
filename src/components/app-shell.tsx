@@ -18,6 +18,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       return true;
     }
 
+    if (href === "/products" && pathname.startsWith("/intake")) {
+      return true;
+    }
+
+    if (href === "/controller" && pathname.startsWith("/flow")) {
+      return true;
+    }
+
     if (href === "/") {
       return pathname === "/";
     }
@@ -74,10 +82,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="eyebrow">Private tool</p>
             <h1>{activeTitle}</h1>
           </div>
-          <Link className="topbar-action" href="/settings" aria-label="Open settings">
-            <Settings aria-hidden="true" size={18} />
-            <span>Settings</span>
-          </Link>
+          <div className="topbar-tools">
+            <label className="workspace-selector" htmlFor="workspace-selector">
+              <span>Workspace/profile</span>
+              <select id="workspace-selector" defaultValue="default" aria-label="Current workspace/profile placeholder">
+                <option value="default">Default workspace/profile</option>
+              </select>
+            </label>
+            <Link className="topbar-action" href="/settings" aria-label="Open settings">
+              <Settings aria-hidden="true" size={18} />
+              <span>Settings</span>
+            </Link>
+          </div>
         </header>
         <main className="shell-main">{children}</main>
       </div>

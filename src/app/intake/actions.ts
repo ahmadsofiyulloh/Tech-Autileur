@@ -8,48 +8,47 @@ import {
   createProductAnchorFromIntake,
   createProductFromIntake,
   linkProductToIntake,
+  parseIntakeWithGemini,
   reviewIntakeMetadata,
   updateIntakeSession,
 } from "@/lib/server/intake";
 import type { JsonRecord } from "@/lib/intake/validation";
+
+const INTAKE_RETURN_PATH = "/products/new";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readLines(formData: FormData, key: string) {
+  return readText(formData, key)
+    .split(/\r?\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function redirectWithError(message: string): never {
-  redirect(`/intake?error=${encodeURIComponent(message)}`);
+  redirect(`${INTAKE_RETURN_PATH}?error=${encodeURIComponent(message)}`);
 }
 
 function redirectWithMessage(message: string): never {
-  redirect(`/intake?message=${encodeURIComponent(message)}`);
+  redirect(`${INTAKE_RETURN_PATH}?message=${encodeURIComponent(message)}`);
 }
 
-function metadataFromForm(formData: FormData, prefix: string) {
-  const metadata: JsonRecord = {
-    entry_mode: "manual",
+function reviewedMetadataFromForm(formData: FormData): JsonRecord {
+  return {
+    product_title: readText(formData, "review_product_title"),
+    marketplace: readText(formData, "review_marketplace"),
+    category: readText(formData, "review_category"),
+    rating_text: readText(formData, "review_rating_text"),
+    sold_count_text: readText(formData, "review_sold_count_text"),
+    price_text: readText(formData, "review_price_text"),
+    shop_name: readText(formData, "review_shop_name"),
+    visible_product_attributes: readLines(formData, "review_visible_product_attributes"),
+    risk_notes: readLines(formData, "review_risk_notes"),
+    confidence_notes: readLines(formData, "review_confidence_notes"),
   };
-
-  const fields = [
-    "title",
-    "category",
-    "price_text",
-    "rating_text",
-    "sold_count_text",
-    "shop_name",
-    "notes",
-  ] as const;
-
-  for (const field of fields) {
-    const value = readText(formData, `${prefix}_${field}`);
-
-    if (value) {
-      metadata[field] = value;
-    }
-  }
-
-  return metadata;
 }
 
 function sourceFromForm(formData: FormData, prefix: string) {
@@ -66,8 +65,14 @@ function sourceFromForm(formData: FormData, prefix: string) {
     status: readText(formData, `${prefix}_status`) || "DRAFT",
     notes: readText(formData, `${prefix}_notes`) || null,
     parsed_metadata_json: {
-      ...metadataFromForm(formData, prefix),
+      entry_mode: "manual",
       platform: prefix.toUpperCase(),
+      title: readText(formData, `${prefix}_title`) || null,
+      category: readText(formData, `${prefix}_category`) || null,
+      rating_text: readText(formData, `${prefix}_rating_text`) || null,
+      sold_count_text: readText(formData, `${prefix}_sold_count_text`) || null,
+      price_text: readText(formData, `${prefix}_price_text`) || null,
+      shop_name: readText(formData, `${prefix}_shop_name`) || null,
     },
   };
 }
@@ -103,13 +108,20 @@ export async function saveIntake(formData: FormData) {
         status: readText(formData, "status") || undefined,
       });
       message = "Intake updated";
-    } else if (intent === "review_metadata") {
+    } else if (intent === "parse_intake") {
       if (!id) {
         throw new Error("Missing intake id.");
       }
 
-      await reviewIntakeMetadata(id, metadataFromForm(formData, "review"));
-      message = "Metadata reviewed";
+      const result = await parseIntakeWithGemini(id);
+      message = result.message;
+    } else if (intent === "review_metadata" || intent === "save_reviewed_metadata") {
+      if (!id) {
+        throw new Error("Missing intake id.");
+      }
+
+      await reviewIntakeMetadata(id, reviewedMetadataFromForm(formData));
+      message = "Review saved";
     } else if (intent === "link_product") {
       if (!id) {
         throw new Error("Missing intake id.");
@@ -145,7 +157,7 @@ export async function saveIntake(formData: FormData) {
         tiktok: sourceFromForm(formData, "tiktok"),
       });
       message = "Sources saved";
-    } else if (intent === "create_anchor") {
+    } else if (intent === "create_anchor" || intent === "update_anchor") {
       if (!id) {
         throw new Error("Missing intake id.");
       }
@@ -155,7 +167,7 @@ export async function saveIntake(formData: FormData) {
         source_product_image_id: readText(formData, "source_product_image_id"),
         notes: readText(formData, "anchor_notes"),
       });
-      message = "Anchor created";
+      message = "Anchor updated";
     } else {
       throw new Error("Unsupported intake action.");
     }
@@ -165,5 +177,6 @@ export async function saveIntake(formData: FormData) {
   }
 
   revalidatePath("/intake");
+  revalidatePath(INTAKE_RETURN_PATH);
   redirectWithMessage(message);
 }

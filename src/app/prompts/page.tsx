@@ -120,9 +120,9 @@ export default async function PromptsPage() {
     <div className="stack">
       <PageHeader
         icon={FileText}
-        badge="Work"
+        badge="Compatibility"
         title="Prompts"
-        description="Prompt packs and generation state."
+        description="Compatibility manager. Product Detail is the main prompt history surface; Controller is the execution surface."
         stats={[
           { label: "Prompt packs", value: promptPacks.length },
           { label: "Drafts", value: draftCount },
@@ -229,9 +229,7 @@ export default async function PromptsPage() {
           title="Create a product first."
           description="Prompts need a product."
           action={
-            <a className="button primary" href="/products">
-              Open products
-            </a>
+            <a className="button primary" href="/products/new">New intake</a>
           }
         />
       )}

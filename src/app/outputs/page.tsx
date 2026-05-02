@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, FileText, Workflow } from "lucide-react";
+import { Archive, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
@@ -23,24 +23,24 @@ export default async function OutputsPage() {
     <div className="stack">
       <PageHeader
         icon={Archive}
-        badge="Queued"
+        badge="Compatibility"
         title="Outputs"
-        description="Clips and upload packages land here later."
+        description="Compatibility view. Output belongs on Product Detail and Controller workflow."
         stats={[
           { label: "Status", value: <StatusBadge status="Reserved" tone="neutral" /> },
           { label: "Upload", value: "Manual" },
-          { label: "Flow", value: <Link className="button compact" href="/flow"><Workflow size={15} aria-hidden="true" />Open</Link> },
+          { label: "Controller", value: <Link className="button compact" href="/controller"><Workflow size={15} aria-hidden="true" />Open</Link> },
         ]}
       />
 
       <SectionCard icon={Archive} title="No outputs yet.">
         <EmptyState
           icon={Archive}
-          title="Use Prompts for now."
+          title="Use Product Detail or Controller."
           action={
-            <Link className="button primary" href="/prompts">
-              <FileText size={16} aria-hidden="true" />
-              Prompts
+            <Link className="button primary" href="/controller">
+              <Workflow size={16} aria-hidden="true" />
+              Controller
             </Link>
           }
         />

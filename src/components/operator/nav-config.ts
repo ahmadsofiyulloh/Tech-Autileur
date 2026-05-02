@@ -1,8 +1,6 @@
 import {
-  Archive,
   FileText,
   HardDrive,
-  Inbox,
   KeyRound,
   LayoutDashboard,
   Package,
@@ -18,27 +16,25 @@ export type OperatorNavItem = {
 };
 
 export const mobileNavItems = [
-  { href: "/intake", label: "Intake", icon: Inbox },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Products", icon: Package },
-  { href: "/prompts", label: "Prompts", icon: FileText },
-  { href: "/outputs", label: "Outputs", icon: Archive },
+  { href: "/controller", label: "Controller", icon: Workflow },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] satisfies OperatorNavItem[];
 
 export const desktopNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   ...mobileNavItems,
-  { href: "/flow", label: "Flow", icon: Workflow },
-  { href: "/settings", label: "Settings", icon: Settings },
 ] satisfies OperatorNavItem[];
 
 export const routeTitles = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/intake", label: "Intake", icon: Inbox },
   { href: "/products", label: "Products", icon: Package },
-  { href: "/prompts", label: "Prompts", icon: FileText },
-  { href: "/outputs", label: "Outputs", icon: Archive },
-  { href: "/flow", label: "Flow", icon: Workflow },
+  { href: "/controller", label: "Controller", icon: Workflow },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/gemini", label: "Gemini", icon: KeyRound },
   { href: "/drive", label: "Drive", icon: HardDrive },
+  { href: "/intake", label: "Products", icon: Package },
+  { href: "/flow", label: "Controller", icon: Workflow },
+  { href: "/prompts", label: "Prompts", icon: FileText },
+  { href: "/outputs", label: "Outputs", icon: FileText },
 ] satisfies OperatorNavItem[];

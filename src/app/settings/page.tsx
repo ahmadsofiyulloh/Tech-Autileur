@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, HardDrive, KeyRound, LogOut, Settings, UserRound, Users, Workflow } from "lucide-react";
+import {
+  ArrowRight,
+  FolderKanban,
+  HardDrive,
+  KeyRound,
+  LogOut,
+  Settings,
+  SlidersHorizontal,
+  UserRound,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { PageHeader } from "@/components/operator/page-header";
@@ -26,7 +37,7 @@ export default async function SettingsPage() {
         icon={Settings}
         badge="Config"
         title="Settings"
-        description="Keys, Drive, accounts, and session."
+        description="Configuration hub for workspace placeholders, services, tools, profiles, and account."
         stats={[
           { label: "Gemini", value: <StatusBadge status="Active" tone="success" /> },
           { label: "Drive", value: <StatusBadge status="Ready" tone="success" /> },
@@ -35,6 +46,14 @@ export default async function SettingsPage() {
       />
 
       <section className="grid two-up">
+        <SectionCard icon={FolderKanban} title="Workspace Profiles" description="Placeholder only. No workspace schema exists yet.">
+          <EmptyState
+            icon={FolderKanban}
+            title="Workspace/profile setup comes later."
+            description="This will group products, niches, affiliate context, prompt personalization, and Drive root folders."
+          />
+        </SectionCard>
+
         <SectionCard
           icon={KeyRound}
           title="Gemini"
@@ -63,19 +82,27 @@ export default async function SettingsPage() {
           <StatusBadge status="Configured here" tone="info" />
         </SectionCard>
 
-        <SectionCard icon={Workflow} title="Flow accounts" description="Not active yet.">
+        <SectionCard icon={Workflow} title="Flow Accounts / Tools" description="Global execution tools, not workspace-bound.">
           <EmptyState
             icon={Workflow}
-            title="Reserved"
-            description="Add accounts later."
+            title="Reserved for dynamic Flow tools."
+            description="Flow accounts stay global per user and can execute prompts from any workspace or product."
           />
         </SectionCard>
 
-        <SectionCard icon={Users} title="Affiliate accounts" description="Not active yet.">
+        <SectionCard icon={Users} title="Affiliate Profiles" description="Placeholder only.">
           <EmptyState
             icon={Users}
-            title="Reserved"
-            description="Links and accounts come later."
+            title="Reserved for dynamic affiliate profiles."
+            description="Profiles must not be hardcoded. Workspace context will use these later."
+          />
+        </SectionCard>
+
+        <SectionCard icon={SlidersHorizontal} title="Prompt Personalization" description="Placeholder only.">
+          <EmptyState
+            icon={SlidersHorizontal}
+            title="Reserved for editable prompt rules."
+            description="Seed character locks, environment locks, and prompt rule fields come after schema approval."
           />
         </SectionCard>
 
