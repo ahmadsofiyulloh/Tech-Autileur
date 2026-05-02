@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PRODUCT_IMAGE_STATUSES,
@@ -10,10 +11,12 @@ import {
   isProductImageStatus,
   isProductStatus,
 } from "@/lib/products/validation";
+import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
 type ProductRecord = {
   id: string;
   user_id: string;
+  workspace_id: string | null;
   product_code: string;
   product_name: string;
   niche: string | null;
@@ -41,6 +44,7 @@ type ProductImageRecord = {
 
 type ProductInput = {
   id?: string;
+  workspace_id?: string | null;
   product_code: string;
   product_name: string;
   niche?: string | null;
@@ -93,6 +97,15 @@ async function requireUser() {
   return { supabase, user };
 }
 
+async function resolveWorkspaceIdForInsert(workspaceId: string | null | undefined) {
+  if (workspaceId !== undefined) {
+    return normalizeNullableWorkspaceUuid(workspaceId);
+  }
+
+  const currentWorkspace = await getCurrentWorkspace();
+  return currentWorkspace?.id ?? null;
+}
+
 function ensureProductCode(value: string) {
   const trimmed = readText(value);
 
@@ -119,11 +132,13 @@ export async function createProduct(input: ProductInput) {
   const { supabase, user } = await requireUser();
   const status = input.status ?? "DRAFT";
   assertProductStatus(status);
+  const workspaceId = await resolveWorkspaceIdForInsert(input.workspace_id);
 
   const { data, error } = await supabase
     .from("products")
     .insert({
       user_id: user.id,
+      workspace_id: workspaceId,
       product_code: ensureProductCode(input.product_code),
       product_name: readText(input.product_name),
       niche: normalizeNullableText(input.niche),
@@ -143,7 +158,7 @@ export async function createProduct(input: ProductInput) {
   return data as ProductRecord;
 }
 
-export async function listProducts(input?: { status?: ProductStatus | string; limit?: number }) {
+export async function listProducts(input?: { status?: ProductStatus | string; limit?: number; workspaceId?: string | null }) {
   const { supabase, user } = await requireUser();
 
   if (input?.status) {
@@ -155,6 +170,10 @@ export async function listProducts(input?: { status?: ProductStatus | string; li
 
   if (input?.status) {
     query = query.eq("status", input.status);
+  }
+
+  if (input?.workspaceId) {
+    query = query.eq("workspace_id", input.workspaceId);
   }
 
   const { data, error } = await query;
@@ -187,6 +206,7 @@ export async function updateProduct(id: string, input: Partial<ProductInput>) {
   const { data, error } = await supabase
     .from("products")
     .update({
+      ...(input.workspace_id !== undefined ? { workspace_id: normalizeNullableWorkspaceUuid(input.workspace_id) } : {}),
       ...(input.product_code !== undefined ? { product_code: ensureProductCode(input.product_code) } : {}),
       ...(input.product_name !== undefined ? { product_name: readText(input.product_name) } : {}),
       ...(input.niche !== undefined ? { niche: normalizeNullableText(input.niche) } : {}),

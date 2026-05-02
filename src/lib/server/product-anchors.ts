@@ -10,10 +10,12 @@ import {
   normalizeIntakeText,
   readIntakeText,
 } from "@/lib/intake/validation";
+import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
 export type ProductAnchorRecord = {
   id: string;
   user_id: string;
+  workspace_id: string | null;
   product_id: string;
   intake_session_id: string | null;
   source_product_image_id: string | null;
@@ -30,6 +32,7 @@ export type ProductAnchorRecord = {
 
 export type ProductAnchorInput = {
   product_id: string;
+  workspace_id?: string | null;
   intake_session_id?: string | null;
   source_product_image_id?: string | null;
   anchor_code: string;
@@ -84,6 +87,29 @@ function normalizeAnchorCode(value: string) {
   return normalized;
 }
 
+async function resolveProductWorkspaceId(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  productId: string,
+) {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, workspace_id")
+    .eq("id", productId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Product not found.");
+  }
+
+  return typeof data.workspace_id === "string" ? data.workspace_id : null;
+}
+
 export function buildProductAnchorCode(value: string) {
   const normalized = readIntakeText(value)
     .replace(/[^A-Za-z0-9]+/g, "")
@@ -96,11 +122,15 @@ export async function createProductAnchor(input: ProductAnchorInput) {
   const { supabase, user } = await requireUser();
   const status = input.status ?? "DRAFT";
   assertProductAnchorStatus(status);
+  const productWorkspaceId = await resolveProductWorkspaceId(supabase, user.id, input.product_id);
+  const workspaceId =
+    input.workspace_id !== undefined ? normalizeNullableWorkspaceUuid(input.workspace_id) : productWorkspaceId;
 
   const { data, error } = await supabase
     .from("product_anchors")
     .insert({
       user_id: user.id,
+      workspace_id: workspaceId,
       product_id: input.product_id,
       intake_session_id: normalizeIntakeText(input.intake_session_id),
       source_product_image_id: normalizeIntakeText(input.source_product_image_id),
@@ -126,6 +156,7 @@ export async function createProductAnchor(input: ProductAnchorInput) {
 export async function listProductAnchors(input?: {
   productId?: string;
   intakeSessionId?: string;
+  workspaceId?: string | null;
   limit?: number;
 }) {
   const { supabase, user } = await requireUser();
@@ -143,6 +174,10 @@ export async function listProductAnchors(input?: {
 
   if (input?.intakeSessionId) {
     query = query.eq("intake_session_id", input.intakeSessionId);
+  }
+
+  if (input?.workspaceId) {
+    query = query.eq("workspace_id", input.workspaceId);
   }
 
   const { data, error } = await query;

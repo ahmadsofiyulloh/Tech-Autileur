@@ -6,9 +6,14 @@ import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { listProducts } from "@/lib/server/products";
+import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+type ProductsPageProps = {
+  searchParams: Promise<{ workspace?: string | string[] }>;
+};
 
 function fieldValue(value: string | number | null | undefined) {
   return value ?? "Not set";
@@ -21,7 +26,20 @@ function formatDate(value: string) {
   });
 }
 
-export default async function ProductsPage() {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
+  if (!workspaceId) {
+    return "Unassigned";
+  }
+
+  const workspace = workspaceMap.get(workspaceId);
+  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
+}
+
+export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -31,10 +49,18 @@ export default async function ProductsPage() {
     redirect("/login");
   }
 
+  const query = await searchParams;
+  const showAllWorkspaces = firstParam(query.workspace) === "all";
   let products;
+  let currentWorkspace;
+  let workspaces;
 
   try {
-    products = await listProducts({ limit: 200 });
+    [currentWorkspace, workspaces] = await Promise.all([getCurrentWorkspace(), listWorkspaces({ limit: 200 })]);
+    products = await listProducts({
+      limit: 200,
+      workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load products.";
 
@@ -45,6 +71,8 @@ export default async function ProductsPage() {
     );
   }
 
+  const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "All workspaces";
   const activeCount = products.filter((product) => product.status !== "ARCHIVED").length;
   const draftCount = products.filter((product) => product.status === "DRAFT").length;
 
@@ -54,14 +82,22 @@ export default async function ProductsPage() {
         icon={Package}
         badge="Products"
         title="Products"
-        description="Product list only. Open a product row for metadata, prompts, outputs, and history."
+        description={`Product list only. Scope: ${scopeLabel}.`}
         actions={
-          <Link className="button primary" href="/products/new">
-            <Plus size={16} aria-hidden="true" />
-            New intake
-          </Link>
+          <>
+            {currentWorkspace ? (
+              <Link className="button" href={showAllWorkspaces ? "/products" : "/products?workspace=all"}>
+                {showAllWorkspaces ? "Current workspace" : "All workspaces"}
+              </Link>
+            ) : null}
+            <Link className="button primary" href="/products/new">
+              <Plus size={16} aria-hidden="true" />
+              New intake
+            </Link>
+          </>
         }
         stats={[
+          { label: "Scope", value: scopeLabel },
           { label: "Total", value: products.length },
           { label: "Active", value: activeCount },
           { label: "Draft", value: draftCount },
@@ -89,6 +125,10 @@ export default async function ProductsPage() {
             >
               <div className="metric-grid">
                 <div className="metric">
+                  <span>Workspace</span>
+                  <strong>{workspaceLabel(product.workspace_id, workspaceMap)}</strong>
+                </div>
+                <div className="metric">
                   <span>Marketplace</span>
                   <strong>{fieldValue(product.marketplace)}</strong>
                 </div>
@@ -114,13 +154,19 @@ export default async function ProductsPage() {
       ) : (
         <EmptyState
           icon={Package}
-          title="No products yet."
-          description="Start from the intake form."
+          title={currentWorkspace && !showAllWorkspaces ? "No products in this workspace." : "No products yet."}
+          description={currentWorkspace && !showAllWorkspaces ? "Use All workspaces to see unassigned or legacy products." : "Start from the intake form."}
           action={
-            <Link className="button primary" href="/products/new">
-              <Plus size={16} aria-hidden="true" />
-              New intake
-            </Link>
+            currentWorkspace && !showAllWorkspaces ? (
+              <Link className="button" href="/products?workspace=all">
+                All workspaces
+              </Link>
+            ) : (
+              <Link className="button primary" href="/products/new">
+                <Plus size={16} aria-hidden="true" />
+                New intake
+              </Link>
+            )
           }
         />
       )}

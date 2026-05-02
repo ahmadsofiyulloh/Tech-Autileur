@@ -9,9 +9,14 @@ import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listIntakeSessions } from "@/lib/server/intake";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+type NewProductPageProps = {
+  searchParams: Promise<{ workspace?: string | string[] }>;
+};
 
 function driveItemLabel(item: { name: string; purpose: string; drive_path: string }) {
   return [item.name, item.purpose, item.drive_path].filter(Boolean).join(" - ");
@@ -21,7 +26,11 @@ function fieldValue(value: string | number | null | undefined) {
   return value ?? "Not set";
 }
 
-export default async function NewProductPage() {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function NewProductPage({ searchParams }: NewProductPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -31,11 +40,21 @@ export default async function NewProductPage() {
     redirect("/login");
   }
 
+  const query = await searchParams;
+  const showAllWorkspaces = firstParam(query.workspace) === "all";
   let driveItems;
   let sessions;
+  let currentWorkspace;
 
   try {
-    [driveItems, sessions] = await Promise.all([listDriveItems({ limit: 200 }), listIntakeSessions({ limit: 20 })]);
+    currentWorkspace = await getCurrentWorkspace();
+    [driveItems, sessions] = await Promise.all([
+      listDriveItems({ limit: 200 }),
+      listIntakeSessions({
+        limit: 20,
+        workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
+      }),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load intake.";
 
@@ -46,6 +65,7 @@ export default async function NewProductPage() {
     );
   }
 
+  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "All workspaces";
   const linkedCount = sessions.filter((session) => session.product_id).length;
 
   return (
@@ -54,14 +74,22 @@ export default async function NewProductPage() {
         icon={Inbox}
         badge="Product intake"
         title="New product intake"
-        description="Capture product links, Drive references, and notes from one intake path."
+        description={`Capture product links, Drive references, and notes. Scope: ${scopeLabel}.`}
         actions={
-          <Link className="button" href="/products">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Products
-          </Link>
+          <>
+            {currentWorkspace ? (
+              <Link className="button" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
+                {showAllWorkspaces ? "Current workspace" : "All workspaces"}
+              </Link>
+            ) : null}
+            <Link className="button" href="/products">
+              <ArrowLeft size={16} aria-hidden="true" />
+              Products
+            </Link>
+          </>
         }
         stats={[
+          { label: "Scope", value: scopeLabel },
           { label: "Drive refs", value: driveItems.length },
           { label: "Recent intake", value: sessions.length },
           { label: "Linked", value: linkedCount },
@@ -119,6 +147,10 @@ export default async function NewProductPage() {
             <textarea id="create-raw-notes" name="raw_notes" rows={3} placeholder="Manual notes" />
           </label>
           <div className="muted-box stack-tight">
+            <strong>Workspace</strong>
+            <p>{currentWorkspace ? `New intake saves to ${currentWorkspace.workspace_name}.` : "No workspace selected. Intake saves unassigned."}</p>
+          </div>
+          <div className="muted-box stack-tight">
             <strong>Visual parsing rule</strong>
             <p>
               Product links are metadata only. If image bytes are unavailable, Gemini intake parsing uses the current text-only
@@ -134,7 +166,7 @@ export default async function NewProductPage() {
         </form>
       </SectionCard>
 
-      <SectionCard icon={Package} title="Recent intake" description="Newest intake sessions saved from this path.">
+      <SectionCard icon={Package} title="Recent intake" description={`Newest intake sessions. Scope: ${scopeLabel}.`}>
         {sessions.length ? (
           <ul className="list">
             {sessions.slice(0, 5).map((session) => (
@@ -160,7 +192,15 @@ export default async function NewProductPage() {
             ))}
           </ul>
         ) : (
-          <EmptyState icon={Inbox} title="No intake yet." description="Save the first product intake above." />
+          <EmptyState
+            icon={Inbox}
+            title={currentWorkspace && !showAllWorkspaces ? "No intake in this workspace." : "No intake yet."}
+            description={
+              currentWorkspace && !showAllWorkspaces
+                ? "Use All workspaces to see unassigned or legacy intake."
+                : "Save the first product intake above."
+            }
+          />
         )}
       </SectionCard>
     </div>

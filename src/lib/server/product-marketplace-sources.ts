@@ -12,10 +12,12 @@ import {
   isMarketplaceSourceStatus,
   normalizeIntakeText,
 } from "@/lib/intake/validation";
+import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
 export type MarketplaceSourceRecord = {
   id: string;
   user_id: string;
+  workspace_id: string | null;
   product_id: string;
   platform: MarketplacePlatform;
   product_url: string | null;
@@ -36,6 +38,7 @@ export type MarketplaceSourceRecord = {
 
 export type MarketplaceSourceInput = {
   product_id: string;
+  workspace_id?: string | null;
   platform: string;
   product_url?: string | null;
   affiliate_url?: string | null;
@@ -76,6 +79,29 @@ function assertMarketplaceSourceStatus(value: string): asserts value is Marketpl
   }
 }
 
+async function resolveProductWorkspaceId(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  productId: string,
+) {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, workspace_id")
+    .eq("id", productId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Product not found.");
+  }
+
+  return typeof data.workspace_id === "string" ? data.workspace_id : null;
+}
+
 export async function createMarketplaceSource(input: MarketplaceSourceInput) {
   const { supabase, user } = await requireUser();
   const status = input.status ?? "DRAFT";
@@ -89,11 +115,16 @@ export async function createMarketplaceSource(input: MarketplaceSourceInput) {
     throw new Error("Source needs a product URL or title.");
   }
 
+  const productWorkspaceId = await resolveProductWorkspaceId(supabase, user.id, input.product_id);
+  const workspaceId =
+    input.workspace_id !== undefined ? normalizeNullableWorkspaceUuid(input.workspace_id) : productWorkspaceId;
+
   const { data, error } = await supabase
     .from("product_marketplace_sources")
     .upsert(
       {
         user_id: user.id,
+        workspace_id: workspaceId,
         product_id: input.product_id,
         platform: input.platform,
         product_url: productUrl,
@@ -125,6 +156,7 @@ export async function createMarketplaceSource(input: MarketplaceSourceInput) {
 export async function listProductMarketplaceSources(input?: {
   productId?: string;
   platform?: MarketplacePlatform | string;
+  workspaceId?: string | null;
   limit?: number;
 }) {
   const { supabase, user } = await requireUser();
@@ -147,6 +179,10 @@ export async function listProductMarketplaceSources(input?: {
 
   if (input?.platform) {
     query = query.eq("platform", input.platform);
+  }
+
+  if (input?.workspaceId) {
+    query = query.eq("workspace_id", input.workspaceId);
   }
 
   const { data, error } = await query;

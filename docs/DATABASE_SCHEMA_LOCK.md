@@ -131,6 +131,7 @@ updated_at timestamptz
 ```text
 id uuid pk
 user_id uuid fk auth.users
+workspace_id uuid nullable fk workspaces(id, user_id)
 product_code text unique per user
 product_name text
 niche text
@@ -140,6 +141,44 @@ status product_status
 created_at timestamptz
 updated_at timestamptz
 ```
+
+## Workspace/Profile Additions
+
+Sprint 12B adds workspace/profile persistence:
+
+```text
+workspaces
+- id uuid pk
+- user_id uuid fk auth.users
+- workspace_code text unique per user
+- workspace_name text
+- niche text nullable
+- drive_root_folder_ref_id uuid nullable composite fk drive_items(id, user_id)
+- drive_root_folder_url text nullable
+- drive_root_folder_path text nullable
+- status workspace_status
+- is_default boolean
+- notes text nullable
+- created_at timestamptz
+- updated_at timestamptz
+
+user_preferences
+- user_id uuid pk fk auth.users
+- current_workspace_id uuid nullable composite fk workspaces(id, user_id)
+- created_at timestamptz
+- updated_at timestamptz
+```
+
+Sprint 12C scopes product flow records to workspaces with nullable `workspace_id` for backward compatibility:
+
+```text
+products.workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_intake_sessions.workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_marketplace_sources.workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_anchors.workspace_id uuid nullable composite fk workspaces(id, user_id)
+```
+
+Flow accounts remain global execution tools. Do not add `workspace_id` to Flow accounts, Flow batches, clip jobs, AI tasks, Gemini key tables, Drive item tables, or prompt packs unless a later approved sprint changes the lock.
 
 ### `product_images`
 

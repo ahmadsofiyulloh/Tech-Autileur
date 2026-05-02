@@ -32,10 +32,13 @@ import {
   createMarketplaceSource,
   listProductMarketplaceSources,
 } from "@/lib/server/product-marketplace-sources";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
 type ProductRecord = {
   id: string;
   user_id: string;
+  workspace_id: string | null;
   product_code: string;
   product_name: string;
   niche: string | null;
@@ -133,6 +136,7 @@ type IntakeWorkspace = {
 export type IntakeSessionRecord = {
   id: string;
   user_id: string;
+  workspace_id: string | null;
   product_id: string | null;
   intake_code: string;
   product_title: string | null;
@@ -150,6 +154,7 @@ export type IntakeSessionRecord = {
 };
 
 export type IntakeSessionInput = {
+  workspace_id?: string | null;
   product_id?: string | null;
   intake_code?: string | null;
   product_title?: string | null;
@@ -245,6 +250,15 @@ async function requireUser() {
   return { supabase, user };
 }
 
+async function resolveWorkspaceIdForInsert(workspaceId: string | null | undefined) {
+  if (workspaceId !== undefined) {
+    return normalizeNullableWorkspaceUuid(workspaceId);
+  }
+
+  const currentWorkspace = await getCurrentWorkspace();
+  return currentWorkspace?.id ?? null;
+}
+
 function assertIntakeStatus(value: string): asserts value is IntakeStatus {
   if (!isIntakeStatus(value)) {
     throw new Error(`Invalid intake status. Expected one of: ${INTAKE_STATUSES.join(", ")}.`);
@@ -289,6 +303,7 @@ async function getIntakeSessionById(id: string) {
 
 function intakePayload(input: IntakeSessionInput) {
   return {
+    ...(input.workspace_id !== undefined ? { workspace_id: normalizeNullableWorkspaceUuid(input.workspace_id) } : {}),
     ...(input.product_id !== undefined ? { product_id: normalizeIntakeText(input.product_id) } : {}),
     ...(input.intake_code !== undefined ? { intake_code: readIntakeText(input.intake_code) } : {}),
     ...(input.product_title !== undefined ? { product_title: normalizeIntakeText(input.product_title) } : {}),
@@ -632,10 +647,13 @@ export async function createIntakeSession(input: IntakeSessionInput) {
     throw new Error("Add a title, link, Drive ref, or notes.");
   }
 
+  const workspaceId = await resolveWorkspaceIdForInsert(input.workspace_id);
+
   const { data, error } = await supabase
     .from("product_intake_sessions")
     .insert({
       user_id: user.id,
+      workspace_id: workspaceId,
       product_id: normalizeIntakeText(input.product_id),
       intake_code: readIntakeText(input.intake_code) || buildIntakeCode(input),
       product_title: normalizeIntakeText(input.product_title),
@@ -660,7 +678,12 @@ export async function createIntakeSession(input: IntakeSessionInput) {
   return data as IntakeSessionRecord;
 }
 
-export async function listIntakeSessions(input?: { status?: IntakeStatus | string; limit?: number }) {
+export async function listIntakeSessions(input?: {
+  status?: IntakeStatus | string;
+  productId?: string;
+  workspaceId?: string | null;
+  limit?: number;
+}) {
   const { supabase, user } = await requireUser();
 
   if (input?.status) {
@@ -677,6 +700,14 @@ export async function listIntakeSessions(input?: { status?: IntakeStatus | strin
 
   if (input?.status) {
     query = query.eq("status", input.status);
+  }
+
+  if (input?.productId) {
+    query = query.eq("product_id", input.productId);
+  }
+
+  if (input?.workspaceId) {
+    query = query.eq("workspace_id", input.workspaceId);
   }
 
   const { data, error } = await query;
@@ -698,6 +729,7 @@ export async function updateIntakeSession(id: string, input: IntakeSessionInput)
   const { data, error } = await supabase
     .from("product_intake_sessions")
     .update({
+      ...(input.workspace_id !== undefined ? { workspace_id: normalizeNullableWorkspaceUuid(input.workspace_id) } : {}),
       ...(input.product_id !== undefined ? { product_id: normalizeIntakeText(input.product_id) } : {}),
       ...(input.product_title !== undefined ? { product_title: normalizeIntakeText(input.product_title) } : {}),
       ...(input.shopee_url !== undefined ? { shopee_url: normalizeIntakeText(input.shopee_url) } : {}),
@@ -752,6 +784,7 @@ export async function linkProductToIntake(intakeSessionId: string, productId: st
   }
 
   return await updateIntakeSession(intakeSessionId, {
+    workspace_id: product.workspace_id,
     product_id: product.id,
   });
 }
@@ -775,6 +808,7 @@ export async function createProductFromIntake(
   const marketplace = session.shopee_url ? "SHOPEE" : session.tiktok_url ? "TIKTOK" : null;
   const marketplaceProductLink = session.shopee_url ?? session.tiktok_url;
   const product = await createProduct({
+    workspace_id: session.workspace_id ?? undefined,
     product_code: readIntakeText(input?.product_code) || buildProductCode(productName),
     product_name: productName,
     niche: normalizeIntakeText(input?.niche),
@@ -785,6 +819,7 @@ export async function createProductFromIntake(
   });
 
   await updateIntakeSession(session.id, {
+    workspace_id: product.workspace_id,
     product_id: product.id,
     status: session.status === "DRAFT" ? "NEEDS_REVIEW" : session.status,
   });
@@ -815,12 +850,20 @@ export async function createMarketplaceSourcesFromIntake(
     throw new Error("Link a product first.");
   }
 
+  const product = await getProductById(session.product_id);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  const workspaceId = product.workspace_id ?? session.workspace_id ?? undefined;
   const sources: MarketplaceSourceInput[] = [];
 
   if (input.shopee && (normalizeIntakeText(input.shopee.product_url) || session.shopee_url || normalizeIntakeText(input.shopee.title))) {
     sources.push({
       ...input.shopee,
       product_id: session.product_id,
+      workspace_id: workspaceId,
       platform: "SHOPEE",
       product_url: normalizeIntakeText(input.shopee.product_url) ?? session.shopee_url,
       title: normalizeIntakeText(input.shopee.title) ?? session.product_title,
@@ -833,6 +876,7 @@ export async function createMarketplaceSourcesFromIntake(
     sources.push({
       ...input.tiktok,
       product_id: session.product_id,
+      workspace_id: workspaceId,
       platform: "TIKTOK",
       product_url: normalizeIntakeText(input.tiktok.product_url) ?? session.tiktok_url,
       title: normalizeIntakeText(input.tiktok.title) ?? session.product_title,
@@ -1033,11 +1077,13 @@ export async function createProductAnchorFromIntake(
   };
   const anchorCode = readIntakeText(input?.anchor_code) || existingAnchor?.anchor_code || buildProductAnchorCode(product.product_code);
   const notes = normalizeIntakeText(input?.notes) ?? existingAnchor?.notes ?? session.raw_notes;
+  const workspaceId = product.workspace_id ?? session.workspace_id ?? null;
 
   if (existingAnchor) {
     const { data, error } = await supabase
       .from("product_anchors")
       .update({
+        workspace_id: workspaceId,
         product_id: product.id,
         intake_session_id: session.id,
         source_product_image_id: sourceImage?.id ?? null,
@@ -1064,6 +1110,7 @@ export async function createProductAnchorFromIntake(
   }
 
   const anchor = await createProductAnchor({
+    workspace_id: workspaceId,
     product_id: product.id,
     intake_session_id: session.id,
     source_product_image_id: sourceImage?.id ?? null,

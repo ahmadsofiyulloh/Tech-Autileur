@@ -11,6 +11,7 @@ import { listProductAnchors } from "@/lib/server/product-anchors";
 import { listProductMarketplaceSources } from "@/lib/server/product-marketplace-sources";
 import { getProductById, listProductImages } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
+import { listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,15 @@ function prettyJson(value: unknown) {
 function resolveTab(value: string | string[] | undefined): DetailTab {
   const tab = Array.isArray(value) ? value[0] : value;
   return detailTabs.some((item) => item.key === tab) ? (tab as DetailTab) : "metadata";
+}
+
+function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
+  if (!workspaceId) {
+    return "Unassigned";
+  }
+
+  const workspace = workspaceMap.get(workspaceId);
+  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
 }
 
 export default async function ProductDetailPage({ params, searchParams }: ProductDetailPageProps) {
@@ -86,18 +96,18 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   let marketplaceSources;
   let anchors;
   let promptPacks;
+  let workspaces;
 
   try {
-    const allIntakeSessions = await listIntakeSessions({ limit: 200 });
-
-    [productImages, driveItems, marketplaceSources, anchors, promptPacks] = await Promise.all([
+    [productImages, driveItems, marketplaceSources, anchors, promptPacks, intakeSessions, workspaces] = await Promise.all([
       listProductImages({ productId: product.id, limit: 200 }),
       listDriveItems({ limit: 200 }),
       listProductMarketplaceSources({ productId: product.id, limit: 200 }),
       listProductAnchors({ productId: product.id, limit: 200 }),
       listPromptPacks({ productId: product.id, limit: 200 }),
+      listIntakeSessions({ productId: product.id, limit: 200 }),
+      listWorkspaces({ limit: 200 }),
     ]);
-    intakeSessions = allIntakeSessions.filter((session) => session.product_id === product.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load product detail.";
 
@@ -122,6 +132,8 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     );
   }
 
+  const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+  const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const generatedPromptCount = promptPacks.filter((pack) => pack.status === "GENERATED").length;
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
@@ -170,7 +182,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
         icon={Package}
         badge={product.product_code}
         title={product.product_name}
-        description="Main product surface for metadata, prompt packs, outputs, and history."
+        description={`Main product surface. Workspace: ${productWorkspaceLabel}.`}
         actions={
           <>
             <Link className="button" href="/products">
@@ -184,6 +196,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
           </>
         }
         stats={[
+          { label: "Workspace", value: productWorkspaceLabel },
           { label: "Status", value: <StatusBadge status={product.status} /> },
           { label: "Source images", value: productImages.length },
           { label: "Prompt packs", value: promptPacks.length },
@@ -214,6 +227,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
             actions={<StatusBadge status={product.status} />}
           >
             <div className="metric-grid">
+              <div className="metric">
+                <span>Workspace</span>
+                <strong>{productWorkspaceLabel}</strong>
+              </div>
               <div className="metric">
                 <span>Code</span>
                 <strong>{product.product_code}</strong>
