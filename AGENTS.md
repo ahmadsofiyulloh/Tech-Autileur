@@ -1,7 +1,7 @@
-# AGENTS.md — Affiliate AI Content OS
+# AGENTS.md - Affiliate AI Content OS
 
 ## Mission
-Build the MVP only: a single-owner Next.js PWA that controls AI affiliate content production using Supabase metadata, Google Drive assets, Gemini prompt generation, Google Flow batch bridge, and mobile control layer.
+Build the MVP only: a single-owner Next.js PWA control center for AI affiliate content production using Supabase metadata, Google Drive assets, Gemini prompt generation, Google Flow batch bridge, and a mobile control layer.
 
 ## Required Source of Truth
 Before any implementation task, read these documents:
@@ -12,7 +12,9 @@ Before any implementation task, read these documents:
 4. `docs/DATABASE_SCHEMA_LOCK.md`
 5. `docs/DO_NOT_BUILD.md`
 6. `docs/MICRO_TASK_BACKLOG.md`
-7. The stream-specific lock doc for the task being implemented.
+7. `docs/PROMPT_PIPELINE_LOCK.md`
+8. `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
+9. The stream-specific lock doc for the task being implemented.
 
 If a task conflicts with these docs, stop and ask the user before coding.
 

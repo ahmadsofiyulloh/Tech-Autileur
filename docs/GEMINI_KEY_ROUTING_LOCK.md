@@ -1,6 +1,6 @@
 # Gemini Key Routing Lock
 
-## Free Tier Setup — Recommended
+## Free Tier Setup - Recommended
 Use 3 separate Google AI Studio projects/API keys for maximum quality and efficiency.
 
 ```text
@@ -32,12 +32,15 @@ Task: i2v prompt generation and consistency checking
 ```
 
 ## Routing Rules
-- `VISION_ANALYSIS` → role `VISION`, preferred model Gemini 2.5 Pro.
-- `I2I_PROMPT_PACK` → role `I2I`, preferred model Gemini 2.5 Flash-Lite.
-- `I2V_PROMPT_PACK` → role `I2V`, preferred model Gemini 2.5 Flash.
-- `CONSISTENCY_CHECK` → role `CONSISTENCY`, preferred model Gemini 2.5 Flash.
-- `PROMPT_REPAIR` → role `I2V` or `FALLBACK`.
-- `QA` → optional, preferred model Gemini 2.5 Pro.
+- `VISION_ANALYSIS` -> role `VISION`, preferred model Gemini 2.5 Pro.
+- `I2I_PROMPT_PACK` -> role `I2I`, preferred model Gemini 2.5 Flash-Lite.
+- `I2V_PROMPT_PACK` -> role `I2V`, preferred model Gemini 2.5 Flash.
+- `CONSISTENCY_CHECK` -> role `CONSISTENCY`, preferred model Gemini 2.5 Flash.
+- `PROMPT_REPAIR` -> role `I2V` or `FALLBACK`.
+- `QA` -> optional, preferred model Gemini 2.5 Pro.
+
+## Prompt Pack Context
+A prompt pack must consume UI-editable prompt rules from the selected affiliate profile and must not hardcode i2i, i2v, caption, hashtag, or negative prompt logic in code.
 
 ## Failure Rules
 If a key is rate limited:
@@ -51,11 +54,12 @@ If a key is rate limited:
 All AI outputs must be structured JSON and validated before saving.
 
 ## MVP Prompt Pack Output
-A prompt pack must include:
+A prompt pack should include:
 
 ```json
 {
   "product_analysis": {},
+  "prompt_context": {},
   "i2i_prompts": {
     "clip_01_start_frame": "",
     "clip_01_last_frame": "",
@@ -67,6 +71,8 @@ A prompt pack must include:
     "clip_02": ""
   },
   "consistency_rules": [],
-  "risk_notes": []
+  "negative_rules": [],
+  "caption_rules": [],
+  "hashtag_rules": []
 }
 ```

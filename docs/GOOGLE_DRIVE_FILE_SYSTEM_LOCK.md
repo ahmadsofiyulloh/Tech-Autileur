@@ -1,7 +1,7 @@
 # Google Drive File System Lock
 
 ## Purpose
-Google Drive is the source of truth for all files/assets. Supabase only stores metadata and relationships.
+Google Drive is the source of truth for all files and assets. Supabase only stores metadata and relationships.
 
 ## Root Folder
 ```text
@@ -12,51 +12,51 @@ Google Drive is the source of truth for all files/assets. Supabase only stores m
 ```text
 /AffiliateAI/
   /00_ADMIN/
-    affiliate_accounts/
+    affiliate_profiles/
     google_flow_accounts/
-    api_key_registry_reference/
+    gemini_api_projects/
     templates/
 
   /01_PRODUCTS/
     /PRODUCT_CODE/
       /01_SOURCE_IMAGES/
-      /02_AI_ANALYSIS/
-      /03_I2I_RESULTS/
-      /04_I2V_PROMPTS/
-      /05_CLIPS_RAW/
-      /06_FINAL_VIDEO/
-      /07_UPLOAD_PACKAGE/
-      /08_PERFORMANCE/
+      /02_SCREENSHOTS/
+      /03_ANALYSIS/
+      /04_PROMPT_REFERENCES/
+      /05_I2I_RESULTS/
+      /06_I2V_PROMPTS/
+      /07_CLIPS_RAW/
+      /08_FINAL_VIDEO/
+      /09_UPLOAD_PACKAGE/
+      /10_PERFORMANCE/
 
-  /02_BATCHES/
+  /02_WORKSPACES/
+    /WORKSPACE_CODE/
+      /ROOT_FOLDER/
+      /PRODUCTS/
+      /PROMPTS/
+
+  /03_BATCHES/
     /YYYY-MM-DD/
       /BATCH_CODE/
         /FLOW_ACCOUNT_CODE/
 
-  /03_IMPORTS/
+  /04_IMPORTS/
     /UNMATCHED/
     /NEED_MANUAL_ATTACH/
 
-  /04_EXPORTS/
+  /05_EXPORTS/
     /BATCH_MANIFEST_JSON/
     /PROMPT_BATCH_TXT/
     /UPLOAD_PACKAGE_CSV/
     /PERFORMANCE_CSV/
-
-  /05_FINAL_LIBRARY/
-    /TIKTOK/
-      /TIKTOK_AFF_01_FASHION_ATASAN_PRIA/
-      /TIKTOK_AFF_02_FASHION_BAWAHAN_PRIA/
-      /TIKTOK_AFF_03_NICHE_UTAMA/
-    /SHOPEE/
-      /SHOPEE_AFF_01/
 ```
 
-## Drive File Metadata Required in Supabase
+## Drive Item Metadata Required in Supabase
 For every attached file store:
 
 ```text
-drive_file_id
+drive_item_id
 name
 mime_type
 kind
@@ -64,15 +64,16 @@ drive_url
 folder_id
 folder_path
 size_bytes if available
-product_id/content_id/clip_job_id/batch_id relation if applicable
+product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation if applicable
 ```
 
 ## MVP Drive Operations
 - Create standard folders.
-- Attach existing Drive file by URL or picker.
+- Attach uploaded image or screenshot bytes and store the resulting Drive metadata.
+- Attach existing Drive file metadata by URL or picker when needed.
 - Store file metadata.
-- Copy file/folder links.
-- Scan batch output folder.
+- Copy file and folder links.
+- Scan batch output folders.
 - Match imported files to clip jobs using prompt prefix.
 - Move unmatched files to unmatched queue metadata.
 
@@ -80,3 +81,4 @@ product_id/content_id/clip_job_id/batch_id relation if applicable
 - Large asset storage in Supabase.
 - Full Drive sync daemon.
 - Automatic editing or rendering inside Drive.
+- Claiming visual parsing from links when image bytes are not available.

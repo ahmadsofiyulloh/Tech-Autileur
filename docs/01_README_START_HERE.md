@@ -1,47 +1,50 @@
-# 01 — Start Here Before Sprint
+# 01 - Start Here Before Sprint
 
 ## Purpose
-This folder is the implementation control pack for Codex CLI. It exists to keep the MVP small, locked, and fast to ship.
+This folder is the implementation control pack for Codex CLI. It keeps the MVP small, locked, and fast to ship.
 
 ## Read Order
-Codex and the user should read documents in this order:
+Read these docs in order:
 
 1. `AGENTS.md`
 2. `docs/PRD_SOURCE_OF_TRUTH.md`
 3. `docs/ARCHITECTURE_LOCK.md`
 4. `docs/DATABASE_SCHEMA_LOCK.md`
 5. `docs/DO_NOT_BUILD.md`
-6. `docs/SUPABASE_MCP_RUNBOOK.md`
-7. `docs/MICRO_TASK_BACKLOG.md`
-8. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
+6. `docs/PROMPT_PIPELINE_LOCK.md`
+7. `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
+8. `docs/GOOGLE_DRIVE_FILE_SYSTEM_LOCK.md`
+9. `docs/MICRO_TASK_BACKLOG.md`
+10. `docs/SUPABASE_MCP_RUNBOOK.md`
+11. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
 
 ## MVP Core
 The MVP is not a generic affiliate planner. It is an AI production control center.
 
-Core features:
+Core flow:
 
-1. Multi Gemini Account Manager.
-2. Centralized Google Drive File Manager.
-3. Prompt Pipeline: product vision analysis → 4 i2i prompts → 2 i2v prompts.
-4. Google Flow Batch Bridge.
-5. Mobile Remote Control Layer.
-6. Import Results.
-7. Review Board.
-8. Upload Package.
+1. Dashboard entrypoint.
+2. Products list.
+3. Intake workflow in `/products/new`.
+4. Prompt editor/generator step.
+5. Controller execution workspace.
+6. Output and history surfaces.
+7. Settings hub for profiles, Gemini, Drive, and Flow tools.
+8. Dashboard analytics.
 
 ## Sprint Rule
 Do not start broad feature work. Start with a vertical slice:
 
 ```text
-Login
-→ Gemini key metadata
-→ Product source image link
-→ Vision/prompt mock pipeline
-→ C01/C02 clip jobs
-→ Batch prompt export
+Dashboard
+-> /products list
+-> /products/new intake with upload cards and preview
+-> prompt editor/generator
+-> controller
+-> output/history
 ```
 
 ## Human Owner Responsibilities
-The user must provide real accounts, secrets, project IDs, OAuth approvals, Gemini keys, Supabase project access, Google Drive authorization, Flow execution, video review, final video edit, and manual upload.
+The user must provide real images/screenshots, workspace choices, affiliate profile details, Gemini keys, Supabase project access, Google Drive authorization, Flow execution, video review, final video edit, and manual upload.
 
 Codex handles code implementation only.

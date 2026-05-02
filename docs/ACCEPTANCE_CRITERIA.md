@@ -2,55 +2,49 @@
 
 ## Core System
 - User can log in with Supabase Auth.
-- User sees protected mobile-first dashboard.
+- User sees a protected mobile-first dashboard.
+- Main navigation is exactly `Dashboard`, `Products`, `Controller`, `Settings`.
+- Compatibility routes keep working, but are not primary navigation.
 - Metadata is stored in Supabase.
-- File/asset references point to Google Drive.
+- File and asset references point to Google Drive.
 - RLS prevents cross-user access.
 
-## Gemini Manager
-- User can add 3 separate Gemini project/key records.
-- User can assign role/model per key.
-- Gemini keys are encrypted at rest.
-- Raw keys are not exposed to client after save.
-- AI task queue routes tasks by role/model.
-- If key is limited/unavailable, task waits or retries.
+## Products and Intake
+- `/products` shows the product list only.
+- `/products/new` is the intake workflow entrypoint.
+- `/products/[id]` shows `Metadata`, `Output`, and `History` tabs.
+- Intake uses image and screenshot upload cards with local preview.
+- Main save advances to the prompt step when minimum data is sufficient.
+- `DRAFT` is used only for incomplete draft or autosave states.
+- `SUBMITTED` is used for the main save or submit action.
+- Intake inherits `current_workspace_id` when one is active.
 
 ## Prompt Pipeline
-- User can attach product source image.
-- System can run product vision analysis.
-- System can generate 4 i2i prompts per content.
-- System can generate 2 i2v prompts per content.
-- Prompts are stored as structured JSON.
-- Every content has exactly two clip jobs: C01 and C02.
-- Prompt versions are preserved.
+- Prompt rules are editable in UI.
+- i2i, i2v, caption, hashtag, negative prompt, seed lock, and environment lock are not hardcoded in JSX or HTML.
+- Prompt generation consumes the selected affiliate profile and product context.
+- Prompt packs are stored as structured JSON.
+- Prompt pack versions are preserved.
 
-## Flow Batch Bridge
-- User can create FLOW_FREE/FLOW_PLUS accounts.
-- System calculates capacity using max 5 jobs per FLOW_FREE/day.
-- System creates batches per Flow account.
-- System exports prompt TXT and JSON manifest.
-- Prompt prefix is naming-safe and at the start of exported prompt.
+## Controller and Flow
+- Flow accounts remain global execution tools.
+- Flow accounts do not have `workspace_id`.
+- Any workspace, product, or prompt can use any available Flow account.
+- Flow account count is dynamic and never hardcoded.
+- Controller can assign ready prompt packs to available Flow accounts.
 
-## Drive Manager and Import
-- User can attach Drive files/folders.
-- System stores Drive metadata.
-- System can scan/import batch results in mock or real mode.
-- System matches files by prefix.
-- Unmatched files are shown and can be manually attached.
+## Affiliate Profiles and Settings
+- User can create unlimited affiliate profiles.
+- Profiles can belong to a workspace.
+- Profiles store editable prompt personalization rules.
+- Profiles can lock seed character and environment with Drive references.
 
-## Review and Upload
-- User can approve/reject clips.
-- Rejected clip can create regenerate job V02.
-- User can attach final video Drive link.
-- System creates TikTok/Shopee upload package.
-- User can copy caption/tags/CTA/affiliate link.
-- User can mark uploaded and paste post URL.
-
-## Mobile Control
-- User can view production status on mobile.
-- User can open remote desktop link from mobile.
-- User can open Flow and Drive links from mobile.
-- User can copy prompts from mobile.
+## Dashboard Analytics
+- Dashboard can show API usage.
+- Dashboard can show token usage as real or estimated.
+- Dashboard can show generated file count.
+- Dashboard can show Drive item count.
+- Dashboard can show prompt and task counts.
 
 ## Hardening
 - Lint passes.

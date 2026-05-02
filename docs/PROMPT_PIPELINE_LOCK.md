@@ -1,89 +1,71 @@
-# Prompt Pipeline Lock — Vision → i2i → i2v
+# Prompt Pipeline Lock - Intake -> Prompt Editor/Generator -> Controller
 
 ## Purpose
-This is the core production pipeline. Every content unit produces two clips, and each clip needs start/last frame prompts plus one i2v prompt.
+This is the core prompt workflow. The prompt step is an editor/generator inside the workflow, not a primary navigation page.
 
-## Per Content Workload
+## Locked Flow
 ```text
-1 product vision analysis
-4 i2i prompts
-2 i2v prompts
+Intake data
+-> Prompt editor
+-> Prompt generator
+-> Controller queue
+-> Flow export
+-> Output/history
 ```
 
-## Pipeline
-```text
-Product source image
-→ Vision analysis
-→ i2i prompt pack
-→ i2i result images attached from Drive
-→ i2v prompt pack
-→ C01/C02 clip jobs
-→ Flow batch export
-→ generated clips import
-```
+## Inputs
+Prompt generation must consume:
 
-## Content Structure
-```text
-Content CT001
-  Clip C01
-    i2i_start_frame_prompt
-    i2i_last_frame_prompt
-    i2v_prompt
-  Clip C02
-    i2i_start_frame_prompt
-    i2i_last_frame_prompt
-    i2v_prompt
-```
+- product intake data
+- reviewed product metadata
+- product image and screenshot context when bytes are available
+- marketplace source metadata
+- affiliate profile prompt rules
+- seed character lock and environment lock flags
+- Drive item references for seed/environment assets
 
-## Prompt Requirements
-- Must preserve product identity.
-- Must preserve scene continuity between start frame, last frame, and video prompt.
-- Must avoid text/logo overlays unless product has actual logo.
-- Must be vertical UGC compatible.
-- Must be output as structured JSON.
+## Prompt Rule Locks
+- i2i, i2v, caption, hashtag, and negative prompt rules must be editable in UI.
+- Prompt rules must not be hardcoded in JSX, HTML, or inline strings.
+- Do not claim visual parsing from links when image bytes are missing.
+- Use text fallback only if no real image bytes exist.
 
-## Prompt Prefix
-Format:
+## Required Prompt Output
+Prompt generation should persist structured JSON with at least:
 
-```text
-PRODUCTCODE_CONTENTCODE_CLIPCODE_VERSION_FLOWACCOUNT_BATCHCODE_SCENETYPE_PRODUCTSHORTNAME
-```
-
-Example:
-
-```text
-HORG0001_CT001_C01_V01_FLOWFREE01_B20260502A_START_RAKKAMARMANDI
-```
-
-Rules:
-
-- Prefix must be at the start of exported Flow prompt.
-- Prefix uses underscores.
-- No blank line before prompt.
-- One prompt = one continuous paragraph.
-- Avoid filename-risk characters: `/ \ : * ? " < > |`.
-
-## Structured Output Contract
 ```json
 {
-  "content_code": "CT001",
-  "clips": [
-    {
-      "clip_code": "C01",
-      "i2i_start_frame_prompt": "",
-      "i2i_last_frame_prompt": "",
-      "i2v_prompt": "",
-      "continuity_notes": []
-    },
-    {
-      "clip_code": "C02",
-      "i2i_start_frame_prompt": "",
-      "i2i_last_frame_prompt": "",
-      "i2v_prompt": "",
-      "continuity_notes": []
-    }
-  ],
-  "global_consistency_rules": [],
-  "risk_notes": []
+  "product_analysis": {},
+  "prompt_context": {},
+  "i2i_prompts": {},
+  "i2v_prompts": {},
+  "caption_rules": [],
+  "hashtag_rules": [],
+  "negative_prompt_rules": [],
+  "consistency_rules": [],
+  "seed_character": {
+    "locked": false,
+    "notes": "",
+    "drive_item_ref_id": null
+  },
+  "environment": {
+    "locked": false,
+    "notes": "",
+    "drive_item_ref_id": null
+  }
 }
 ```
+
+## Prompt Prefix
+The exported prompt prefix format remains naming-safe and must appear at the start of the exported prompt text.
+
+## Controller Handoff
+- The Controller is the execution workspace.
+- Ready prompt packs move into the global Flow tool pool.
+- Flow accounts are not owned by workspace.
+- Account selection is based on availability, credit, and status.
+
+## Versioning
+- Prompt packs must be versioned.
+- Regeneration must preserve previous versions.
+- Review status must stay explicit in the stored JSON or related metadata.

@@ -1,4 +1,4 @@
-# Database Schema Lock — Supabase Postgres MVP
+# Database Schema Lock - Supabase Postgres MVP
 
 ## General Rules
 - Database: Supabase Postgres.
@@ -6,7 +6,9 @@
 - `auth.users.id` is the user identity source.
 - Every owner-owned table must include `user_id uuid references auth.users(id) on delete cascade`.
 - RLS must be enabled on all owner-owned tables.
-- MVP is single user/operator, but schema should still be owner-safe.
+- MVP is single user/operator, but schema must still be owner-safe.
+- `workspace_id` is allowed on product flow tables only when explicitly listed below.
+- Flow accounts, Gemini keys, Gemini secrets, drive items, and prompt packs are global user-owned tools and do not get `workspace_id`.
 
 ## Required Enums
 
@@ -14,12 +16,14 @@
 create type account_status as enum ('ACTIVE', 'COOLDOWN', 'RATE_LIMITED', 'DISABLED');
 create type ai_task_status as enum ('QUEUED', 'RUNNING', 'SUCCESS', 'FAILED', 'RETRYING', 'WAITING_FOR_KEY', 'CANCELLED');
 create type ai_task_type as enum ('VISION_ANALYSIS', 'I2I_PROMPT_PACK', 'I2V_PROMPT_PACK', 'CONSISTENCY_CHECK', 'PROMPT_REPAIR', 'CAPTION_TAGS', 'RISK_CHECK');
-create type gemini_key_role as enum ('VISION', 'I2I', 'I2V', 'CONSISTENCY', 'QA', 'FALLBACK');
+create type workspace_status as enum ('ACTIVE', 'ARCHIVED');
 create type product_status as enum ('DRAFT', 'IMAGE_ATTACHED', 'IMAGE_ANALYZED', 'PROMPT_READY', 'IN_PRODUCTION', 'READY_FOR_UPLOAD', 'UPLOADED', 'ARCHIVED');
-create type content_status as enum ('PLANNED', 'PROMPT_READY', 'BATCHED', 'GENERATING', 'NEED_REVIEW', 'APPROVED', 'FINALIZED', 'READY_TO_UPLOAD', 'UPLOADED');
-create type clip_job_status as enum ('PENDING', 'PROMPT_READY', 'BATCHED', 'EXPORTED', 'RUNNING_MANUAL', 'DOWNLOADED', 'MATCHED', 'NEED_REVIEW', 'APPROVED', 'REJECTED', 'REGENERATE_REQUESTED', 'FAILED');
-create type batch_status as enum ('DRAFT', 'READY_TO_EXPORT', 'EXPORTED', 'RUNNING', 'IMPORTING', 'PARTIALLY_IMPORTED', 'IMPORTED', 'NEED_MANUAL_MATCH', 'CLOSED');
-create type drive_file_kind as enum ('SOURCE_IMAGE', 'I2I_RESULT', 'RAW_CLIP', 'FINAL_VIDEO', 'BATCH_EXPORT', 'MANIFEST', 'UPLOAD_PACKAGE', 'OTHER');
+create type intake_status as enum ('DRAFT', 'SUBMITTED', 'NEEDS_REVIEW', 'REVIEWED', 'ANCHOR_READY');
+create type prompt_pack_status as enum ('DRAFT', 'READY_FOR_CONTROLLER', 'SENT_TO_CONTROLLER', 'NEEDS_REVIEW', 'REVIEWED', 'REGENERATE_REQUESTED', 'ARCHIVED');
+create type flow_batch_status as enum ('DRAFT', 'READY_TO_EXPORT', 'EXPORTED', 'RUNNING', 'IMPORTING', 'PARTIALLY_IMPORTED', 'IMPORTED', 'NEED_MANUAL_MATCH', 'CLOSED');
+create type drive_item_kind as enum ('SOURCE_IMAGE', 'SCREENSHOT', 'ANALYSIS', 'PROMPT_REFERENCE', 'I2I_RESULT', 'RAW_CLIP', 'FINAL_VIDEO', 'BATCH_EXPORT', 'MANIFEST', 'UPLOAD_PACKAGE', 'OTHER');
+create type affiliate_platform as enum ('TIKTOK', 'SHOPEE', 'OTHER');
+create type affiliate_profile_status as enum ('ACTIVE', 'PAUSED', 'ARCHIVED');
 create type upload_status as enum ('DRAFT', 'READY_TO_UPLOAD', 'UPLOADED', 'FAILED');
 ```
 
@@ -27,8 +31,6 @@ create type upload_status as enum ('DRAFT', 'READY_TO_UPLOAD', 'UPLOADED', 'FAIL
 
 ### `profiles`
 Extends `auth.users`.
-
-Fields:
 
 ```text
 id uuid primary key references auth.users(id) on delete cascade
@@ -38,8 +40,37 @@ created_at timestamptz default now()
 updated_at timestamptz default now()
 ```
 
+### `workspaces`
+Workspace profile and grouping scope.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_code text unique per user
+workspace_name text
+niche text nullable
+drive_root_folder_ref_id uuid nullable composite fk drive_items(id, user_id)
+drive_root_folder_url text nullable
+drive_root_folder_path text nullable
+status workspace_status
+is_default boolean
+notes text nullable
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `user_preferences`
+Stores active workspace selection.
+
+```text
+user_id uuid pk fk auth.users
+current_workspace_id uuid nullable composite fk workspaces(id, user_id)
+created_at timestamptz
+updated_at timestamptz
+```
+
 ### `gemini_api_keys`
-Stores encrypted Gemini key metadata.
+Metadata only.
 
 ```text
 id uuid pk
@@ -50,16 +81,27 @@ provider text default 'gemini'
 google_account_label text
 project_label text
 model_name text
-role gemini_key_role
+role text
 rpm_limit int
 rpd_limit int
 tpm_limit int
-encrypted_api_key text
 requests_today int default 0
 last_used_at timestamptz
 cooldown_until timestamptz
 status account_status
 notes text
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `gemini_api_key_secrets`
+Server-only encrypted secret store.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+gemini_api_key_id uuid fk gemini_api_keys
+encrypted_api_key text
 created_at timestamptz
 updated_at timestamptz
 ```
@@ -71,7 +113,8 @@ Queue for Gemini work.
 id uuid pk
 user_id uuid fk auth.users
 product_id uuid nullable
-content_id uuid nullable
+intake_session_id uuid nullable
+prompt_pack_id uuid nullable
 clip_job_id uuid nullable
 api_key_id uuid nullable fk gemini_api_keys
 task_type ai_task_type
@@ -88,38 +131,24 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-### `google_drive_connections`
-OAuth/token metadata. Tokens encrypted.
+### `drive_items`
+Drive metadata only. No large asset bytes.
 
 ```text
 id uuid pk
 user_id uuid fk auth.users
-connection_label text
-root_folder_id text
-root_folder_url text
-encrypted_refresh_token text nullable
-status account_status
-created_at timestamptz
-updated_at timestamptz
-```
-
-### `drive_files`
-Metadata for Drive files only.
-
-```text
-id uuid pk
-user_id uuid fk auth.users
-drive_file_id text
+drive_item_id text
 name text
 mime_type text
-kind drive_file_kind
+kind drive_item_kind
 drive_url text
 folder_id text
 folder_path text
 size_bytes bigint nullable
 checksum text nullable
 product_id uuid nullable
-content_id uuid nullable
+intake_session_id uuid nullable
+prompt_pack_id uuid nullable
 clip_job_id uuid nullable
 batch_id uuid nullable
 created_at timestamptz
@@ -131,7 +160,7 @@ updated_at timestamptz
 ```text
 id uuid pk
 user_id uuid fk auth.users
-workspace_id uuid nullable fk workspaces(id, user_id)
+workspace_id uuid nullable composite fk workspaces(id, user_id)
 product_code text unique per user
 product_name text
 niche text
@@ -142,52 +171,14 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-## Workspace/Profile Additions
-
-Sprint 12B adds workspace/profile persistence:
-
-```text
-workspaces
-- id uuid pk
-- user_id uuid fk auth.users
-- workspace_code text unique per user
-- workspace_name text
-- niche text nullable
-- drive_root_folder_ref_id uuid nullable composite fk drive_items(id, user_id)
-- drive_root_folder_url text nullable
-- drive_root_folder_path text nullable
-- status workspace_status
-- is_default boolean
-- notes text nullable
-- created_at timestamptz
-- updated_at timestamptz
-
-user_preferences
-- user_id uuid pk fk auth.users
-- current_workspace_id uuid nullable composite fk workspaces(id, user_id)
-- created_at timestamptz
-- updated_at timestamptz
-```
-
-Sprint 12C scopes product flow records to workspaces with nullable `workspace_id` for backward compatibility:
-
-```text
-products.workspace_id uuid nullable composite fk workspaces(id, user_id)
-product_intake_sessions.workspace_id uuid nullable composite fk workspaces(id, user_id)
-product_marketplace_sources.workspace_id uuid nullable composite fk workspaces(id, user_id)
-product_anchors.workspace_id uuid nullable composite fk workspaces(id, user_id)
-```
-
-Flow accounts remain global execution tools. Do not add `workspace_id` to Flow accounts, Flow batches, clip jobs, AI tasks, Gemini key tables, Drive item tables, or prompt packs unless a later approved sprint changes the lock.
-
 ### `product_images`
+Keeps product image/screenshot references and analysis payloads.
 
 ```text
 id uuid pk
 user_id uuid fk auth.users
 product_id uuid fk products
-source_drive_file_id uuid nullable fk drive_files
-drive_file_url text nullable
+source_drive_item_id uuid nullable fk drive_items
 source_type text
 analysis_json jsonb
 status text
@@ -195,7 +186,150 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+### `product_intake_sessions`
+Single intake workflow record.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_id uuid nullable fk products
+status intake_status
+input_json jsonb
+draft_payload_json jsonb
+submitted_payload_json jsonb
+reviewed_metadata_json jsonb
+prompt_ready_json jsonb
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `product_marketplace_sources`
+Manual marketplace references and notes.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_id uuid fk products
+source_type text
+source_url text
+source_title text
+notes text
+drive_item_ref_id uuid nullable fk drive_items
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `product_anchors`
+Reusable anchor context for prompt generation.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_id uuid fk products
+anchor_json jsonb
+source_drive_item_ref_id uuid nullable fk drive_items
+status text
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `prompt_packs`
+Structured prompt output from the editor/generator step.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+product_id uuid fk products
+intake_session_id uuid nullable fk product_intake_sessions
+affiliate_profile_id uuid nullable fk affiliate_profiles
+version text
+product_analysis_json jsonb
+i2i_prompts_json jsonb
+i2v_prompts_json jsonb
+consistency_rules_json jsonb
+negative_rules_json jsonb
+personalization_json jsonb
+status prompt_pack_status
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `affiliate_profiles`
+Unlimited affiliate profile records. Workspace scoped.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid fk workspaces(id, user_id)
+profile_code text unique per user
+profile_name text
+platform affiliate_platform
+account_label text
+niche text
+affiliate_url text
+notes text
+i2i_prompt_rules text
+i2v_prompt_rules text
+caption_rules text
+hashtag_rules text
+negative_prompt_rules text
+product_positioning_notes text
+lock_seed_character boolean
+seed_character_notes text
+seed_character_drive_item_ref_id uuid nullable fk drive_items
+lock_environment boolean
+environment_notes text
+environment_drive_item_ref_id uuid nullable fk drive_items
+status affiliate_profile_status
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `flow_accounts`
+Global Flow tool pool.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+account_code text unique per user
+account_type text
+observed_daily_credit int
+observed_monthly_credit int
+credit_per_generation int default 10
+max_parallel_allowed int default 1
+cooldown_minutes int default 0
+status account_status
+notes text
+created_at timestamptz
+updated_at timestamptz
+```
+
+### `flow_batches`
+Batch orchestration may optionally carry workspace or product context, but the account itself stays global.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid nullable composite fk workspaces(id, user_id)
+product_id uuid nullable fk products
+prompt_pack_id uuid nullable fk prompt_packs
+batch_code text
+flow_account_id uuid fk flow_accounts
+target_date date
+model text
+max_jobs int
+drive_output_folder_url text
+drive_output_folder_id text
+status flow_batch_status
+created_at timestamptz
+updated_at timestamptz
+```
+
 ### `contents`
+Optional supporting table for content grouping.
 
 ```text
 id uuid pk
@@ -209,8 +343,8 @@ caption_tiktok text nullable
 caption_shopee text nullable
 tags_tiktok jsonb nullable
 tags_shopee jsonb nullable
-prompt_pack_json jsonb nullable
-status content_status
+prompt_pack_id uuid nullable fk prompt_packs
+status text
 created_at timestamptz
 updated_at timestamptz
 ```
@@ -221,101 +355,33 @@ updated_at timestamptz
 id uuid pk
 user_id uuid fk auth.users
 content_id uuid fk contents
-batch_id uuid nullable
+prompt_pack_id uuid nullable fk prompt_packs
+batch_id uuid nullable fk flow_batches
 job_code text
-clip_code text -- C01/C02
+clip_code text
 version text default 'V01'
 prompt_prefix text
-prompt_i2i_start text nullable
-prompt_i2i_last text nullable
-prompt_i2v text nullable
-start_frame_drive_file_id uuid nullable fk drive_files
-last_frame_drive_file_id uuid nullable fk drive_files
-generated_file_id uuid nullable fk drive_files
-status clip_job_status
-created_at timestamptz
-updated_at timestamptz
-```
-
-### `flow_accounts`
-
-```text
-id uuid pk
-user_id uuid fk auth.users
-account_code text
-account_type text -- FLOW_FREE/FLOW_PLUS
-observed_daily_credit int
-observed_monthly_credit int
-credit_per_generation int default 10
-max_clip_per_day int
-max_parallel_allowed int default 1
-cooldown_minutes int default 0
-status account_status
-notes text
-created_at timestamptz
-updated_at timestamptz
-```
-
-### `batches`
-
-```text
-id uuid pk
-user_id uuid fk auth.users
-batch_code text
-flow_account_id uuid fk flow_accounts
-target_date date
-model text
-max_jobs int
-drive_output_folder_url text
-drive_output_folder_id text
-status batch_status
+prompt_one_paragraph text
+start_frame_drive_item_id uuid nullable fk drive_items
+last_frame_drive_item_id uuid nullable fk drive_items
+generated_drive_item_id uuid nullable fk drive_items
+status text
 created_at timestamptz
 updated_at timestamptz
 ```
 
 ### `generated_files`
-Optional matching log. Can also use `drive_files` directly.
+Optional matching log for imported Drive outputs.
 
 ```text
 id uuid pk
 user_id uuid fk auth.users
 clip_job_id uuid nullable fk clip_jobs
-drive_file_id uuid fk drive_files
+drive_item_id uuid fk drive_items
 file_name text
+detected_prefix text
 match_status text
-matched_prefix text nullable
-imported_at timestamptz default now()
-created_at timestamptz
-updated_at timestamptz
-```
-
-### `affiliate_accounts`
-
-```text
-id uuid pk
-user_id uuid fk auth.users
-account_code text
-platform text
-marketplace text
-niche text
-status account_status
-notes text
-created_at timestamptz
-updated_at timestamptz
-```
-
-### `affiliate_links`
-
-```text
-id uuid pk
-user_id uuid fk auth.users
-product_id uuid fk products
-affiliate_account_id uuid fk affiliate_accounts
-platform text
-marketplace text
-niche text
-affiliate_link text
-status account_status
+imported_at timestamptz
 created_at timestamptz
 updated_at timestamptz
 ```
@@ -326,11 +392,8 @@ updated_at timestamptz
 id uuid pk
 user_id uuid fk auth.users
 content_id uuid fk contents
-final_video_drive_file_id uuid nullable fk drive_files
-final_video_drive_url text
-final_video_file_name text
-edited_on text default 'mobile'
-status text
+drive_item_id uuid fk drive_items
+notes text
 created_at timestamptz
 updated_at timestamptz
 ```
@@ -340,13 +403,13 @@ updated_at timestamptz
 ```text
 id uuid pk
 user_id uuid fk auth.users
-final_video_id uuid fk final_videos
-affiliate_link_id uuid fk affiliate_links
-platform text
+content_id uuid fk contents
+affiliate_profile_id uuid nullable fk affiliate_profiles
+final_video_drive_item_id uuid nullable fk drive_items
 caption text
-tags jsonb
+tags_json jsonb
 cta text
-post_url_after_upload text nullable
+post_url_after_upload text
 upload_status upload_status
 created_at timestamptz
 updated_at timestamptz
@@ -357,55 +420,41 @@ updated_at timestamptz
 ```text
 id uuid pk
 user_id uuid fk auth.users
-upload_package_id uuid fk upload_packages
-metric_date date
-views int
-clicks int
-orders int
-gross_commission numeric
-net_commission numeric
-revenue_amount numeric
-notes text
-is_winner_manual boolean default false
+product_id uuid fk products
+content_id uuid nullable fk contents
+affiliate_profile_id uuid nullable fk affiliate_profiles
+platform text
+views int nullable
+clicks int nullable
+orders int nullable
+gross_commission numeric nullable
+net_commission numeric nullable
+revenue numeric nullable
+is_winner boolean default false
 created_at timestamptz
 updated_at timestamptz
 ```
 
-## Index Requirements
-Create indexes for:
+## Workspace/Profile Additions
 
-- every `user_id`
-- every FK used in joins
-- `products(product_code)`
-- `contents(product_id, content_code)`
-- `clip_jobs(prompt_prefix)`
-- `batches(target_date, status)`
-- `drive_files(drive_file_id)`
-- `ai_tasks(status, priority, scheduled_at)`
+- `products.workspace_id` is nullable for backward-compatible null rows.
+- `product_intake_sessions.workspace_id` is nullable.
+- `product_marketplace_sources.workspace_id` is nullable.
+- `product_anchors.workspace_id` is nullable.
+- `affiliate_profiles.workspace_id` is required.
+- `user_preferences.current_workspace_id` stores the active workspace.
+- A user can have many workspaces.
+- A workspace can have many affiliate profiles.
 
 ## RLS Policy Pattern
-For owner-owned tables:
 
-```sql
-alter table public.table_name enable row level security;
+Every owner-owned table must use owner-only policies. Pattern:
 
-create policy "select own rows" on public.table_name
-for select to authenticated
-using (auth.uid() = user_id);
-
-create policy "insert own rows" on public.table_name
-for insert to authenticated
-with check (auth.uid() = user_id);
-
-create policy "update own rows" on public.table_name
-for update to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
-
-create policy "delete own rows" on public.table_name
-for delete to authenticated
-using (auth.uid() = user_id);
-```
+- authenticated user can `select` own rows
+- authenticated user can `insert` own rows
+- authenticated user can `update` own rows
+- no cross-user access
 
 ## Updated At Trigger
-Use one reusable trigger function for `updated_at`.
+
+Every mutable table must have an `updated_at` trigger or equivalent server-managed timestamp behavior.

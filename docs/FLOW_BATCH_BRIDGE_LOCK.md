@@ -5,6 +5,8 @@ The PWA prepares Google Flow jobs. Google Flow remains the external executor.
 
 ## Locked Rules
 - MVP supports `FLOW_FREE` and `FLOW_PLUS` only.
+- Flow accounts are global execution tools and are not workspace-bound.
+- The account pool is dynamic; do not hardcode 22 or any fixed pool size.
 - `FLOW_FREE`: 50 credits/day, 10 credits/generation, max 5 clips/account/day.
 - `FLOW_PLUS`: reserve for priority/regenerate.
 - Max 5 jobs per `FLOW_FREE` account per day.
@@ -43,10 +45,10 @@ last_frame_drive_url optional
 ## Export Formats
 
 ### TXT Prompt Batch
-One prompt per line or separated by safe delimiter. No blank lines inside a prompt.
+One prompt per line or separated by a safe delimiter. No blank lines inside a prompt.
 
 ### JSON Manifest
-Includes all metadata needed for import/matching.
+Includes all metadata needed for import and matching.
 
 ## Status Lifecycle
 ```text

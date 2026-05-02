@@ -1,4 +1,4 @@
-# Do Not Build — MVP Scope Guard
+# Do Not Build - MVP Scope Guard
 
 Codex must not implement these items during MVP unless the user explicitly updates this file.
 
@@ -9,10 +9,13 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Multi-user/team permissions.
 - Google Flow Business/Enterprise/Pro account support.
 - Browser automation that clicks Google Flow automatically.
-- Custom internal browser extension.
-- Advanced A/B testing engine.
-- Advanced automatic revenue attribution.
-- Scraping affiliate dashboards without explicit authorization.
+- Prompt and output as primary navigation pages.
+- A second intake funnel that duplicates `/products/new`.
+- Hardcoded prompt rules in JSX, HTML, or inline code.
+- Fixed-count affiliate profiles.
+- Workspace-bound Flow accounts.
+- Hardcoded Flow pool size such as `22`.
+- Claims of visual parsing from marketplace links when image bytes are not available.
 - Supabase Storage for large video/image assets.
 - Bypassing Gemini, Google Flow, TikTok, Shopee, or Google quota/rate limits.
 
