@@ -4,20 +4,24 @@ import { SectionCard } from "@/components/operator/section-card";
 
 const foundationItems = [
   {
-    title: "Supabase auth helpers",
-    body: "Browser and server clients are wired to the publishable key with cookie-based SSR support.",
+    title: "Intake",
+    body: "Reserved for mobile product intake. Links, photos, screenshots, and parsed metadata are not active yet.",
+    href: "/intake",
   },
   {
-    title: "Protected dashboard route",
-    body: "The dashboard is server-gated and redirects unauthenticated users to the login screen.",
+    title: "Products",
+    body: "Current product registry and source image metadata manager.",
+    href: "/products",
   },
   {
-    title: "Profile bootstrap",
-    body: "New auth users automatically receive a matching public.profiles row with Asia/Jakarta timezone.",
+    title: "Prompts",
+    body: "Prompt pack generation, mock fallback, and task status tracking.",
+    href: "/prompts",
   },
   {
-    title: "Prompt pack foundation",
-    body: "Versioned prompt packs are now stored in Supabase with mock/manual outputs and product-linked source images.",
+    title: "Settings",
+    body: "Gemini keys, Drive metadata, account logout, and future Flow or affiliate settings.",
+    href: "/settings",
   },
 ];
 
@@ -25,17 +29,17 @@ export default function HomePage() {
   return (
     <div className="stack">
       <PageHeader
-        badge="Sprint 5.5 UI foundation"
-        eyebrow="Affiliate AI Content OS"
-        title="Operator dashboard foundation is in place."
-        description="The repo now has a normalized Next.js shell, Supabase auth scaffolding, and the first metadata operator surfaces. No production workflow logic is active yet."
+        badge="Operator"
+        eyebrow="Private workspace"
+        title="Open the production control surface."
+        description="Use the current metadata and prompt tools from one compact workspace. Intake, Flow, and output package routes are placeholders until their approved sprints."
         actions={
           <>
-            <Link className="button primary" href="/login">
-              Open login
-            </Link>
             <Link className="button" href="/dashboard">
-              Protected dashboard
+              Dashboard
+            </Link>
+            <Link className="button primary" href="/intake">
+              Intake
             </Link>
           </>
         }
@@ -43,7 +47,15 @@ export default function HomePage() {
 
       <section className="grid two-up">
         {foundationItems.map((item) => (
-          <SectionCard key={item.title} title={item.title}>
+          <SectionCard
+            key={item.title}
+            title={item.title}
+            actions={
+              <Link className="button compact" href={item.href}>
+                Open
+              </Link>
+            }
+          >
             <p>{item.body}</p>
           </SectionCard>
         ))}

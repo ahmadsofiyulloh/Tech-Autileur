@@ -134,10 +134,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   return (
     <div className="stack">
       <PageHeader
-        badge="Sprint 6 prompt packs"
+        badge="Sprint 8 prompt packs"
         eyebrow="Affiliate AI Content OS"
         title="Prompt pack metadata stays versioned in Supabase."
-        description="Each prompt pack stores one vision analysis payload, four i2i prompt slots, two i2v prompt slots, and consistency rules. This sprint is mock/manual only."
+        description="Each prompt pack stores one vision analysis payload, four i2i prompt slots, two i2v prompt slots, and consistency rules. Live Gemini generation runs server-side and mock generation stays available for dev fallback."
         stats={[
           { label: "Prompt packs", value: promptPacks.length },
           { label: "Drafts", value: draftCount },
@@ -154,7 +154,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       <SectionCard
         badge="Locked workload"
         title="Prompt pack output contract."
-        description="One vision analysis, four i2i prompts, two i2v prompts, and consistency rules. The actual Gemini runner comes later."
+        description="One vision analysis, four i2i prompts, two i2v prompts, and consistency rules. Live Gemini generation must satisfy the structured JSON contract."
       >
         <div className="metric-grid">
           <div className="metric">
@@ -173,11 +173,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       </SectionCard>
 
       {products.length ? (
-        <SectionCard
-          badge="Create prompt pack"
-          title="Add a versioned prompt pack for a product."
-          description="Select a product, optionally attach a source product image row, and save mock/manual output metadata."
-        >
+      <SectionCard
+        badge="Create prompt pack"
+        title="Add a versioned prompt pack for a product."
+        description="Select a product, optionally attach a source product image row, and save prompt pack metadata before generating output."
+      >
           <form className="stack" action={savePromptPack}>
             <input type="hidden" name="intent" value="create" />
             <div className="grid two-up">
@@ -277,11 +277,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                 key={pack.id}
                 actions={<StatusBadge status={pack.status} />}
               >
-                <div className="metric-grid">
-                  <div className="metric">
-                    <span>Product</span>
-                    <strong>{product?.product_name ?? "Unknown"}</strong>
-                  </div>
+              <div className="metric-grid">
+                <div className="metric">
+                  <span>Product</span>
+                  <strong>{product?.product_name ?? "Unknown"}</strong>
+                </div>
                   <div className="metric">
                     <span>Source image</span>
                     <strong>{sourceImage ? (sourceDriveItem?.name ?? sourceImage.id) : "Not attached"}</strong>
@@ -290,17 +290,26 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <span>Version</span>
                     <strong>{pack.version}</strong>
                   </div>
-                  {generationTask ? (
-                    <div className="metric">
-                      <span>Generation task</span>
-                      <strong>
-                        <StatusBadge status={generationTask.status} />
-                      </strong>
-                    </div>
-                  ) : null}
-                </div>
+                {generationTask ? (
+                  <div className="metric">
+                    <span>Generation task</span>
+                    <strong>
+                      <StatusBadge status={generationTask.status} />
+                    </strong>
+                  </div>
+                ) : null}
+              </div>
 
-                {pack.error_message ? <section className="error-box" role="status">{pack.error_message}</section> : null}
+              {generationTask?.error_message ? (
+                <section
+                  className={generationTask.status === "FAILED" ? "error-box" : "muted-box"}
+                  role={generationTask.status === "FAILED" ? "alert" : "status"}
+                >
+                  {generationTask.error_message}
+                </section>
+              ) : null}
+
+              {pack.error_message ? <section className="error-box" role="status">{pack.error_message}</section> : null}
 
                 <form className="stack" action={savePromptPack}>
                   <input type="hidden" name="intent" value="update" />
@@ -358,9 +367,18 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                 <FormActions>
                   <form action={savePromptPack}>
                     <input type="hidden" name="intent" value="generate" />
+                    <input type="hidden" name="generation_mode" value="gemini" />
+                    <input type="hidden" name="id" value={pack.id} />
+                    <button className="button primary" type="submit">
+                      Generate with Gemini
+                    </button>
+                  </form>
+                  <form action={savePromptPack}>
+                    <input type="hidden" name="intent" value="generate" />
+                    <input type="hidden" name="generation_mode" value="mock" />
                     <input type="hidden" name="id" value={pack.id} />
                     <button className="button" type="submit">
-                      Run mock prompt pack
+                      Generate mock
                     </button>
                   </form>
                   <form action={savePromptPack}>

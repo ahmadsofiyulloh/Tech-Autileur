@@ -6,6 +6,7 @@ import {
   archivePromptPack,
   createPromptPackGenerationTask,
   createPromptPack,
+  runRealPromptPackTask,
   runMockPromptPackTask,
   updatePromptPack,
 } from "@/lib/server/prompt-packs";
@@ -19,6 +20,18 @@ function readText(formData: FormData, key: string) {
 function readNullableText(formData: FormData, key: string) {
   const value = readText(formData, key);
   return value.length > 0 ? value : null;
+}
+
+type GenerationMode = "gemini" | "mock";
+
+function readGenerationMode(formData: FormData): GenerationMode {
+  const value = readText(formData, "generation_mode");
+
+  if (!value || value === "gemini" || value === "mock") {
+    return (value || "gemini") as GenerationMode;
+  }
+
+  fail("Invalid generation mode.");
 }
 
 function readVersion(formData: FormData, key: string) {
@@ -50,6 +63,7 @@ export async function savePromptPack(formData: FormData) {
   const version = readVersion(formData, "version");
   const status = readText(formData, "status");
   const notes = readNullableText(formData, "notes");
+  const generationMode = readGenerationMode(formData);
 
   if (intent === "archive") {
     if (!id) {
@@ -66,10 +80,16 @@ export async function savePromptPack(formData: FormData) {
       fail("Missing prompt pack id.");
     }
 
-    const { task } = await createPromptPackGenerationTask(id);
-    await runMockPromptPackTask(id, task.id);
+    const { task } = await createPromptPackGenerationTask(id, {
+      generationMode,
+      maxRetries: generationMode === "mock" ? 0 : 3,
+    });
+
+    const result =
+      generationMode === "mock" ? await runMockPromptPackTask(id, task.id) : await runRealPromptPackTask(id, task.id);
+
     revalidatePath("/prompts");
-    redirect("/prompts?message=Mock prompt pack output generated");
+    redirect(`/prompts?message=${encodeURIComponent(result.message)}`);
   }
 
   if (intent === "create") {

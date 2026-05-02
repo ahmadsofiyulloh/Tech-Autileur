@@ -2,6 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "./config";
 
+const protectedRoutes = ["/dashboard", "/gemini", "/drive", "/products", "/prompts", "/settings", "/intake", "/outputs", "/flow"];
+const authRoutes = ["/login", "/auth"];
+
+function startsWithRoute(pathname: string, routes: string[]) {
+  return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -27,28 +34,16 @@ export async function updateSession(request: NextRequest) {
   });
 
   const pathname = request.nextUrl.pathname;
-  const shouldCheckUser =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/gemini") ||
-    pathname.startsWith("/drive") ||
-    pathname.startsWith("/products") ||
-    pathname.startsWith("/prompts") ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/auth");
+  const isProtectedRoute = startsWithRoute(pathname, protectedRoutes);
+  const isAuthRoute = startsWithRoute(pathname, authRoutes);
+  const shouldCheckUser = isProtectedRoute || isAuthRoute;
 
   if (shouldCheckUser) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (
-      !user &&
-      (pathname.startsWith("/dashboard") ||
-        pathname.startsWith("/gemini") ||
-        pathname.startsWith("/drive") ||
-        pathname.startsWith("/products") ||
-        pathname.startsWith("/prompts"))
-    ) {
+    if (!user && isProtectedRoute) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/login";
       redirectUrl.search = "";

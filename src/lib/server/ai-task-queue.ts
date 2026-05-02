@@ -60,6 +60,13 @@ type RequireUserResult = {
 
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_ALLOWED_RETRIES = 10;
+export const PROMPT_PACK_GEMINI_KEY_PRIORITY = [
+  "I2V_PROMPT",
+  "CONSISTENCY_CHECK",
+  "I2I_PROMPT",
+  "VISION_ANALYSIS",
+  "FALLBACK",
+] as const satisfies readonly GeminiKeyRole[];
 
 function clampLimit(value: number | undefined) {
   if (value === undefined) {
@@ -266,7 +273,33 @@ export async function markTaskFailed(
   return data as AiTaskRecord;
 }
 
+export async function markTaskWaitingForKey(taskId: string, errorMessage: string) {
+  const { userId, serviceClient } = await requireUser();
+  const { data, error } = await serviceClient
+    .from("ai_tasks")
+    .update({
+      status: "WAITING_FOR_KEY",
+      error_message: errorMessage,
+      finished_at: null,
+    })
+    .eq("id", taskId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as AiTaskRecord;
+}
+
 export async function pickAvailableGeminiKeyByRole(taskType: GeminiKeyRole) {
+  const keys = await listAvailableGeminiKeysByRole(taskType);
+  return (keys[0] ?? null) as GeminiKeyRecord | null;
+}
+
+export async function listAvailableGeminiKeysByRole(taskType: GeminiKeyRole) {
   const { userId, serviceClient } = await requireUser();
 
   const { data, error } = await serviceClient
@@ -293,5 +326,17 @@ export async function pickAvailableGeminiKeyByRole(taskType: GeminiKeyRole) {
     return new Date(key.cooldown_until).getTime() <= Date.now();
   });
 
-  return (eligibleKeys[0] ?? null) as GeminiKeyRecord | null;
+  return eligibleKeys as GeminiKeyRecord[];
+}
+
+export async function pickAvailableGeminiKeyForPromptPackGeneration() {
+  for (const role of PROMPT_PACK_GEMINI_KEY_PRIORITY) {
+    const geminiKey = await pickAvailableGeminiKeyByRole(role);
+
+    if (geminiKey) {
+      return geminiKey;
+    }
+  }
+
+  return null;
 }
