@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { createAITask, markTaskFailed, markTaskRunning, markTaskSuccess } from "@/lib/server/ai-task-queue";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PROMPT_PACK_STATUSES,
@@ -9,7 +10,8 @@ import {
   normalizePromptCode,
 } from "@/lib/prompts/validation";
 
-type JsonObject = Record<string, unknown>;
+type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
+type JsonObject = Record<string, JsonValue>;
 
 type ProductRecord = {
   id: string;
@@ -58,6 +60,23 @@ type PromptPackRecord = {
   updated_at: string;
 };
 
+type AiTaskRecord = {
+  id: string;
+  user_id: string;
+  gemini_api_key_id: string | null;
+  task_type: string;
+  status: string;
+  input_json: JsonObject;
+  output_json: JsonObject | null;
+  error_message: string | null;
+  retry_count: number;
+  max_retries: number;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type PromptPackInput = {
   product_id: string;
   source_product_image_id?: string | null;
@@ -75,6 +94,13 @@ type PromptPackInput = {
 type PromptPackUpdateInput = Partial<PromptPackInput>;
 
 type MockPromptContext = {
+  promptPack: PromptPackRecord;
+  product: ProductRecord;
+  sourceProductImage: ProductImageRecord | null;
+  sourceDriveItem: { id: string; name: string; drive_path: string; drive_url: string; mime_type: string | null } | null;
+};
+
+type PromptPackGenerationTaskInput = {
   promptPack: PromptPackRecord;
   product: ProductRecord;
   sourceProductImage: ProductImageRecord | null;
@@ -294,6 +320,19 @@ function buildConsistencyRules(context: MockPromptContext): JsonObject {
   };
 }
 
+function buildPromptPackTaskInput(context: MockPromptContext) {
+  return {
+    prompt_pack_id: context.promptPack.id,
+    prompt_code: context.promptPack.prompt_code,
+    version: context.promptPack.version,
+    product_id: context.product.id,
+    product_code: context.product.product_code,
+    source_product_image_id: context.sourceProductImage?.id ?? null,
+    source_drive_item_id: context.sourceProductImage?.drive_item_ref_id ?? null,
+    mode: "mock",
+  };
+}
+
 export async function getPrimaryProductImageForPromptPack(productId: string) {
   const { supabase, user } = await requireUser();
   const { data, error } = await supabase
@@ -311,6 +350,217 @@ export async function getPrimaryProductImageForPromptPack(productId: string) {
   }
 
   return (data ?? null) as ProductImageRecord | null;
+}
+
+export async function createPromptPackGenerationTask(promptPackId: string) {
+  const { supabase, user, promptPack } = await requireOwnedPromptPack(promptPackId);
+
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("id, user_id, product_code, product_name, niche, marketplace, marketplace_product_link, status, notes, created_at, updated_at")
+    .eq("id", promptPack.product_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (productError) {
+    throw new Error(productError.message);
+  }
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  const sourceProductImage = promptPack.source_product_image_id
+    ? (
+        await supabase
+          .from("product_images")
+          .select("id, user_id, product_id, drive_item_ref_id, source_type, is_primary, analysis_json, status, notes, created_at, updated_at")
+          .eq("id", promptPack.source_product_image_id)
+          .eq("user_id", user.id)
+          .eq("product_id", promptPack.product_id)
+          .maybeSingle()
+      ).data ?? null
+    : await getPrimaryProductImageForPromptPack(promptPack.product_id);
+
+  if (promptPack.source_product_image_id && !sourceProductImage) {
+    throw new Error("Source product image not found.");
+  }
+
+  const sourceDriveItem =
+    sourceProductImage
+      ? (
+          await supabase
+            .from("drive_items")
+            .select("id, name, drive_path, drive_url, mime_type")
+            .eq("id", sourceProductImage.drive_item_ref_id)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        ).data ?? null
+      : null;
+
+  const taskInput = buildPromptPackTaskInput({
+    promptPack,
+    product: product as ProductRecord,
+    sourceProductImage: sourceProductImage as ProductImageRecord | null,
+    sourceDriveItem: sourceDriveItem as PromptPackGenerationTaskInput["sourceDriveItem"],
+  });
+
+  const task = (await createAITask({
+    taskType: "PROMPT_PACK_GENERATION",
+    inputJson: taskInput,
+    maxRetries: 0,
+  })) as AiTaskRecord;
+
+  const { data, error } = await supabase
+    .from("prompt_packs")
+    .update({
+      ai_task_id: task.id,
+      status: "QUEUED",
+      error_message: null,
+    })
+    .eq("id", promptPackId)
+    .eq("user_id", user.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/prompts");
+  return {
+    promptPack: data as PromptPackRecord,
+    task,
+    taskInput,
+  };
+}
+
+export async function completePromptPackFromMockTask(promptPackId: string, taskId: string) {
+  const { supabase, user, promptPack } = await requireOwnedPromptPack(promptPackId);
+
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("id, user_id, product_code, product_name, niche, marketplace, marketplace_product_link, status, notes, created_at, updated_at")
+    .eq("id", promptPack.product_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (productError) {
+    throw new Error(productError.message);
+  }
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  const sourceProductImage = promptPack.source_product_image_id
+    ? (
+        await supabase
+          .from("product_images")
+          .select("id, user_id, product_id, drive_item_ref_id, source_type, is_primary, analysis_json, status, notes, created_at, updated_at")
+          .eq("id", promptPack.source_product_image_id)
+          .eq("user_id", user.id)
+          .eq("product_id", promptPack.product_id)
+          .maybeSingle()
+      ).data ?? null
+    : await getPrimaryProductImageForPromptPack(promptPack.product_id);
+
+  if (promptPack.source_product_image_id && !sourceProductImage) {
+    throw new Error("Source product image not found.");
+  }
+
+  const sourceDriveItem =
+    sourceProductImage
+      ? (
+          await supabase
+            .from("drive_items")
+            .select("id, name, drive_path, drive_url, mime_type")
+            .eq("id", sourceProductImage.drive_item_ref_id)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        ).data ?? null
+      : null;
+
+  const context: MockPromptContext = {
+    promptPack,
+    product: product as ProductRecord,
+    sourceProductImage: sourceProductImage as ProductImageRecord | null,
+    sourceDriveItem: sourceDriveItem as MockPromptContext["sourceDriveItem"],
+  };
+
+  const productAnalysisJson = buildPromptPackAnalysis(context);
+  const i2iPromptsJson = buildI2IPrompts(context);
+  const i2vPromptsJson = buildI2VPrompts(context);
+  const consistencyRulesJson = buildConsistencyRules(context);
+
+  const { data, error } = await supabase
+    .from("prompt_packs")
+    .update({
+      ai_task_id: taskId,
+      product_analysis_json: productAnalysisJson,
+      i2i_prompts_json: i2iPromptsJson,
+      i2v_prompts_json: i2vPromptsJson,
+      consistency_rules_json: consistencyRulesJson,
+      status: "GENERATED",
+      error_message: null,
+    })
+    .eq("id", promptPackId)
+    .eq("user_id", user.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/prompts");
+  return {
+    promptPack: data as PromptPackRecord,
+    outputJson: {
+      product_analysis_json: productAnalysisJson,
+      i2i_prompts_json: i2iPromptsJson,
+      i2v_prompts_json: i2vPromptsJson,
+      consistency_rules_json: consistencyRulesJson,
+    } as JsonValue,
+  };
+}
+
+export async function runMockPromptPackTask(promptPackId: string, taskId: string) {
+  await markTaskRunning(taskId);
+
+  try {
+    const completed = await completePromptPackFromMockTask(promptPackId, taskId);
+    const task = await markTaskSuccess(taskId, completed.outputJson);
+
+    return {
+      task,
+      promptPack: completed.promptPack,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Prompt pack generation failed.";
+    try {
+      await markTaskFailed(taskId, message, { retryable: false });
+    } catch {
+      // Preserve the original error if task failure update also fails.
+    }
+
+    try {
+      const { supabase, user } = await requireUser();
+      await supabase
+        .from("prompt_packs")
+        .update({
+          ai_task_id: taskId,
+          status: "ERROR",
+          error_message: message,
+        })
+        .eq("id", promptPackId)
+        .eq("user_id", user.id);
+    } catch {
+      // Preserve the original error if prompt pack failure update also fails.
+    }
+
+    throw new Error(message);
+  }
 }
 
 export async function listPromptPacks(input?: { productId?: string; status?: PromptPackStatus | string; limit?: number }) {
@@ -447,82 +697,8 @@ export async function archivePromptPack(id: string) {
 }
 
 export async function createMockPromptPackOutput(id: string) {
-  const { supabase, user, promptPack } = await requireOwnedPromptPack(id);
+  const created = await createPromptPackGenerationTask(id);
+  const completed = await runMockPromptPackTask(id, created.task.id);
 
-  const { data: product, error: productError } = await supabase
-    .from("products")
-    .select("id, user_id, product_code, product_name, niche, marketplace, marketplace_product_link, status, notes, created_at, updated_at")
-    .eq("id", promptPack.product_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (productError) {
-    throw new Error(productError.message);
-  }
-
-  if (!product) {
-    throw new Error("Product not found.");
-  }
-
-  const sourceProductImage = promptPack.source_product_image_id
-    ? (
-        await supabase
-          .from("product_images")
-          .select("id, user_id, product_id, drive_item_ref_id, source_type, is_primary, analysis_json, status, notes, created_at, updated_at")
-          .eq("id", promptPack.source_product_image_id)
-          .eq("user_id", user.id)
-          .eq("product_id", promptPack.product_id)
-          .maybeSingle()
-      ).data ?? null
-    : await getPrimaryProductImageForPromptPack(promptPack.product_id);
-
-  if (promptPack.source_product_image_id && !sourceProductImage) {
-    throw new Error("Source product image not found.");
-  }
-
-  const sourceDriveItem =
-    sourceProductImage
-      ? (
-          await supabase
-            .from("drive_items")
-            .select("id, name, drive_path, drive_url, mime_type")
-            .eq("id", sourceProductImage.drive_item_ref_id)
-            .eq("user_id", user.id)
-            .maybeSingle()
-        ).data ?? null
-      : null;
-
-  const context: MockPromptContext = {
-    promptPack,
-    product: product as ProductRecord,
-    sourceProductImage: sourceProductImage as ProductImageRecord | null,
-    sourceDriveItem: sourceDriveItem as MockPromptContext["sourceDriveItem"],
-  };
-
-  const productAnalysisJson = buildPromptPackAnalysis(context);
-  const i2iPromptsJson = buildI2IPrompts(context);
-  const i2vPromptsJson = buildI2VPrompts(context);
-  const consistencyRulesJson = buildConsistencyRules(context);
-
-  const { data, error } = await supabase
-    .from("prompt_packs")
-    .update({
-      product_analysis_json: productAnalysisJson,
-      i2i_prompts_json: i2iPromptsJson,
-      i2v_prompts_json: i2vPromptsJson,
-      consistency_rules_json: consistencyRulesJson,
-      status: "GENERATED",
-      error_message: null,
-    })
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/prompts");
-  return data as PromptPackRecord;
+  return completed.promptPack;
 }

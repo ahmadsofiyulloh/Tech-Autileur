@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   archivePromptPack,
-  createMockPromptPackOutput,
+  createPromptPackGenerationTask,
   createPromptPack,
+  runMockPromptPackTask,
   updatePromptPack,
 } from "@/lib/server/prompt-packs";
 import { isPromptPackStatus } from "@/lib/prompts/validation";
@@ -65,7 +66,8 @@ export async function savePromptPack(formData: FormData) {
       fail("Missing prompt pack id.");
     }
 
-    await createMockPromptPackOutput(id);
+    const { task } = await createPromptPackGenerationTask(id);
+    await runMockPromptPackTask(id, task.id);
     revalidatePath("/prompts");
     redirect("/prompts?message=Mock prompt pack output generated");
   }
@@ -125,4 +127,3 @@ export async function savePromptPack(formData: FormData) {
   revalidatePath("/prompts");
   redirect("/prompts?message=Prompt pack updated");
 }
-

@@ -15,6 +15,7 @@ export const AI_TASK_TYPES = [
   "CONSISTENCY_CHECK",
   "PROMPT_REPAIR",
   "FALLBACK",
+  "PROMPT_PACK_GENERATION",
 ] as const;
 
 export type AiTaskStatus = (typeof AI_TASK_STATUSES)[number];

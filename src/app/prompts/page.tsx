@@ -88,6 +88,28 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const productMap = new Map(products.map((product) => [product.id, product]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const sourceImageMap = new Map(productImages.map((image) => [image.id, image]));
+  const aiTaskIds = Array.from(new Set(promptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))));
+  const promptPackTasks = aiTaskIds.length
+    ? await supabase
+        .from("ai_tasks")
+        .select("id, user_id, task_type, status, error_message, started_at, finished_at, created_at, updated_at")
+        .eq("user_id", user.id)
+        .in("id", aiTaskIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null };
+
+  if (promptPackTasks.error) {
+    return (
+      <SectionCard badge="Prompts error" title="Unable to load prompt task metadata." description={promptPackTasks.error.message}>
+        <EmptyState
+          title="Prompt tasks are unavailable."
+          description="The owner-scoped AI task lookup failed before the page could render."
+        />
+      </SectionCard>
+    );
+  }
+
+  const promptTaskMap = new Map((promptPackTasks.data ?? []).map((task) => [task.id, task]));
 
   const draftCount = promptPacks.filter((pack) => pack.status === "DRAFT").length;
   const generatedCount = promptPacks.filter((pack) => pack.status === "GENERATED").length;
@@ -235,6 +257,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
             const product = productMap.get(pack.product_id);
             const sourceImage = pack.source_product_image_id ? sourceImageMap.get(pack.source_product_image_id) ?? null : null;
             const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
+            const generationTask = pack.ai_task_id ? promptTaskMap.get(pack.ai_task_id) ?? null : null;
             const analysisJson = prettyJson(pack.product_analysis_json);
             const i2iJson = prettyJson(pack.i2i_prompts_json);
             const i2vJson = prettyJson(pack.i2v_prompts_json);
@@ -267,6 +290,14 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <span>Version</span>
                     <strong>{pack.version}</strong>
                   </div>
+                  {generationTask ? (
+                    <div className="metric">
+                      <span>Generation task</span>
+                      <strong>
+                        <StatusBadge status={generationTask.status} />
+                      </strong>
+                    </div>
+                  ) : null}
                 </div>
 
                 {pack.error_message ? <section className="error-box" role="status">{pack.error_message}</section> : null}
@@ -329,7 +360,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     <input type="hidden" name="intent" value="generate" />
                     <input type="hidden" name="id" value={pack.id} />
                     <button className="button" type="submit">
-                      Generate mock output
+                      Run mock prompt pack
                     </button>
                   </form>
                   <form action={savePromptPack}>
@@ -370,4 +401,3 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     </div>
   );
 }
-
