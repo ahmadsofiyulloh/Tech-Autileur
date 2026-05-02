@@ -28,14 +28,17 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const shouldCheckUser =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/login") || pathname.startsWith("/auth");
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/gemini") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth");
 
   if (shouldCheckUser) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user && pathname.startsWith("/dashboard")) {
+    if (!user && (pathname.startsWith("/dashboard") || pathname.startsWith("/gemini"))) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/login";
       redirectUrl.search = "";

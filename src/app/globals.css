@@ -377,6 +377,32 @@ button:focus-visible {
   background: rgba(127, 29, 29, 0.18);
 }
 
+.field-note {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.stack-tight {
+  display: grid;
+  gap: 10px;
+}
+
+.field-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.key-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.key-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 0;
