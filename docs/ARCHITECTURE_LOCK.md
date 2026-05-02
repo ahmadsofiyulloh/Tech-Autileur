@@ -1,32 +1,87 @@
 # Architecture Lock - MVP
 
 ## Status
-LOCKED for MVP implementation.
+LOCKED for Phase awal MVP implementation.
 
 ## Frontend
+
 ```text
 Framework: Next.js PWA
 Language: TypeScript strict
-UI: Mobile-first responsive control center
-Main nav: Dashboard, Products, Controller, Settings
-Mobile bottom nav: Dashboard, Products, Controller, Settings
-Desktop sidebar: Dashboard, Products, Controller, Settings
+UI language: Indonesian operational copy
+Mobile priority: upload, review, prompt
+Desktop priority: Flow Control and Google Flow handoff
+Desktop sidebar: Dashboard, Produk, Prompt, Flow Control, Pengaturan
+Mobile bottom nav: Dashboard, Produk, Prompt, Pengaturan
 ```
+
+Shell rules:
+
+- topbar may show route title and contextual actions only.
+- topbar must not duplicate a Settings button.
+- `Sign out` lives only in `Pengaturan > Account`.
+- `/controller` is desktop-first; mobile direct access shows a minimal desktop-required state.
+- no second navigation stack for settings.
 
 ## Route Policy
+
 ```text
-/products       -> list only
-/products/new   -> intake workflow
-/products/[id]  -> Metadata, Output, History
-/controller     -> execution workspace
-/settings       -> configuration hub
+/products       -> Produk list
+/products/new   -> mobile-first intake workflow
+/products/[id]  -> Metadata, Paket Prompt, Output, History
+/prompts        -> Paket Prompt working surface and compatibility manager
+/controller     -> desktop-only Flow Control board
+/settings       -> Pengaturan hub
 /intake         -> compatibility redirect to /products/new
 /flow           -> compatibility redirect to /controller
-/prompts        -> compatibility only
-/outputs        -> compatibility only
+/outputs        -> compatibility/archive view only
+/gemini         -> primarily accessed from /settings
+/drive          -> primarily accessed from /settings
 ```
 
+`/controller` must not be exposed in mobile bottom nav. Direct mobile access should show a minimal desktop-required state.
+
+`/settings` is the configuration hub and overview-first surface. Linked tool sections may live inside the hub page, but the app must not create a second primary nav path for settings.
+
+## UI Copy Policy
+
+Allowed:
+
+- page title.
+- section title.
+- field label.
+- action label.
+- status label.
+- one-sentence empty state.
+- one-sentence error state.
+- overview page summary, only on hub/landing surfaces.
+
+Forbidden:
+
+- verbose page descriptions.
+- repeated explanatory paragraphs.
+- marketing language.
+- hardcoded prompt guidance in UI copy.
+- duplicate settings affordances in header, topbar, and sidebar.
+
+## UI Baseline
+
+The app should read as a neutral dark workbench, not a marketing site.
+
+Locked presentation:
+
+- compact spacing and dense information hierarchy.
+- no oversized hero blocks on operational pages.
+- 8px radius or less for cards and framed surfaces unless a local component rule requires otherwise.
+- Inter as the default type family.
+- page title > section title > card title > label/body hierarchy.
+- custom picker for relational fields, not raw dropdowns.
+- static suggestions with free fallback only when the field is intentionally loose.
+- every active surface must include loading, empty, and error states.
+- mobile and desktop layouts must stay responsive without text overlap.
+
 ## Auth
+
 ```text
 Provider: Supabase Auth
 User model: single owner/operator
@@ -34,14 +89,16 @@ Team/role permission: out of scope MVP
 ```
 
 ## Database
+
 ```text
 Database: Supabase Postgres
 Metadata source of truth: Supabase database
 RLS: enabled on all owner-owned tables
-All owner-owned tables: must include user_id unless explicitly documented as a static reference table
+All owner-owned tables: include user_id unless explicitly documented as static reference
 ```
 
 ## Storage
+
 ```text
 Asset/file source of truth: Google Drive
 Supabase Storage: not used for large video/image assets in MVP
@@ -49,39 +106,75 @@ Intake image UX: upload cards with local preview, not link-only parsing
 Supabase stores: Drive item metadata, URL, path, MIME type, status, relationships
 ```
 
+Google Drive stores real uploaded product images, marketplace screenshots, prompt references, raw clips, final clips, batch manifests, and upload package assets.
+
 ## AI
+
 ```text
 Gemini API via encrypted API key registry
-Prompt rules editable in UI
+Live Gemini analysis required for real E2E acceptance
+Mock mode allowed only as labeled development fallback
+Prompt rules editable in Affiliate Profile UI
 Structured JSON outputs required
 ```
 
+Gemini may analyze image bytes uploaded by the operator. The app must not claim visual parsing from links when image bytes are unavailable.
+
+## Prompt Personalization
+
+Affiliate Profile is workspace-scoped and acts as the prompt persona. Character and environment locks are profile-owned only in Phase awal.
+
+Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides.
+
+The final lock keeps only character and environment as first-class profile assets. The environment asset carries the background-lock role.
+
 ## Execution
+
 ```text
 Google Flow is external executor
-Controller manages a global Flow tool pool
+Flow Control manages global Flow account pool
 Flow accounts are global tools and never workspace-bound
-Controller selects accounts by availability and credit
+Controller route: /controller
+UI label: Flow Control
 ```
+
+Account recommendation uses status, observed credit, and available slot. User confirms before execution.
+
+## Windows Helper
+
+Windows Helper is a local companion for desktop execution.
+
+In scope:
+
+- app downloads or exposes batch manifest JSON.
+- helper reads/imports the manifest.
+- helper maps `flow_account_code` to a local Chrome profile path from local config.
+- helper opens the correct Chrome profile and Google Flow URL.
+- helper watches a local output folder configured locally.
+- helper renames output files using the manifest.
+- helper uploads output files directly to Google Drive with local OAuth.
+- helper posts metadata callback to the app using App API Token.
+
+Out of scope:
+
+- auto-clicking Google Flow.
+- selecting Google Flow projects automatically.
+- submitting prompts to Google Flow automatically.
+- storing Chrome profile paths in Supabase.
+- storing helper Google Drive OAuth tokens in Supabase.
 
 ## Settings
-```text
-Settings is the configuration hub for:
-- Workspace Profiles
-- Gemini
-- Drive
-- Flow Accounts / Tools
-- Affiliate Profiles
-- Prompt Personalization
-- Account/logout
-```
 
-## Mobile
-```text
-Mobile PWA is the operator control hub
-Remote desktop is external
-MVP does not build a custom remote desktop engine
-```
+Pengaturan is the configuration hub for:
+
+- Ruang Kerja.
+- Akun Affiliate.
+- Gemini.
+- Google Drive.
+- Flow Accounts.
+- Windows Helper / App API Token.
+- Account/logout.
 
 ## Deployment
-Deployment target may be Vercel or equivalent. Secrets must be server-side only.
+
+Deployment target may be Vercel or equivalent. Secrets must stay server-side only.

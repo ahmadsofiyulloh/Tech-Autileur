@@ -1,20 +1,26 @@
 # Google Drive File System Lock
 
 ## Purpose
-Google Drive is the source of truth for all files and assets. Supabase only stores metadata and relationships.
+Google Drive is the source of truth for all file bytes and assets. Supabase stores metadata and relationships only.
 
 ## Root Folder
+
 ```text
 /AffiliateAI/
 ```
 
 ## Standard Folder Structure
+
 ```text
 /AffiliateAI/
   /00_ADMIN/
-    affiliate_profiles/
+    /affiliate_profiles/
+      /PROFILE_CODE/
+        /character/
+        /environment/
     google_flow_accounts/
     gemini_api_projects/
+    helper_manifests/
     templates/
 
   /01_PRODUCTS/
@@ -40,6 +46,9 @@ Google Drive is the source of truth for all files and assets. Supabase only stor
     /YYYY-MM-DD/
       /BATCH_CODE/
         /FLOW_ACCOUNT_CODE/
+          manifest.json
+          PRODUCTCODE_BATCHCODE_CLIP01_V01.mp4
+          PRODUCTCODE_BATCHCODE_CLIP02_V01.mp4
 
   /04_IMPORTS/
     /UNMATCHED/
@@ -53,6 +62,7 @@ Google Drive is the source of truth for all files and assets. Supabase only stor
 ```
 
 ## Drive Item Metadata Required in Supabase
+
 For every attached file store:
 
 ```text
@@ -68,17 +78,48 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 ```
 
 ## MVP Drive Operations
+
 - Create standard folders.
-- Attach uploaded image or screenshot bytes and store the resulting Drive metadata.
+- Upload product image bytes and store Drive metadata.
+- Upload marketplace screenshot bytes and store Drive metadata.
+- Upload affiliate profile character and environment assets into the profile-owned admin folders.
+- Store those profile assets as Drive metadata references that resolve back to the active Affiliate Profile.
 - Attach existing Drive file metadata by URL or picker when needed.
-- Store file metadata.
-- Copy file and folder links.
-- Scan batch output folders.
-- Match imported files to clip jobs using prompt prefix.
-- Move unmatched files to unmatched queue metadata.
+- Store prompt reference file metadata.
+- Store batch manifest metadata.
+- Store helper-uploaded output clip metadata.
+- Match imported files to clip jobs using manifest data and prompt prefix.
+- Move unmatched metadata into manual attach state.
+- Copy Drive file and folder links.
+
+## Windows Helper Upload Path
+
+Windows Helper uploads generated clips directly to Google Drive using local OAuth. The app receives metadata callback and stores Drive metadata in Supabase.
+
+The app must not proxy large video bytes through Supabase or Next.js in Phase awal.
+
+## Output Package
+
+Output package stores links and metadata:
+
+```text
+Nama Produk
+Keyword Etalase
+Caption
+Tags
+Clip 1 Drive link
+Clip 2 Drive link
+Folder Drive
+Status
+```
+
+No server-side ZIP generation in Phase awal. Download uses Drive links.
 
 ## Out of Scope
+
 - Large asset storage in Supabase.
 - Full Drive sync daemon.
+- Server-side video proxy/upload for helper outputs.
 - Automatic editing or rendering inside Drive.
 - Claiming visual parsing from links when image bytes are not available.
+- Creating a third profile-owned background-reference asset slot in Phase awal.

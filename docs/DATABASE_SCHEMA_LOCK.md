@@ -1,6 +1,7 @@
 # Database Schema Lock - Supabase Postgres MVP
 
 ## General Rules
+
 - Database: Supabase Postgres.
 - Auth: Supabase Auth.
 - `auth.users.id` is the user identity source.
@@ -8,7 +9,11 @@
 - RLS must be enabled on all owner-owned tables.
 - MVP is single user/operator, but schema must still be owner-safe.
 - `workspace_id` is allowed on product flow tables only when explicitly listed below.
-- Flow accounts, Gemini keys, Gemini secrets, drive items, and prompt packs are global user-owned tools and do not get `workspace_id`.
+- `flow_accounts` are global user-owned tools and must never have `workspace_id`.
+- Chrome profile paths must not be stored in Supabase in Phase awal.
+- Windows Helper Drive OAuth tokens must not be stored in Supabase in Phase awal.
+- Prompt packs do not get `workspace_id`; derive workspace context from product, intake session, and affiliate profile.
+- Large asset bytes must not be stored in Supabase.
 
 ## Required Enums
 
@@ -30,7 +35,6 @@ create type upload_status as enum ('DRAFT', 'READY_TO_UPLOAD', 'UPLOADED', 'FAIL
 ## Required Tables
 
 ### `profiles`
-Extends `auth.users`.
 
 ```text
 id uuid primary key references auth.users(id) on delete cascade
@@ -41,7 +45,8 @@ updated_at timestamptz default now()
 ```
 
 ### `workspaces`
-Workspace profile and grouping scope.
+
+Workspace means niche/folder kerja.
 
 ```text
 id uuid pk
@@ -59,7 +64,15 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+UI labels:
+
+```text
+Nama Ruang Kerja
+Folder Drive Utama
+```
+
 ### `user_preferences`
+
 Stores active workspace selection.
 
 ```text
@@ -69,7 +82,25 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+### `helper_api_tokens`
+
+Stores App API Token metadata for Windows Helper callbacks. Store token hash only.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+token_code text unique per user
+token_hash text
+status text default 'ACTIVE'
+last_used_at timestamptz nullable
+created_at timestamptz
+updated_at timestamptz
+```
+
+Plain token value is shown once in Pengaturan and must not be stored in plaintext.
+
 ### `gemini_api_keys`
+
 Metadata only.
 
 ```text
@@ -95,6 +126,7 @@ updated_at timestamptz
 ```
 
 ### `gemini_api_key_secrets`
+
 Server-only encrypted secret store.
 
 ```text
@@ -107,6 +139,7 @@ updated_at timestamptz
 ```
 
 ### `ai_tasks`
+
 Queue for Gemini work.
 
 ```text
@@ -132,6 +165,7 @@ updated_at timestamptz
 ```
 
 ### `drive_items`
+
 Drive metadata only. No large asset bytes.
 
 ```text
@@ -172,6 +206,7 @@ updated_at timestamptz
 ```
 
 ### `product_images`
+
 Keeps product image/screenshot references and analysis payloads.
 
 ```text
@@ -187,6 +222,7 @@ updated_at timestamptz
 ```
 
 ### `product_intake_sessions`
+
 Single intake workflow record.
 
 ```text
@@ -205,7 +241,8 @@ updated_at timestamptz
 ```
 
 ### `product_marketplace_sources`
-Manual marketplace references and notes.
+
+Manual marketplace references and screenshot notes.
 
 ```text
 id uuid pk
@@ -221,7 +258,10 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+Do not claim visual parsing from `source_url` when image bytes are not available.
+
 ### `product_anchors`
+
 Reusable anchor context for prompt generation.
 
 ```text
@@ -236,28 +276,8 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-### `prompt_packs`
-Structured prompt output from the editor/generator step.
-
-```text
-id uuid pk
-user_id uuid fk auth.users
-product_id uuid fk products
-intake_session_id uuid nullable fk product_intake_sessions
-affiliate_profile_id uuid nullable fk affiliate_profiles
-version text
-product_analysis_json jsonb
-i2i_prompts_json jsonb
-i2v_prompts_json jsonb
-consistency_rules_json jsonb
-negative_rules_json jsonb
-personalization_json jsonb
-status prompt_pack_status
-created_at timestamptz
-updated_at timestamptz
-```
-
 ### `affiliate_profiles`
+
 Unlimited affiliate profile records. Workspace scoped.
 
 ```text
@@ -288,16 +308,49 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+Affiliate Profile is the only owner for character and environment locks in Phase awal. The environment asset is the background-lock asset. There is no separate background-reference column in MVP.
+
+UI note: `notes` may remain as legacy/internal metadata, but it is not a required surface field for Phase awal.
+
+Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive.
+
+### `prompt_packs`
+
+Structured prompt output from the editor/generator step.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+product_id uuid fk products
+intake_session_id uuid nullable fk product_intake_sessions
+affiliate_profile_id uuid nullable fk affiliate_profiles
+version text
+product_analysis_json jsonb
+i2i_prompts_json jsonb
+i2v_prompts_json jsonb
+consistency_rules_json jsonb
+negative_rules_json jsonb
+personalization_json jsonb
+status prompt_pack_status
+created_at timestamptz
+updated_at timestamptz
+```
+
+`personalization_json` must include `prompt_context` for the generated version. Prompt pack versions must be preserved.
+
+`prompt_context` must retain the active workspace context, active affiliate profile snapshot, and the character/environment Drive references that were used for generation.
+
 ### `flow_accounts`
+
 Global Flow tool pool.
 
 ```text
 id uuid pk
 user_id uuid fk auth.users
 account_code text unique per user
-account_type text
-observed_daily_credit int
-observed_monthly_credit int
+account_type text check in ('FLOW_FREE', 'FLOW_PLUS')
+observed_daily_credit int default 50
+observed_monthly_credit int nullable
 credit_per_generation int default 10
 max_parallel_allowed int default 1
 cooldown_minutes int default 0
@@ -307,8 +360,25 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+Forbidden columns:
+
+```text
+workspace_id
+chrome_profile_path
+local_profile_path
+google_refresh_token
+```
+
+UI tiny form:
+
+```text
+Kode Akun
+Tipe Akun
+```
+
 ### `flow_batches`
-Batch orchestration may optionally carry workspace or product context, but the account itself stays global.
+
+Batch orchestration may optionally carry workspace, product, and prompt context. The Flow account remains global.
 
 ```text
 id uuid pk
@@ -319,17 +389,24 @@ prompt_pack_id uuid nullable fk prompt_packs
 batch_code text
 flow_account_id uuid fk flow_accounts
 target_date date
-model text
+model text default 'google-flow'
 max_jobs int
-drive_output_folder_url text
-drive_output_folder_id text
+drive_output_folder_url text nullable
+drive_output_folder_id text nullable
+flow_url text nullable
+helper_output_folder_key text nullable
+manifest_json jsonb nullable
+last_helper_event_at timestamptz nullable
 status flow_batch_status
 created_at timestamptz
 updated_at timestamptz
 ```
 
+`helper_output_folder_key` is a local helper label, not an absolute local path.
+
 ### `contents`
-Optional supporting table for content grouping.
+
+Supporting table for output package grouping.
 
 ```text
 id uuid pk
@@ -370,8 +447,17 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+UI status labels:
+
+```text
+Belum Ada
+Imported
+Approved
+```
+
 ### `generated_files`
-Optional matching log for imported Drive outputs.
+
+Matching log for helper-imported Drive outputs.
 
 ```text
 id uuid pk
@@ -381,6 +467,7 @@ drive_item_id uuid fk drive_items
 file_name text
 detected_prefix text
 match_status text
+helper_report_json jsonb nullable
 imported_at timestamptz
 created_at timestamptz
 updated_at timestamptz
@@ -415,6 +502,8 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+Output package must use Drive links. No server-side ZIP generation in Phase awal.
+
 ### `performance_metrics`
 
 ```text
@@ -435,25 +524,47 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-## Workspace/Profile Additions
+## Required Indexes and Constraints
 
-- `products.workspace_id` is nullable for backward-compatible null rows.
-- `product_intake_sessions.workspace_id` is nullable.
-- `product_marketplace_sources.workspace_id` is nullable.
-- `product_anchors.workspace_id` is nullable.
-- `affiliate_profiles.workspace_id` is required.
-- `user_preferences.current_workspace_id` stores the active workspace.
-- A user can have many workspaces.
-- A workspace can have many affiliate profiles.
+Minimum indexes:
+
+- `flow_accounts (user_id, account_code)` unique.
+- `flow_accounts (user_id, status)`.
+- `flow_batches (user_id, batch_code)` unique.
+- `flow_batches (user_id, status, target_date)`.
+- `flow_batches (user_id, flow_account_id)`.
+- `flow_batches (user_id, workspace_id)`.
+- `flow_batches (user_id, product_id)`.
+- `flow_batches (user_id, prompt_pack_id)`.
+- `clip_jobs (user_id, batch_id)`.
+- `clip_jobs (user_id, prompt_pack_id)`.
+- `clip_jobs (user_id, status)`.
+- `generated_files (user_id, clip_job_id)`.
+- `generated_files (user_id, drive_item_id)`.
+- `generated_files (user_id, match_status)`.
+- `helper_api_tokens (user_id, token_code)` unique.
+
+Minimum foreign keys:
+
+- `flow_batches (flow_account_id, user_id)` -> `flow_accounts (id, user_id)`.
+- `flow_batches (workspace_id, user_id)` -> `workspaces (id, user_id)`.
+- `flow_batches (product_id, user_id)` -> `products (id, user_id)`.
+- `flow_batches (prompt_pack_id, user_id)` -> `prompt_packs (id, user_id)`.
+- `clip_jobs (batch_id, user_id)` -> `flow_batches (id, user_id)`.
+- `clip_jobs (prompt_pack_id, user_id)` -> `prompt_packs (id, user_id)`.
+- `generated_files (clip_job_id, user_id)` -> `clip_jobs (id, user_id)`.
+- `generated_files (drive_item_id, user_id)` -> `drive_items (id, user_id)`.
 
 ## RLS Policy Pattern
 
-Every owner-owned table must use owner-only policies. Pattern:
+Every owner-owned table must use owner-only policies:
 
-- authenticated user can `select` own rows
-- authenticated user can `insert` own rows
-- authenticated user can `update` own rows
-- no cross-user access
+- authenticated user can `select` own rows.
+- authenticated user can `insert` own rows.
+- authenticated user can `update` own rows.
+- no cross-user access.
+
+Windows Helper callback must authenticate with App API Token and resolve the owner before writing metadata. The callback must not bypass owner scoping.
 
 ## Updated At Trigger
 

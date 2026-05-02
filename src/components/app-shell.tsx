@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings, Workflow } from "lucide-react";
+import { Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
@@ -36,6 +36,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
+  const isControllerRoute = pathname.startsWith("/controller") || pathname.startsWith("/flow");
   const activeTitle =
     routeTitles.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ?? "Operator";
 
@@ -105,7 +106,6 @@ export function AppShell({
       <div className="operator-workspace">
         <header className="operator-topbar">
           <div>
-            <p className="eyebrow">Private tool</p>
             <h1>{activeTitle}</h1>
           </div>
           <div className="topbar-tools">
@@ -132,13 +132,24 @@ export function AppShell({
                 ))}
               </select>
             </form>
-            <Link className="topbar-action" href="/settings" aria-label="Open settings">
-              <Settings aria-hidden="true" size={18} />
-              <span>Settings</span>
-            </Link>
           </div>
         </header>
-        <main className="shell-main">{children}</main>
+        <main className={isControllerRoute ? "shell-main shell-main--controller" : "shell-main"}>
+          {isControllerRoute ? (
+            <section className="mobile-desktop-required" aria-labelledby="mobile-controller-title">
+              <div className="icon-frame" aria-hidden="true">
+                <Workflow size={18} />
+              </div>
+              <div className="stack-tight">
+                <h2 id="mobile-controller-title">Flow Control tersedia di desktop.</h2>
+                <Link className="button compact" href="/dashboard">
+                  Dashboard
+                </Link>
+              </div>
+            </section>
+          ) : null}
+          <div className={isControllerRoute ? "controller-desktop-content" : undefined}>{children}</div>
+        </main>
       </div>
 
       <nav className="bottom-nav" aria-label="Mobile operator navigation">
