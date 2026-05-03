@@ -226,7 +226,7 @@ async function resolveBatchReferences(
     throw new Error("Flow account is required.");
   }
 
-  await requireOwnedFlowAccount(supabase, userId, flowAccountId);
+  const flowAccount = await requireOwnedFlowAccount(supabase, userId, flowAccountId);
 
   return {
     workspace_id: workspaceId,
@@ -234,7 +234,7 @@ async function resolveBatchReferences(
     prompt_pack_id: promptPack?.id ?? null,
     prompt_pack_code: promptPack?.prompt_code ?? null,
     product_code: product?.product_code ?? null,
-    flow_account: await requireOwnedFlowAccount(supabase, userId, flowAccountId),
+    flow_account: flowAccount,
   };
 }
 
@@ -315,7 +315,6 @@ export async function listFlowBatches(input?: {
 }
 
 export async function getFlowBatchById(id: string) {
-  const batches = await listFlowBatches({ limit: 1 });
   const { supabase, user } = await requireUser();
   const { data, error } = await supabase.from("flow_batches").select("*").eq("id", id).eq("user_id", user.id).maybeSingle();
 
