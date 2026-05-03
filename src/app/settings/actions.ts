@@ -7,6 +7,7 @@ import {
   createAffiliateProfile,
   updateAffiliateProfile,
 } from "@/lib/server/affiliate-profiles";
+import { uploadAffiliateProfileAsset } from "@/lib/server/affiliate-profile-assets";
 import {
   disableHelperApiToken as disableStoredHelperApiToken,
   upsertHelperApiToken,
@@ -27,6 +28,23 @@ function readText(formData: FormData, key: string) {
 
 function readBoolean(formData: FormData, key: string) {
   return formData.get(key) === "on" || formData.get(key) === "true";
+}
+
+function readFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  if (value instanceof File && value.size > 0) {
+    return value;
+  }
+
+  return null;
+}
+
+function readTextList(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
 }
 
 function redirectWithMessage(path: string, key: "error" | "message", message: string): never {
@@ -146,7 +164,6 @@ export async function saveWorkspace(formData: FormData) {
 
 function affiliateProfileInputFromForm(formData: FormData) {
   return {
-    workspace_id: readText(formData, "workspace_id"),
     profile_code: readText(formData, "profile_code"),
     profile_name: readText(formData, "profile_name"),
     platform: readText(formData, "platform"),
@@ -167,6 +184,8 @@ function affiliateProfileInputFromForm(formData: FormData) {
     environment_notes: readText(formData, "environment_notes"),
     environment_drive_item_ref_id: readText(formData, "environment_drive_item_ref_id"),
     status: readText(formData, "status"),
+    workspace_ids: readTextList(formData, "workspace_ids"),
+    default_workspace_id: readText(formData, "default_workspace_id") || null,
   };
 }
 
@@ -187,6 +206,36 @@ function affiliateProfilePersonalizationInputFromForm(formData: FormData) {
   };
 }
 
+async function resolveAffiliateProfileAssetRef(input: {
+  formData: FormData;
+  profileCode: string;
+  kind: "CHARACTER" | "ENVIRONMENT";
+}) {
+  const currentRefKey = input.kind === "CHARACTER" ? "current_seed_character_drive_item_ref_id" : "current_environment_drive_item_ref_id";
+  const pickerRefKey = input.kind === "CHARACTER" ? "seed_character_drive_item_ref_id" : "environment_drive_item_ref_id";
+  const clearKey = input.kind === "CHARACTER" ? "clear_seed_character_drive_item_ref_id" : "clear_environment_drive_item_ref_id";
+  const fileKey = input.kind === "CHARACTER" ? "seed_character_file" : "environment_file";
+  const file = readFile(input.formData, fileKey);
+  const currentRef = readText(input.formData, currentRefKey);
+  const pickerRef = readText(input.formData, pickerRefKey);
+
+  if (file) {
+    const asset = await uploadAffiliateProfileAsset({
+      profileCode: input.profileCode,
+      kind: input.kind,
+      file,
+    });
+
+    return asset.id;
+  }
+
+  if (readBoolean(input.formData, clearKey)) {
+    return null;
+  }
+
+  return pickerRef || currentRef || null;
+}
+
 export async function saveAffiliateProfile(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
@@ -195,14 +244,46 @@ export async function saveAffiliateProfile(formData: FormData) {
 
   try {
     if (intent === "create_affiliate_profile") {
-      await createAffiliateProfile(affiliateProfileInputFromForm(formData));
+      const baseInput = affiliateProfileInputFromForm(formData);
+      const seedCharacterDriveItemRefId = await resolveAffiliateProfileAssetRef({
+        formData,
+        profileCode: baseInput.profile_code,
+        kind: "CHARACTER",
+      });
+      const environmentDriveItemRefId = await resolveAffiliateProfileAssetRef({
+        formData,
+        profileCode: baseInput.profile_code,
+        kind: "ENVIRONMENT",
+      });
+
+      await createAffiliateProfile({
+        ...baseInput,
+        seed_character_drive_item_ref_id: seedCharacterDriveItemRefId,
+        environment_drive_item_ref_id: environmentDriveItemRefId,
+      });
       message = "Affiliate profile created";
     } else if (intent === "update_affiliate_profile") {
       if (!id) {
         throw new Error("Missing affiliate profile id.");
       }
 
-      await updateAffiliateProfile(id, affiliateProfileInputFromForm(formData));
+      const baseInput = affiliateProfileInputFromForm(formData);
+      const seedCharacterDriveItemRefId = await resolveAffiliateProfileAssetRef({
+        formData,
+        profileCode: baseInput.profile_code,
+        kind: "CHARACTER",
+      });
+      const environmentDriveItemRefId = await resolveAffiliateProfileAssetRef({
+        formData,
+        profileCode: baseInput.profile_code,
+        kind: "ENVIRONMENT",
+      });
+
+      await updateAffiliateProfile(id, {
+        ...baseInput,
+        seed_character_drive_item_ref_id: seedCharacterDriveItemRefId,
+        environment_drive_item_ref_id: environmentDriveItemRefId,
+      });
       message = "Affiliate profile updated";
     } else if (intent === "update_affiliate_personalization") {
       if (!id) {
