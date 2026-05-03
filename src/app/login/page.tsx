@@ -6,10 +6,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type LoginPageProps = {
-  searchParams?: {
+  searchParams?: Promise<{
     message?: string | string[];
     error?: string | string[];
-  };
+  }>;
 };
 
 function readSearchParam(value: string | string[] | undefined) {
@@ -30,6 +30,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     redirect("/dashboard");
   }
 
+  const query = searchParams ? await searchParams : null;
+
   return (
     <div className="stack">
       <section className="hero">
@@ -44,8 +46,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       </section>
 
       <LoginForm
-        bannerMessage={readSearchParam(searchParams?.message)}
-        bannerError={readSearchParam(searchParams?.error)}
+        bannerMessage={readSearchParam(query?.message)}
+        bannerError={readSearchParam(query?.error)}
       />
     </div>
   );
