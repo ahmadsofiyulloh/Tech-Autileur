@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Inbox } from "lucide-react";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { getIntakeSessionById } from "@/lib/server/intake";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
@@ -62,7 +61,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     const message = error instanceof Error ? error.message : "Unable to load intake.";
 
     return (
-      <SectionCard icon={Inbox} badge="Error" title="Unable to load intake." description={message}>
+      <SectionCard icon={Inbox} title="Unable to load intake." description={message}>
         <EmptyState icon={Inbox} title="Intake unavailable." description="Try again." />
       </SectionCard>
     );
@@ -77,31 +76,22 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={Inbox}
-        badge="Intake produk"
-        title="Intake Produk Baru"
-        description={`Lingkup: ${scopeLabel}.`}
-        actions={
-          <>
-            {currentWorkspace ? (
-              <Link className="button" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
-                {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
-              </Link>
-            ) : null}
-            <Link className="button" href="/products">
-              <ArrowLeft size={16} aria-hidden="true" />
-              Produk
+      <div className="surface-toolbar">
+        <span className="surface-context">Lingkup: {scopeLabel}</span>
+        <div className="surface-toolbar__actions">
+          {currentWorkspace ? (
+            <Link className="button compact" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
+              {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
             </Link>
-          </>
-        }
-      />
+          ) : null}
+          <Link className="button compact" href="/products">
+            <ArrowLeft size={16} aria-hidden="true" />
+            Produk
+          </Link>
+        </div>
+      </div>
 
-      <SectionCard
-        icon={Inbox}
-        badge="Baru"
-        title="Workflow intake produk"
-      >
+      <SectionCard icon={Inbox} title="Workflow intake produk">
         <IntakeWorkflowForm
           currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
           errorMessage={errorMessage}

@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Package, Plus } from "lucide-react";
 import { ProductList, type ProductListRow } from "./product-list";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { listProducts } from "@/lib/server/products";
@@ -91,7 +90,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     const message = error instanceof Error ? error.message : "Unable to load products.";
 
     return (
-      <SectionCard icon={Package} badge="Error" title="Produk tidak bisa dimuat." description={message}>
+      <SectionCard icon={Package} title="Produk tidak bisa dimuat." description={message}>
         <EmptyState icon={Package} title="Produk tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
@@ -130,25 +129,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={Package}
-        badge="Produk"
-        title="Produk"
-        description={`Lingkup: ${scopeLabel}.`}
-        actions={
-          <>
-            {currentWorkspace ? (
-              <Link className="button" href={showAllWorkspaces ? "/products" : "/products?workspace=all"}>
-                {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
-              </Link>
-            ) : null}
-            <Link className="button primary" href="/products/new">
-              <Plus size={16} aria-hidden="true" />
-              Intake baru
+      <div className="surface-toolbar">
+        <span className="surface-context">Lingkup: {scopeLabel}</span>
+        <div className="surface-toolbar__actions">
+          {currentWorkspace ? (
+            <Link className="button compact" href={showAllWorkspaces ? "/products" : "/products?workspace=all"}>
+              {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
             </Link>
-          </>
-        }
-      />
+          ) : null}
+          <Link className="button compact primary" href="/products/new">
+            <Plus size={16} aria-hidden="true" />
+            Intake baru
+          </Link>
+        </div>
+      </div>
 
       {products.length ? (
         <ProductList products={productRows} />

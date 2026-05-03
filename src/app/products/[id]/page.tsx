@@ -3,9 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Archive, Clock3, FileText, Image, Link2, Package, Plus, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { TopbarOverride } from "@/components/operator/topbar-context";
 import { listContents } from "@/lib/server/contents";
 import { listFlowAccounts } from "@/lib/server/flow-accounts";
 import { listFlowBatches } from "@/lib/server/flow-batches";
@@ -356,19 +356,16 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
 
     return (
       <div className="stack">
-        <PageHeader
-          icon={Package}
-          badge="Error"
-          title="Unable to load product detail."
-          description={message}
-          actions={
-            <Link className="button" href="/products">
+        <div className="surface-toolbar">
+          <span className="surface-context">Detail produk</span>
+          <div className="surface-toolbar__actions">
+            <Link className="button compact" href="/products">
               <ArrowLeft size={16} aria-hidden="true" />
               Products
             </Link>
-          }
-        />
-        <SectionCard icon={Package} badge="Error" title="Unable to load product detail." description={message}>
+          </div>
+        </div>
+        <SectionCard icon={Package} title="Unable to load product detail." description={message}>
           <EmptyState icon={Package} title="Detail unavailable." description="Try again." />
         </SectionCard>
       </div>
@@ -539,31 +536,26 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={Package}
-        badge={product.product_code}
+      <TopbarOverride
         title={product.product_name}
-        description={`Workspace: ${productWorkspaceLabel}.`}
-        actions={
-          <>
-            <Link className="button" href="/products">
-              <ArrowLeft size={16} aria-hidden="true" />
-              Products
-            </Link>
-            <Link className="button primary" href="/products/new">
-              <Plus size={16} aria-hidden="true" />
-              New intake
-            </Link>
-          </>
-        }
-        stats={[
-          { label: "Workspace", value: productWorkspaceLabel },
-          { label: "Status", value: <StatusBadge status={product.status} /> },
-          { label: "Source images", value: productImages.length },
-          { label: "Prompt packs", value: promptPacks.length },
-          { label: "Generated", value: generatedPromptCount },
-        ]}
+        subtitle={[product.product_code, productWorkspaceLabel, product.status].filter(Boolean).join(" - ")}
       />
+
+      <div className="surface-toolbar">
+        <span className="surface-context">
+          {productImages.length} gambar sumber - {promptPacks.length} prompt pack - {generatedPromptCount} generated
+        </span>
+        <div className="surface-toolbar__actions">
+          <Link className="button compact" href="/products">
+            <ArrowLeft size={16} aria-hidden="true" />
+            Products
+          </Link>
+          <Link className="button compact primary" href="/products/new">
+            <Plus size={16} aria-hidden="true" />
+            New intake
+          </Link>
+        </div>
+      </div>
 
       <nav className="tab-nav" aria-label="Product detail tabs">
         {detailTabs.map((tab) => (
@@ -899,7 +891,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                   return (
                     <SectionCard
                       actions={<StatusBadge status={pack.status} />}
-                      badge={pack.prompt_code}
                       icon={FileText}
                       key={pack.id}
                       title={`Version ${pack.version}`}

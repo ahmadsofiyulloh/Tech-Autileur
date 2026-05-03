@@ -11,7 +11,7 @@ export default function OutputsError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Error" title="Unable to load outputs." description={error.message}>
+    <SectionCard title="Unable to load outputs." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

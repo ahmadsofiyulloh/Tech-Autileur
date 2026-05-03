@@ -292,7 +292,6 @@ function AnalysisReadyPanel({
       <section className="prompt-preview-panel stack">
         <div className="section-card__actions">
           <div className="stack-tight">
-            <p className="eyebrow">Analisis Gemini</p>
             <h3>Review metadata</h3>
           </div>
           <StatusBadge status={savedSession.status} tone={savedSession.status === "REVIEWED" ? "success" : "info"} />
@@ -401,7 +400,7 @@ export function IntakeWorkflowForm({
       ) : null}
 
       {step === "intake" ? (
-        <form action={saveIntake} encType="multipart/form-data" className="stack">
+        <form action={saveIntake} className="stack">
           <input type="hidden" name="intent" value="parse_intake" />
           <input type="hidden" name="workspace_scope" value={showAllWorkspaces ? "all" : ""} />
           <div className="grid two-up">

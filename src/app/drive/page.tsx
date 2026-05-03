@@ -3,7 +3,6 @@ import { Archive, HardDrive, Save } from "lucide-react";
 import { saveDriveItem } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -41,7 +40,7 @@ export default async function DrivePage() {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load Drive.";
     return (
-      <SectionCard icon={HardDrive} badge="Error" title="Unable to load Drive." description={message}>
+      <SectionCard icon={HardDrive} title="Unable to load Drive." description={message}>
         <EmptyState icon={HardDrive} title="Drive unavailable." description="Try again." />
       </SectionCard>
     );
@@ -51,20 +50,8 @@ export default async function DrivePage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={HardDrive}
-        badge="Config"
-        title="Drive"
-        stats={[
-          { label: "Folders", value: folderItems.length },
-          { label: "Source", value: "Drive" },
-          { label: "Mode", value: <StatusBadge status="Folder-centric" tone="success" /> },
-        ]}
-      />
-
       <SectionCard
         icon={HardDrive}
-        badge="New"
         title="Tambah folder"
       >
         <form className="stack" action={saveDriveItem}>
@@ -117,7 +104,6 @@ export default async function DrivePage() {
         <section className="stack">
           {folderItems.map((item) => (
             <SectionCard
-              badge={item.name}
               icon={HardDrive}
               title="Folder"
               description={item.drive_path}

@@ -11,7 +11,7 @@ export default function PromptsError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Error" title="Prompt tidak tersedia." description={error.message}>
+    <SectionCard title="Prompt tidak tersedia." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Coba lagi

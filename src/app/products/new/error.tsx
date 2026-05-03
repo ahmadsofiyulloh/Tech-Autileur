@@ -11,7 +11,7 @@ export default function NewProductError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Error" title="Intake produk tidak bisa dimuat." description={error.message}>
+    <SectionCard title="Intake produk tidak bisa dimuat." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Coba lagi

@@ -2,9 +2,7 @@ import { redirect } from "next/navigation";
 import { LogOut, UserRound } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
-import { StatusBadge } from "@/components/operator/status-badge";
 import { ChromePairingPanel } from "../chrome-pairing-panel";
 import { HelperApiTokenPanel } from "../helper-api-token-panel";
 import { SettingsSectionNav } from "../settings-section-nav";
@@ -40,22 +38,6 @@ export default async function AccountSettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={UserRound}
-        badge="Pengaturan"
-        title="Account"
-        stats={[
-          { label: "Akun", value: user.email ?? "Signed in" },
-          {
-            label: "App API Token",
-            value:
-              helperApiTokenSchemaMissing ? <StatusBadge status="Pending" tone="warning" />
-              : helperApiTokenLoadError ? <StatusBadge status="Error" tone="danger" />
-              : <StatusBadge status={helperApiToken?.status ?? "Belum ada"} tone={helperApiToken?.status === "ACTIVE" ? "success" : "warning"} />,
-          },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       <SectionCard icon={UserRound} title="Account">

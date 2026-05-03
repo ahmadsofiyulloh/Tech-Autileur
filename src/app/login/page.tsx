@@ -33,12 +33,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className="stack">
       <section className="hero">
-        <div className="page-header__main">
+        <div className="auth-hero__main">
           <span className="icon-frame" aria-hidden="true">
             <LockKeyhole size={19} />
           </span>
           <div className="stack-tight">
-            <div className="chip">Private</div>
             <h2>Operator sign in</h2>
           </div>
         </div>

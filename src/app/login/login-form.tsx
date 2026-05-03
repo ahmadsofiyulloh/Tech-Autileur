@@ -22,7 +22,6 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
   return (
     <form className="panel stack auth-form" action={formAction}>
       <div className="stack">
-        <p className="eyebrow">Supabase Auth</p>
         <h2>Sign in to the control center.</h2>
       </div>
 

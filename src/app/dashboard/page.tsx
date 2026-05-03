@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { Archive, FileVideo, HardDrive, LayoutDashboard, Sparkles } from "lucide-react";
+import { Archive, FileVideo, HardDrive, Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
@@ -133,7 +132,7 @@ function MetricTile({
   metric: MetricResult<number>;
 }) {
   return (
-    <div className="metric">
+    <div className="metric dashboard-kpi">
       <span>{label}</span>
       <strong>{formatMetricValue(metric)}</strong>
     </div>
@@ -142,7 +141,7 @@ function MetricTile({
 
 function UnavailableMetricTile({ label }: { label: string }) {
   return (
-    <div className="metric">
+    <div className="metric dashboard-kpi dashboard-kpi--unavailable">
       <span>{label}</span>
       <strong>Tidak tersedia</strong>
     </div>
@@ -222,20 +221,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={LayoutDashboard}
-        badge="Phase awal"
-        title="Dashboard"
-        description="Metrik operasional."
-        stats={[
-          { label: "Gemini task", value: formatMetricValue(geminiTaskCount) },
-          { label: "Drive item", value: formatMetricValue(driveItems) },
-          { label: "Generated file", value: formatMetricValue(generatedFiles) },
-        ]}
-      />
-
       <SectionCard icon={Sparkles} title="Gemini">
-        <div className="metric-grid">
+        <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Task count" metric={geminiTaskCount} />
           <UnavailableMetricTile label="Token/cost" />
         </div>
@@ -247,7 +234,7 @@ export default async function DashboardPage() {
       </SectionCard>
 
       <SectionCard icon={HardDrive} title="Drive dan prompt">
-        <div className="metric-grid">
+        <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Drive item" metric={driveItems} />
           <MetricTile label="Generated file" metric={generatedFiles} />
           <MetricTile label="Prompt pack" metric={promptPacks} />
@@ -255,7 +242,7 @@ export default async function DashboardPage() {
       </SectionCard>
 
       <SectionCard icon={FileVideo} title="Output/import">
-        <div className="metric-grid">
+        <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Status count" metric={outputImportCount} />
         </div>
         <StatusBreakdownList

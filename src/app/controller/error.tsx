@@ -11,7 +11,7 @@ export default function ControllerError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Error" title="Unable to load controller." description={error.message}>
+    <SectionCard title="Unable to load controller." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
           Retry

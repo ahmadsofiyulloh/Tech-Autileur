@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function DashboardLoading() {
   return (
-    <SectionCard badge="Loading" title="Memuat dashboard.">
+    <SectionCard title="Memuat dashboard.">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />

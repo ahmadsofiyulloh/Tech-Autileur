@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ArrowRight, FolderKanban, HardDrive, KeyRound, Settings, UserRound, Users, Workflow, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { SettingsSectionNav } from "./settings-section-nav";
@@ -106,20 +105,6 @@ export default async function SettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={Settings}
-        badge="Pengaturan"
-        title="Pengaturan"
-        description="Hub konfigurasi."
-        stats={[
-          { label: "Workspace", value: workspaceCount },
-          { label: "Profil", value: affiliateCount },
-          { label: "Drive", value: driveCount },
-          { label: "Flow", value: flowCount },
-          { label: "Akun", value: user.email ?? "Signed in" },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       {cards.length ? (

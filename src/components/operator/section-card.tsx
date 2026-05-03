@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 type SectionCardProps = {
-  badge?: string;
   icon?: LucideIcon;
   title?: string;
   description?: ReactNode;
@@ -11,10 +10,10 @@ type SectionCardProps = {
   className?: string;
 };
 
-export function SectionCard({ badge, icon: Icon, title, description, actions, children, className }: SectionCardProps) {
+export function SectionCard({ icon: Icon, title, description, actions, children, className }: SectionCardProps) {
   return (
     <section className={`section-card panel stack ${className ?? ""}`.trim()}>
-      {badge || title || description || actions ? (
+      {Icon || title || description || actions ? (
         <div className="section-card__header">
           <div className="section-card__title-row">
             {Icon ? (
@@ -23,7 +22,6 @@ export function SectionCard({ badge, icon: Icon, title, description, actions, ch
               </span>
             ) : null}
             <div className="stack-tight">
-              {badge ? <p className="eyebrow">{badge}</p> : null}
               {title ? <h3 className="section-card__title">{title}</h3> : null}
               {description ? <p>{description}</p> : null}
             </div>

@@ -3,7 +3,6 @@ import { Ban, KeyRound, Save } from "lucide-react";
 import { saveGeminiKey } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -44,7 +43,7 @@ export default async function GeminiPage() {
 
   if (error) {
     return (
-      <SectionCard icon={KeyRound} badge="Error" title="Unable to load Gemini." description={error.message}>
+      <SectionCard icon={KeyRound} title="Unable to load Gemini." description={error.message}>
         <EmptyState icon={KeyRound} title="Gemini unavailable." description="Try again." />
       </SectionCard>
     );
@@ -55,20 +54,8 @@ export default async function GeminiPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={KeyRound}
-        badge="Config"
-        title="Gemini"
-        stats={[
-          { label: "Surface", value: "Single form" },
-          { label: "Secret", value: <StatusBadge status="Encrypted" tone="success" /> },
-          { label: "Mode", value: hasKey ? "Edit" : "Create" },
-        ]}
-      />
-
       <SectionCard
         icon={KeyRound}
-        badge="Surface"
         title={hasKey ? "Edit Gemini key" : "Create Gemini key"}
       >
         {geminiKey ? (

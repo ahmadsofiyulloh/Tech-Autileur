@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -92,23 +91,6 @@ export default async function AffiliateProfilesSettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={Users}
-        badge="Pengaturan"
-        title="Akun Affiliate"
-        stats={[
-          {
-            label: "Profil",
-            value:
-              affiliateProfileSchemaMissing ? <StatusBadge status="Pending" tone="warning" />
-              : affiliateProfileLoadError ? <StatusBadge status="Error" tone="danger" />
-              : affiliateProfiles.length,
-          },
-          { label: "Aktif", value: activeAffiliateProfiles.length },
-          { label: "Workspace", value: workspaceError ? <StatusBadge status="Pending" tone="warning" /> : activeWorkspaces.length },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       <SectionCard

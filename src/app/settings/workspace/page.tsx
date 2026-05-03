@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { FolderKanban } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -71,17 +70,6 @@ export default async function WorkspaceSettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={FolderKanban}
-        badge="Pengaturan"
-        title="Workspace"
-        stats={[
-          { label: "Total", value: workspaceError ? <StatusBadge status="Pending" tone="warning" /> : workspaces.length },
-          { label: "Aktif", value: activeWorkspaces.length },
-          { label: "Current", value: currentWorkspace?.workspace_name ?? "Belum dipilih" },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       <SectionCard

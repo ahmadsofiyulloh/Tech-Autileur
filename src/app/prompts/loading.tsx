@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function LoadingPromptsPage() {
   return (
-    <SectionCard badge="Loading" title="Paket Prompt">
+    <SectionCard title="Paket Prompt">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />

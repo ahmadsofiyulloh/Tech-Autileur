@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { SettingsSectionNav } from "../settings-section-nav";
@@ -39,17 +38,6 @@ export default async function FlowSettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={Workflow}
-        badge="Pengaturan"
-        title="Flow"
-        stats={[
-          { label: "Total", value: flowAccountsError ? <StatusBadge status="Error" tone="danger" /> : flowAccounts.length },
-          { label: "Aktif", value: activeAccounts.length },
-          { label: "Tersedia", value: availableAccounts.length },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       <SectionCard

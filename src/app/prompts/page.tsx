@@ -4,7 +4,6 @@ import { Archive, CheckCircle, FileText, FlaskConical, Package, Play, RefreshCcw
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -43,10 +42,6 @@ function pickerOption(value: string, label: string, description?: string | null)
 
 function fieldValue(value: string | number | null | undefined) {
   return value ?? "";
-}
-
-function workspaceLabel(workspace: { workspace_code: string; workspace_name: string } | null) {
-  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Belum ada workspace";
 }
 
 function clipFieldName(clipKey: PromptClipKey, field: "i2i_first_frame" | "i2i_last_frame" | "i2v_prompt") {
@@ -161,7 +156,6 @@ function PromptEditorForm({
 
   return (
     <SectionCard
-      badge={pack.prompt_code}
       icon={FileText}
       title={`${productLabel} - v${pack.version}`}
       actions={
@@ -344,7 +338,7 @@ export default async function PromptsPage() {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Prompt tidak tersedia.";
     return (
-      <SectionCard badge="Error" title="Prompt tidak tersedia." description={message}>
+      <SectionCard title="Prompt tidak tersedia." description={message}>
         <EmptyState icon={FileText} title="Prompt tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
@@ -366,15 +360,13 @@ export default async function PromptsPage() {
 
   if (promptPackTasks.error) {
     return (
-      <SectionCard badge="Error" title="Task tidak tersedia." description={promptPackTasks.error.message}>
+      <SectionCard title="Task tidak tersedia." description={promptPackTasks.error.message}>
         <EmptyState icon={FileText} title="Task tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
   }
 
   const promptTaskMap = new Map((promptPackTasks.data ?? []).map((task) => [task.id, task as PromptTaskRecord]));
-  const readyCount = promptPacks.filter((pack) => pack.status === PROMPT_READY_FOR_FLOW_STATUS).length;
-  const draftCount = promptPacks.filter((pack) => pack.status === "DRAFT").length;
 
   const productPickerOptions = products.map((product) =>
     pickerOption(product.id, product.product_name, product.product_code),
@@ -419,21 +411,8 @@ export default async function PromptsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={FileText}
-        badge="Paket Prompt"
-        title="Paket Prompt"
-        description={`Workspace: ${workspaceLabel(currentWorkspace)}.`}
-        stats={[
-          { label: "Workspace", value: workspaceLabel(currentWorkspace) },
-          { label: "Prompt pack", value: promptPacks.length },
-          { label: "Draft", value: draftCount },
-          { label: "Siap Flow", value: readyCount },
-        ]}
-      />
-
       {products.length ? (
-        <SectionCard icon={FileText} badge="Editor" title="Buat Prompt">
+        <SectionCard icon={FileText} title="Buat Prompt">
           <form className="stack" action={savePromptPack}>
             <input type="hidden" name="version" value={1} />
             <input type="hidden" name="status" value="DRAFT" />

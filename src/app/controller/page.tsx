@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { saveController } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -443,7 +442,7 @@ export default async function ControllerPage() {
     const message = error instanceof Error ? error.message : "Gagal memuat controller.";
 
     return (
-      <SectionCard icon={Workflow} badge="Galat" title="Controller tidak tersedia." description={message}>
+      <SectionCard icon={Workflow} title="Controller tidak tersedia." description={message}>
         <EmptyState icon={Workflow} title="Controller tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
@@ -501,30 +500,8 @@ export default async function ControllerPage() {
     batchesByColumn.set(columnKey, current);
   }
 
-  const promptReadyCount = readyQueuePromptPacks.length + (batchesByColumn.get("prompt_ready")?.length ?? 0);
-  const runningCount = batchesByColumn.get("running")?.length ?? 0;
-  const outputCount = batchesByColumn.get("output")?.length ?? 0;
-  const doneCount = batchesByColumn.get("done")?.length ?? 0;
-  const currentWorkspaceLabel = state.currentWorkspace
-    ? `${state.currentWorkspace.workspace_code} - ${state.currentWorkspace.workspace_name}`
-    : "Belum ada ruang kerja";
-
   return (
     <div className="stack">
-      <PageHeader
-        icon={Workflow}
-        badge="Eksekusi"
-        title="Flow Control"
-        stats={[
-          { label: "Ruang kerja", value: currentWorkspaceLabel },
-          { label: "Prompt Siap", value: promptReadyCount },
-          { label: "Sedang Flow", value: runningCount },
-          { label: "Output Masuk", value: outputCount },
-          { label: "Selesai", value: doneCount },
-          { label: "Tersedia", value: eligibleAccounts.length },
-        ]}
-      />
-
       <section className="controller-board">
         {BOARD_COLUMNS.map((column) => {
           const batches = batchesByColumn.get(column.key) ?? [];

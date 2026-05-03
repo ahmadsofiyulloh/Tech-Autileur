@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, KeyRound } from "lucide-react";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { SettingsSectionNav } from "../settings-section-nav";
@@ -21,16 +20,6 @@ export default async function GeminiSettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={KeyRound}
-        badge="Pengaturan"
-        title="Gemini"
-        stats={[
-          { label: "Surface", value: "Single form" },
-          { label: "Secret", value: <StatusBadge status="Encrypted" tone="success" /> },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       <SectionCard

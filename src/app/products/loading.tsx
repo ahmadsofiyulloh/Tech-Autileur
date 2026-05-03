@@ -2,7 +2,7 @@ import { SectionCard } from "@/components/operator/section-card";
 
 export default function LoadingProductsPage() {
   return (
-    <SectionCard badge="Loading" title="Products">
+    <SectionCard title="Products">
       <div className="stack" aria-busy="true">
         <div className="skeleton short" />
         <div className="skeleton long" />

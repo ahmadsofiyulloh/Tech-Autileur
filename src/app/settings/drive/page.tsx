@@ -2,9 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, HardDrive } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
-import { StatusBadge } from "@/components/operator/status-badge";
 import { SettingsSectionNav } from "../settings-section-nav";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -39,16 +37,6 @@ export default async function DriveSettingsPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        icon={HardDrive}
-        badge="Pengaturan"
-        title="Drive"
-        stats={[
-          { label: "Folders", value: driveError ? <StatusBadge status="Error" tone="danger" /> : folderCount },
-          { label: "Items", value: driveItemCount },
-        ]}
-      />
-
       <SettingsSectionNav />
 
       <SectionCard
