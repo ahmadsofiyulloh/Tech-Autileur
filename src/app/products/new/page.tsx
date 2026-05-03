@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, FileText, Inbox, Link2, Package } from "lucide-react";
+import { ArrowLeft, Inbox } from "lucide-react";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
-import { StatusBadge } from "@/components/operator/status-badge";
-import { listIntakeSessions } from "@/lib/server/intake";
+import { getIntakeSessionById } from "@/lib/server/intake";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -21,10 +20,6 @@ type NewProductPageProps = {
     workspace?: string | string[];
   }>;
 };
-
-function fieldValue(value: string | number | null | undefined) {
-  return value ?? "Not set";
-}
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -51,17 +46,16 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   const query = await searchParams;
   const showAllWorkspaces = firstParam(query.workspace) === "all";
-  let sessions;
-  let currentWorkspace;
-  let workspaces;
+  const requestedStep = firstParam(query.step);
+  const intakeId = firstParam(query.intake_id);
+  let selectedSession: Awaited<ReturnType<typeof getIntakeSessionById>> | null = null;
+  let currentWorkspace: Awaited<ReturnType<typeof getCurrentWorkspace>>;
+  let workspaces: Awaited<ReturnType<typeof listWorkspaces>>;
 
   try {
-    currentWorkspace = await getCurrentWorkspace();
-    [sessions, workspaces] = await Promise.all([
-      listIntakeSessions({
-        limit: 20,
-        workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
-      }),
+    [currentWorkspace, selectedSession, workspaces] = await Promise.all([
+      getCurrentWorkspace(),
+      intakeId ? getIntakeSessionById(intakeId) : Promise.resolve(null),
       listWorkspaces({ limit: 200 }),
     ]);
   } catch (error) {
@@ -76,15 +70,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
-  const linkedCount = sessions.filter((session) => session.product_id).length;
-  const requestedStep = firstParam(query.step);
-  const intakeId = firstParam(query.intake_id);
-  let selectedSession = intakeId ? sessions.find((session) => session.id === intakeId) ?? null : null;
-
-  if (!selectedSession && requestedStep === "prompt") {
-    selectedSession = sessions[0] ?? null;
-  }
-
   const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
   const message = firstParam(query.message) ?? null;
   const errorMessage = firstParam(query.error) ?? null;
@@ -110,12 +95,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
             </Link>
           </>
         }
-        stats={[
-          { label: "Lingkup", value: scopeLabel },
-          { label: "Intake terbaru", value: sessions.length },
-          { label: "Tertaut", value: linkedCount },
-          { label: "Pratinjau", value: "Lokal" },
-        ]}
       />
 
       <SectionCard
@@ -132,47 +111,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
           savedSessionWorkspaceName={savedSessionWorkspaceName}
           showAllWorkspaces={showAllWorkspaces}
         />
-      </SectionCard>
-
-      <SectionCard icon={Package} title="Intake terbaru">
-        {sessions.length ? (
-          <ul className="list">
-            {sessions.slice(0, 5).map((session) => (
-              <li key={session.id}>
-                <div className="stack-tight">
-                  <strong>{fieldValue(session.product_title)}</strong>
-                  <span className="subtle">
-                    {[session.shopee_url ? "Shopee" : null, session.tiktok_url ? "TikTok" : null, session.intake_code]
-                      .filter(Boolean)
-                      .join(" - ")}
-                  </span>
-                </div>
-                <div className="section-card__actions">
-                  <StatusBadge status={session.status} />
-                  <Link
-                    className="button compact"
-                    href={`/products/new?step=prompt&intake_id=${session.id}${showAllWorkspaces ? "&workspace=all" : ""}`}
-                  >
-                    <FileText size={15} aria-hidden="true" />
-                    Review
-                  </Link>
-                  {session.product_id ? (
-                    <Link className="button compact" href={`/products/${session.product_id}`}>
-                      <Link2 size={15} aria-hidden="true" />
-                      Produk
-                    </Link>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState
-            icon={Inbox}
-            title={currentWorkspace && !showAllWorkspaces ? "Belum ada intake di workspace ini." : "Belum ada intake."}
-            description={currentWorkspace && !showAllWorkspaces ? "Coba semua workspace." : "Unggah evidence."}
-          />
-        )}
       </SectionCard>
     </div>
   );

@@ -28,7 +28,7 @@ import {
   readIntakeText,
 } from "@/lib/intake/validation";
 import { type GeminiModelName } from "@/lib/gemini/validation";
-import { buildProductCode, createProduct, getProductById, listProductImages } from "@/lib/server/products";
+import { buildProductCode, createProduct, getProductById, listProductImages, updateProduct } from "@/lib/server/products";
 import { buildProductAnchorCode, createProductAnchor, listProductAnchors, type ProductAnchorRecord } from "@/lib/server/product-anchors";
 import {
   type MarketplaceSourceInput,
@@ -176,7 +176,8 @@ export type IntakeSessionInput = {
 type ManualSourceInput = Omit<MarketplaceSourceInput, "product_id" | "platform">;
 type IntakeAnalysisUploadInput = {
   productImage: File;
-  marketplaceScreenshot: File;
+  shopeeScreenshot: File;
+  tiktokScreenshot: File;
 };
 
 const INTAKE_GEMINI_KEY_PRIORITY = ["VISION_ANALYSIS", "CONSISTENCY_CHECK", "FALLBACK"] as const;
@@ -317,6 +318,61 @@ function buildIntakeCode(input: IntakeSessionInput) {
   const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
 
   return `${base}-${stamp}`;
+}
+
+function buildProductCodeForIntake(productName: string, session: IntakeSessionRecord) {
+  const suffix = readIntakeText(session.intake_code)
+    .replace(/[^A-Za-z0-9]+/g, "")
+    .toUpperCase()
+    .slice(-8);
+
+  return suffix ? `${buildProductCode(productName)}-${suffix}` : buildProductCode(productName);
+}
+
+function productStatusFromIntake(session: IntakeSessionRecord, requestedStatus?: string | null) {
+  const status = readIntakeText(requestedStatus);
+
+  if (status) {
+    return status;
+  }
+
+  return session.parsed_metadata_json || session.reviewed_metadata_json ? "IMAGE_ANALYZED" : "DRAFT";
+}
+
+function nextProductStatusForIntake(currentStatus: string, intakeStatus: string) {
+  if (currentStatus === "DRAFT" || currentStatus === "IMAGE_ATTACHED" || currentStatus === "IMAGE_ANALYZED") {
+    return intakeStatus;
+  }
+
+  return currentStatus;
+}
+
+function metadataFromSession(session: IntakeSessionRecord) {
+  return buildReviewedMetadataFromInput((session.reviewed_metadata_json ?? session.parsed_metadata_json ?? {}) as JsonRecord);
+}
+
+function productMarketplaceFromIntake(session: IntakeSessionRecord, metadata: IntakeVisionParseOutput) {
+  if (hasSourceMarketplace(metadata.marketplace)) {
+    return metadata.marketplace;
+  }
+
+  if (session.shopee_url && session.tiktok_url) {
+    return "SHOPEE + TIKTOK";
+  }
+
+  if (session.shopee_url) {
+    return "SHOPEE";
+  }
+
+  if (session.tiktok_url) {
+    return "TIKTOK";
+  }
+
+  return "SHOPEE + TIKTOK";
+}
+
+function productNicheFromMetadata(metadata: IntakeVisionParseOutput, fallback?: string | null) {
+  return normalizeIntakeText(fallback) ?? normalizeIntakeText(metadata.category) ?? normalizeIntakeText(metadata.keyword_cari_etalase);
 }
 
 async function loadIntakeSessionById(
@@ -501,7 +557,8 @@ function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
 
 function buildIntakeParsePrompt(input: {
   productImage: { name: string; mimeType: string; size: number };
-  marketplaceScreenshot: { name: string; mimeType: string; size: number };
+  shopeeScreenshot: { name: string; mimeType: string; size: number };
+  tiktokScreenshot: { name: string; mimeType: string; size: number };
 }) {
   return [
     "You are analysing uploaded product evidence for a single-owner operator workflow.",
@@ -509,7 +566,7 @@ function buildIntakeParsePrompt(input: {
     "Return exactly one JSON object with these keys and no extras:",
     '{ "nama_produk": "", "keyword_cari_etalase": "", "deskripsi_visual": "", "use_case": "", "pain_point": "", "selling_angle": "", "target_viewer": "", "catatan_risiko": "", "product_title": "", "marketplace": "", "category": "", "rating_text": "", "sold_count_text": "", "price_text": "", "shop_name": "", "visible_product_attributes": [], "risk_notes": [], "confidence_notes": [] }',
     "Use short operator-friendly Indonesian values.",
-    "Analyse the uploaded product image and marketplace screenshot bytes directly.",
+    "Analyse the uploaded product image, Shopee screenshot, and TikTok screenshot bytes directly.",
     "If a field is unknown, return an empty string or empty array.",
     "Do not claim visual parsing from links.",
     "",
@@ -517,7 +574,8 @@ function buildIntakeParsePrompt(input: {
     JSON.stringify(
       {
         product_image: input.productImage,
-        marketplace_screenshot: input.marketplaceScreenshot,
+        shopee_screenshot: input.shopeeScreenshot,
+        tiktok_screenshot: input.tiktokScreenshot,
       },
       null,
       2,
@@ -550,13 +608,15 @@ function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput) {
 
 function buildIntakeTaskInput(input: {
   productImage: { name: string; mimeType: string; size: number };
-  marketplaceScreenshot: { name: string; mimeType: string; size: number };
+  shopeeScreenshot: { name: string; mimeType: string; size: number };
+  tiktokScreenshot: { name: string; mimeType: string; size: number };
 }) {
   return {
     analysis_mode: "LIVE_IMAGE_BYTES",
     image_bytes_available: true,
     product_image: input.productImage,
-    marketplace_screenshot: input.marketplaceScreenshot,
+    shopee_screenshot: input.shopeeScreenshot,
+    tiktok_screenshot: input.tiktokScreenshot,
   } satisfies JsonRecord;
 }
 
@@ -880,6 +940,23 @@ export async function reviewIntakeMetadata(id: string, metadata: JsonRecord) {
 
   await syncMarketplaceSourceMetadata(supabase, user.id, session, normalized).catch(() => undefined);
 
+  if (updatedSession.product_id) {
+    const product = await getProductById(updatedSession.product_id);
+
+    if (product) {
+      const productName = normalized.nama_produk || normalized.product_title || updatedSession.product_title || product.product_name;
+
+      await updateProduct(product.id, {
+        workspace_id: product.workspace_id ?? updatedSession.workspace_id ?? undefined,
+        product_name: productName,
+        niche: productNicheFromMetadata(normalized, product.niche),
+        marketplace: productMarketplaceFromIntake(updatedSession, normalized),
+        status: nextProductStatusForIntake(product.status, "IMAGE_ANALYZED"),
+      });
+      revalidatePath(`/products/${product.id}`);
+    }
+  }
+
   return updatedSession;
 }
 
@@ -903,27 +980,47 @@ export async function createProductFromIntake(
     product_name?: string | null;
     niche?: string | null;
     notes?: string | null;
+    status?: string | null;
   },
 ) {
   const session = await getIntakeSessionById(intakeSessionId);
-  const productName = readIntakeText(input?.product_name) || readIntakeText(session.product_title);
+  const metadata = metadataFromSession(session);
+  const productName =
+    readIntakeText(input?.product_name) ||
+    readIntakeText(metadata.nama_produk) ||
+    readIntakeText(metadata.product_title) ||
+    readIntakeText(session.product_title);
 
   if (!productName) {
     throw new Error("Product title is required.");
   }
 
-  const marketplace = session.shopee_url ? "SHOPEE" : session.tiktok_url ? "TIKTOK" : null;
+  const marketplace = productMarketplaceFromIntake(session, metadata);
   const marketplaceProductLink = session.shopee_url ?? session.tiktok_url;
-  const product = await createProduct({
+  const status = productStatusFromIntake(session, input?.status);
+  const productInput = {
     workspace_id: session.workspace_id ?? undefined,
-    product_code: readIntakeText(input?.product_code) || buildProductCode(productName),
+    product_code: readIntakeText(input?.product_code) || buildProductCodeForIntake(productName, session),
     product_name: productName,
-    niche: normalizeIntakeText(input?.niche),
+    niche: productNicheFromMetadata(metadata, input?.niche),
     marketplace,
     marketplace_product_link: marketplaceProductLink,
-    status: "DRAFT",
+    status,
     notes: normalizeIntakeText(input?.notes) ?? session.raw_notes,
-  });
+  };
+
+  const existingProduct = session.product_id ? await getProductById(session.product_id) : null;
+  const product = existingProduct
+    ? await updateProduct(existingProduct.id, {
+        workspace_id: existingProduct.workspace_id ?? session.workspace_id ?? undefined,
+        product_name: productInput.product_name,
+        niche: productInput.niche,
+        marketplace: productInput.marketplace,
+        marketplace_product_link: productInput.marketplace_product_link,
+        status: nextProductStatusForIntake(existingProduct.status, status),
+        notes: productInput.notes ?? existingProduct.notes,
+      })
+    : await createProduct(productInput);
 
   await updateIntakeSession(session.id, {
     workspace_id: product.workspace_id,
@@ -933,6 +1030,7 @@ export async function createProductFromIntake(
 
   revalidatePath("/products");
   revalidatePath("/intake");
+  revalidatePath(`/products/${product.id}`);
   return product;
 }
 
@@ -1009,21 +1107,24 @@ export async function createMarketplaceSourcesFromIntake(
 export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   const { supabase, user } = await requireUser();
   assertUploadedImage(input.productImage, "Foto Produk Utama");
-  assertUploadedImage(input.marketplaceScreenshot, "Screenshot Marketplace");
+  assertUploadedImage(input.shopeeScreenshot, "Screenshot Shopee");
+  assertUploadedImage(input.tiktokScreenshot, "Screenshot TikTok");
 
-  const totalBytes = input.productImage.size + input.marketplaceScreenshot.size;
+  const totalBytes = input.productImage.size + input.shopeeScreenshot.size + input.tiktokScreenshot.size;
 
   if (totalBytes > 19 * 1024 * 1024) {
     throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
   }
 
   const productImageSummary = buildUploadedImageSummary(input.productImage);
-  const screenshotSummary = buildUploadedImageSummary(input.marketplaceScreenshot);
+  const shopeeScreenshotSummary = buildUploadedImageSummary(input.shopeeScreenshot);
+  const tiktokScreenshotSummary = buildUploadedImageSummary(input.tiktokScreenshot);
   const task = (await createAITask({
     taskType: "VISION_ANALYSIS",
     inputJson: buildIntakeTaskInput({
       productImage: productImageSummary,
-      marketplaceScreenshot: screenshotSummary,
+      shopeeScreenshot: shopeeScreenshotSummary,
+      tiktokScreenshot: tiktokScreenshotSummary,
     }),
     maxRetries: 0,
   })) as AiTaskRecord;
@@ -1051,9 +1152,10 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
 
     await markTaskRunning(task.id);
 
-    const [productImagePart, screenshotPart] = await Promise.all([
+    const [productImagePart, shopeeScreenshotPart, tiktokScreenshotPart] = await Promise.all([
       buildIntakeAnalysisImagePart(input.productImage),
-      buildIntakeAnalysisImagePart(input.marketplaceScreenshot),
+      buildIntakeAnalysisImagePart(input.shopeeScreenshot),
+      buildIntakeAnalysisImagePart(input.tiktokScreenshot),
     ]);
 
     const response = await generateGeminiJsonText({
@@ -1061,8 +1163,15 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       apiKey: selectedKey.secret,
       parts: [
         productImagePart,
-        screenshotPart,
-        { text: buildIntakeParsePrompt({ productImage: productImageSummary, marketplaceScreenshot: screenshotSummary }) },
+        shopeeScreenshotPart,
+        tiktokScreenshotPart,
+        {
+          text: buildIntakeParsePrompt({
+            productImage: productImageSummary,
+            shopeeScreenshot: shopeeScreenshotSummary,
+            tiktokScreenshot: tiktokScreenshotSummary,
+          }),
+        },
       ],
       temperature: 0.1,
       maxOutputTokens: 2048,
@@ -1080,15 +1189,26 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       parsed_metadata_json: parsedJson,
       status: "NEEDS_REVIEW",
     });
+    const product = await createProductFromIntake(analysisSession.id, {
+      status: "IMAGE_ANALYZED",
+    });
+
+    analysisSession = {
+      ...analysisSession,
+      product_id: product.id,
+      workspace_id: product.workspace_id,
+    };
 
     const completedTask = await markTaskSuccess(task.id, buildParsedMetadataTaskSnapshot(parsedWithNote));
 
     revalidatePath("/intake");
+    revalidatePath("/products");
+    revalidatePath(`/products/${product.id}`);
     return {
       task: completedTask,
       session: analysisSession,
       parsed: parsedJson,
-      message: "Gemini live analysis completed.",
+      message: "Analisis Gemini selesai. Produk masuk list.",
     };
   } catch (error) {
     const message = safeErrorMessage(error);

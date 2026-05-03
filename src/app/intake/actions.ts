@@ -121,15 +121,17 @@ export async function saveIntake(formData: FormData) {
       message = "Intake updated";
     } else if (intent === "parse_intake") {
       const productImage = readUploadedFile(formData, "product_image");
-      const marketplaceScreenshot = readUploadedFile(formData, "marketplace_screenshot");
+      const shopeeScreenshot = readUploadedFile(formData, "shopee_screenshot") ?? readUploadedFile(formData, "marketplace_screenshot");
+      const tiktokScreenshot = readUploadedFile(formData, "tiktok_screenshot");
 
-      if (!productImage || !marketplaceScreenshot) {
-        throw new Error("Upload kedua evidence dulu.");
+      if (!productImage || !shopeeScreenshot || !tiktokScreenshot) {
+        throw new Error("Upload semua evidence dulu.");
       }
 
       const result = await parseIntakeWithGemini({
         productImage,
-        marketplaceScreenshot,
+        shopeeScreenshot,
+        tiktokScreenshot,
       });
       message = result.message;
       redirectParams = {
@@ -205,5 +207,6 @@ export async function saveIntake(formData: FormData) {
 
   revalidatePath("/intake");
   revalidatePath(INTAKE_RETURN_PATH);
+  revalidatePath("/products");
   redirectWithMessage(message, redirectParams);
 }

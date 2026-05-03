@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertTriangle, CheckCircle2, FileImage, Loader2, Upload, WandSparkles, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, FileImage, Link2, Loader2, Upload, WandSparkles, type LucideIcon } from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -16,6 +17,7 @@ export type IntakeWorkflowSession = {
   intake_code: string;
   status: string;
   workspace_id: string | null;
+  product_id: string | null;
   created_at: string;
   product_title: string | null;
   parsed_metadata_json: JsonRecord | null;
@@ -351,6 +353,12 @@ function AnalysisReadyPanel({
           <SubmitButton icon={CheckCircle2} pendingLabel="Menyimpan" disabled={!savedSession.id}>
             Simpan Review
           </SubmitButton>
+          {savedSession.product_id ? (
+            <Link className="button" href={`/products/${savedSession.product_id}`}>
+              <Link2 size={16} aria-hidden="true" />
+              Produk
+            </Link>
+          ) : null}
         </FormActions>
       </section>
     </form>
@@ -368,13 +376,14 @@ export function IntakeWorkflowForm({
 }: IntakeWorkflowFormProps) {
   const [step, setStep] = useState<IntakeWorkflowStep>(initialStep);
   const [productImage, setProductImage] = useState<AssetSelectionState>({ selected: false, fileName: null });
-  const [marketplaceScreenshot, setMarketplaceScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null });
+  const [shopeeScreenshot, setShopeeScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null });
+  const [tiktokScreenshot, setTiktokScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null });
 
   useEffect(() => {
     setStep(initialStep);
   }, [initialStep, savedSession?.id]);
 
-  const hasMinimum = productImage.selected && marketplaceScreenshot.selected;
+  const hasMinimum = productImage.selected && shopeeScreenshot.selected && tiktokScreenshot.selected;
 
   return (
     <section className="intake-workflow stack">
@@ -403,16 +412,22 @@ export function IntakeWorkflowForm({
               onSelectionChange={setProductImage}
             />
             <AssetUploadCard
-              label="Screenshot Marketplace"
-              description="Unggah 1 screenshot marketplace."
-              name="marketplace_screenshot"
-              onSelectionChange={setMarketplaceScreenshot}
+              label="Screenshot Shopee"
+              description="Unggah 1 screenshot Shopee."
+              name="shopee_screenshot"
+              onSelectionChange={setShopeeScreenshot}
+            />
+            <AssetUploadCard
+              label="Screenshot TikTok"
+              description="Unggah 1 screenshot TikTok."
+              name="tiktok_screenshot"
+              onSelectionChange={setTiktokScreenshot}
             />
           </div>
           {!hasMinimum ? (
             <div className="error-box status-box" role="alert">
               <AlertTriangle size={17} aria-hidden="true" />
-              <span>Unggah kedua evidence dulu.</span>
+              <span>Unggah semua evidence dulu.</span>
             </div>
           ) : null}
           <FormActions>
