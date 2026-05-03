@@ -289,22 +289,12 @@ button:focus-visible {
 
 .workspace-selector {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--space-2);
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 650;
-}
-
-.workspace-selector select {
-  min-height: 38px;
-  max-width: 230px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: rgba(8, 8, 6, 0.58);
-  color: var(--text);
-  padding: 0 0.7rem;
-  font: inherit;
 }
 
 .relational-picker {
@@ -314,7 +304,14 @@ button:focus-visible {
   gap: var(--space-2);
 }
 
+.relational-picker__control {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
 .workspace-selector__picker {
+  width: 240px;
   max-width: 240px;
 }
 
@@ -379,21 +376,23 @@ button:focus-visible {
 .relational-picker__backdrop {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 130;
   border: 0;
   padding: 0;
-  background: rgba(4, 8, 6, 0.38);
+  background: transparent;
+}
+
+.relational-picker__backdrop--sheet {
+  background: rgba(4, 8, 6, 0.48);
   backdrop-filter: blur(3px);
 }
 
 .relational-picker__panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: 140;
   display: grid;
-  width: 100%;
-  max-width: min(440px, calc(100vw - 48px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
   gap: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -402,6 +401,19 @@ button:focus-visible {
     rgba(10, 10, 8, 0.98);
   box-shadow: var(--shadow);
   padding: var(--space-3);
+}
+
+.relational-picker__panel--sheet {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  max-width: none;
+  max-height: calc(76vh + env(safe-area-inset-bottom));
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  animation: picker-sheet-in 160ms ease;
 }
 
 .relational-picker__panel-header {
@@ -652,61 +664,6 @@ button:focus-visible {
 
 .controller-manifest-panel__body {
   margin-top: var(--space-3);
-}
-
-.controller-account-picker {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.controller-account-option {
-  display: grid;
-  gap: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: rgba(15, 15, 12, 0.72);
-  padding: var(--space-3) 14px;
-  cursor: pointer;
-}
-
-.controller-account-option:hover,
-.controller-account-option:focus-within,
-.controller-account-option:has(input:checked) {
-  border-color: rgba(216, 170, 98, 0.34);
-  background: rgba(216, 170, 98, 0.08);
-}
-
-.controller-account-option__check {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.controller-account-option input[type="radio"] {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  flex: 0 0 auto;
-  accent-color: var(--accent);
-}
-
-.controller-account-option__body {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-1);
-}
-
-.controller-account-option__title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.controller-account-option__meta {
-  color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.35;
 }
 
 .shell-footer {
@@ -1615,6 +1572,16 @@ summary::marker {
   }
 }
 
+@keyframes picker-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 860px) {
   .operator-shell {
     display: block;
@@ -1642,6 +1609,7 @@ summary::marker {
   }
 
   .workspace-selector__picker {
+    width: min(170px, 42vw);
     max-width: 170px;
   }
 
@@ -1652,18 +1620,6 @@ summary::marker {
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
-  }
-
-  .relational-picker__panel {
-    position: fixed;
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: auto;
-    max-height: calc(74vh + env(safe-area-inset-bottom));
-    border-radius: var(--radius) var(--radius) 0 0;
-    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
   }
 
   .relational-picker__panel-header {

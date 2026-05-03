@@ -457,43 +457,29 @@ function FlowAccountPicker({
     return left.account_code.localeCompare(right.account_code);
   });
 
-  return (
-    <div className="controller-account-picker" role="radiogroup" aria-label="Pilih akun Flow">
-      {orderedAccounts.map((account) => {
-        const isRecommended = account.id === recommendedAccountId;
+  const options = orderedAccounts.map((account) => ({
+    value: account.id,
+    label: account.id === recommendedAccountId ? `${account.account_code} - Disarankan` : account.account_code,
+    description: [
+      account.account_type,
+      `${account.credits_remaining} kredit`,
+      `${account.slots_remaining} slot`,
+      account.cooldown_remaining_minutes ? `${account.cooldown_remaining_minutes} menit cooldown` : "tanpa cooldown",
+    ]
+      .filter(Boolean)
+      .join(" - "),
+  }));
 
-        return (
-          <label className="controller-account-option" htmlFor={`${name}-${account.id}`} key={account.id}>
-            <div className="controller-account-option__check">
-              <input
-                defaultChecked={isRecommended}
-                id={`${name}-${account.id}`}
-                name={name}
-                type="radio"
-                value={account.id}
-                required
-              />
-              <span className="controller-account-option__body">
-                <span className="controller-account-option__title">
-                  <strong>{account.account_code}</strong>
-                  {isRecommended ? <StatusBadge status="Disarankan" tone="success" /> : null}
-                </span>
-                <span className="controller-account-option__meta">
-                  {[
-                    account.account_type,
-                    `${account.credits_remaining} kredit`,
-                    `${account.slots_remaining} slot`,
-                    account.cooldown_minutes ? `${account.cooldown_minutes} menit cooldown` : "tanpa cooldown",
-                  ]
-                    .filter(Boolean)
-                    .join(" - ")}
-                </span>
-              </span>
-            </div>
-          </label>
-        );
-      })}
-    </div>
+  return (
+    <RelationalPicker
+      defaultValue={recommendedAccountId ?? orderedAccounts[0]?.id ?? ""}
+      label="Akun Flow"
+      name={name}
+      options={options}
+      placeholder="Pilih akun Flow"
+      required
+      searchable={orderedAccounts.length > 5}
+    />
   );
 }
 
@@ -545,10 +531,7 @@ function PromptQueueCard({
           <input type="hidden" name="target_date" value={todayInJakarta()} />
           <input type="hidden" name="status" value="READY_TO_EXPORT" />
           <input type="hidden" name="model" value="google-flow" />
-          <label className="stack auth-field">
-            <span>Akun Flow</span>
-            <FlowAccountPicker accounts={eligibleAccounts} recommendedAccountId={plan?.recommendedAccountId} name="flow_account_id" />
-          </label>
+          <FlowAccountPicker accounts={eligibleAccounts} recommendedAccountId={plan?.recommendedAccountId} name="flow_account_id" />
           <label className="checkbox-row">
             <input name="confirm_flow_account" type="checkbox" required />
             <span>Konfirmasi akun Flow pilihan.</span>
