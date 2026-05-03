@@ -11,10 +11,10 @@ export default function PromptsError({
   reset: () => void;
 }) {
   return (
-    <SectionCard badge="Error" title="Unable to load prompts." description={error.message}>
+    <SectionCard badge="Error" title="Prompt tidak tersedia." description={error.message}>
       <FormActions>
         <button className="button primary" type="button" onClick={reset}>
-          Retry
+          Coba lagi
         </button>
       </FormActions>
     </SectionCard>

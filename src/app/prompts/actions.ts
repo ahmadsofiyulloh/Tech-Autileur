@@ -198,11 +198,22 @@ export async function savePromptPack(formData: FormData) {
   }
 
   if (intent === "regenerate") {
-    const saved = await savePromptPackFields(formData, id);
-    const storagePayload = readPromptEditorPayload(formData, saved.personalization_json);
-    const nextVersion = await createPromptPackRegenerationVersion(saved.id, {
+    const existing = await getPromptPackById(id);
+    const productId = readText(formData, "product_id");
+    const storagePayload = readPromptEditorPayload(formData, existing.personalization_json);
+
+    if (!productId) {
+      fail("Produk wajib dipilih.");
+    }
+
+    const nextVersion = await createPromptPackRegenerationVersion(existing.id, {
       storagePayload,
       revisionInstruction: readNullableText(formData, "revision_instruction"),
+      productId,
+      intakeSessionId: readNullableText(formData, "intake_session_id"),
+      affiliateProfileId: readNullableText(formData, "affiliate_profile_id"),
+      sourceProductImageId: readNullableText(formData, "source_product_image_id"),
+      notes: readNullableText(formData, "notes"),
     });
     const result = await generatePromptPack(nextVersion.id, generationMode);
 
