@@ -40,7 +40,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <div className="stack-tight">
             <div className="chip">Private</div>
             <h2>Operator sign in</h2>
-            <p>Use the owner account.</p>
           </div>
         </div>
       </section>

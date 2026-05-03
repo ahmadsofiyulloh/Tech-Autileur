@@ -24,7 +24,6 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
       <div className="stack">
         <p className="eyebrow">Supabase Auth</p>
         <h2>Sign in to the control center.</h2>
-        <p>Use the single-owner account to open the protected dashboard and bootstrap the workspace profile row.</p>
       </div>
 
       {message ? (

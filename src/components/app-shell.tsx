@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { setCurrentWorkspaceFromShell } from "@/app/settings/actions";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
+import { RelationalPicker } from "@/components/operator/relational-picker";
 import { RouteToaster } from "@/components/operator/route-toaster";
 
 type AppShellWorkspaceState = {
@@ -111,26 +112,25 @@ export function AppShell({
           <div className="topbar-tools">
             <form className="workspace-selector" action={setCurrentWorkspaceFromShell}>
               <input type="hidden" name="return_to" value={pathname} />
-              <label htmlFor="workspace-selector">
-                <span>Workspace/profile</span>
-              </label>
-              <select
-                aria-label="Current workspace/profile"
+              <RelationalPicker
+                allowClear
+                className="workspace-selector__picker"
+                compact
                 defaultValue={workspaceState.currentWorkspaceId ?? ""}
                 disabled={!workspaceState.schemaReady || workspaceState.workspaces.length === 0}
-                id="workspace-selector"
+                emptyLabel="Belum ada workspace"
+                helperText={workspaceState.errorMessage ?? undefined}
+                label="Workspace/profile"
                 name="current_workspace_id"
-                onChange={(event) => event.currentTarget.form?.requestSubmit()}
-                title={workspaceState.errorMessage ?? "Current workspace/profile"}
-              >
-                <option value="">No workspace</option>
-                {workspaceState.workspaces.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id}>
-                    {workspace.workspace_name}
-                    {workspace.is_default ? " (default)" : ""}
-                  </option>
-                ))}
-              </select>
+                options={workspaceState.workspaces.map((workspace) => ({
+                  value: workspace.id,
+                  label: workspace.workspace_name,
+                  description: [workspace.workspace_code, workspace.is_default ? "default" : null].filter(Boolean).join(" - "),
+                }))}
+                placeholder="Pilih workspace"
+                searchPlaceholder="Cari workspace"
+                submitOnSelect
+              />
             </form>
           </div>
         </header>

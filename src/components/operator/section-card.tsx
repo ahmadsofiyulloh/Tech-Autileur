@@ -24,7 +24,7 @@ export function SectionCard({ badge, icon: Icon, title, description, actions, ch
             ) : null}
             <div className="stack-tight">
               {badge ? <p className="eyebrow">{badge}</p> : null}
-              {title ? <h3>{title}</h3> : null}
+              {title ? <h3 className="section-card__title">{title}</h3> : null}
               {description ? <p>{description}</p> : null}
             </div>
           </div>

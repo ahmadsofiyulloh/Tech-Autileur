@@ -17,7 +17,7 @@ export function EmptyState({ title, description, action, icon: Icon = CircleDash
           <Icon size={18} />
         </span>
         <div className="stack-tight">
-          <h3>{title}</h3>
+          <h3 className="empty-state__title">{title}</h3>
           {description ? <p>{description}</p> : null}
         </div>
       </div>

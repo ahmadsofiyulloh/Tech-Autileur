@@ -35,10 +35,10 @@ export function PageHeader({
             <Icon size={19} />
           </span>
         ) : null}
-        <div className="stack page-header__copy">
+          <div className="stack page-header__copy">
           {badge ? <div className="chip">{badge}</div> : null}
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-          <h2>{title}</h2>
+          <h2 className="page-header__title">{title}</h2>
           {description ? <p>{description}</p> : null}
         </div>
       </div>
