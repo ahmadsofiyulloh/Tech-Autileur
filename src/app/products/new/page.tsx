@@ -75,7 +75,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "All workspaces";
+  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
   const linkedCount = sessions.filter((session) => session.product_id).length;
   const requestedStep = firstParam(query.step);
   const intakeId = firstParam(query.intake_id);
@@ -94,35 +94,34 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     <div className="stack">
       <PageHeader
         icon={Inbox}
-        badge="Product intake"
-        title="New product intake"
-        description={`Capture product links, local image previews, and notes. Scope: ${scopeLabel}.`}
+        badge="Intake produk"
+        title="Intake Produk Baru"
+        description={`Lingkup: ${scopeLabel}.`}
         actions={
           <>
             {currentWorkspace ? (
               <Link className="button" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
-                {showAllWorkspaces ? "Current workspace" : "All workspaces"}
+                {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
               </Link>
             ) : null}
             <Link className="button" href="/products">
               <ArrowLeft size={16} aria-hidden="true" />
-              Products
+              Produk
             </Link>
           </>
         }
         stats={[
-          { label: "Scope", value: scopeLabel },
-          { label: "Recent intake", value: sessions.length },
-          { label: "Linked", value: linkedCount },
-          { label: "Preview", value: "Local only" },
+          { label: "Lingkup", value: scopeLabel },
+          { label: "Intake terbaru", value: sessions.length },
+          { label: "Tertaut", value: linkedCount },
+          { label: "Pratinjau", value: "Lokal" },
         ]}
       />
 
       <SectionCard
         icon={Inbox}
-        badge="New"
-        title="Product intake workflow"
-        description="Save a valid intake, then review deterministic prompt context in the same workflow. No upload, scraping, or Gemini call is added."
+        badge="Baru"
+        title="Workflow intake produk"
       >
         <IntakeWorkflowForm
           currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
@@ -131,10 +130,11 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
           message={message}
           savedSession={selectedSession}
           savedSessionWorkspaceName={savedSessionWorkspaceName}
+          showAllWorkspaces={showAllWorkspaces}
         />
       </SectionCard>
 
-      <SectionCard icon={Package} title="Recent intake" description={`Newest intake sessions. Scope: ${scopeLabel}.`}>
+      <SectionCard icon={Package} title="Intake terbaru">
         {sessions.length ? (
           <ul className="list">
             {sessions.slice(0, 5).map((session) => (
@@ -154,12 +154,12 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
                     href={`/products/new?step=prompt&intake_id=${session.id}${showAllWorkspaces ? "&workspace=all" : ""}`}
                   >
                     <FileText size={15} aria-hidden="true" />
-                    Preview
+                    Review
                   </Link>
                   {session.product_id ? (
                     <Link className="button compact" href={`/products/${session.product_id}`}>
                       <Link2 size={15} aria-hidden="true" />
-                      Product
+                      Produk
                     </Link>
                   ) : null}
                 </div>
@@ -169,12 +169,8 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
         ) : (
           <EmptyState
             icon={Inbox}
-            title={currentWorkspace && !showAllWorkspaces ? "No intake in this workspace." : "No intake yet."}
-            description={
-              currentWorkspace && !showAllWorkspaces
-                ? "Use All workspaces to see unassigned or legacy intake."
-                : "Save the first product intake above."
-            }
+            title={currentWorkspace && !showAllWorkspaces ? "Belum ada intake di workspace ini." : "Belum ada intake."}
+            description={currentWorkspace && !showAllWorkspaces ? "Coba semua workspace." : "Unggah evidence."}
           />
         )}
       </SectionCard>

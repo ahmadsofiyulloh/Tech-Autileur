@@ -4,21 +4,33 @@ import type { GeminiModelName } from "@/lib/gemini/validation";
 
 type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 
+type GeminiInlineDataPart = {
+  inline_data: {
+    mime_type: string;
+    data: string;
+  };
+};
+
+type GeminiTextPart = {
+  text: string;
+};
+
+type GeminiPart = GeminiTextPart | GeminiInlineDataPart;
+
 type GeminiGenerateContentOptions = {
   modelName: GeminiModelName;
   apiKey: string;
-  prompt: string;
+  prompt?: string;
+  parts?: GeminiPart[];
   temperature?: number;
   maxOutputTokens?: number;
 };
 
-type GeminiPart = {
-  text?: string;
-};
-
 type GeminiCandidate = {
   content?: {
-    parts?: GeminiPart[];
+    parts?: Array<{
+      text?: string;
+    }>;
   };
 };
 
@@ -132,6 +144,21 @@ function buildGeminiEndpoint(modelName: GeminiModelName, apiKey: string) {
   return url.toString();
 }
 
+function buildRequestParts(options: GeminiGenerateContentOptions) {
+  const parts = [...(options.parts ?? [])];
+  const prompt = options.prompt?.trim();
+
+  if (prompt) {
+    parts.push({ text: prompt });
+  }
+
+  if (!parts.length) {
+    throw new GeminiClientError("Gemini request requires a prompt or image parts.", 400);
+  }
+
+  return parts;
+}
+
 export async function generateGeminiJsonText(options: GeminiGenerateContentOptions) {
   const response = await fetch(buildGeminiEndpoint(options.modelName, options.apiKey), {
     method: "POST",
@@ -142,7 +169,7 @@ export async function generateGeminiJsonText(options: GeminiGenerateContentOptio
       contents: [
         {
           role: "user",
-          parts: [{ text: options.prompt }],
+          parts: buildRequestParts(options),
         },
       ],
       generationConfig: {

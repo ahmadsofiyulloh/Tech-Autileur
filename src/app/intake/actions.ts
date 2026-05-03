@@ -21,11 +21,9 @@ function readText(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function readLines(formData: FormData, key: string) {
-  return readText(formData, key)
-    .split(/\r?\n+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function readUploadedFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File ? value : null;
 }
 
 function redirectWithError(message: string): never {
@@ -45,16 +43,14 @@ function redirectWithMessage(message: string, params?: Record<string, string>): 
 
 function reviewedMetadataFromForm(formData: FormData): JsonRecord {
   return {
-    product_title: readText(formData, "review_product_title"),
-    marketplace: readText(formData, "review_marketplace"),
-    category: readText(formData, "review_category"),
-    rating_text: readText(formData, "review_rating_text"),
-    sold_count_text: readText(formData, "review_sold_count_text"),
-    price_text: readText(formData, "review_price_text"),
-    shop_name: readText(formData, "review_shop_name"),
-    visible_product_attributes: readLines(formData, "review_visible_product_attributes"),
-    risk_notes: readLines(formData, "review_risk_notes"),
-    confidence_notes: readLines(formData, "review_confidence_notes"),
+    nama_produk: readText(formData, "review_nama_produk") || readText(formData, "review_product_title"),
+    keyword_cari_etalase: readText(formData, "review_keyword_cari_etalase") || readText(formData, "review_category"),
+    deskripsi_visual: readText(formData, "review_deskripsi_visual"),
+    use_case: readText(formData, "review_use_case"),
+    pain_point: readText(formData, "review_pain_point"),
+    selling_angle: readText(formData, "review_selling_angle"),
+    target_viewer: readText(formData, "review_target_viewer"),
+    catatan_risiko: readText(formData, "review_catatan_risiko") || readText(formData, "review_risk_notes"),
   };
 }
 
@@ -87,6 +83,7 @@ function sourceFromForm(formData: FormData, prefix: string) {
 export async function saveIntake(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
+  const workspaceScope = readText(formData, "workspace_scope");
   let message = "Intake saved";
   let redirectParams: Record<string, string> | undefined;
 
@@ -102,7 +99,11 @@ export async function saveIntake(formData: FormData) {
         status: "SUBMITTED",
       });
       message = "Intake saved";
-      redirectParams = { step: "prompt", intake_id: session.id };
+      redirectParams = {
+        step: "prompt",
+        intake_id: session.id,
+        ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+      };
     } else if (intent === "update_session") {
       if (!id) {
         throw new Error("Missing intake id.");
@@ -119,12 +120,23 @@ export async function saveIntake(formData: FormData) {
       });
       message = "Intake updated";
     } else if (intent === "parse_intake") {
-      if (!id) {
-        throw new Error("Missing intake id.");
+      const productImage = readUploadedFile(formData, "product_image");
+      const marketplaceScreenshot = readUploadedFile(formData, "marketplace_screenshot");
+
+      if (!productImage || !marketplaceScreenshot) {
+        throw new Error("Upload kedua evidence dulu.");
       }
 
-      const result = await parseIntakeWithGemini(id);
+      const result = await parseIntakeWithGemini({
+        productImage,
+        marketplaceScreenshot,
+      });
       message = result.message;
+      redirectParams = {
+        step: "prompt",
+        intake_id: result.session.id,
+        ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+      };
     } else if (intent === "review_metadata" || intent === "save_reviewed_metadata") {
       if (!id) {
         throw new Error("Missing intake id.");
@@ -132,6 +144,11 @@ export async function saveIntake(formData: FormData) {
 
       await reviewIntakeMetadata(id, reviewedMetadataFromForm(formData));
       message = "Review saved";
+      redirectParams = {
+        step: "prompt",
+        intake_id: id,
+        ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+      };
     } else if (intent === "link_product") {
       if (!id) {
         throw new Error("Missing intake id.");

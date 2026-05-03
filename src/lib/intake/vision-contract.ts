@@ -1,7 +1,18 @@
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
-export type IntakeVisionParseOutput = {
+export type IntakeReviewMetadata = {
+  nama_produk: string;
+  keyword_cari_etalase: string;
+  deskripsi_visual: string;
+  use_case: string;
+  pain_point: string;
+  selling_angle: string;
+  target_viewer: string;
+  catatan_risiko: string;
+};
+
+export type IntakeVisionParseOutput = IntakeReviewMetadata & {
   product_title: string;
   marketplace: string;
   category: string;
@@ -14,7 +25,18 @@ export type IntakeVisionParseOutput = {
   confidence_notes: string[];
 };
 
-const INTAKE_VISION_KEYS = [
+const INTAKE_REVIEW_KEYS = [
+  "nama_produk",
+  "keyword_cari_etalase",
+  "deskripsi_visual",
+  "use_case",
+  "pain_point",
+  "selling_angle",
+  "target_viewer",
+  "catatan_risiko",
+] as const;
+
+const INTAKE_COMPAT_KEYS = [
   "product_title",
   "marketplace",
   "category",
@@ -39,7 +61,7 @@ function requireRecord(value: unknown, label: string) {
   return value;
 }
 
-function requireString(value: unknown, label: string) {
+function readString(value: unknown, label: string) {
   if (typeof value !== "string") {
     throw new Error(`${label} must be a string.`);
   }
@@ -47,14 +69,33 @@ function requireString(value: unknown, label: string) {
   return value.trim();
 }
 
-function requireStringArray(value: unknown, label: string) {
-  if (!Array.isArray(value)) {
-    throw new Error(`${label} must be an array.`);
+function splitLines(value: string) {
+  return value
+    .split(/\r?\n+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function readStringArray(value: unknown, label: string) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => readString(item, `${label}[${index}]`))
+      .filter((item) => item.length > 0);
   }
 
-  return value
-    .map((item, index) => requireString(item, `${label}[${index}]`))
-    .filter((item) => item.length > 0);
+  if (typeof value === "string") {
+    return splitLines(value);
+  }
+
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  throw new Error(`${label} must be an array.`);
+}
+
+function readOptionalString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function normalizeMarketplace(value: string) {
@@ -78,7 +119,7 @@ function normalizeMarketplace(value: string) {
 }
 
 function ensureExactKeys(record: Record<string, unknown>, label: string) {
-  const allowed = new Set<string>(INTAKE_VISION_KEYS);
+  const allowed = new Set<string>([...INTAKE_REVIEW_KEYS, ...INTAKE_COMPAT_KEYS]);
   const extraKeys = Object.keys(record).filter((key) => !allowed.has(key));
 
   if (extraKeys.length) {
@@ -86,9 +127,35 @@ function ensureExactKeys(record: Record<string, unknown>, label: string) {
   }
 }
 
+function buildVisibleFallback(review: IntakeReviewMetadata) {
+  return [
+    review.deskripsi_visual,
+    review.use_case,
+    review.pain_point,
+    review.selling_angle,
+    review.target_viewer,
+  ].filter((item) => item.length > 0);
+}
+
+function buildRiskNotes(review: IntakeReviewMetadata, fallback: string[]) {
+  if (fallback.length > 0) {
+    return fallback;
+  }
+
+  return splitLines(review.catatan_risiko);
+}
+
 function hasUsefulContent(output: IntakeVisionParseOutput) {
   return Boolean(
-    output.product_title ||
+    output.nama_produk ||
+      output.keyword_cari_etalase ||
+      output.deskripsi_visual ||
+      output.use_case ||
+      output.pain_point ||
+      output.selling_angle ||
+      output.target_viewer ||
+      output.catatan_risiko ||
+      output.product_title ||
       output.marketplace ||
       output.category ||
       output.rating_text ||
@@ -114,20 +181,42 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
   const record = requireRecord(value, "Intake vision output");
   ensureExactKeys(record, "Intake vision output");
 
+  const review: IntakeReviewMetadata = {
+    nama_produk: readString(record.nama_produk, "nama_produk"),
+    keyword_cari_etalase: readString(record.keyword_cari_etalase, "keyword_cari_etalase"),
+    deskripsi_visual: readString(record.deskripsi_visual, "deskripsi_visual"),
+    use_case: readString(record.use_case, "use_case"),
+    pain_point: readString(record.pain_point, "pain_point"),
+    selling_angle: readString(record.selling_angle, "selling_angle"),
+    target_viewer: readString(record.target_viewer, "target_viewer"),
+    catatan_risiko: readString(record.catatan_risiko, "catatan_risiko"),
+  };
+
+  const productTitle = readOptionalString(record.product_title) || review.nama_produk || review.keyword_cari_etalase;
+  const marketplace = normalizeMarketplace(readOptionalString(record.marketplace));
+  const category = readOptionalString(record.category) || review.keyword_cari_etalase;
+  const ratingText = readOptionalString(record.rating_text);
+  const soldCountText = readOptionalString(record.sold_count_text);
+  const priceText = readOptionalString(record.price_text);
+  const shopName = readOptionalString(record.shop_name);
+  const visibleProductAttributes = readStringArray(record.visible_product_attributes, "visible_product_attributes");
+  const riskNotes = readStringArray(record.risk_notes, "risk_notes");
+  const confidenceNotes = readStringArray(record.confidence_notes, "confidence_notes");
+
   const output: IntakeVisionParseOutput = {
-    product_title: requireString(record.product_title, "product_title"),
-    marketplace: normalizeMarketplace(requireString(record.marketplace, "marketplace")),
-    category: requireString(record.category, "category"),
-    rating_text: requireString(record.rating_text, "rating_text"),
-    sold_count_text: requireString(record.sold_count_text, "sold_count_text"),
-    price_text: requireString(record.price_text, "price_text"),
-    shop_name: requireString(record.shop_name, "shop_name"),
-    visible_product_attributes: requireStringArray(
-      record.visible_product_attributes,
-      "visible_product_attributes",
-    ),
-    risk_notes: requireStringArray(record.risk_notes, "risk_notes"),
-    confidence_notes: requireStringArray(record.confidence_notes, "confidence_notes"),
+    ...review,
+    product_title: productTitle,
+    marketplace,
+    category,
+    rating_text: ratingText,
+    sold_count_text: soldCountText,
+    price_text: priceText,
+    shop_name: shopName,
+    visible_product_attributes: visibleProductAttributes.length ? visibleProductAttributes : buildVisibleFallback(review),
+    risk_notes: buildRiskNotes(review, riskNotes),
+    confidence_notes: confidenceNotes.length
+      ? confidenceNotes
+      : ["Analisis Gemini live dari bytes upload."],
   };
 
   if (!hasUsefulContent(output)) {
