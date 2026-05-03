@@ -198,7 +198,7 @@ function batchColumnKey(status: FlowBatchStatus): BoardColumnKey {
 function batchActionList(status: FlowBatchStatus): BatchAction[] {
   switch (status) {
     case "READY_TO_EXPORT":
-      return [{ intent: "update_flow_batch", label: "Tandai Ekspor", status: "EXPORTED" as const }];
+      return [];
     case "EXPORTED":
       return [{ intent: "update_flow_batch", label: "Mulai Flow", status: "RUNNING" as const }];
     case "RUNNING":
@@ -246,6 +246,67 @@ function BatchActionButton({
         {label}
       </button>
     </form>
+  );
+}
+
+function FlowManifestPanel({ batch }: { batch: FlowBatchRecord }) {
+  const hasManifest = isRecord(batch.manifest_json);
+  const canExport = batch.status !== "DRAFT" && batch.status !== "CLOSED";
+
+  if (!hasManifest && !canExport) {
+    return null;
+  }
+
+  return (
+    <details className="controller-manifest-panel">
+      <summary>
+        <span>Manifest</span>
+        {hasManifest ? <StatusBadge status="Siap unduh" tone="success" /> : null}
+      </summary>
+
+      <div className="controller-manifest-panel__body stack">
+        {canExport ? (
+          <form className="stack" action={saveController}>
+            <input type="hidden" name="intent" value="export_flow_manifest" />
+            <input type="hidden" name="id" value={batch.id} />
+            <label className="stack auth-field" htmlFor={`flow-url-${batch.id}`}>
+              <span>Flow URL</span>
+              <input id={`flow-url-${batch.id}`} name="flow_url" type="url" defaultValue={batch.flow_url ?? ""} required />
+            </label>
+            <label className="stack auth-field" htmlFor={`drive-folder-id-${batch.id}`}>
+              <span>Folder Drive ID</span>
+              <input id={`drive-folder-id-${batch.id}`} name="drive_output_folder_id" type="text" defaultValue={batch.drive_output_folder_id ?? ""} />
+            </label>
+            <label className="stack auth-field" htmlFor={`drive-folder-url-${batch.id}`}>
+              <span>Folder Drive URL</span>
+              <input id={`drive-folder-url-${batch.id}`} name="drive_output_folder_url" type="url" defaultValue={batch.drive_output_folder_url ?? ""} />
+            </label>
+            <label className="stack auth-field" htmlFor={`helper-key-${batch.id}`}>
+              <span>Output Key</span>
+              <input id={`helper-key-${batch.id}`} name="helper_output_folder_key" type="text" defaultValue={batch.helper_output_folder_key ?? ""} required />
+            </label>
+            <FormActions>
+              <button className="button compact primary" type="submit">
+                Ekspor Manifest
+              </button>
+            </FormActions>
+          </form>
+        ) : null}
+
+        <div className="section-card__actions">
+          {hasManifest ? (
+            <a className="button compact" href={`/controller/batches/${batch.id}/manifest`}>
+              Unduh Manifest
+            </a>
+          ) : null}
+          {batch.flow_url ? (
+            <a className="button compact" href={batch.flow_url} target="_blank" rel="noreferrer">
+              Buka Flow
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -535,6 +596,7 @@ function BatchCard({
       <div className="section-card__actions">
         {actions.length ? actions.map((action) => <BatchActionButton batchId={batch.id} intent={action.intent} label={action.label} status={action.status} key={`${batch.id}-${action.label}`} />) : null}
       </div>
+      <FlowManifestPanel batch={batch} />
     </li>
   );
 }

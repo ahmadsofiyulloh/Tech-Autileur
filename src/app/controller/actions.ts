@@ -5,6 +5,7 @@ import { buildClipJobDraft, buildPromptContextSummary } from "@/lib/server/contr
 import { createContent, archiveContent, updateContent } from "@/lib/server/contents";
 import { createFlowAccount, archiveFlowAccount, getFlowAccountPool, updateFlowAccount } from "@/lib/server/flow-accounts";
 import { archiveFlowBatch, buildFlowBatchCode, createFlowBatch, updateFlowBatch } from "@/lib/server/flow-batches";
+import { exportFlowBatchManifest } from "@/lib/server/flow-manifests";
 import { archiveClipJob, createClipJob, markGeneratedFileImported, updateClipJob, updateGeneratedFile } from "@/lib/server/clip-jobs";
 import { createGeneratedFile } from "@/lib/server/clip-jobs";
 import { getContentById } from "@/lib/server/contents";
@@ -19,6 +20,14 @@ function readText(formData: FormData, key: string) {
 function readNullableText(formData: FormData, key: string) {
   const value = readText(formData, key);
   return value.length > 0 ? value : null;
+}
+
+function readOptionalText(formData: FormData, key: string) {
+  return formData.has(key) ? readText(formData, key) : undefined;
+}
+
+function readOptionalNullableText(formData: FormData, key: string) {
+  return formData.has(key) ? readNullableText(formData, key) : undefined;
 }
 
 function done(message: string): never {
@@ -41,6 +50,10 @@ function readNumber(formData: FormData, key: string) {
   }
 
   return parsed;
+}
+
+function readOptionalNumber(formData: FormData, key: string) {
+  return formData.has(key) ? readNumber(formData, key) : undefined;
 }
 
 export async function saveController(formData: FormData) {
@@ -129,6 +142,8 @@ export async function saveController(formData: FormData) {
         max_jobs: selectedAccount.recommended_max_jobs,
         drive_output_folder_url: readNullableText(formData, "drive_output_folder_url"),
         drive_output_folder_id: readNullableText(formData, "drive_output_folder_id"),
+        flow_url: readNullableText(formData, "flow_url"),
+        helper_output_folder_key: readNullableText(formData, "helper_output_folder_key"),
         status: readText(formData, "status"),
       });
       done("Flow batch created.");
@@ -140,16 +155,32 @@ export async function saveController(formData: FormData) {
       }
 
       await updateFlowBatch(id, {
-        flow_account_id: readNullableText(formData, "flow_account_id") ?? undefined,
-        batch_code: readText(formData, "batch_code"),
-        target_date: readNullableText(formData, "target_date") ?? undefined,
-        model: readText(formData, "model"),
-        max_jobs: readNumber(formData, "max_jobs"),
-        drive_output_folder_url: readNullableText(formData, "drive_output_folder_url"),
-        drive_output_folder_id: readNullableText(formData, "drive_output_folder_id"),
-        status: readText(formData, "status"),
+        flow_account_id: readOptionalNullableText(formData, "flow_account_id") ?? undefined,
+        batch_code: readOptionalText(formData, "batch_code"),
+        target_date: readOptionalNullableText(formData, "target_date") ?? undefined,
+        model: readOptionalText(formData, "model"),
+        max_jobs: readOptionalNumber(formData, "max_jobs"),
+        drive_output_folder_url: readOptionalNullableText(formData, "drive_output_folder_url"),
+        drive_output_folder_id: readOptionalNullableText(formData, "drive_output_folder_id"),
+        flow_url: readOptionalNullableText(formData, "flow_url"),
+        helper_output_folder_key: readOptionalNullableText(formData, "helper_output_folder_key"),
+        status: readOptionalText(formData, "status"),
       });
       done("Flow batch updated.");
+    }
+
+    if (intent === "export_flow_manifest") {
+      if (!id) {
+        throw new Error("Missing flow batch id.");
+      }
+
+      await exportFlowBatchManifest(id, {
+        flow_url: readNullableText(formData, "flow_url"),
+        drive_output_folder_id: readNullableText(formData, "drive_output_folder_id"),
+        drive_output_folder_url: readNullableText(formData, "drive_output_folder_url"),
+        helper_output_folder_key: readNullableText(formData, "helper_output_folder_key"),
+      });
+      redirect(`/controller/batches/${id}/manifest`);
     }
 
     if (intent === "archive_flow_batch") {

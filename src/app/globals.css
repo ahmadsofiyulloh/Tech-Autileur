@@ -627,6 +627,23 @@ button:focus-visible {
   align-items: flex-start;
 }
 
+.controller-manifest-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  padding: 10px 12px;
+}
+
+.controller-manifest-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.controller-manifest-panel__body {
+  margin-top: var(--space-3);
+}
+
 .controller-account-picker {
   display: grid;
   gap: var(--space-2);

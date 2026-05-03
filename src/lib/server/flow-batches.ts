@@ -33,6 +33,10 @@ export type FlowBatchRecord = {
   max_jobs: number;
   drive_output_folder_url: string | null;
   drive_output_folder_id: string | null;
+  flow_url: string | null;
+  helper_output_folder_key: string | null;
+  manifest_json: unknown | null;
+  last_helper_event_at: string | null;
   status: FlowBatchStatus;
   created_at: string;
   updated_at: string;
@@ -49,11 +53,15 @@ type FlowBatchInput = {
   max_jobs?: number | string;
   drive_output_folder_url?: string | null;
   drive_output_folder_id?: string | null;
+  flow_url?: string | null;
+  helper_output_folder_key?: string | null;
   status?: FlowBatchStatus | string;
 };
 
 type FlowBatchUpdateInput = Partial<Omit<FlowBatchInput, "flow_account_id">> & {
   flow_account_id?: string;
+  manifest_json?: unknown | null;
+  last_helper_event_at?: string | null;
 };
 
 type BatchState = {
@@ -344,6 +352,8 @@ export async function createFlowBatch(input: FlowBatchInput) {
       max_jobs: maxJobs,
       drive_output_folder_url: normalizeNullableText(input.drive_output_folder_url),
       drive_output_folder_id: normalizeNullableText(input.drive_output_folder_id),
+      flow_url: normalizeNullableText(input.flow_url),
+      helper_output_folder_key: normalizeNullableText(input.helper_output_folder_key),
       status,
     })
     .select("*")
@@ -365,7 +375,23 @@ export async function updateFlowBatch(id: string, input: FlowBatchUpdateInput) {
     throw new Error("Flow batch not found.");
   }
 
-  const patch: Partial<Pick<FlowBatchRecord, "batch_code" | "flow_account_id" | "target_date" | "model" | "max_jobs" | "drive_output_folder_url" | "drive_output_folder_id" | "status">> = {};
+  const patch: Partial<
+    Pick<
+      FlowBatchRecord,
+      | "batch_code"
+      | "flow_account_id"
+      | "target_date"
+      | "model"
+      | "max_jobs"
+      | "drive_output_folder_url"
+      | "drive_output_folder_id"
+      | "flow_url"
+      | "helper_output_folder_key"
+      | "manifest_json"
+      | "last_helper_event_at"
+      | "status"
+    >
+  > = {};
 
   if (input.batch_code !== undefined) {
     patch.batch_code = normalizeBatchCode(input.batch_code);
@@ -403,6 +429,22 @@ export async function updateFlowBatch(id: string, input: FlowBatchUpdateInput) {
 
   if (input.drive_output_folder_id !== undefined) {
     patch.drive_output_folder_id = normalizeNullableText(input.drive_output_folder_id);
+  }
+
+  if (input.flow_url !== undefined) {
+    patch.flow_url = normalizeNullableText(input.flow_url);
+  }
+
+  if (input.helper_output_folder_key !== undefined) {
+    patch.helper_output_folder_key = normalizeNullableText(input.helper_output_folder_key);
+  }
+
+  if (input.manifest_json !== undefined) {
+    patch.manifest_json = input.manifest_json;
+  }
+
+  if (input.last_helper_event_at !== undefined) {
+    patch.last_helper_event_at = normalizeNullableText(input.last_helper_event_at);
   }
 
   if (input.status !== undefined) {
