@@ -1,4 +1,10 @@
-import { PROMPT_I2I_SLOT_KEYS, PROMPT_I2V_SLOT_KEYS, PROMPT_PACK_OUTPUT_KEYS } from "@/lib/prompts/validation";
+import {
+  PROMPT_CLIP_KEYS,
+  PROMPT_PACK_OUTPUT_KEYS,
+  PROMPT_TARGET_MARKETPLACE,
+  normalizeHashtagString,
+  type PromptClipKey,
+} from "@/lib/prompts/validation";
 
 type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
@@ -37,13 +43,25 @@ type PromptPackLockStateJson = {
   drive_item_ref_id: string | null;
 };
 
+export type PromptPackI2IPromptJson = {
+  slot: PromptClipKey;
+  first_frame: string;
+  last_frame: string;
+};
+
+export type PromptPackI2VPromptJson = {
+  slot: PromptClipKey;
+  prompt: string;
+};
+
 export type PromptPackGenerationOutput = {
   product_analysis: JsonObject;
   prompt_context: JsonObject;
-  i2i_prompts: Record<(typeof PROMPT_I2I_SLOT_KEYS)[number], JsonObject>;
-  i2v_prompts: Record<(typeof PROMPT_I2V_SLOT_KEYS)[number], JsonObject>;
-  caption_rules: string[];
-  hashtag_rules: string[];
+  i2i_prompts: Record<PromptClipKey, PromptPackI2IPromptJson>;
+  i2v_prompts: Record<PromptClipKey, PromptPackI2VPromptJson>;
+  caption: string;
+  tags: string;
+  target_marketplace: typeof PROMPT_TARGET_MARKETPLACE;
   negative_prompt_rules: string[];
   consistency_rules: string[];
   seed_character: PromptPackLockStateJson;
@@ -51,12 +69,28 @@ export type PromptPackGenerationOutput = {
 };
 
 export type PromptPackStoragePayload = {
-  product_analysis_json: JsonObject;
-  i2i_prompts_json: Record<(typeof PROMPT_I2I_SLOT_KEYS)[number], JsonObject>;
-  i2v_prompts_json: Record<(typeof PROMPT_I2V_SLOT_KEYS)[number], JsonObject>;
-  consistency_rules_json: JsonObject;
-  negative_rules_json: JsonObject;
+  product_analysis_json?: JsonObject | null;
+  i2i_prompts_json: Record<PromptClipKey, PromptPackI2IPromptJson>;
+  i2v_prompts_json: Record<PromptClipKey, PromptPackI2VPromptJson>;
+  consistency_rules_json?: JsonObject | null;
+  negative_rules_json?: JsonObject | null;
   personalization_json: JsonObject;
+};
+
+export type PromptPackEditorClip = {
+  i2i_first_frame: string;
+  i2i_last_frame: string;
+  i2v_prompt: string;
+};
+
+export type PromptPackEditorPromptSet = {
+  clips: Record<PromptClipKey, PromptPackEditorClip>;
+  caption: string;
+  tags: string;
+  target_marketplace: typeof PROMPT_TARGET_MARKETPLACE;
+  prompt_context: JsonValue | null;
+  seed_character: PromptPackLockStateJson;
+  environment: PromptPackLockStateJson;
 };
 
 type PromptPackAnalysisJson = {
@@ -67,8 +101,7 @@ type PromptPackAnalysisJson = {
   source_image: PromptPackSourceImageRecord | null;
   coverage: {
     vision_analysis: number;
-    i2i_prompts: number;
-    i2v_prompts: number;
+    prompt_clips: number;
   };
   vision_analysis: {
     summary: string;
@@ -78,21 +111,14 @@ type PromptPackAnalysisJson = {
   };
 };
 
-type PromptPackPromptSlot = {
-  slot: string;
-  prompt: string;
-};
-
-type PromptPackI2iSlot = PromptPackPromptSlot & {
-  composition: string;
-};
-
-type PromptPackI2vSlot = PromptPackPromptSlot & {
-  motion_notes: string;
-};
-
 type PromptPackConsistencyRulesJson = {
   consistency_rules: string[];
+};
+
+const EMPTY_LOCK_STATE: PromptPackLockStateJson = {
+  locked: false,
+  notes: "",
+  drive_item_ref_id: null,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -121,6 +147,10 @@ function requireString(value: unknown, label: string) {
   }
 
   return value.trim();
+}
+
+function requireOptionalString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function requireNumber(value: unknown, label: string) {
@@ -159,8 +189,7 @@ function requireMaybeDriveItem(value: unknown, label: string) {
     name: requireString(record.name, `${label}.name`),
     drive_path: requireString(record.drive_path, `${label}.drive_path`),
     drive_url: requireString(record.drive_url, `${label}.drive_url`),
-    mime_type:
-      typeof record.mime_type === "string" && record.mime_type.trim().length > 0 ? record.mime_type.trim() : null,
+    mime_type: typeof record.mime_type === "string" && record.mime_type.trim().length > 0 ? record.mime_type.trim() : null,
   };
 }
 
@@ -204,8 +233,7 @@ function requirePromptAnalysisJson(value: unknown) {
     source_image: requireMaybeSourceImage(record.source_image, "product_analysis.source_image"),
     coverage: {
       vision_analysis: requireNumber(coverage.vision_analysis, "product_analysis.coverage.vision_analysis"),
-      i2i_prompts: requireNumber(coverage.i2i_prompts, "product_analysis.coverage.i2i_prompts"),
-      i2v_prompts: requireNumber(coverage.i2v_prompts, "product_analysis.coverage.i2v_prompts"),
+      prompt_clips: requireNumber(coverage.prompt_clips, "product_analysis.coverage.prompt_clips"),
     },
     vision_analysis: {
       summary: requireString(visionAnalysis.summary, "product_analysis.vision_analysis.summary"),
@@ -220,44 +248,69 @@ function requirePromptContextJson(value: unknown) {
   return requireRecord(value, "prompt_context") as JsonObject;
 }
 
-function requirePromptSlotJson(
-  value: unknown,
-  label: string,
-  slotKey: string,
-  extraField: "composition" | "motion_notes",
-) {
-  const record = requireRecord(value, label);
-  const slot = requireString(record.slot, `${label}.slot`);
-  const prompt = requireString(record.prompt, `${label}.prompt`);
-  const extra = requireString(record[extraField], `${label}.${extraField}`);
+function requirePromptClipKey(value: unknown, label: string) {
+  const clipKey = requireString(value, label);
 
-  if (slot !== slotKey) {
-    throw new Error(`${label}.slot must equal ${slotKey}.`);
+  if (!(PROMPT_CLIP_KEYS as readonly string[]).includes(clipKey)) {
+    throw new Error(`${label} must be one of: ${PROMPT_CLIP_KEYS.join(", ")}.`);
+  }
+
+  return clipKey as PromptClipKey;
+}
+
+function requireI2IPromptJson(value: unknown, label: string, clipKey: PromptClipKey) {
+  const record = requireRecord(value, label);
+  const slot = requirePromptClipKey(record.slot, `${label}.slot`);
+
+  if (slot !== clipKey) {
+    throw new Error(`${label}.slot must equal ${clipKey}.`);
   }
 
   return {
     slot,
-    prompt,
-    [extraField]: extra,
-  } as PromptPackI2iSlot | PromptPackI2vSlot;
+    first_frame: requireString(record.first_frame, `${label}.first_frame`),
+    last_frame: requireString(record.last_frame, `${label}.last_frame`),
+  } satisfies PromptPackI2IPromptJson;
 }
 
-function requirePromptSlotMap(
-  value: unknown,
-  label: string,
-  slotKeys: readonly string[],
-  extraField: "composition" | "motion_notes",
-) {
+function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClipKey) {
   const record = requireRecord(value, label);
-  requireExactKeys(record, slotKeys, label);
-  const result = {} as Record<string, JsonObject>;
+  const slot = requirePromptClipKey(record.slot, `${label}.slot`);
 
-  for (const slotKey of slotKeys) {
-    const slotValue = record[slotKey];
-    result[slotKey] = requirePromptSlotJson(slotValue, `${label}.${slotKey}`, slotKey, extraField) as JsonObject;
+  if (slot !== clipKey) {
+    throw new Error(`${label}.slot must equal ${clipKey}.`);
   }
 
-  return result;
+  return {
+    slot,
+    prompt: requireString(record.prompt, `${label}.prompt`),
+  } satisfies PromptPackI2VPromptJson;
+}
+
+function requireI2IPromptMap(value: unknown) {
+  const record = requireRecord(value, "i2i_prompts");
+  requireExactKeys(record, PROMPT_CLIP_KEYS, "i2i_prompts");
+
+  return PROMPT_CLIP_KEYS.reduce(
+    (result, clipKey) => ({
+      ...result,
+      [clipKey]: requireI2IPromptJson(record[clipKey], `i2i_prompts.${clipKey}`, clipKey),
+    }),
+    {} as Record<PromptClipKey, PromptPackI2IPromptJson>,
+  );
+}
+
+function requireI2VPromptMap(value: unknown) {
+  const record = requireRecord(value, "i2v_prompts");
+  requireExactKeys(record, PROMPT_CLIP_KEYS, "i2v_prompts");
+
+  return PROMPT_CLIP_KEYS.reduce(
+    (result, clipKey) => ({
+      ...result,
+      [clipKey]: requireI2VPromptJson(record[clipKey], `i2v_prompts.${clipKey}`, clipKey),
+    }),
+    {} as Record<PromptClipKey, PromptPackI2VPromptJson>,
+  );
 }
 
 function requireLockStateJson(value: unknown, label: string) {
@@ -266,7 +319,7 @@ function requireLockStateJson(value: unknown, label: string) {
 
   return {
     locked: requireBoolean(record.locked, `${label}.locked`),
-    notes: requireString(record.notes, `${label}.notes`),
+    notes: requireOptionalString(record.notes),
     drive_item_ref_id:
       record.drive_item_ref_id === null
         ? null
@@ -280,10 +333,6 @@ function requireConsistencyRulesJson(value: unknown) {
   return {
     consistency_rules: requireStringArray(record.consistency_rules, "consistency_rules.consistency_rules"),
   } as PromptPackConsistencyRulesJson;
-}
-
-function requirePromptRulesArray(value: unknown, label: string) {
-  return requireStringArray(value, label);
 }
 
 function extractJsonText(rawText: string) {
@@ -336,23 +385,200 @@ function recoverJsonText(rawText: string) {
   throw new Error("Gemini output did not contain valid JSON.");
 }
 
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readRecord(value: unknown) {
+  return isRecord(value) ? value : {};
+}
+
+function readPromptField(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (!isRecord(value)) {
+    return "";
+  }
+
+  return readString(value.prompt);
+}
+
+function readLegacyPrompt(record: Record<string, unknown>, key: string) {
+  return readPromptField(record[key]);
+}
+
+function readI2IClip(record: Record<string, unknown>, clipKey: PromptClipKey) {
+  const current = readRecord(record[clipKey]);
+  const legacyPrefix = clipKey === "clip_1" ? "clip_01" : "clip_02";
+
+  return {
+    i2i_first_frame:
+      readString(current.first_frame) ||
+      readString(current.i2i_first_frame) ||
+      readLegacyPrompt(record, `${legacyPrefix}_start_frame`),
+    i2i_last_frame:
+      readString(current.last_frame) ||
+      readString(current.i2i_last_frame) ||
+      readLegacyPrompt(record, `${legacyPrefix}_last_frame`),
+  };
+}
+
+function readI2VClip(record: Record<string, unknown>, clipKey: PromptClipKey) {
+  const current = readRecord(record[clipKey]);
+  const legacyKey = clipKey === "clip_1" ? "clip_01" : "clip_02";
+
+  return readPromptField(current) || readPromptField(record[legacyKey]);
+}
+
+function readTagsFromPersonalization(record: Record<string, unknown>) {
+  const direct = readString(record.tags);
+
+  if (direct) {
+    return normalizeHashtagString(direct);
+  }
+
+  if (Array.isArray(record.hashtag_rules)) {
+    return normalizeHashtagString(record.hashtag_rules.filter((item): item is string => typeof item === "string").join(" "));
+  }
+
+  return "";
+}
+
+function readLockState(value: unknown) {
+  if (!isRecord(value)) {
+    return EMPTY_LOCK_STATE;
+  }
+
+  return {
+    locked: typeof value.locked === "boolean" ? value.locked : false,
+    notes: readString(value.notes),
+    drive_item_ref_id: typeof value.drive_item_ref_id === "string" ? value.drive_item_ref_id : null,
+  } satisfies PromptPackLockStateJson;
+}
+
+function jsonRecordOrEmpty(value: unknown): JsonObject {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return value as JsonObject;
+}
+
+function toI2IStorageClip(clipKey: PromptClipKey, clip: PromptPackEditorClip) {
+  return {
+    slot: clipKey,
+    first_frame: clip.i2i_first_frame.trim(),
+    last_frame: clip.i2i_last_frame.trim(),
+  } satisfies PromptPackI2IPromptJson;
+}
+
+function toI2VStorageClip(clipKey: PromptClipKey, clip: PromptPackEditorClip) {
+  return {
+    slot: clipKey,
+    prompt: clip.i2v_prompt.trim(),
+  } satisfies PromptPackI2VPromptJson;
+}
+
 export function parsePromptPackGenerationOutput(rawText: string): PromptPackGenerationOutput {
   const jsonText = recoverJsonText(rawText);
   const parsed: unknown = JSON.parse(jsonText);
   const record = requireRecord(parsed, "Gemini output");
   requireExactKeys(record, PROMPT_PACK_OUTPUT_KEYS, "Gemini output");
 
+  const targetMarketplace = requireString(record.target_marketplace, "target_marketplace");
+
+  if (targetMarketplace !== PROMPT_TARGET_MARKETPLACE) {
+    throw new Error(`target_marketplace must equal ${PROMPT_TARGET_MARKETPLACE}.`);
+  }
+
   return {
     product_analysis: requirePromptAnalysisJson(record.product_analysis),
     prompt_context: requirePromptContextJson(record.prompt_context),
-    i2i_prompts: requirePromptSlotMap(record.i2i_prompts, "i2i_prompts", PROMPT_I2I_SLOT_KEYS, "composition") as PromptPackGenerationOutput["i2i_prompts"],
-    i2v_prompts: requirePromptSlotMap(record.i2v_prompts, "i2v_prompts", PROMPT_I2V_SLOT_KEYS, "motion_notes") as PromptPackGenerationOutput["i2v_prompts"],
-    caption_rules: requirePromptRulesArray(record.caption_rules, "caption_rules"),
-    hashtag_rules: requirePromptRulesArray(record.hashtag_rules, "hashtag_rules"),
-    negative_prompt_rules: requirePromptRulesArray(record.negative_prompt_rules, "negative_prompt_rules"),
-    consistency_rules: requirePromptRulesArray(record.consistency_rules, "consistency_rules"),
+    i2i_prompts: requireI2IPromptMap(record.i2i_prompts),
+    i2v_prompts: requireI2VPromptMap(record.i2v_prompts),
+    caption: requireString(record.caption, "caption"),
+    tags: normalizeHashtagString(requireString(record.tags, "tags")),
+    target_marketplace: PROMPT_TARGET_MARKETPLACE,
+    negative_prompt_rules: requireStringArray(record.negative_prompt_rules, "negative_prompt_rules"),
+    consistency_rules: requireStringArray(record.consistency_rules, "consistency_rules"),
     seed_character: requireLockStateJson(record.seed_character, "seed_character"),
     environment: requireLockStateJson(record.environment, "environment"),
+  };
+}
+
+export function readPromptPackEditorPromptSet(input: {
+  i2i_prompts_json?: unknown;
+  i2v_prompts_json?: unknown;
+  personalization_json?: unknown;
+}): PromptPackEditorPromptSet {
+  const i2iPrompts = readRecord(input.i2i_prompts_json);
+  const i2vPrompts = readRecord(input.i2v_prompts_json);
+  const personalization = readRecord(input.personalization_json);
+
+  const clips = PROMPT_CLIP_KEYS.reduce(
+    (result, clipKey) => {
+      const i2iClip = readI2IClip(i2iPrompts, clipKey);
+
+      return {
+        ...result,
+        [clipKey]: {
+          ...i2iClip,
+          i2v_prompt: readI2VClip(i2vPrompts, clipKey),
+        },
+      };
+    },
+    {} as Record<PromptClipKey, PromptPackEditorClip>,
+  );
+
+  return {
+    clips,
+    caption:
+      readString(personalization.caption) ||
+      (Array.isArray(personalization.caption_rules)
+        ? personalization.caption_rules.filter((item): item is string => typeof item === "string").join("\n")
+        : ""),
+    tags: readTagsFromPersonalization(personalization),
+    target_marketplace: PROMPT_TARGET_MARKETPLACE,
+    prompt_context: isRecord(personalization.prompt_context) ? (personalization.prompt_context as JsonObject) : null,
+    seed_character: readLockState(personalization.seed_character),
+    environment: readLockState(personalization.environment),
+  };
+}
+
+export function buildPromptPackEditorStoragePayload(
+  input: Pick<PromptPackEditorPromptSet, "clips" | "caption" | "tags">,
+  existingPersonalization?: unknown,
+): PromptPackStoragePayload {
+  const existing = jsonRecordOrEmpty(existingPersonalization);
+  const i2iPrompts = PROMPT_CLIP_KEYS.reduce(
+    (result, clipKey) => ({
+      ...result,
+      [clipKey]: toI2IStorageClip(clipKey, input.clips[clipKey]),
+    }),
+    {} as Record<PromptClipKey, PromptPackI2IPromptJson>,
+  );
+  const i2vPrompts = PROMPT_CLIP_KEYS.reduce(
+    (result, clipKey) => ({
+      ...result,
+      [clipKey]: toI2VStorageClip(clipKey, input.clips[clipKey]),
+    }),
+    {} as Record<PromptClipKey, PromptPackI2VPromptJson>,
+  );
+
+  return {
+    i2i_prompts_json: i2iPrompts,
+    i2v_prompts_json: i2vPrompts,
+    personalization_json: {
+      ...existing,
+      prompt_context: isRecord(existing.prompt_context) ? existing.prompt_context : null,
+      caption: input.caption.trim(),
+      tags: normalizeHashtagString(input.tags),
+      target_marketplace: PROMPT_TARGET_MARKETPLACE,
+      seed_character: isRecord(existing.seed_character) ? (existing.seed_character as JsonObject) : EMPTY_LOCK_STATE,
+      environment: isRecord(existing.environment) ? (existing.environment as JsonObject) : EMPTY_LOCK_STATE,
+    },
   };
 }
 
@@ -369,8 +595,9 @@ export function buildPromptPackStoragePayload(output: PromptPackGenerationOutput
     },
     personalization_json: {
       prompt_context: output.prompt_context,
-      caption_rules: output.caption_rules,
-      hashtag_rules: output.hashtag_rules,
+      caption: output.caption,
+      tags: normalizeHashtagString(output.tags),
+      target_marketplace: PROMPT_TARGET_MARKETPLACE,
       seed_character: output.seed_character,
       environment: output.environment,
     },

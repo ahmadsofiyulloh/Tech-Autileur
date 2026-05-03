@@ -13,7 +13,10 @@ import {
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
+  PROMPT_CLIP_KEYS,
   PROMPT_PACK_STATUSES,
+  PROMPT_READY_FOR_FLOW_STATUS,
+  PROMPT_TARGET_MARKETPLACE,
   type PromptPackStatus,
   isPromptPackStatus,
   normalizePromptCode,
@@ -22,9 +25,12 @@ import type { GeminiModelName } from "@/lib/gemini/validation";
 import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
 import { GeminiClientError, generateGeminiJsonText } from "@/lib/server/gemini-client";
 import {
+  buildPromptPackEditorStoragePayload,
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
+  readPromptPackEditorPromptSet,
   type JsonObject,
+  type PromptPackStoragePayload,
   type PromptPackGenerationOutput,
 } from "@/lib/prompts/prompt-pack-contract";
 import { getCurrentWorkspace, getWorkspaceById } from "@/lib/server/workspaces";
@@ -469,6 +475,7 @@ function buildPromptContextSnapshot(context: {
     workspace: buildWorkspaceSnapshot(context.currentWorkspace),
     product: buildProductSnapshot(context.product),
     intake_session: buildIntakeSessionSnapshot(context.intakeSession),
+    reviewed_gemini_metadata: context.intakeSession?.reviewed_metadata_json ?? null,
     affiliate_profile: buildAffiliateProfileSnapshot(context.affiliateProfile),
     latest_anchor: buildProductAnchorSnapshot(context.latestAnchor),
     marketplace_sources: context.marketplaceSources.map(buildMarketplaceSourceSnapshot),
@@ -539,6 +546,10 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
 
   if (intakeSession && resolvedWorkspaceId && intakeSession.workspace_id && intakeSession.workspace_id !== resolvedWorkspaceId) {
     throw new Error("Intake session does not belong to the selected workspace.");
+  }
+
+  if (!intakeSession?.reviewed_metadata_json) {
+    throw new Error("Review Gemini metadata before generating a prompt pack.");
   }
 
   if (!resolvedWorkspaceId && intakeSession?.workspace_id) {
@@ -679,8 +690,7 @@ function buildPromptPackAnalysis(context: MockPromptContext): PromptPackGenerati
       : null,
     coverage: {
       vision_analysis: 1,
-      i2i_prompts: 4,
-      i2v_prompts: 2,
+      prompt_clips: PROMPT_CLIP_KEYS.length,
     },
     vision_analysis: {
       summary: `Mock vision analysis for ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}).`,
@@ -727,25 +737,15 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
   const profileLabel = affiliateProfile ? `affiliate profile ${affiliateProfile.profile_code}` : "no affiliate profile";
 
   return {
-    clip_01_start_frame: {
-      slot: "clip_01_start_frame",
-      prompt: `Mock i2i prompt for the opening frame of clip 1 for ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}). Keep it aligned with ${sourceLabel}, ${anchorLabel}, and ${profileLabel}.`,
-      composition: "Start-frame composition with stable lighting, product-first framing, and the latest continuity anchor.",
+    clip_1: {
+      slot: "clip_1",
+      first_frame: `Mock I2I First Frame Clip 1 untuk ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}). Gunakan ${sourceLabel}, ${anchorLabel}, dan ${profileLabel}.`,
+      last_frame: `Mock I2I Last Frame Clip 1 untuk ${product.product_name}. Jaga siluet produk, anchor, dan persona affiliate tetap sama.`,
     },
-    clip_01_last_frame: {
-      slot: "clip_01_last_frame",
-      prompt: `Mock i2i prompt for the last frame of clip 1 for ${product.product_name}. Match the product silhouette, the selected anchor, and the affiliate profile tone.`,
-      composition: "End-frame composition with matched perspective, color consistency, and anchor-safe continuity.",
-    },
-    clip_02_start_frame: {
-      slot: "clip_02_start_frame",
-      prompt: `Mock i2i prompt for the opening frame of clip 2 for ${product.product_name}. Keep the hero product readable, preserve the latest anchor, and honor ${profileLabel}.`,
-      composition: "Second opening frame with a slightly different camera angle but identical product identity.",
-    },
-    clip_02_last_frame: {
-      slot: "clip_02_last_frame",
-      prompt: `Mock i2i prompt for the last frame of clip 2 for ${product.product_name}. End with a tidy composition, stable packaging details, and continuity with ${anchorLabel}.`,
-      composition: "Second end frame with motion-safe spacing, stable packaging details, and consistent identity.",
+    clip_2: {
+      slot: "clip_2",
+      first_frame: `Mock I2I First Frame Clip 2 untuk ${product.product_name}. Produk tetap terbaca, anchor tetap dipakai, dan ${profileLabel} tetap konsisten.`,
+      last_frame: `Mock I2I Last Frame Clip 2 untuk ${product.product_name}. Akhiri dengan komposisi bersih dan kesinambungan dengan ${anchorLabel}.`,
     },
   } as PromptPackGenerationOutput["i2i_prompts"];
 }
@@ -757,33 +757,60 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
   const profileLabel = affiliateProfile ? `affiliate profile ${affiliateProfile.profile_code}` : "default workspace personalization";
 
   return {
-    clip_01: {
-      slot: "clip_01",
-      prompt: `Mock i2v prompt for clip 1 of ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}). Use ${sourceLabel} as the visual anchor and keep ${anchorLabel} and ${profileLabel} in view.`,
-      motion_notes: "Keep motion subtle, clean, product-safe, and continuity-safe.",
+    clip_1: {
+      slot: "clip_1",
+      prompt: `Mock I2V Prompt Clip 1 untuk ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}). Gunakan ${sourceLabel}, ${anchorLabel}, dan ${profileLabel}.`,
     },
-    clip_02: {
-      slot: "clip_02",
-      prompt: `Mock i2v prompt for clip 2 of ${product.product_name}. Continue the same product identity, anchor continuity, and personalization rules.`,
-      motion_notes: "Use the same brand palette and preserve the key silhouette.",
+    clip_2: {
+      slot: "clip_2",
+      prompt: `Mock I2V Prompt Clip 2 untuk ${product.product_name}. Lanjutkan identitas produk, kontinuitas anchor, dan aturan personalisasi yang sama.`,
     },
   } as PromptPackGenerationOutput["i2v_prompts"];
 }
 
-function buildCaptionRules(context: MockPromptContext) {
-  if (!context.affiliateProfile) {
-    return [] as string[];
-  }
-
-  return splitRuleText(context.affiliateProfile.caption_rules);
+function readJsonString(record: JsonObject | null | undefined, key: string) {
+  const value = record?.[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function buildHashtagRules(context: MockPromptContext) {
-  if (!context.affiliateProfile) {
-    return [] as string[];
-  }
+function reviewedMetadata(context: MockPromptContext) {
+  return (context.intakeSession?.reviewed_metadata_json ?? null) as JsonObject | null;
+}
 
-  return splitRuleText(context.affiliateProfile.hashtag_rules);
+function buildCaption(context: MockPromptContext) {
+  const metadata = reviewedMetadata(context);
+  const captionParts = [
+    readJsonString(metadata, "nama_produk") || context.product.product_name,
+    readJsonString(metadata, "selling_angle"),
+    readJsonString(metadata, "use_case"),
+  ].filter(Boolean);
+
+  return captionParts.join(" - ");
+}
+
+function buildTags(context: MockPromptContext) {
+  const metadata = reviewedMetadata(context);
+  const profileTags = splitRuleText(context.affiliateProfile?.hashtag_rules).join(" ");
+  const baseTags = [
+    readJsonString(metadata, "keyword_cari_etalase"),
+    context.product.niche,
+    context.affiliateProfile?.niche,
+    profileTags,
+  ].filter(Boolean);
+
+  return baseTags.join(" ");
+}
+
+function readJsonRecord(value: unknown) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readRegenerationInstruction(promptPack: PromptPackRecord) {
+  const personalization = readJsonRecord(promptPack.personalization_json);
+  const regeneration = readJsonRecord(personalization.regeneration_request);
+  const instruction = regeneration.revision_instruction;
+
+  return typeof instruction === "string" ? instruction.trim() : "";
 }
 
 function buildNegativePromptRules(context: MockPromptContext) {
@@ -862,27 +889,33 @@ function buildPromptPackTaskInput(context: PromptPackGenerationContext, generati
     latest_anchor_id: context.latestAnchor?.id ?? null,
     marketplace_source_ids: context.marketplaceSources.map((source) => source.id),
     prompt_context: context.promptContext,
+    prompt_set: readPromptPackEditorPromptSet(context.promptPack),
+    revision_instruction: readRegenerationInstruction(context.promptPack) || null,
     mode: generationMode,
   };
 }
 
 function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, selectedGeminiKey: { id: string; label: string; model_name: string; role: string }) {
   const { promptPack } = context;
+  const promptSet = readPromptPackEditorPromptSet(promptPack);
+  const revisionInstruction = readRegenerationInstruction(promptPack);
 
   return [
     "You are generating a structured prompt pack for a single-owner affiliate content workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
-    "The JSON object must contain exactly these top-level keys: product_analysis, prompt_context, i2i_prompts, i2v_prompts, caption_rules, hashtag_rules, negative_prompt_rules, consistency_rules, seed_character, environment.",
+    "The JSON object must contain exactly these top-level keys: product_analysis, prompt_context, i2i_prompts, i2v_prompts, caption, tags, target_marketplace, negative_prompt_rules, consistency_rules, seed_character, environment.",
     "Do not omit required keys. Do not add unrelated prose.",
     "Use prompt_context exactly as provided in the context object. Do not invent new context fields.",
     "If image_bytes_available is false, use text fallback only and do not claim visual parsing from links.",
     "Required slots:",
-    "- i2i_prompts: clip_01_start_frame, clip_01_last_frame, clip_02_start_frame, clip_02_last_frame",
-    "- i2v_prompts: clip_01, clip_02",
-    "Each i2i slot object must include slot, prompt, and composition.",
-    "Each i2v slot object must include slot, prompt, and motion_notes.",
+    "- i2i_prompts: clip_1 and clip_2",
+    "- i2v_prompts: clip_1 and clip_2",
+    "Each i2i clip object must include slot, first_frame, and last_frame.",
+    "Each i2v clip object must include slot and prompt.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
-    "caption_rules, hashtag_rules, negative_prompt_rules, and consistency_rules must each be arrays of strings.",
+    "caption must be a shared caption string.",
+    `tags must be one hashtag string output and target_marketplace must equal ${PROMPT_TARGET_MARKETPLACE}.`,
+    "negative_prompt_rules and consistency_rules must each be arrays of strings.",
     "seed_character and environment must each include locked, notes, and drive_item_ref_id.",
     "",
     "Context:",
@@ -895,6 +928,8 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
           status: promptPack.status,
         },
         prompt_context: context.promptContext,
+        existing_prompt_set: promptSet,
+        revision_instruction: revisionInstruction || null,
         generation_policy: {
           model_name: selectedGeminiKey.model_name,
           key_label: selectedGeminiKey.label,
@@ -909,8 +944,7 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
             source_image: "object-or-null",
             coverage: {
               vision_analysis: 1,
-              i2i_prompts: 4,
-              i2v_prompts: 2,
+              prompt_clips: PROMPT_CLIP_KEYS.length,
             },
             vision_analysis: {
               summary: "string",
@@ -921,17 +955,16 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
           },
           prompt_context: "copy the supplied prompt_context object exactly",
           i2i_prompts: {
-            clip_01_start_frame: { slot: "clip_01_start_frame", prompt: "string", composition: "string" },
-            clip_01_last_frame: { slot: "clip_01_last_frame", prompt: "string", composition: "string" },
-            clip_02_start_frame: { slot: "clip_02_start_frame", prompt: "string", composition: "string" },
-            clip_02_last_frame: { slot: "clip_02_last_frame", prompt: "string", composition: "string" },
+            clip_1: { slot: "clip_1", first_frame: "string", last_frame: "string" },
+            clip_2: { slot: "clip_2", first_frame: "string", last_frame: "string" },
           },
           i2v_prompts: {
-            clip_01: { slot: "clip_01", prompt: "string", motion_notes: "string" },
-            clip_02: { slot: "clip_02", prompt: "string", motion_notes: "string" },
+            clip_1: { slot: "clip_1", prompt: "string" },
+            clip_2: { slot: "clip_2", prompt: "string" },
           },
-          caption_rules: ["string"],
-          hashtag_rules: ["string"],
+          caption: "string",
+          tags: "#tag #tag",
+          target_marketplace: PROMPT_TARGET_MARKETPLACE,
           negative_prompt_rules: ["string"],
           consistency_rules: ["string"],
           seed_character: {
@@ -1098,8 +1131,9 @@ export async function completePromptPackFromMockTask(promptPackId: string, taskI
     prompt_context: context.promptContext,
     i2i_prompts: buildI2IPrompts(mockContext),
     i2v_prompts: buildI2VPrompts(mockContext),
-    caption_rules: buildCaptionRules(mockContext),
-    hashtag_rules: buildHashtagRules(mockContext),
+    caption: buildCaption(mockContext),
+    tags: buildTags(mockContext),
+    target_marketplace: PROMPT_TARGET_MARKETPLACE,
     negative_prompt_rules: buildNegativePromptRules(mockContext),
     consistency_rules: buildConsistencyRules(mockContext),
     seed_character: buildSeedCharacterState(mockContext),
@@ -1605,6 +1639,141 @@ export async function updatePromptPack(id: string, input: PromptPackUpdateInput)
 
   revalidatePath("/prompts");
   revalidatePath(`/products/${nextProductId}`);
+  return data as PromptPackRecord;
+}
+
+function assertPromptSetReadyForFlow(promptPack: PromptPackRecord) {
+  const promptSet = readPromptPackEditorPromptSet(promptPack);
+
+  for (const clipKey of PROMPT_CLIP_KEYS) {
+    const clip = promptSet.clips[clipKey];
+
+    if (!readText(clip.i2i_first_frame) || !readText(clip.i2i_last_frame) || !readText(clip.i2v_prompt)) {
+      throw new Error("Complete both clips before marking the selected version ready for Flow.");
+    }
+  }
+
+  if (!readText(promptSet.caption) || !readText(promptSet.tags)) {
+    throw new Error("Caption and tags are required before marking the selected version ready for Flow.");
+  }
+}
+
+async function nextPromptPackVersion(input: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  userId: string;
+  promptCode: string;
+}) {
+  const { data, error } = await input.supabase
+    .from("prompt_packs")
+    .select("version")
+    .eq("user_id", input.userId)
+    .eq("prompt_code", input.promptCode)
+    .order("version", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const latestVersion = (data?.[0]?.version as number | undefined) ?? 0;
+  return latestVersion + 1;
+}
+
+export async function createPromptPackRegenerationVersion(
+  id: string,
+  input?: {
+    storagePayload?: PromptPackStoragePayload;
+    revisionInstruction?: string | null;
+    productId?: string | null;
+    intakeSessionId?: string | null;
+    affiliateProfileId?: string | null;
+    sourceProductImageId?: string | null;
+    notes?: string | null;
+  },
+) {
+  const { supabase, user, promptPack } = await requireOwnedPromptPack(id);
+  const nextVersion = await nextPromptPackVersion({
+    supabase,
+    userId: user.id,
+    promptCode: promptPack.prompt_code,
+  });
+  const fallbackPayload = buildPromptPackEditorStoragePayload(
+    readPromptPackEditorPromptSet(promptPack),
+    promptPack.personalization_json,
+  );
+  const storagePayload = input?.storagePayload ?? fallbackPayload;
+  const revisionInstruction = normalizeNullableText(input?.revisionInstruction);
+  const personalization = {
+    ...storagePayload.personalization_json,
+    ...(revisionInstruction
+      ? {
+          regeneration_request: {
+            source_prompt_pack_id: promptPack.id,
+            source_version: promptPack.version,
+            revision_instruction: revisionInstruction,
+            requested_at: new Date().toISOString(),
+          },
+        }
+      : {}),
+  } satisfies JsonObject;
+
+  return await createPromptPack({
+    product_id: normalizeNullableText(input?.productId) ?? promptPack.product_id,
+    intake_session_id:
+      input?.intakeSessionId === undefined ? promptPack.intake_session_id : normalizeNullableText(input.intakeSessionId),
+    affiliate_profile_id:
+      input?.affiliateProfileId === undefined ? promptPack.affiliate_profile_id : normalizeNullableText(input.affiliateProfileId),
+    source_product_image_id:
+      input?.sourceProductImageId === undefined ? promptPack.source_product_image_id : normalizeNullableText(input.sourceProductImageId),
+    prompt_code: promptPack.prompt_code,
+    version: nextVersion,
+    status: "DRAFT",
+    product_analysis_json: promptPack.product_analysis_json,
+    i2i_prompts_json: storagePayload.i2i_prompts_json,
+    i2v_prompts_json: storagePayload.i2v_prompts_json,
+    consistency_rules_json: promptPack.consistency_rules_json,
+    negative_rules_json: promptPack.negative_rules_json,
+    personalization_json: personalization,
+    notes: input?.notes === undefined ? promptPack.notes : normalizeNullableText(input.notes),
+  });
+}
+
+export async function markPromptPackReadyForFlow(id: string) {
+  const { supabase, user, promptPack } = await requireOwnedPromptPack(id);
+  assertPromptSetReadyForFlow(promptPack);
+
+  const { error: resetError } = await supabase
+    .from("prompt_packs")
+    .update({
+      status: "GENERATED",
+    })
+    .eq("user_id", user.id)
+    .eq("prompt_code", promptPack.prompt_code)
+    .eq("product_id", promptPack.product_id)
+    .eq("status", PROMPT_READY_FOR_FLOW_STATUS)
+    .neq("id", promptPack.id);
+
+  if (resetError) {
+    throw new Error(resetError.message);
+  }
+
+  const { data, error } = await supabase
+    .from("prompt_packs")
+    .update({
+      status: PROMPT_READY_FOR_FLOW_STATUS,
+      error_message: null,
+    })
+    .eq("id", promptPack.id)
+    .eq("user_id", user.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/prompts");
+  revalidatePath(`/products/${promptPack.product_id}`);
   return data as PromptPackRecord;
 }
 
