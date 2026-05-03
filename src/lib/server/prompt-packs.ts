@@ -39,7 +39,7 @@ import {
   getDefaultAffiliateProfileForWorkspace,
   type AffiliateProfileRecord,
 } from "@/lib/server/affiliate-profiles";
-import { getIntakeSessionById, getLatestIntakeSessionForProduct } from "@/lib/server/intake";
+import { getIntakeSessionById, getLatestIntakeSessionForProduct, listIntakeSessions } from "@/lib/server/intake";
 import { getLatestMarketplaceSourceContext, type MarketplaceSourceRecord } from "@/lib/server/product-marketplace-sources";
 import { getLatestProductAnchor, type ProductAnchorRecord } from "@/lib/server/product-anchors";
 
@@ -1484,33 +1484,47 @@ export async function createPromptPack(input: PromptPackInput) {
   const status = input.status ?? "DRAFT";
   assertPromptPackStatus(status);
   const version = ensurePromptVersion(input.version ?? 1);
-  const sourceProductImageId = normalizeNullableText(input.source_product_image_id);
-  const intakeSessionId = normalizeNullableText(input.intake_session_id);
-  const affiliateProfileId = normalizeNullableText(input.affiliate_profile_id);
   const resolvedWorkspaceId = product.workspace_id ?? (await getCurrentWorkspace())?.id ?? null;
+  const explicitIntakeSessionId = normalizeNullableText(input.intake_session_id);
+  const explicitSourceProductImageId = normalizeNullableText(input.source_product_image_id);
+  const explicitAffiliateProfileId = normalizeNullableText(input.affiliate_profile_id);
+  const intakeSession = explicitIntakeSessionId
+    ? await getIntakeSessionById(explicitIntakeSessionId)
+    : (
+        await listIntakeSessions({
+          productId: product.id,
+          workspaceId: resolvedWorkspaceId,
+          limit: 25,
+        })
+      ).find((session) => session.status === "REVIEWED" || Boolean(session.reviewed_metadata_json)) ?? null;
+  const sourceProductImage = explicitSourceProductImageId
+    ? (await requireOwnedProductImage(explicitSourceProductImageId, input.product_id)).productImage
+    : await getPrimaryProductImageForPromptPack(input.product_id);
+  const affiliateProfile = explicitAffiliateProfileId
+    ? await getAffiliateProfileById(explicitAffiliateProfileId)
+    : await getDefaultAffiliateProfileForWorkspace(resolvedWorkspaceId);
+  const sourceProductImageId = sourceProductImage?.id ?? null;
+  const intakeSessionId = intakeSession?.id ?? null;
+  const affiliateProfileId = affiliateProfile?.id ?? null;
 
-  if (sourceProductImageId) {
-    await requireOwnedProductImage(sourceProductImageId, input.product_id);
+  if (!intakeSession || !intakeSession.reviewed_metadata_json) {
+    throw new Error("Review Gemini metadata before generating a prompt pack.");
   }
 
-  if (intakeSessionId) {
-    const intakeSession = await getIntakeSessionById(intakeSessionId);
-
-    if (intakeSession.product_id !== input.product_id) {
-      throw new Error("Intake session must belong to the selected product.");
-    }
-
-    if (resolvedWorkspaceId && intakeSession.workspace_id && intakeSession.workspace_id !== resolvedWorkspaceId) {
-      throw new Error("Intake session must belong to the selected workspace.");
-    }
+  if (intakeSession.product_id !== input.product_id) {
+    throw new Error("Intake session must belong to the selected product.");
   }
 
-  if (affiliateProfileId) {
-    const affiliateProfile = await getAffiliateProfileById(affiliateProfileId);
+  if (resolvedWorkspaceId && intakeSession.workspace_id && intakeSession.workspace_id !== resolvedWorkspaceId) {
+    throw new Error("Intake session must belong to the selected workspace.");
+  }
 
-    if (resolvedWorkspaceId && affiliateProfile.workspace_id !== resolvedWorkspaceId) {
-      throw new Error("Affiliate profile must belong to the selected workspace.");
-    }
+  if (sourceProductImageId && !sourceProductImage) {
+    throw new Error("Source product image not found.");
+  }
+
+  if (affiliateProfile && resolvedWorkspaceId && affiliateProfile.workspace_id !== resolvedWorkspaceId) {
+    throw new Error("Affiliate profile must belong to the selected workspace.");
   }
 
   const { data, error } = await supabase

@@ -13,6 +13,7 @@ import {
   runRealPromptPackTask,
   updatePromptPack,
 } from "@/lib/server/prompt-packs";
+import { getProductById } from "@/lib/server/products";
 import { buildPromptPackEditorStoragePayload } from "@/lib/prompts/prompt-pack-contract";
 import { PROMPT_CLIP_KEYS, isPromptPackStatus, normalizePromptCode, type PromptClipKey } from "@/lib/prompts/validation";
 
@@ -24,6 +25,16 @@ function readText(formData: FormData, key: string) {
 function readNullableText(formData: FormData, key: string) {
   const value = readText(formData, key);
   return value.length > 0 ? value : null;
+}
+
+function buildPromptRedirect(message: string, productId?: string | null) {
+  const searchParams = new URLSearchParams({ message });
+
+  if (productId) {
+    searchParams.set("product_id", productId);
+  }
+
+  return `/prompts?${searchParams.toString()}`;
 }
 
 type GenerationMode = "gemini" | "mock";
@@ -142,12 +153,13 @@ export async function savePromptPack(formData: FormData) {
 
     await archivePromptPack(id);
     revalidatePath("/prompts");
-    redirect("/prompts?message=Prompt pack diarsipkan");
+    redirect(buildPromptRedirect("Prompt pack diarsipkan", readText(formData, "product_id") || null));
   }
 
   if (intent === "create_generate" || intent === "create") {
     const productId = readText(formData, "product_id");
-    const promptCode = normalizePromptCode(readText(formData, "prompt_code"));
+    const product = productId ? await getProductById(productId) : null;
+    const promptCode = normalizePromptCode(readText(formData, "prompt_code")) || product?.product_code || "";
     const status = readText(formData, "status") || "DRAFT";
 
     if (!productId) {
@@ -179,12 +191,12 @@ export async function savePromptPack(formData: FormData) {
 
     if (intent === "create") {
       revalidatePath("/prompts");
-      redirect("/prompts?message=Prompt pack disimpan");
+      redirect(buildPromptRedirect("Prompt pack disimpan", productId));
     }
 
     const result = await generatePromptPack(promptPack.id, generationMode);
     revalidatePath("/prompts");
-    redirect(`/prompts?message=${encodeURIComponent(result.message)}`);
+    redirect(buildPromptRedirect(result.message, productId));
   }
 
   if (!id) {
@@ -194,7 +206,7 @@ export async function savePromptPack(formData: FormData) {
   if (intent === "update") {
     await savePromptPackFields(formData, id);
     revalidatePath("/prompts");
-    redirect("/prompts?message=Prompt pack disimpan");
+    redirect(buildPromptRedirect("Prompt pack disimpan", readText(formData, "product_id") || null));
   }
 
   if (intent === "regenerate") {
@@ -218,14 +230,14 @@ export async function savePromptPack(formData: FormData) {
     const result = await generatePromptPack(nextVersion.id, generationMode);
 
     revalidatePath("/prompts");
-    redirect(`/prompts?message=${encodeURIComponent(result.message)}`);
+    redirect(buildPromptRedirect(result.message, readText(formData, "product_id") || null));
   }
 
   if (intent === "mark_ready") {
     const saved = await savePromptPackFields(formData, id);
     await markPromptPackReadyForFlow(saved.id);
     revalidatePath("/prompts");
-    redirect("/prompts?message=Versi dipilih siap Flow");
+    redirect(buildPromptRedirect("Versi dipilih siap Flow", readText(formData, "product_id") || null));
   }
 
   fail("Aksi prompt pack tidak didukung.");

@@ -1,24 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, CheckCircle, FileText, FlaskConical, Package, Play, RefreshCcw, Save } from "lucide-react";
+import { Archive, CheckCircle, FileText, Package, Plus, Play, RefreshCcw, Save } from "lucide-react";
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { RelationalPicker } from "@/components/operator/relational-picker";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
+import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
-import { getCurrentWorkspace } from "@/lib/server/workspaces";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listProductImages, listProducts } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import {
   PROMPT_CLIP_KEYS,
   PROMPT_CLIP_LABELS,
-  PROMPT_READY_FOR_FLOW_STATUS,
   PROMPT_TARGET_MARKETPLACE,
   type PromptClipKey,
 } from "@/lib/prompts/validation";
@@ -26,6 +24,10 @@ import {
 export const dynamic = "force-dynamic";
 
 type PromptPackRecord = Awaited<ReturnType<typeof listPromptPacks>>[number];
+type ProductRecord = Awaited<ReturnType<typeof listProducts>>[number];
+type IntakeSessionRecord = Awaited<ReturnType<typeof listIntakeSessions>>[number];
+type ProductImageRecord = Awaited<ReturnType<typeof listProductImages>>[number];
+type DriveItemRecord = Awaited<ReturnType<typeof listDriveItems>>[number];
 type PromptTaskRecord = {
   id: string;
   status: string;
@@ -41,18 +43,6 @@ type PromptsPageProps = {
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function pickerOption(value: string, label: string, description?: string | null) {
-  return {
-    value,
-    label,
-    ...(description ? { description } : {}),
-  };
-}
-
-function fieldValue(value: string | number | null | undefined) {
-  return value ?? "";
 }
 
 function clipFieldName(clipKey: PromptClipKey, field: "i2i_first_frame" | "i2i_last_frame" | "i2v_prompt") {
@@ -139,182 +129,260 @@ function SharedPromptFields({
   );
 }
 
-function PromptEditorForm({
+function promptSetFromPack(pack: PromptPackRecord) {
+  return readPromptPackEditorPromptSet(pack);
+}
+
+function PromptPackEditorForm({
   pack,
-  productPickerOptions,
-  intakeSessionPickerOptions,
-  affiliateProfilePickerOptions,
-  sourceImagePickerOptions,
-  productLabel,
-  intakeLabel,
-  affiliateProfileLabel,
-  sourceImageLabel,
+  product,
+  intakeSession,
+  affiliateProfile,
+  sourceImage,
+  sourceImageDriveItem,
   generationTask,
+  defaultAffiliateProfileName,
 }: {
   pack: PromptPackRecord;
-  productPickerOptions: Array<{ value: string; label: string; description?: string }>;
-  intakeSessionPickerOptions: Array<{ value: string; label: string; description?: string }>;
-  affiliateProfilePickerOptions: Array<{ value: string; label: string; description?: string }>;
-  sourceImagePickerOptions: Array<{ value: string; label: string; description?: string }>;
-  productLabel: string;
-  intakeLabel: string;
-  affiliateProfileLabel: string;
-  sourceImageLabel: string;
+  product: ProductRecord | undefined;
+  intakeSession: IntakeSessionRecord | null;
+  affiliateProfile: { id: string; profile_name: string } | null;
+  sourceImage: ProductImageRecord | null;
+  sourceImageDriveItem: DriveItemRecord | null;
   generationTask: PromptTaskRecord | null;
+  defaultAffiliateProfileName: string;
 }) {
-  const promptSet = readPromptPackEditorPromptSet(pack);
-  const isReady = pack.status === PROMPT_READY_FOR_FLOW_STATUS;
+  const promptSet = promptSetFromPack(pack);
 
   return (
-    <SectionCard
-      icon={FileText}
-      title={`${productLabel} - v${pack.version}`}
-      actions={
-        <div className="section-card__actions">
-          <StatusBadge status={pack.status} />
-          {isReady ? <StatusBadge status="Siap Flow" tone="success" /> : null}
+    <form className="stack" action={savePromptPack}>
+      <input type="hidden" name="id" value={pack.id} />
+      <input type="hidden" name="product_id" value={pack.product_id} />
+      <input type="hidden" name="prompt_code" value={pack.prompt_code} />
+      <input type="hidden" name="version" value={pack.version} />
+      <input type="hidden" name="intake_session_id" value={pack.intake_session_id ?? intakeSession?.id ?? ""} />
+      <input type="hidden" name="affiliate_profile_id" value={pack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
+      <input type="hidden" name="source_product_image_id" value={pack.source_product_image_id ?? sourceImage?.id ?? ""} />
+
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Produk</span>
+          <strong>{product ? `${product.product_code} - ${product.product_name}` : "Produk tidak tersedia"}</strong>
         </div>
-      }
-    >
-      <form className="stack" action={savePromptPack}>
-        <input type="hidden" name="id" value={pack.id} />
-        <input type="hidden" name="version" value={pack.version} />
-        <div className="metric-grid">
+        <div className="metric">
+          <span>Intake</span>
+          <strong>{intakeSession?.intake_code ?? "Intake terbaru"}</strong>
+        </div>
+        <div className="metric">
+          <span>Akun Affiliate</span>
+          <strong>{affiliateProfile?.profile_name ?? defaultAffiliateProfileName}</strong>
+        </div>
+        <div className="metric">
+          <span>Foto Produk Utama</span>
+          <strong>{sourceImageDriveItem?.name ?? sourceImage?.id ?? "Belum ada"}</strong>
+        </div>
+        {generationTask ? (
           <div className="metric">
-            <span>Produk</span>
-            <strong>{productLabel}</strong>
+            <span>Task</span>
+            <strong>
+              <StatusBadge status={generationTask.status} />
+            </strong>
           </div>
-          <div className="metric">
-            <span>Intake</span>
-            <strong>{intakeLabel}</strong>
-          </div>
-          <div className="metric">
-            <span>Akun Affiliate</span>
-            <strong>{affiliateProfileLabel}</strong>
-          </div>
-          <div className="metric">
-            <span>Foto Produk Utama</span>
-            <strong>{sourceImageLabel}</strong>
-          </div>
-          {generationTask ? (
-            <div className="metric">
-              <span>Task</span>
-              <strong>
-                <StatusBadge status={generationTask.status} />
-              </strong>
-            </div>
-          ) : null}
-        </div>
+        ) : null}
+      </div>
 
-        {generationTask?.error_message ? <section className="error-box">{generationTask.error_message}</section> : null}
-        {pack.error_message ? <section className="error-box">{pack.error_message}</section> : null}
+      {generationTask?.error_message ? <section className="error-box">{generationTask.error_message}</section> : null}
+      {pack.error_message ? <section className="error-box">{pack.error_message}</section> : null}
 
-        <div className="grid two-up">
-          <RelationalPicker
-            defaultValue={pack.product_id}
-            label="Produk"
-            name="product_id"
-            options={productPickerOptions}
-            placeholder="Pilih produk"
-            searchPlaceholder="Cari produk"
-            required
-          />
-          <label className="stack auth-field" htmlFor={`prompt-code-${pack.id}`}>
-            <span>Kode Prompt</span>
-            <input id={`prompt-code-${pack.id}`} name="prompt_code" type="text" defaultValue={pack.prompt_code} required />
-          </label>
-        </div>
+      <div className="grid two-up">
+        {PROMPT_CLIP_KEYS.map((clipKey) => (
+          <PromptClipFields clipKey={clipKey} idPrefix={pack.id} key={clipKey} values={promptSet.clips[clipKey]} />
+        ))}
+      </div>
 
-        <div className="grid two-up">
-          <RelationalPicker
-            allowClear
-            emptyLabel="Kosong"
-            defaultValue={pack.intake_session_id ?? ""}
-            label="Intake"
-            name="intake_session_id"
-            options={intakeSessionPickerOptions}
-            placeholder="Pakai intake terbaru"
-            searchPlaceholder="Cari intake"
-          />
-          <RelationalPicker
-            allowClear
-            emptyLabel="Kosong"
-            defaultValue={pack.affiliate_profile_id ?? ""}
-            label="Akun Affiliate"
-            name="affiliate_profile_id"
-            options={affiliateProfilePickerOptions}
-            placeholder="Pakai default workspace"
-            searchPlaceholder="Cari akun"
-          />
-        </div>
+      <SharedPromptFields idPrefix={pack.id} caption={promptSet.caption} tags={promptSet.tags} />
 
-        <RelationalPicker
-          allowClear
-          emptyLabel="Kosong"
-          defaultValue={pack.source_product_image_id ?? ""}
-          label="Foto Produk Utama"
-          name="source_product_image_id"
-          options={sourceImagePickerOptions}
-          placeholder="Pakai foto utama"
-          searchPlaceholder="Cari foto"
-        />
+      <label className="stack auth-field" htmlFor={`revision-${pack.id}`}>
+        <span>Instruksi Revisi</span>
+        <textarea id={`revision-${pack.id}`} name="revision_instruction" rows={3} />
+      </label>
 
-        <div className="grid two-up">
-          {PROMPT_CLIP_KEYS.map((clipKey) => (
-            <PromptClipFields
-              clipKey={clipKey}
-              idPrefix={pack.id}
-              key={clipKey}
-              values={promptSet.clips[clipKey]}
-            />
-          ))}
-        </div>
+      <div className="section-card__actions">
+        <Link className="button compact" href={`/products/${pack.product_id}`}>
+          Produk
+        </Link>
+      </div>
 
-        <SharedPromptFields idPrefix={pack.id} caption={promptSet.caption} tags={promptSet.tags} />
-
-        <label className="stack auth-field" htmlFor={`revision-${pack.id}`}>
-          <span>Instruksi Revisi</span>
-          <textarea id={`revision-${pack.id}`} name="revision_instruction" rows={3} />
-        </label>
-
-        <label className="stack auth-field" htmlFor={`notes-${pack.id}`}>
-          <span>Catatan</span>
-          <textarea id={`notes-${pack.id}`} name="notes" rows={2} defaultValue={fieldValue(pack.notes)} />
-        </label>
-
-        <FormActions>
-          <button className="button" name="intent" type="submit" value="update">
-            <Save size={16} aria-hidden="true" />
-            Simpan
-          </button>
-          <button className="button primary" name="intent" type="submit" value="regenerate">
-            <RefreshCcw size={16} aria-hidden="true" />
-            Buat Ulang
-          </button>
-          <button className="button" name="intent" type="submit" value="regenerate_mock">
-            <FlaskConical size={16} aria-hidden="true" />
-            Mock
-          </button>
-          <button className="button" name="intent" type="submit" value="mark_ready">
-            <CheckCircle size={16} aria-hidden="true" />
-            Tandai Siap Flow
-          </button>
-          <button className="button" name="intent" type="submit" value="archive">
-            <Archive size={16} aria-hidden="true" />
-            Arsipkan
-          </button>
-        </FormActions>
-      </form>
-    </SectionCard>
+      <FormActions>
+        <button className="button" name="intent" type="submit" value="update">
+          <Save size={16} aria-hidden="true" />
+          Simpan
+        </button>
+        <button className="button primary" name="intent" type="submit" value="regenerate">
+          <RefreshCcw size={16} aria-hidden="true" />
+          Buat Ulang
+        </button>
+        <button className="button" name="intent" type="submit" value="mark_ready">
+          <CheckCircle size={16} aria-hidden="true" />
+          Tandai Siap Flow
+        </button>
+        <button className="button" name="intent" type="submit" value="archive">
+          <Archive size={16} aria-hidden="true" />
+          Arsipkan
+        </button>
+      </FormActions>
+    </form>
   );
 }
 
-function emptyClipValues() {
-  return {
-    i2i_first_frame: "",
-    i2i_last_frame: "",
-    i2v_prompt: "",
-  };
+function PromptPackCreateForm({
+  product,
+  intakeSession,
+  affiliateProfile,
+  sourceImage,
+  sourceImageDriveItem,
+  defaultAffiliateProfileName,
+}: {
+  product: ProductRecord;
+  intakeSession: IntakeSessionRecord | null;
+  affiliateProfile: { id: string; profile_name: string } | null;
+  sourceImage: ProductImageRecord | null;
+  sourceImageDriveItem: DriveItemRecord | null;
+  defaultAffiliateProfileName: string;
+}) {
+  const canCreate = Boolean(intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED");
+
+  return (
+    <form className="stack" action={savePromptPack}>
+      <input type="hidden" name="intent" value="create_generate" />
+      <input type="hidden" name="status" value="DRAFT" />
+      <input type="hidden" name="version" value={1} />
+      <input type="hidden" name="product_id" value={product.id} />
+      <input type="hidden" name="prompt_code" value={product.product_code} />
+      <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
+      <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
+      <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
+
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Produk</span>
+          <strong>{product.product_code} - {product.product_name}</strong>
+        </div>
+        <div className="metric">
+          <span>Intake</span>
+          <strong>{intakeSession?.intake_code ?? "Belum ada intake direview"}</strong>
+        </div>
+        <div className="metric">
+          <span>Akun Affiliate</span>
+          <strong>{affiliateProfile?.profile_name ?? defaultAffiliateProfileName}</strong>
+        </div>
+        <div className="metric">
+          <span>Foto Produk Utama</span>
+          <strong>{sourceImageDriveItem?.name ?? sourceImage?.id ?? "Belum ada"}</strong>
+        </div>
+      </div>
+
+      {canCreate ? null : <section className="error-box">Review Gemini dulu.</section>}
+
+      <FormActions>
+        <button className="button primary" type="submit" disabled={!canCreate}>
+          <Play size={16} aria-hidden="true" />
+          Buat Prompt
+        </button>
+        <Link className="button" href={`/products/${product.id}`}>
+          Produk
+        </Link>
+      </FormActions>
+    </form>
+  );
+}
+
+function PromptRowCard({
+  product,
+  workspaceName,
+  promptPack,
+  intakeSession,
+  affiliateProfile,
+  sourceImage,
+  sourceImageDriveItem,
+  generationTask,
+  defaultAffiliateProfileName,
+  isOpen,
+}: {
+  product: ProductRecord;
+  workspaceName: string;
+  promptPack: PromptPackRecord | null;
+  intakeSession: IntakeSessionRecord | null;
+  affiliateProfile: { id: string; profile_name: string } | null;
+  sourceImage: ProductImageRecord | null;
+  sourceImageDriveItem: DriveItemRecord | null;
+  generationTask: PromptTaskRecord | null;
+  defaultAffiliateProfileName: string;
+  isOpen: boolean;
+}) {
+  const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
+
+  return (
+    <details className="muted-box stack" open={isOpen}>
+      <summary>
+        <span className="section-card__actions">
+          <strong>{product.product_name}</strong>
+          <span className="subtle">{product.product_code}</span>
+        </span>
+        <span className="section-card__actions">
+          <StatusBadge status={statusLabel} />
+          <span className="subtle">{workspaceName}</span>
+        </span>
+      </summary>
+
+      <div className="stack">
+        <div className="metric-grid">
+          <div className="metric">
+            <span>Workspace</span>
+            <strong>{workspaceName}</strong>
+          </div>
+          <div className="metric">
+            <span>Intake</span>
+            <strong>{intakeSession?.intake_code ?? "Belum direview"}</strong>
+          </div>
+          <div className="metric">
+            <span>Akun Affiliate</span>
+            <strong>{affiliateProfile?.profile_name ?? defaultAffiliateProfileName}</strong>
+          </div>
+          <div className="metric">
+            <span>Foto Produk Utama</span>
+            <strong>{sourceImageDriveItem?.name ?? sourceImage?.id ?? "Belum ada"}</strong>
+          </div>
+          <div className="metric">
+            <span>Prompt pack</span>
+            <strong>{promptPack ? `${promptPack.prompt_code} v${promptPack.version}` : "Belum ada"}</strong>
+          </div>
+        </div>
+
+        {promptPack ? (
+          <PromptPackEditorForm
+            affiliateProfile={affiliateProfile}
+            defaultAffiliateProfileName={defaultAffiliateProfileName}
+            generationTask={generationTask}
+            intakeSession={intakeSession}
+            pack={promptPack}
+            product={product}
+            sourceImage={sourceImage}
+            sourceImageDriveItem={sourceImageDriveItem}
+          />
+        ) : (
+          <PromptPackCreateForm
+            affiliateProfile={affiliateProfile}
+            defaultAffiliateProfileName={defaultAffiliateProfileName}
+            intakeSession={intakeSession}
+            product={product}
+            sourceImage={sourceImage}
+            sourceImageDriveItem={sourceImageDriveItem}
+          />
+        )}
+      </div>
+    </details>
+  );
 }
 
 export default async function PromptsPage({ searchParams }: PromptsPageProps) {
@@ -333,12 +401,12 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const currentWorkspace = await getCurrentWorkspace();
   const workspaceId = currentWorkspace?.id ?? undefined;
 
-  let promptPacks;
-  let products;
-  let productImages;
-  let driveItems;
-  let intakeSessions;
-  let affiliateProfiles;
+  let promptPacks: PromptPackRecord[] = [];
+  let products: ProductRecord[] = [];
+  let productImages: ProductImageRecord[] = [];
+  let driveItems: DriveItemRecord[] = [];
+  let intakeSessions: IntakeSessionRecord[] = [];
+  let affiliateProfiles: Awaited<ReturnType<typeof listAffiliateProfiles>> = [];
 
   try {
     [promptPacks, products, productImages, driveItems, intakeSessions, affiliateProfiles] = await Promise.all([
@@ -351,8 +419,9 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Prompt tidak tersedia.";
+
     return (
-      <SectionCard title="Prompt tidak tersedia." description={message}>
+      <SectionCard icon={FileText} title="Paket Prompt tidak tersedia." description={message}>
         <EmptyState icon={FileText} title="Prompt tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
@@ -360,205 +429,134 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
   const productMap = new Map(products.map((product) => [product.id, product]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
-  const sourceImageMap = new Map(productImages.map((image) => [image.id, image]));
-  const intakeSessionMap = new Map(intakeSessions.map((session) => [session.id, session]));
   const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
-  const aiTaskIds = Array.from(new Set(promptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))));
-  const promptPackTasks = aiTaskIds.length
-    ? await supabase
-        .from("ai_tasks")
-        .select("id, status, error_message")
-        .eq("user_id", user.id)
-        .in("id", aiTaskIds)
+  const latestPromptPackByProductId = new Map<string, PromptPackRecord>();
+  const latestReviewedIntakeByProductId = new Map<string, IntakeSessionRecord>();
+
+  for (const pack of promptPacks) {
+    if (!latestPromptPackByProductId.has(pack.product_id)) {
+      latestPromptPackByProductId.set(pack.product_id, pack);
+    }
+  }
+
+  for (const session of intakeSessions) {
+    if (!session.product_id || latestReviewedIntakeByProductId.has(session.product_id)) {
+      continue;
+    }
+
+    if (!session.reviewed_metadata_json && session.status !== "REVIEWED") {
+      continue;
+    }
+
+    latestReviewedIntakeByProductId.set(session.product_id, session);
+  }
+
+  const currentAffiliateProfile = await getDefaultAffiliateProfileForWorkspace(workspaceId ?? null);
+  const currentAffiliateProfileLabel = currentAffiliateProfile?.profile_name ?? "Belum ada profile aktif";
+  const currentWorkspaceLabel = currentWorkspace?.workspace_name ?? "Workspace aktif";
+  const selectedProductId =
+    (requestedProductId && productMap.has(requestedProductId) ? requestedProductId : null) ??
+    (requestedIntakeId && intakeSessions.find((session) => session.id === requestedIntakeId)?.product_id) ??
+    products.find((product) => latestPromptPackByProductId.has(product.id) || latestReviewedIntakeByProductId.has(product.id))?.id ??
+    products[0]?.id ??
+    "";
+  const promptTaskIds = Array.from(
+    new Set(promptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))),
+  );
+  const promptTaskResult = promptTaskIds.length
+    ? await supabase.from("ai_tasks").select("id, status, error_message").eq("user_id", user.id).in("id", promptTaskIds)
     : { data: [], error: null };
 
-  if (promptPackTasks.error) {
+  if (promptTaskResult.error) {
     return (
-      <SectionCard title="Task tidak tersedia." description={promptPackTasks.error.message}>
+      <SectionCard icon={FileText} title="Task tidak tersedia." description={promptTaskResult.error.message}>
         <EmptyState icon={FileText} title="Task tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
   }
 
-  const promptTaskMap = new Map((promptPackTasks.data ?? []).map((task) => [task.id, task as PromptTaskRecord]));
-
-  const productPickerOptions = products.map((product) =>
-    pickerOption(product.id, product.product_name, product.product_code),
-  );
-  const intakeSessionPickerOptions = intakeSessions.map((session) => {
-    const product = session.product_id ? productMap.get(session.product_id) : null;
-
-    return pickerOption(
-      session.id,
-      session.intake_code,
-      [session.product_title ?? product?.product_name ?? null, session.status].filter(Boolean).join(" - "),
-    );
-  });
-  const affiliateProfilePickerOptions = affiliateProfiles.map((profile) =>
-    pickerOption(
-      profile.id,
-      profile.profile_name,
-      [profile.profile_code, profile.platform, profile.account_label].filter(Boolean).join(" - "),
-    ),
-  );
-  const sourceImagePickerOptions = productImages
-    .filter((image) => productMap.has(image.product_id))
-    .map((image) => {
-      const product = productMap.get(image.product_id);
-      const driveItem = driveItemMap.get(image.drive_item_ref_id);
-
-      return pickerOption(
-        image.id,
-        driveItem?.name ?? image.drive_item_ref_id ?? image.id,
-        [product?.product_code ?? product?.product_name ?? "Produk", image.is_primary ? "utama" : null, image.status]
-          .filter(Boolean)
-          .join(" - "),
-      );
-    });
-  const requestedIntake = requestedIntakeId ? intakeSessionMap.get(requestedIntakeId) ?? null : null;
-  const defaultProductId =
-    requestedProductId && productMap.has(requestedProductId)
-      ? requestedProductId
-      : requestedIntake?.product_id && productMap.has(requestedIntake.product_id)
-        ? requestedIntake.product_id
-        : products[0]?.id ?? "";
-  const defaultIntakeId =
-    requestedIntake && (!requestedIntake.product_id || requestedIntake.product_id === defaultProductId) ? requestedIntake.id : "";
-  const defaultSourceImageId =
-    productImages.find((image) => image.product_id === defaultProductId && image.is_primary)?.id ??
-    productImages.find((image) => image.product_id === defaultProductId)?.id ??
-    "";
-  const emptyClips = PROMPT_CLIP_KEYS.reduce(
-    (result, clipKey) => ({
-      ...result,
-      [clipKey]: emptyClipValues(),
-    }),
-    {} as Record<PromptClipKey, ReturnType<typeof emptyClipValues>>,
-  );
+  const promptTaskMap = new Map((promptTaskResult.data ?? []).map((task) => [task.id, task as PromptTaskRecord]));
 
   return (
     <div className="stack">
-      {products.length ? (
-        <SectionCard icon={FileText} title="Buat Prompt">
-          <form className="stack" action={savePromptPack}>
-            <input type="hidden" name="version" value={1} />
-            <input type="hidden" name="status" value="DRAFT" />
-            <div className="grid two-up">
-              <RelationalPicker
-                defaultValue={defaultProductId}
-                label="Produk"
-                name="product_id"
-                options={productPickerOptions}
-                placeholder="Pilih produk"
-                searchPlaceholder="Cari produk"
-                required
-              />
-              <label className="stack auth-field" htmlFor="create-prompt-code">
-                <span>Kode Prompt</span>
-                <input id="create-prompt-code" name="prompt_code" type="text" placeholder="PROMPT-001" required />
-              </label>
-            </div>
-            <div className="grid two-up">
-              <RelationalPicker
-                allowClear
-                emptyLabel="Kosong"
-                defaultValue={defaultIntakeId}
-                label="Intake"
-                name="intake_session_id"
-                options={intakeSessionPickerOptions}
-                placeholder="Pakai intake terbaru"
-                searchPlaceholder="Cari intake"
-              />
-              <RelationalPicker
-                allowClear
-                emptyLabel="Kosong"
-                defaultValue=""
-                label="Akun Affiliate"
-                name="affiliate_profile_id"
-                options={affiliateProfilePickerOptions}
-                placeholder="Pakai default workspace"
-                searchPlaceholder="Cari akun"
-              />
-            </div>
-            <RelationalPicker
-              allowClear
-              emptyLabel="Kosong"
-              defaultValue={defaultSourceImageId}
-              label="Foto Produk Utama"
-              name="source_product_image_id"
-              options={sourceImagePickerOptions}
-              placeholder="Pakai foto utama"
-              searchPlaceholder="Cari foto"
-            />
-            <div className="grid two-up">
-              {PROMPT_CLIP_KEYS.map((clipKey) => (
-                <PromptClipFields clipKey={clipKey} idPrefix="create" key={clipKey} values={emptyClips[clipKey]} />
-              ))}
-            </div>
-            <SharedPromptFields idPrefix="create" caption="" tags="" />
-            <label className="stack auth-field" htmlFor="create-revision">
-              <span>Instruksi Revisi</span>
-              <textarea id="create-revision" name="revision_instruction" rows={3} />
-            </label>
-            <label className="stack auth-field" htmlFor="create-notes">
-              <span>Catatan</span>
-              <textarea id="create-notes" name="notes" rows={2} />
-            </label>
-            <FormActions>
-              <button className="button primary" name="intent" type="submit" value="create_generate">
-                <Play size={16} aria-hidden="true" />
-                Buat Prompt
-              </button>
-              <button className="button" name="intent" type="submit" value="create_generate_mock">
-                <FlaskConical size={16} aria-hidden="true" />
-                Mock
-              </button>
-            </FormActions>
-          </form>
-        </SectionCard>
-      ) : (
-        <EmptyState
-          icon={Package}
-          title="Produk belum ada."
-          description="Buat produk dulu."
-          action={
-            <Link className="button primary" href="/products/new">
-              Produk Baru
-            </Link>
-          }
-        />
-      )}
+      <SectionCard
+        icon={FileText}
+        title="Paket Prompt"
+        actions={<StatusBadge status={currentAffiliateProfileLabel} tone={currentAffiliateProfile ? "success" : "warning"} />}
+      >
+        {products.length ? (
+          <section className="stack">
+            {products.map((product) => {
+              const promptPack = latestPromptPackByProductId.get(product.id) ?? null;
+              const intakeSession = latestReviewedIntakeByProductId.get(product.id) ?? null;
+              const affiliateProfile = promptPack?.affiliate_profile_id
+                ? affiliateProfileMap.get(promptPack.affiliate_profile_id) ?? null
+                : currentAffiliateProfile;
+              const sourceImage =
+                promptPack?.source_product_image_id
+                  ? productImages.find((image) => image.id === promptPack.source_product_image_id) ?? null
+                  : productImages.find((image) => image.product_id === product.id && image.is_primary) ??
+                    productImages.find((image) => image.product_id === product.id) ??
+                    null;
+              const sourceImageDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
+              const generationTask = promptPack?.ai_task_id ? promptTaskMap.get(promptPack.ai_task_id) ?? null : null;
+              return (
+                <PromptRowCard
+                  affiliateProfile={affiliateProfile}
+                  defaultAffiliateProfileName={currentAffiliateProfileLabel}
+                  generationTask={generationTask}
+                  intakeSession={intakeSession}
+                  isOpen={selectedProductId === product.id}
+                  key={product.id}
+                  promptPack={promptPack}
+                  product={product}
+                  sourceImage={sourceImage}
+                  sourceImageDriveItem={sourceImageDriveItem}
+                  workspaceName={currentWorkspaceLabel}
+                />
+              );
+            })}
+          </section>
+        ) : (
+          <EmptyState
+            icon={Package}
+            title="Produk belum ada."
+            description="Buat produk dulu."
+            action={
+              <Link className="button primary" href="/products/new">
+                <Plus size={16} aria-hidden="true" />
+                Produk Baru
+              </Link>
+            }
+          />
+        )}
+      </SectionCard>
 
-      {promptPacks.length ? (
-        <section className="stack">
-          {promptPacks.map((pack) => {
-            const product = productMap.get(pack.product_id);
-            const intakeSession = pack.intake_session_id ? intakeSessionMap.get(pack.intake_session_id) ?? null : null;
-            const affiliateProfile = pack.affiliate_profile_id ? affiliateProfileMap.get(pack.affiliate_profile_id) ?? null : null;
-            const sourceImage = pack.source_product_image_id ? sourceImageMap.get(pack.source_product_image_id) ?? null : null;
-            const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
-            const generationTask = pack.ai_task_id ? promptTaskMap.get(pack.ai_task_id) ?? null : null;
-
-            return (
-              <PromptEditorForm
-                affiliateProfileLabel={affiliateProfile?.profile_name ?? "Default workspace"}
-                affiliateProfilePickerOptions={affiliateProfilePickerOptions}
-                generationTask={generationTask}
-                intakeLabel={intakeSession?.intake_code ?? "Intake terbaru"}
-                intakeSessionPickerOptions={intakeSessionPickerOptions}
-                key={pack.id}
-                pack={pack}
-                productLabel={product?.product_name ?? "Produk tidak tersedia"}
-                productPickerOptions={productPickerOptions}
-                sourceImageLabel={sourceDriveItem?.name ?? "Foto utama"}
-                sourceImagePickerOptions={sourceImagePickerOptions}
-              />
-            );
-          })}
-        </section>
-      ) : (
-        <EmptyState icon={FileText} title="Prompt belum ada." description="Buat prompt pertama." />
-      )}
+      <SectionCard icon={Archive} title="Prompt siap Flow">
+        {promptPacks.length ? (
+          <ul className="list">
+            {promptPacks.map((pack) => {
+              const product = productMap.get(pack.product_id);
+              return (
+                <li key={pack.id}>
+                  <div className="stack-tight">
+                    <strong>{pack.prompt_code}</strong>
+                    <span className="subtle">
+                      {[product?.product_name ?? "Produk tidak tersedia", `v${pack.version}`].filter(Boolean).join(" - ")}
+                    </span>
+                    <StatusBadge status={pack.status} />
+                  </div>
+                  <Link className="button compact" href={`/products/${pack.product_id}?tab=prompt_pack`}>
+                    Buka produk
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState icon={Archive} title="Belum ada prompt siap Flow." description="Buat prompt dulu." />
+        )}
+      </SectionCard>
     </div>
   );
 }
