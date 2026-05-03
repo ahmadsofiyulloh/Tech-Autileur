@@ -83,6 +83,18 @@ function driveItemSummary(item: DriveItemRecord | undefined) {
   return [item.name, item.drive_path, item.status].filter(Boolean).join(" - ");
 }
 
+function assetRequirementText(locked: boolean, item: DriveItemRecord | undefined) {
+  if (locked && !item) {
+    return "Lock aktif. Upload file dulu agar prompt generation tidak diblok.";
+  }
+
+  if (item) {
+    return "Siap dipakai sebagai referensi prompt.";
+  }
+
+  return "Opsional untuk profile ini.";
+}
+
 export function AffiliateProfilesBoard({
   profiles,
   workspaces,
@@ -177,6 +189,8 @@ export function AffiliateProfilesBoard({
 
   const formKey = isCreating ? "create-profile" : selectedProfile?.id ?? "edit-profile";
   const initialProfile = selectedProfile ?? null;
+  const seedCharacterMissing = (initialProfile?.lock_seed_character ?? true) && !selectedSeedCharacterDriveItem;
+  const environmentMissing = (initialProfile?.lock_environment ?? true) && !selectedEnvironmentDriveItem;
 
   return (
     <section className="product-master" aria-label="Akun Affiliate">
@@ -299,6 +313,18 @@ export function AffiliateProfilesBoard({
           <div className="stack-tight">
             <span className="subtle">{isCreating ? "Profile baru" : "Detail"}</span>
             <strong>{isCreating ? "Buat profile affiliate" : selectedProfile?.profile_name ?? "Pilih profile"}</strong>
+            <div className="product-status-stack">
+              <StatusBadge status={initialProfile?.status ?? "DRAFT"} />
+              <StatusBadge status={`${selectedProfileWorkspaceIds.length || (isCreating ? 1 : 0)} workspace`} tone="info" />
+              <StatusBadge
+                status={seedCharacterMissing ? "Character missing" : "Character ready"}
+                tone={seedCharacterMissing ? "warning" : "success"}
+              />
+              <StatusBadge
+                status={environmentMissing ? "Environment missing" : "Environment ready"}
+                tone={environmentMissing ? "warning" : "success"}
+              />
+            </div>
           </div>
           <button className="button compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
             <X size={16} aria-hidden="true" />
@@ -307,163 +333,136 @@ export function AffiliateProfilesBoard({
 
         {drawerOpen ? (
           <>
-            <form key={formKey} className="stack" action={saveAffiliateProfile} encType="multipart/form-data">
-            <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
-            <input type="hidden" name="intent" value={isCreating ? "create_affiliate_profile" : "update_affiliate_profile"} />
-            {!isCreating && initialProfile ? <input type="hidden" name="id" value={initialProfile.id} /> : null}
-            <input type="hidden" name="current_seed_character_drive_item_ref_id" value={initialProfile?.seed_character_drive_item_ref_id ?? ""} />
-            <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile?.environment_drive_item_ref_id ?? ""} />
+            <form key={formKey} className="stack" action={saveAffiliateProfile}>
+              <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
+              <input type="hidden" name="intent" value={isCreating ? "create_affiliate_profile" : "update_affiliate_profile"} />
+              {!isCreating && initialProfile ? <input type="hidden" name="id" value={initialProfile.id} /> : null}
+              <input type="hidden" name="current_seed_character_drive_item_ref_id" value={initialProfile?.seed_character_drive_item_ref_id ?? ""} />
+              <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile?.environment_drive_item_ref_id ?? ""} />
 
-            <div className="grid two-up">
-              <label className="stack auth-field" htmlFor="affiliate-profile-code">
-                <span>Profile code</span>
-                <input id="affiliate-profile-code" name="profile_code" type="text" placeholder="FASHION_TTK_01" defaultValue={initialProfile?.profile_code ?? ""} required />
-              </label>
-              <label className="stack auth-field" htmlFor="affiliate-profile-name">
-                <span>Profile name</span>
-                <input id="affiliate-profile-name" name="profile_name" type="text" placeholder="Fashion TikTok 01" defaultValue={initialProfile?.profile_name ?? ""} required />
-              </label>
-            </div>
+              <div className="grid two-up">
+                <label className="stack auth-field" htmlFor="affiliate-profile-code">
+                  <span>Profile code</span>
+                  <input id="affiliate-profile-code" name="profile_code" type="text" placeholder="FASHION_TTK_01" defaultValue={initialProfile?.profile_code ?? ""} required />
+                </label>
+                <label className="stack auth-field" htmlFor="affiliate-profile-name">
+                  <span>Profile name</span>
+                  <input id="affiliate-profile-name" name="profile_name" type="text" placeholder="Fashion TikTok 01" defaultValue={initialProfile?.profile_name ?? ""} required />
+                </label>
+              </div>
 
-            <div className="grid two-up">
-              <RelationalPicker
-                defaultValue={initialProfile?.platform ?? "TIKTOK"}
-                label="Platform"
-                name="platform"
-                options={choiceOptions(AFFILIATE_PLATFORMS)}
-                placeholder="Pilih platform"
-                required
-                searchable={false}
-              />
-              <RelationalPicker
-                defaultValue={initialProfile?.status ?? "ACTIVE"}
-                label="Status"
-                name="status"
-                options={choiceOptions(AFFILIATE_PROFILE_STATUSES)}
-                placeholder="Pilih status"
-                required
-                searchable={false}
-              />
-            </div>
+              <div className="grid two-up">
+                <RelationalPicker
+                  defaultValue={initialProfile?.platform ?? "TIKTOK"}
+                  label="Platform"
+                  name="platform"
+                  options={choiceOptions(AFFILIATE_PLATFORMS)}
+                  placeholder="Pilih platform"
+                  required
+                  searchable={false}
+                />
+                <RelationalPicker
+                  defaultValue={initialProfile?.status ?? "ACTIVE"}
+                  label="Status"
+                  name="status"
+                  options={choiceOptions(AFFILIATE_PROFILE_STATUSES)}
+                  placeholder="Pilih status"
+                  required
+                  searchable={false}
+                />
+              </div>
 
-            <details open>
-              <summary>Workspace links</summary>
-              <div className="stack">
-                <div className="stack-tight">
-                  <span className="subtle">Link ke workspace aktif</span>
+              <details open>
+                <summary>Workspace links</summary>
+                <div className="stack">
                   <div className="stack-tight">
-                    {activeWorkspaces.map((workspace) => {
-                      const isChecked = isCreating
-                        ? workspace.id === (currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "")
-                        : selectedProfileWorkspaceIds.includes(workspace.id);
+                    <span className="subtle">Link ke workspace aktif</span>
+                    <div className="stack-tight">
+                      {activeWorkspaces.map((workspace) => {
+                        const isChecked = isCreating
+                          ? workspace.id === (currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "")
+                          : selectedProfileWorkspaceIds.includes(workspace.id);
 
-                      return (
-                        <label className="checkbox-row" key={workspace.id}>
-                          <input
-                            defaultChecked={isChecked}
-                            name="workspace_ids"
-                            type="checkbox"
-                            value={workspace.id}
-                          />
-                          <span>{workspaceLabel(workspace)}</span>
-                        </label>
-                      );
-                    })}
+                        return (
+                          <label className="checkbox-row" key={workspace.id}>
+                            <input
+                              defaultChecked={isChecked}
+                              name="workspace_ids"
+                              type="checkbox"
+                              value={workspace.id}
+                            />
+                            <span>{workspaceLabel(workspace)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <RelationalPicker
+                    allowClear
+                    defaultValue={defaultWorkspaceId}
+                    label="Default workspace"
+                    name="default_workspace_id"
+                    options={workspaceOptions}
+                    placeholder="Pilih default"
+                    searchPlaceholder="Cari workspace"
+                    searchable={activeWorkspaces.length > 5}
+                  />
+                  <div className="section-card__actions">
+                    <StatusBadge status={`${selectedProfileLinks.length || (isCreating ? 1 : 0)} link`} tone="info" />
                   </div>
                 </div>
-                <RelationalPicker
-                  allowClear
-                  defaultValue={defaultWorkspaceId}
-                  label="Default workspace"
-                  name="default_workspace_id"
-                  options={workspaceOptions}
-                  placeholder="Pilih default"
-                  searchPlaceholder="Cari workspace"
-                  searchable={activeWorkspaces.length > 5}
-                />
+              </details>
+
+              <section className="stack">
                 <div className="section-card__actions">
-                  <StatusBadge status={`${selectedProfileLinks.length || (isCreating ? 1 : 0)} link`} tone="info" />
-                </div>
-              </div>
-            </details>
-
-            <details>
-              <summary>Lanjutan</summary>
-              <div className="stack">
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor="affiliate-account-label">
-                    <span>Account label</span>
-                    <input id="affiliate-account-label" name="account_label" type="text" placeholder="Optional account label" defaultValue={initialProfile?.account_label ?? ""} />
-                  </label>
-                  <label className="stack auth-field" htmlFor="affiliate-niche">
-                    <span>Niche</span>
-                    <input id="affiliate-niche" name="niche" type="text" placeholder="Optional niche" defaultValue={initialProfile?.niche ?? ""} />
-                  </label>
-                </div>
-                <label className="stack auth-field" htmlFor="affiliate-url">
-                  <span>Affiliate URL</span>
-                  <input id="affiliate-url" name="affiliate_url" type="url" placeholder="https://..." defaultValue={initialProfile?.affiliate_url ?? ""} />
-                </label>
-                <label className="stack auth-field" htmlFor="affiliate-notes">
-                  <span>Catatan</span>
-                  <textarea id="affiliate-notes" name="notes" rows={3} placeholder="Operator notes" defaultValue={initialProfile?.notes ?? ""} />
-                </label>
-              </div>
-            </details>
-
-            <details>
-              <summary>Prompt rules dan locks</summary>
-              <div className="stack">
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor="affiliate-i2i-rules">
-                    <span>i2i prompt rules</span>
-                    <textarea id="affiliate-i2i-rules" name="i2i_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.i2i_prompt_rules ?? ""} />
-                  </label>
-                  <label className="stack auth-field" htmlFor="affiliate-i2v-rules">
-                    <span>i2v prompt rules</span>
-                    <textarea id="affiliate-i2v-rules" name="i2v_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.i2v_prompt_rules ?? ""} />
-                  </label>
+                  <div className="stack-tight">
+                    <span className="subtle">Asset lock</span>
+                    <strong>Character dan Environment</strong>
+                  </div>
+                  <StatusBadge
+                    status={seedCharacterMissing || environmentMissing ? "Needs assets" : "Assets ready"}
+                    tone={seedCharacterMissing || environmentMissing ? "warning" : "success"}
+                  />
                 </div>
                 <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor="affiliate-caption-rules">
-                    <span>Caption rules</span>
-                    <textarea id="affiliate-caption-rules" name="caption_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.caption_rules ?? ""} />
-                  </label>
-                  <label className="stack auth-field" htmlFor="affiliate-hashtag-rules">
-                    <span>Hashtag/tag rules</span>
-                    <textarea id="affiliate-hashtag-rules" name="hashtag_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.hashtag_rules ?? ""} />
-                  </label>
-                </div>
-                <label className="stack auth-field" htmlFor="affiliate-negative-rules">
-                  <span>Negative prompt rules</span>
-                  <textarea id="affiliate-negative-rules" name="negative_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.negative_prompt_rules ?? ""} />
-                </label>
-                <label className="stack auth-field" htmlFor="affiliate-positioning-notes">
-                  <span>Product positioning notes</span>
-                  <textarea id="affiliate-positioning-notes" name="product_positioning_notes" rows={4} placeholder="Editable notes" defaultValue={initialProfile?.product_positioning_notes ?? ""} />
-                </label>
-                <div className="grid two-up">
-                  <div className="muted-box stack-tight">
-                    <label className="checkbox-row" htmlFor="lock-seed-character">
-                      <input id="lock-seed-character" name="lock_seed_character" type="checkbox" defaultChecked={initialProfile ? initialProfile.lock_seed_character : true} />
-                      <span>Lock character seed</span>
-                    </label>
-                    <label className="stack auth-field" htmlFor="seed-character-notes">
-                      <span>Character notes</span>
-                      <textarea id="seed-character-notes" name="seed_character_notes" rows={3} defaultValue={initialProfile?.seed_character_notes ?? ""} />
-                    </label>
-                    <div className="stack-tight">
-                      <span className="subtle">Current reference</span>
-                      <span>{driveItemSummary(selectedSeedCharacterDriveItem ?? undefined)}</span>
+                  <section className="asset-upload-card stack-tight">
+                    <div className="section-card__actions">
+                      <div className="stack-tight">
+                        <strong>Character</strong>
+                        <span className="subtle">Dipakai sebagai seed persona untuk i2i dan i2v.</span>
+                      </div>
+                      <StatusBadge status={initialProfile?.lock_seed_character ? "Locked" : "Open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
                     </div>
+                    <div className="asset-upload-card__preview">
+                      <div className="asset-upload-card__empty">
+                        <strong>{selectedSeedCharacterDriveItem ? selectedSeedCharacterDriveItem.name : "Belum ada karakter"}</strong>
+                        <span>{driveItemSummary(selectedSeedCharacterDriveItem ?? undefined)}</span>
+                      </div>
+                    </div>
+                    {seedCharacterMissing ? (
+                      <div className="error-box status-box" role="alert">
+                        <span>{assetRequirementText(initialProfile?.lock_seed_character ?? true, selectedSeedCharacterDriveItem ?? undefined)}</span>
+                      </div>
+                    ) : (
+                      <p className="field-note">
+                        {assetRequirementText(initialProfile?.lock_seed_character ?? true, selectedSeedCharacterDriveItem ?? undefined)}
+                      </p>
+                    )}
                     <label className="stack auth-field" htmlFor="seed-character-file">
                       <span>Upload / replace character image</span>
                       <input id="seed-character-file" name="seed_character_file" type="file" accept="image/*" />
                     </label>
-                    <label className="checkbox-row" htmlFor="clear-seed-character-ref">
-                      <input id="clear-seed-character-ref" name="clear_seed_character_drive_item_ref_id" type="checkbox" value="true" />
-                      <span>Remove current character reference</span>
-                    </label>
+                    <div className="auth-actions">
+                      {selectedSeedCharacterDriveItem?.drive_url ? (
+                        <a className="button compact" href={selectedSeedCharacterDriveItem.drive_url} rel="noreferrer" target="_blank">
+                          Buka file
+                        </a>
+                      ) : null}
+                      <label className="checkbox-row">
+                        <input id="clear-seed-character-ref" name="clear_seed_character_drive_item_ref_id" type="checkbox" value="true" />
+                        <span>Hapus referensi</span>
+                      </label>
+                    </div>
                     <details className="stack-tight">
                       <summary>Attach existing Drive item</summary>
                       <RelationalPicker
@@ -476,29 +475,50 @@ export function AffiliateProfilesBoard({
                         searchPlaceholder="Cari Drive item"
                       />
                     </details>
-                    <StatusBadge status={initialProfile?.lock_seed_character ? "Character locked" : "Character open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
-                  </div>
-                  <div className="muted-box stack-tight">
-                    <label className="checkbox-row" htmlFor="lock-environment">
-                      <input id="lock-environment" name="lock_environment" type="checkbox" defaultChecked={initialProfile ? initialProfile.lock_environment : true} />
-                      <span>Lock environment</span>
+                    <label className="stack auth-field" htmlFor="seed-character-notes">
+                      <span>Character notes</span>
+                      <textarea id="seed-character-notes" name="seed_character_notes" rows={3} defaultValue={initialProfile?.seed_character_notes ?? ""} />
                     </label>
-                    <label className="stack auth-field" htmlFor="environment-notes">
-                      <span>Environment notes</span>
-                      <textarea id="environment-notes" name="environment_notes" rows={3} defaultValue={initialProfile?.environment_notes ?? ""} />
-                    </label>
-                    <div className="stack-tight">
-                      <span className="subtle">Current reference</span>
-                      <span>{driveItemSummary(selectedEnvironmentDriveItem ?? undefined)}</span>
+                  </section>
+
+                  <section className="asset-upload-card stack-tight">
+                    <div className="section-card__actions">
+                      <div className="stack-tight">
+                        <strong>Environment</strong>
+                        <span className="subtle">Background-lock asset untuk i2i dan i2v.</span>
+                      </div>
+                      <StatusBadge status={initialProfile?.lock_environment ? "Locked" : "Open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
                     </div>
+                    <div className="asset-upload-card__preview">
+                      <div className="asset-upload-card__empty">
+                        <strong>{selectedEnvironmentDriveItem ? selectedEnvironmentDriveItem.name : "Belum ada environment"}</strong>
+                        <span>{driveItemSummary(selectedEnvironmentDriveItem ?? undefined)}</span>
+                      </div>
+                    </div>
+                    {environmentMissing ? (
+                      <div className="error-box status-box" role="alert">
+                        <span>{assetRequirementText(initialProfile?.lock_environment ?? true, selectedEnvironmentDriveItem ?? undefined)}</span>
+                      </div>
+                    ) : (
+                      <p className="field-note">
+                        {assetRequirementText(initialProfile?.lock_environment ?? true, selectedEnvironmentDriveItem ?? undefined)}
+                      </p>
+                    )}
                     <label className="stack auth-field" htmlFor="environment-file">
                       <span>Upload / replace environment image</span>
                       <input id="environment-file" name="environment_file" type="file" accept="image/*" />
                     </label>
-                    <label className="checkbox-row" htmlFor="clear-environment-ref">
-                      <input id="clear-environment-ref" name="clear_environment_drive_item_ref_id" type="checkbox" value="true" />
-                      <span>Remove current environment reference</span>
-                    </label>
+                    <div className="auth-actions">
+                      {selectedEnvironmentDriveItem?.drive_url ? (
+                        <a className="button compact" href={selectedEnvironmentDriveItem.drive_url} rel="noreferrer" target="_blank">
+                          Buka file
+                        </a>
+                      ) : null}
+                      <label className="checkbox-row">
+                        <input id="clear-environment-ref" name="clear_environment_drive_item_ref_id" type="checkbox" value="true" />
+                        <span>Hapus referensi</span>
+                      </label>
+                    </div>
                     <details className="stack-tight">
                       <summary>Attach existing Drive item</summary>
                       <RelationalPicker
@@ -511,11 +531,87 @@ export function AffiliateProfilesBoard({
                         searchPlaceholder="Cari Drive item"
                       />
                     </details>
-                    <StatusBadge status={initialProfile?.lock_environment ? "Environment locked" : "Environment open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
+                    <label className="stack auth-field" htmlFor="environment-notes">
+                      <span>Environment notes</span>
+                      <textarea id="environment-notes" name="environment_notes" rows={3} defaultValue={initialProfile?.environment_notes ?? ""} />
+                    </label>
+                  </section>
+                </div>
+              </section>
+
+              <details>
+                <summary>Lanjutan</summary>
+                <div className="stack">
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor="affiliate-account-label">
+                      <span>Account label</span>
+                      <input id="affiliate-account-label" name="account_label" type="text" placeholder="Optional account label" defaultValue={initialProfile?.account_label ?? ""} />
+                    </label>
+                    <label className="stack auth-field" htmlFor="affiliate-niche">
+                      <span>Niche</span>
+                      <input id="affiliate-niche" name="niche" type="text" placeholder="Optional niche" defaultValue={initialProfile?.niche ?? ""} />
+                    </label>
+                  </div>
+                  <label className="stack auth-field" htmlFor="affiliate-url">
+                    <span>Affiliate URL</span>
+                    <input id="affiliate-url" name="affiliate_url" type="url" placeholder="https://..." defaultValue={initialProfile?.affiliate_url ?? ""} />
+                  </label>
+                  <label className="stack auth-field" htmlFor="affiliate-notes">
+                    <span>Catatan</span>
+                    <textarea id="affiliate-notes" name="notes" rows={3} placeholder="Operator notes" defaultValue={initialProfile?.notes ?? ""} />
+                  </label>
+                </div>
+              </details>
+
+              <details>
+                <summary>Prompt rules</summary>
+                <div className="stack">
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor="affiliate-i2i-rules">
+                      <span>i2i prompt rules</span>
+                      <textarea id="affiliate-i2i-rules" name="i2i_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.i2i_prompt_rules ?? ""} />
+                    </label>
+                    <label className="stack auth-field" htmlFor="affiliate-i2v-rules">
+                      <span>i2v prompt rules</span>
+                      <textarea id="affiliate-i2v-rules" name="i2v_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.i2v_prompt_rules ?? ""} />
+                    </label>
+                  </div>
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor="affiliate-caption-rules">
+                      <span>Caption rules</span>
+                      <textarea id="affiliate-caption-rules" name="caption_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.caption_rules ?? ""} />
+                    </label>
+                    <label className="stack auth-field" htmlFor="affiliate-hashtag-rules">
+                      <span>Hashtag/tag rules</span>
+                      <textarea id="affiliate-hashtag-rules" name="hashtag_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.hashtag_rules ?? ""} />
+                    </label>
+                  </div>
+                  <label className="stack auth-field" htmlFor="affiliate-negative-rules">
+                    <span>Negative prompt rules</span>
+                    <textarea id="affiliate-negative-rules" name="negative_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.negative_prompt_rules ?? ""} />
+                  </label>
+                  <label className="stack auth-field" htmlFor="affiliate-positioning-notes">
+                    <span>Product positioning notes</span>
+                    <textarea id="affiliate-positioning-notes" name="product_positioning_notes" rows={4} placeholder="Editable notes" defaultValue={initialProfile?.product_positioning_notes ?? ""} />
+                  </label>
+                  <div className="grid two-up">
+                    <div className="muted-box stack-tight">
+                      <label className="checkbox-row" htmlFor="lock-seed-character">
+                        <input id="lock-seed-character" name="lock_seed_character" type="checkbox" defaultChecked={initialProfile ? initialProfile.lock_seed_character : true} />
+                        <span>Lock character seed</span>
+                      </label>
+                      <StatusBadge status={initialProfile?.lock_seed_character ? "Character locked" : "Character open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
+                    </div>
+                    <div className="muted-box stack-tight">
+                      <label className="checkbox-row" htmlFor="lock-environment">
+                        <input id="lock-environment" name="lock_environment" type="checkbox" defaultChecked={initialProfile ? initialProfile.lock_environment : true} />
+                        <span>Lock environment</span>
+                      </label>
+                      <StatusBadge status={initialProfile?.lock_environment ? "Environment locked" : "Environment open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </details>
+              </details>
 
             <FormActions>
               <button className="button primary" type="submit">

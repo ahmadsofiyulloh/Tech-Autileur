@@ -104,6 +104,9 @@ export function isAffiliateProfileSchemaMissingError(error: unknown) {
     errorCode(error) === "42P01" ||
     errorCode(error) === "42704" ||
     message.includes("affiliate profile schema is not applied") ||
+    message.includes("schema cache") ||
+    (message.includes("could not find the table") && message.includes("affiliate_profile_workspace_links")) ||
+    (message.includes("could not find the table") && message.includes("affiliate_profiles")) ||
     (message.includes("relation") && message.includes("affiliate_profiles") && message.includes("does not exist")) ||
     (message.includes("relation") && message.includes("affiliate_profile_workspace_links") && message.includes("does not exist")) ||
     (message.includes("type") &&
