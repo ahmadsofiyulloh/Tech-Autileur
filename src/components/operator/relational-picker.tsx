@@ -21,6 +21,7 @@ type RelationalPickerProps = {
   disabled?: boolean;
   helperText?: string;
   searchPlaceholder?: string;
+  searchable?: boolean;
   submitOnSelect?: boolean;
   className?: string;
   compact?: boolean;
@@ -38,6 +39,7 @@ export function RelationalPicker({
   disabled = false,
   helperText,
   searchPlaceholder,
+  searchable = true,
   submitOnSelect = false,
   className,
   compact = false,
@@ -55,6 +57,7 @@ export function RelationalPicker({
   const [selectedValue, setSelectedValue] = useState(normalizedDefaultValue);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const showSearch = searchable !== false;
 
   useEffect(() => {
     setSelectedValue(normalizedDefaultValue);
@@ -87,15 +90,17 @@ export function RelationalPicker({
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
 
-    requestAnimationFrame(() => {
-      searchInputRef.current?.focus();
-    });
+    if (showSearch) {
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+      });
+    }
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [open, showSearch]);
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === selectedValue) ?? null,
@@ -103,6 +108,10 @@ export function RelationalPicker({
   );
 
   const filteredOptions = useMemo(() => {
+    if (!showSearch) {
+      return options;
+    }
+
     const term = query.trim().toLowerCase();
 
     if (!term) {
@@ -113,7 +122,7 @@ export function RelationalPicker({
       const haystack = [option.label, option.description ?? ""].join(" ").toLowerCase();
       return haystack.includes(term);
     });
-  }, [options, query]);
+  }, [options, query, showSearch]);
 
   function syncHiddenInput(nextValue: string) {
     if (hiddenInputRef.current) {
@@ -193,18 +202,22 @@ export function RelationalPicker({
           />
           <div aria-labelledby={labelId} aria-modal="true" className="relational-picker__panel" id={panelId} role="dialog">
             <div className="relational-picker__panel-header">
-              <label className="relational-picker__search" htmlFor={searchId}>
-                <Search size={15} aria-hidden="true" />
-                <span className="sr-only">{searchPlaceholder ?? `Cari ${label.toLowerCase()}`}</span>
-                <input
-                  ref={searchInputRef}
-                  id={searchId}
-                  placeholder={searchPlaceholder ?? `Cari ${label.toLowerCase()}`}
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.currentTarget.value)}
-                />
-              </label>
+              {showSearch ? (
+                <label className="relational-picker__search" htmlFor={searchId}>
+                  <Search size={15} aria-hidden="true" />
+                  <span className="sr-only">{searchPlaceholder ?? `Cari ${label.toLowerCase()}`}</span>
+                  <input
+                    ref={searchInputRef}
+                    id={searchId}
+                    placeholder={searchPlaceholder ?? `Cari ${label.toLowerCase()}`}
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.currentTarget.value)}
+                  />
+                </label>
+              ) : (
+                <span className="relational-picker__panel-label">{label}</span>
+              )}
               {canClear ? (
                 <button
                   className="button compact relational-picker__clear"

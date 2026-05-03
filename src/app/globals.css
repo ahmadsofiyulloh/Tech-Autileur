@@ -392,7 +392,8 @@ button:focus-visible {
   left: 0;
   z-index: 100;
   display: grid;
-  width: min(440px, calc(100vw - 48px));
+  width: 100%;
+  max-width: min(440px, calc(100vw - 48px));
   gap: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -407,6 +408,15 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.relational-picker__panel-label {
+  min-width: 0;
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 .relational-picker__search {
@@ -1615,6 +1625,9 @@ summary::marker {
   }
 
   .operator-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     min-height: 58px;
     padding: 10px 14px;
   }
@@ -1624,8 +1637,8 @@ summary::marker {
   }
 
   .topbar-tools {
-    flex: 1;
-    flex-wrap: nowrap;
+    min-width: 0;
+    justify-content: flex-end;
   }
 
   .workspace-selector__picker {

@@ -3,6 +3,7 @@ import { Archive, HardDrive, Save } from "lucide-react";
 import { saveDriveItem } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
+import { RelationalPicker } from "@/components/operator/relational-picker";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -11,12 +12,11 @@ import { listDriveItems } from "@/lib/server/drive-items";
 
 export const dynamic = "force-dynamic";
 
-function selectOptions(values: readonly string[]) {
-  return values.map((value) => (
-    <option key={value} value={value}>
-      {value}
-    </option>
-  ));
+function pickerOptions(values: readonly string[]) {
+  return values.map((value) => ({
+    value,
+    label: value,
+  }));
 }
 
 function fieldValue(value: string | number | null | undefined) {
@@ -62,24 +62,30 @@ export default async function DrivePage() {
               <span>Nama</span>
               <input id="create-name" name="name" type="text" placeholder="AffiliateAI" required />
             </label>
-            <label className="stack auth-field" htmlFor="create-purpose">
-              <span>Purpose</span>
-              <select id="create-purpose" name="purpose" defaultValue={DRIVE_FOLDER_PURPOSES[0]} required>
-                {selectOptions(DRIVE_FOLDER_PURPOSES)}
-              </select>
-            </label>
+            <RelationalPicker
+              defaultValue={DRIVE_FOLDER_PURPOSES[0]}
+              label="Purpose"
+              name="purpose"
+              options={pickerOptions(DRIVE_FOLDER_PURPOSES)}
+              placeholder="Pilih purpose"
+              required
+              searchPlaceholder="Cari tujuan folder"
+            />
           </div>
           <div className="grid two-up">
             <label className="stack auth-field" htmlFor="create-drive-item-id">
               <span>Drive Item ID</span>
               <input id="create-drive-item-id" name="drive_item_id" type="text" placeholder="Optional Drive folder id" />
             </label>
-            <label className="stack auth-field" htmlFor="create-status">
-              <span>Status</span>
-              <select id="create-status" name="status" defaultValue="ACTIVE" required>
-                {selectOptions(DRIVE_ITEM_STATUSES)}
-              </select>
-            </label>
+            <RelationalPicker
+              defaultValue="ACTIVE"
+              label="Status"
+              name="status"
+              options={pickerOptions(DRIVE_ITEM_STATUSES)}
+              placeholder="Pilih status"
+              required
+              searchable={false}
+            />
           </div>
           <div className="grid two-up">
             <label className="stack auth-field" htmlFor="create-drive-url">
@@ -138,12 +144,15 @@ export default async function DrivePage() {
                       <span>Nama</span>
                       <input id={`name-${item.id}`} name="name" type="text" defaultValue={item.name} required />
                     </label>
-                    <label className="stack auth-field" htmlFor={`purpose-${item.id}`}>
-                      <span>Purpose</span>
-                      <select id={`purpose-${item.id}`} name="purpose" defaultValue={item.purpose} required>
-                        {selectOptions(DRIVE_FOLDER_PURPOSES)}
-                      </select>
-                    </label>
+                    <RelationalPicker
+                      defaultValue={item.purpose}
+                      label="Purpose"
+                      name="purpose"
+                      options={pickerOptions(DRIVE_FOLDER_PURPOSES)}
+                      placeholder="Pilih purpose"
+                      required
+                      searchPlaceholder="Cari tujuan folder"
+                    />
                   </div>
                   <div className="grid two-up">
                     <label className="stack auth-field" htmlFor={`drive-item-id-${item.id}`}>
@@ -155,12 +164,15 @@ export default async function DrivePage() {
                         defaultValue={fieldValue(item.drive_item_id)}
                       />
                     </label>
-                    <label className="stack auth-field" htmlFor={`status-${item.id}`}>
-                      <span>Status</span>
-                      <select id={`status-${item.id}`} name="status" defaultValue={item.status} required>
-                        {selectOptions(DRIVE_ITEM_STATUSES)}
-                      </select>
-                    </label>
+                    <RelationalPicker
+                      defaultValue={item.status}
+                      label="Status"
+                      name="status"
+                      options={pickerOptions(DRIVE_ITEM_STATUSES)}
+                      placeholder="Pilih status"
+                      required
+                      searchable={false}
+                    />
                   </div>
                   <div className="grid two-up">
                     <label className="stack auth-field" htmlFor={`drive-url-${item.id}`}>

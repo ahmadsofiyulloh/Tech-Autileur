@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { RelationalPicker } from "@/components/operator/relational-picker";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   buildFlowAssignmentPlan,
@@ -139,6 +140,13 @@ function accountLabel(account: FlowAccountPoolRecord | undefined | null) {
 
 function accountTypeLabel(value: string) {
   return value.replace("FLOW_", "Flow ");
+}
+
+function pickerOptions(values: readonly string[]) {
+  return values.map((value) => ({
+    value,
+    label: accountTypeLabel(value),
+  }));
 }
 
 function flowAccountPoolStats(accounts: FlowAccountPoolRecord[]) {
@@ -375,16 +383,15 @@ function FlowAccountPanel({ accounts }: { accounts: FlowAccountPoolRecord[] }) {
               <span>Kode Akun</span>
               <input id="flow-account-code" name="account_code" type="text" placeholder="FLOW-FREE-01" required />
             </label>
-            <label className="stack auth-field" htmlFor="flow-account-type">
-              <span>Tipe Akun</span>
-              <select id="flow-account-type" name="account_type" defaultValue="FLOW_FREE" required>
-                {FLOW_ACCOUNT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {accountTypeLabel(type)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <RelationalPicker
+              defaultValue="FLOW_FREE"
+              label="Tipe Akun"
+              name="account_type"
+              options={pickerOptions(FLOW_ACCOUNT_TYPES)}
+              placeholder="Pilih tipe akun"
+              required
+              searchable={false}
+            />
           </div>
           <FormActions>
             <button className="button compact primary" type="submit">

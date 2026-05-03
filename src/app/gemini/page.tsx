@@ -3,6 +3,7 @@ import { Ban, KeyRound, Save } from "lucide-react";
 import { saveGeminiKey } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
+import { RelationalPicker } from "@/components/operator/relational-picker";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,12 +11,11 @@ import { GEMINI_KEY_ROLES, GEMINI_MODELS } from "@/lib/gemini/validation";
 
 export const dynamic = "force-dynamic";
 
-function selectOptions(values: readonly string[]) {
-  return values.map((value) => (
-    <option key={value} value={value}>
-      {value}
-    </option>
-  ));
+function pickerOptions(values: readonly string[]) {
+  return values.map((value) => ({
+    value,
+    label: value,
+  }));
 }
 
 function fieldValue(value: string | number | null | undefined) {
@@ -88,20 +88,26 @@ export default async function GeminiPage() {
                 required
               />
             </label>
-            <label className="stack auth-field" htmlFor="gemini-model">
-              <span>Model</span>
-              <select id="gemini-model" name="model" defaultValue={geminiKey?.model_name ?? GEMINI_MODELS[0]} required>
-                {selectOptions(GEMINI_MODELS)}
-              </select>
-            </label>
+            <RelationalPicker
+              defaultValue={geminiKey?.model_name ?? GEMINI_MODELS[0]}
+              label="Model"
+              name="model"
+              options={pickerOptions(GEMINI_MODELS)}
+              placeholder="Pilih model"
+              required
+              searchable={false}
+            />
           </div>
           <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="gemini-purpose">
-              <span>Purpose</span>
-              <select id="gemini-purpose" name="purpose" defaultValue={geminiKey?.role ?? GEMINI_KEY_ROLES[0]} required>
-                {selectOptions(GEMINI_KEY_ROLES)}
-              </select>
-            </label>
+            <RelationalPicker
+              defaultValue={geminiKey?.role ?? GEMINI_KEY_ROLES[0]}
+              label="Purpose"
+              name="purpose"
+              options={pickerOptions(GEMINI_KEY_ROLES)}
+              placeholder="Pilih purpose"
+              required
+              searchable={false}
+            />
             <label className="stack auth-field" htmlFor="gemini-raw-api-key">
               <span>API Key</span>
               <input
