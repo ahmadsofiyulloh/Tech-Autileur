@@ -7,6 +7,7 @@ import {
   createDriveItem,
   updateDriveItem,
 } from "@/lib/server/drive-items";
+import { DRIVE_FOLDER_PURPOSES } from "@/lib/drive/validation";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -29,6 +30,10 @@ function parseOptionalNumber(value: string, fieldName: string) {
   }
 
   return parsed;
+}
+
+function isFolderPurpose(value: string) {
+  return (DRIVE_FOLDER_PURPOSES as readonly string[]).includes(value);
 }
 
 export async function saveDriveItem(formData: FormData) {
@@ -70,6 +75,10 @@ export async function saveDriveItem(formData: FormData) {
     if (!drivePath) {
       fail("Drive path is required.");
     }
+    const normalizedPurpose = purpose || "OTHER";
+    if (itemType === "FOLDER" && !isFolderPurpose(normalizedPurpose)) {
+      fail(`Folder purpose must be one of: ${DRIVE_FOLDER_PURPOSES.join(", ")}.`);
+    }
 
     await createDriveItem({
       item_type: itemType,
@@ -81,7 +90,7 @@ export async function saveDriveItem(formData: FormData) {
       drive_path: drivePath,
       mime_type: mimeType || null,
       size_bytes: sizeBytes,
-      purpose: purpose || undefined,
+      purpose: normalizedPurpose,
       status: status || undefined,
       notes: notes || null,
     });
@@ -109,6 +118,10 @@ export async function saveDriveItem(formData: FormData) {
   if (!drivePath) {
     fail("Drive path is required.");
   }
+  const normalizedPurpose = purpose || "OTHER";
+  if (itemType === "FOLDER" && !isFolderPurpose(normalizedPurpose)) {
+    fail(`Folder purpose must be one of: ${DRIVE_FOLDER_PURPOSES.join(", ")}.`);
+  }
 
   await updateDriveItem(id, {
     item_type: itemType,
@@ -120,7 +133,7 @@ export async function saveDriveItem(formData: FormData) {
     drive_path: drivePath,
     mime_type: mimeType || null,
     size_bytes: sizeBytes,
-    purpose: purpose || undefined,
+    purpose: normalizedPurpose,
     status: status || undefined,
     notes: notes || null,
   });

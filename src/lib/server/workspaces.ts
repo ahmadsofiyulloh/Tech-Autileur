@@ -256,11 +256,9 @@ function buildWorkspaceUpdatePayload(input: WorkspaceUpdateInput) {
   if (input.workspace_code !== undefined) {
     const workspaceCode = normalizeWorkspaceCode(input.workspace_code);
 
-    if (!workspaceCode) {
-      throw new Error("Workspace code is required.");
+    if (workspaceCode) {
+      payload.workspace_code = workspaceCode;
     }
-
-    payload.workspace_code = workspaceCode;
   }
 
   if (input.workspace_name !== undefined) {

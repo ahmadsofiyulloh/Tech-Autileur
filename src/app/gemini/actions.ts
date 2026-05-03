@@ -101,15 +101,25 @@ function parseOptionalInt(value: string, fieldName: string) {
   return parsed;
 }
 
+function buildGeminiKeyCode(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return normalized ? normalized.toUpperCase() : `GEMINI-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
 export async function saveGeminiKey(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
   const keyCode = readText(formData, "key_code");
-  const label = readText(formData, "label");
+  const label = readText(formData, "label") || readText(formData, "name");
   const googleAccountLabel = readText(formData, "google_account_label");
   const projectLabel = readText(formData, "project_label");
-  const modelName = readText(formData, "model_name");
-  const role = readText(formData, "role");
+  const modelName = readText(formData, "model_name") || readText(formData, "model");
+  const role = readText(formData, "role") || readText(formData, "purpose");
   const status = readText(formData, "status");
   const rawApiKey = readText(formData, "raw_api_key");
   const notes = readText(formData, "notes");
@@ -143,10 +153,6 @@ export async function saveGeminiKey(formData: FormData) {
     fail("Unsupported Gemini action.");
   }
 
-  if (!keyCode) {
-    fail("Key code is required.");
-  }
-
   if (!label) {
     fail("Label is required.");
   }
@@ -163,6 +169,7 @@ export async function saveGeminiKey(formData: FormData) {
     fail("Raw API key is required on create.");
   }
 
+  const normalizedKeyCode = keyCode || buildGeminiKeyCode(label);
   const normalizedModel = readModelName(modelName);
   const normalizedRole = readRole(role);
   const normalizedStatus = readStatus(status);
@@ -173,7 +180,7 @@ export async function saveGeminiKey(formData: FormData) {
       .from("gemini_api_keys")
       .insert({
         user_id: user.id,
-        key_code: keyCode,
+        key_code: normalizedKeyCode,
         label,
         provider: "gemini",
         google_account_label: googleAccountLabel || null,
@@ -260,7 +267,7 @@ export async function saveGeminiKey(formData: FormData) {
   const { error: updateError } = await supabase
     .from("gemini_api_keys")
     .update({
-      key_code: keyCode,
+      key_code: normalizedKeyCode,
       label,
       provider: "gemini",
       google_account_label: googleAccountLabel || null,

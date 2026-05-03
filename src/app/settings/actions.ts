@@ -8,6 +8,14 @@ import {
   updateAffiliateProfile,
 } from "@/lib/server/affiliate-profiles";
 import {
+  disableHelperApiToken as disableStoredHelperApiToken,
+  upsertHelperApiToken,
+} from "@/lib/server/helper-api-tokens";
+import {
+  archiveFlowAccount,
+  createFlowAccount,
+} from "@/lib/server/flow-accounts";
+import {
   archiveWorkspace,
   createWorkspace,
   setCurrentWorkspace,
@@ -22,6 +30,22 @@ function readText(formData: FormData, key: string) {
 
 function readBoolean(formData: FormData, key: string) {
   return formData.get(key) === "on" || formData.get(key) === "true";
+}
+
+function readOptionalNumber(formData: FormData, key: string) {
+  const value = readText(formData, key);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${key} must be a non-negative number.`);
+  }
+
+  return parsed;
 }
 
 function fail(message: string): never {
@@ -191,6 +215,81 @@ export async function saveAffiliateProfile(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Affiliate profile operation failed.";
+    fail(errorMessage);
+  }
+
+  revalidateSettingsSurface();
+  done(message);
+}
+
+export async function saveFlowAccount(formData: FormData) {
+  const intent = readText(formData, "intent");
+  const id = readText(formData, "id");
+  let message = "Flow account saved";
+
+  try {
+    if (intent === "create_flow_account") {
+      await createFlowAccount({
+        account_code: readText(formData, "account_code"),
+        account_type: readText(formData, "account_type"),
+        observed_daily_credit: readOptionalNumber(formData, "observed_daily_credit"),
+        observed_monthly_credit: readOptionalNumber(formData, "observed_monthly_credit"),
+        credit_per_generation: readOptionalNumber(formData, "credit_per_generation"),
+        max_parallel_allowed: readOptionalNumber(formData, "max_parallel_allowed"),
+        cooldown_minutes: readOptionalNumber(formData, "cooldown_minutes"),
+        status: readText(formData, "status"),
+        notes: readText(formData, "notes"),
+      });
+      message = "Flow account created";
+    } else if (intent === "archive_flow_account") {
+      if (!id) {
+        throw new Error("Missing flow account id.");
+      }
+
+      await archiveFlowAccount(id);
+      message = "Flow account archived";
+    } else {
+      throw new Error("Unsupported flow account action.");
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Flow account operation failed.";
+    fail(errorMessage);
+  }
+
+  revalidateSettingsSurface();
+  done(message);
+}
+
+export async function saveHelperApiToken(formData: FormData) {
+  const intent = readText(formData, "intent");
+  const id = readText(formData, "id");
+  const tokenCode = readText(formData, "token_code");
+  const rawToken = readText(formData, "raw_token");
+  let message = "App API Token saved";
+
+  try {
+    if (intent === "save_helper_api_token") {
+      if (!rawToken) {
+        throw new Error("Token value is required.");
+      }
+
+      await upsertHelperApiToken({
+        tokenCode,
+        rawToken,
+      });
+      message = "App API Token saved";
+    } else if (intent === "disable_helper_api_token") {
+      if (!id) {
+        throw new Error("Missing helper token id.");
+      }
+
+      await disableStoredHelperApiToken(id);
+      message = "App API Token disabled";
+    } else {
+      throw new Error("Unsupported helper token action.");
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Helper token operation failed.";
     fail(errorMessage);
   }
 

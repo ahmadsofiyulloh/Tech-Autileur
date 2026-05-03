@@ -7,11 +7,7 @@ import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import {
-  DRIVE_ITEM_PURPOSES,
-  DRIVE_ITEM_STATUSES,
-  DRIVE_ITEM_TYPES,
-} from "@/lib/drive/validation";
+import { DRIVE_FOLDER_PURPOSES, DRIVE_ITEM_STATUSES } from "@/lib/drive/validation";
 import { listDriveItems } from "@/lib/server/drive-items";
 
 export const dynamic = "force-dynamic";
@@ -46,14 +42,12 @@ export default async function DrivePage() {
     const message = error instanceof Error ? error.message : "Unable to load Drive.";
     return (
       <SectionCard icon={HardDrive} badge="Error" title="Unable to load Drive." description={message}>
-        <EmptyState
-          icon={HardDrive}
-          title="Drive unavailable."
-          description="Try again."
-        />
+        <EmptyState icon={HardDrive} title="Drive unavailable." description="Try again." />
       </SectionCard>
     );
   }
+
+  const folderItems = driveItems.filter((item) => item.item_type === "FOLDER");
 
   return (
     <div className="stack">
@@ -61,40 +55,37 @@ export default async function DrivePage() {
         icon={HardDrive}
         badge="Config"
         title="Drive"
-        description="Folders, files, and links."
         stats={[
-          { label: "Items", value: driveItems.length },
+          { label: "Folders", value: folderItems.length },
           { label: "Source", value: "Drive" },
-          { label: "Mode", value: <StatusBadge status="Reference" tone="success" /> },
+          { label: "Mode", value: <StatusBadge status="Folder-centric" tone="success" /> },
         ]}
       />
 
       <SectionCard
         icon={HardDrive}
         badge="New"
-        title="Add Drive item"
-        description="Register a link and path."
+        title="Tambah folder"
       >
         <form className="stack" action={saveDriveItem}>
           <input type="hidden" name="intent" value="create" />
+          <input type="hidden" name="item_type" value="FOLDER" />
           <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="create-item-type">
-              <span>Item Type</span>
-              <select id="create-item-type" name="item_type" defaultValue={DRIVE_ITEM_TYPES[0]} required>
-                {selectOptions(DRIVE_ITEM_TYPES)}
-              </select>
+            <label className="stack auth-field" htmlFor="create-name">
+              <span>Nama</span>
+              <input id="create-name" name="name" type="text" placeholder="AffiliateAI" required />
             </label>
             <label className="stack auth-field" htmlFor="create-purpose">
               <span>Purpose</span>
-              <select id="create-purpose" name="purpose" defaultValue="OTHER" required>
-                {selectOptions(DRIVE_ITEM_PURPOSES)}
+              <select id="create-purpose" name="purpose" defaultValue={DRIVE_FOLDER_PURPOSES[0]} required>
+                {selectOptions(DRIVE_FOLDER_PURPOSES)}
               </select>
             </label>
           </div>
           <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="create-name">
-              <span>Name</span>
-              <input id="create-name" name="name" type="text" placeholder="AffiliateAI" required />
+            <label className="stack auth-field" htmlFor="create-drive-item-id">
+              <span>Drive Item ID</span>
+              <input id="create-drive-item-id" name="drive_item_id" type="text" placeholder="Optional Drive folder id" />
             </label>
             <label className="stack auth-field" htmlFor="create-status">
               <span>Status</span>
@@ -104,67 +95,31 @@ export default async function DrivePage() {
             </label>
           </div>
           <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="create-drive-item-id">
-              <span>Drive Item ID</span>
-              <input id="create-drive-item-id" name="drive_item_id" type="text" placeholder="Optional for manual entry" />
-            </label>
-            <label className="stack auth-field" htmlFor="create-parent-drive-item-id">
-              <span>Google Parent ID</span>
-              <input
-                id="create-parent-drive-item-id"
-                name="parent_drive_item_id"
-                type="text"
-                placeholder="Optional Google Drive parent ID"
-              />
-            </label>
-          </div>
-          <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="create-parent-id">
-              <span>Parent Row ID</span>
-              <input id="create-parent-id" name="parent_id" type="text" placeholder="Optional local parent row id" />
-            </label>
-            <label className="stack auth-field" htmlFor="create-mime-type">
-              <span>MIME Type</span>
-              <input id="create-mime-type" name="mime_type" type="text" placeholder="Folder or file mime type" />
-            </label>
-          </div>
-          <div className="grid two-up">
             <label className="stack auth-field" htmlFor="create-drive-url">
               <span>Drive URL</span>
               <input id="create-drive-url" name="drive_url" type="url" placeholder="https://drive.google.com/..." required />
             </label>
-            <label className="stack auth-field" htmlFor="create-size-bytes">
-              <span>Size Bytes</span>
-              <input id="create-size-bytes" name="size_bytes" type="number" min="0" inputMode="numeric" />
+            <label className="stack auth-field" htmlFor="create-drive-path">
+              <span>Folder Path</span>
+              <input id="create-drive-path" name="drive_path" type="text" placeholder="/AffiliateAI/..." required />
             </label>
           </div>
-          <label className="stack auth-field" htmlFor="create-drive-path">
-            <span>Drive Path</span>
-            <input id="create-drive-path" name="drive_path" type="text" placeholder="/AffiliateAI/..." required />
-          </label>
-          <label className="stack auth-field" htmlFor="create-notes">
-            <span>Notes</span>
-            <textarea id="create-notes" name="notes" rows={3} placeholder="Optional notes" />
-          </label>
-          <p className="subtle">
-            Use the standard folder path.
-          </p>
           <FormActions>
             <button className="button primary" type="submit">
               <Save size={16} aria-hidden="true" />
-              Save Drive item
+              Save folder
             </button>
           </FormActions>
         </form>
       </SectionCard>
 
-      {driveItems.length ? (
+      {folderItems.length ? (
         <section className="stack">
-          {driveItems.map((item) => (
+          {folderItems.map((item) => (
             <SectionCard
               badge={item.name}
               icon={HardDrive}
-              title={item.item_type}
+              title="Folder"
               description={item.drive_path}
               key={item.id}
               actions={<StatusBadge status={item.status} />}
@@ -177,111 +132,68 @@ export default async function DrivePage() {
                   </strong>
                 </div>
                 <div className="metric">
-                  <span>Drive ID</span>
+                  <span>Drive Item ID</span>
                   <strong>{item.drive_item_id ?? "Manual only"}</strong>
                 </div>
                 <div className="metric">
                   <span>Source</span>
-                  <strong>Reference</strong>
+                  <strong>Folder metadata</strong>
                 </div>
               </div>
 
-              <form className="stack" action={saveDriveItem}>
-                <input type="hidden" name="intent" value="update" />
-                <input type="hidden" name="id" value={item.id} />
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor={`item-type-${item.id}`}>
-                    <span>Item Type</span>
-                    <select id={`item-type-${item.id}`} name="item_type" defaultValue={item.item_type} required>
-                      {selectOptions(DRIVE_ITEM_TYPES)}
-                    </select>
-                  </label>
-                  <label className="stack auth-field" htmlFor={`purpose-${item.id}`}>
-                    <span>Purpose</span>
-                    <select id={`purpose-${item.id}`} name="purpose" defaultValue={item.purpose} required>
-                      {selectOptions(DRIVE_ITEM_PURPOSES)}
-                    </select>
-                  </label>
-                </div>
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor={`name-${item.id}`}>
-                    <span>Name</span>
-                    <input id={`name-${item.id}`} name="name" type="text" defaultValue={item.name} required />
-                  </label>
-                  <label className="stack auth-field" htmlFor={`status-${item.id}`}>
-                    <span>Status</span>
-                    <select id={`status-${item.id}`} name="status" defaultValue={item.status} required>
-                      {selectOptions(DRIVE_ITEM_STATUSES)}
-                    </select>
-                  </label>
-                </div>
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor={`drive-item-id-${item.id}`}>
-                    <span>Drive Item ID</span>
-                    <input
-                      id={`drive-item-id-${item.id}`}
-                      name="drive_item_id"
-                      type="text"
-                      defaultValue={fieldValue(item.drive_item_id)}
-                    />
-                  </label>
-                  <label className="stack auth-field" htmlFor={`parent-drive-item-id-${item.id}`}>
-                    <span>Google Parent ID</span>
-                    <input
-                      id={`parent-drive-item-id-${item.id}`}
-                      name="parent_drive_item_id"
-                      type="text"
-                      defaultValue={fieldValue(item.parent_drive_item_id)}
-                    />
-                  </label>
-                </div>
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor={`parent-id-${item.id}`}>
-                    <span>Parent Row ID</span>
-                    <input id={`parent-id-${item.id}`} name="parent_id" type="text" defaultValue={fieldValue(item.parent_id)} />
-                  </label>
-                  <label className="stack auth-field" htmlFor={`mime-type-${item.id}`}>
-                    <span>MIME Type</span>
-                    <input
-                      id={`mime-type-${item.id}`}
-                      name="mime_type"
-                      type="text"
-                      defaultValue={fieldValue(item.mime_type)}
-                    />
-                  </label>
-                </div>
-                <div className="grid two-up">
-                  <label className="stack auth-field" htmlFor={`drive-url-${item.id}`}>
-                    <span>Drive URL</span>
-                    <input id={`drive-url-${item.id}`} name="drive_url" type="url" defaultValue={item.drive_url} required />
-                  </label>
-                  <label className="stack auth-field" htmlFor={`size-bytes-${item.id}`}>
-                    <span>Size Bytes</span>
-                    <input
-                      id={`size-bytes-${item.id}`}
-                      name="size_bytes"
-                      type="number"
-                      min="0"
-                      inputMode="numeric"
-                      defaultValue={fieldValue(item.size_bytes)}
-                    />
-                  </label>
-                </div>
-                <label className="stack auth-field" htmlFor={`drive-path-${item.id}`}>
-                  <span>Drive Path</span>
-                  <input id={`drive-path-${item.id}`} name="drive_path" type="text" defaultValue={item.drive_path} required />
-                </label>
-                <label className="stack auth-field" htmlFor={`notes-${item.id}`}>
-                  <span>Notes</span>
-                  <textarea id={`notes-${item.id}`} name="notes" rows={3} defaultValue={fieldValue(item.notes)} />
-                </label>
-                <FormActions>
-                  <button className="button primary" type="submit">
-                    <Save size={16} aria-hidden="true" />
-                    Save changes
-                  </button>
-                </FormActions>
-              </form>
+              <details>
+                <summary>Edit</summary>
+                <form className="stack" action={saveDriveItem}>
+                  <input type="hidden" name="intent" value="update" />
+                  <input type="hidden" name="id" value={item.id} />
+                  <input type="hidden" name="item_type" value="FOLDER" />
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor={`name-${item.id}`}>
+                      <span>Nama</span>
+                      <input id={`name-${item.id}`} name="name" type="text" defaultValue={item.name} required />
+                    </label>
+                    <label className="stack auth-field" htmlFor={`purpose-${item.id}`}>
+                      <span>Purpose</span>
+                      <select id={`purpose-${item.id}`} name="purpose" defaultValue={item.purpose} required>
+                        {selectOptions(DRIVE_FOLDER_PURPOSES)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor={`drive-item-id-${item.id}`}>
+                      <span>Drive Item ID</span>
+                      <input
+                        id={`drive-item-id-${item.id}`}
+                        name="drive_item_id"
+                        type="text"
+                        defaultValue={fieldValue(item.drive_item_id)}
+                      />
+                    </label>
+                    <label className="stack auth-field" htmlFor={`status-${item.id}`}>
+                      <span>Status</span>
+                      <select id={`status-${item.id}`} name="status" defaultValue={item.status} required>
+                        {selectOptions(DRIVE_ITEM_STATUSES)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="grid two-up">
+                    <label className="stack auth-field" htmlFor={`drive-url-${item.id}`}>
+                      <span>Drive URL</span>
+                      <input id={`drive-url-${item.id}`} name="drive_url" type="url" defaultValue={item.drive_url} required />
+                    </label>
+                    <label className="stack auth-field" htmlFor={`drive-path-${item.id}`}>
+                      <span>Folder Path</span>
+                      <input id={`drive-path-${item.id}`} name="drive_path" type="text" defaultValue={item.drive_path} required />
+                    </label>
+                  </div>
+                  <FormActions>
+                    <button className="button primary" type="submit">
+                      <Save size={16} aria-hidden="true" />
+                      Save changes
+                    </button>
+                  </FormActions>
+                </form>
+              </details>
 
               <FormActions>
                 <form action={saveDriveItem}>
@@ -289,7 +201,7 @@ export default async function DrivePage() {
                   <input type="hidden" name="id" value={item.id} />
                   <button className="button" type="submit">
                     <Archive size={16} aria-hidden="true" />
-                    Archive item
+                    Archive folder
                   </button>
                 </form>
               </FormActions>
@@ -297,11 +209,7 @@ export default async function DrivePage() {
           ))}
         </section>
       ) : (
-        <EmptyState
-          icon={HardDrive}
-          title="No Drive items yet."
-          description="Add a Drive reference."
-        />
+        <EmptyState icon={HardDrive} title="No folder metadata yet." description="Add a Drive folder." />
       )}
     </div>
   );

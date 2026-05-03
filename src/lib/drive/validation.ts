@@ -17,6 +17,10 @@ export const DRIVE_ITEM_PURPOSES = [
   "OTHER",
 ] as const;
 
+export const DRIVE_FOLDER_PURPOSES = DRIVE_ITEM_PURPOSES.filter(
+  (purpose) => purpose.endsWith("_FOLDER") || purpose === "UPLOAD_PACKAGE" || purpose === "OTHER",
+) as readonly DriveItemPurpose[];
+
 export const DRIVE_ITEM_STATUSES = ["ACTIVE", "ARCHIVED", "NEEDS_REVIEW", "UNMATCHED", "ERROR"] as const;
 
 export type DriveItemType = (typeof DRIVE_ITEM_TYPES)[number];

@@ -54,16 +54,16 @@ export function assertWorkspaceStatus(value: string): asserts value is Workspace
 }
 
 export function validateWorkspaceInput(input: WorkspaceInput) {
-  const workspaceCode = normalizeWorkspaceCode(input.workspace_code);
   const workspaceName = readWorkspaceText(input.workspace_name);
+  const workspaceCode = normalizeWorkspaceCode(input.workspace_code || workspaceName);
   const status = input.status ?? "ACTIVE";
-
-  if (!workspaceCode) {
-    throw new Error("Workspace code is required.");
-  }
 
   if (!workspaceName) {
     throw new Error("Workspace name is required.");
+  }
+
+  if (!workspaceCode) {
+    throw new Error("Workspace code is required.");
   }
 
   assertWorkspaceStatus(status);
