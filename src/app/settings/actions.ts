@@ -12,10 +12,6 @@ import {
   upsertHelperApiToken,
 } from "@/lib/server/helper-api-tokens";
 import {
-  archiveFlowAccount,
-  createFlowAccount,
-} from "@/lib/server/flow-accounts";
-import {
   archiveWorkspace,
   createWorkspace,
   setCurrentWorkspace,
@@ -32,37 +28,36 @@ function readBoolean(formData: FormData, key: string) {
   return formData.get(key) === "on" || formData.get(key) === "true";
 }
 
-function readOptionalNumber(formData: FormData, key: string) {
-  const value = readText(formData, key);
+function redirectWithMessage(path: string, key: "error" | "message", message: string): never {
+  const returnTo = safeReturnPath(path);
+  const separator = returnTo.includes("?") ? "&" : "?";
 
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`${key} must be a non-negative number.`);
-  }
-
-  return parsed;
+  redirect(`${returnTo}${separator}${key}=${encodeURIComponent(message)}`);
 }
 
-function fail(message: string): never {
-  redirect(`/settings?error=${encodeURIComponent(message)}`);
+function fail(message: string, path = "/settings"): never {
+  redirectWithMessage(path, "error", message);
 }
 
-function done(message: string): never {
-  redirect(`/settings?message=${encodeURIComponent(message)}`);
+function done(message: string, path = "/settings"): never {
+  redirectWithMessage(path, "message", message);
 }
 
 function revalidateWorkspaceSurfaces() {
   revalidatePath("/settings");
+  revalidatePath("/settings/workspace");
+  revalidatePath("/settings/affiliate-profiles");
   revalidatePath("/", "layout");
 }
 
 function revalidateSettingsSurface() {
   revalidatePath("/settings");
+  revalidatePath("/settings/workspace");
+  revalidatePath("/settings/affiliate-profiles");
+  revalidatePath("/settings/gemini");
+  revalidatePath("/settings/drive");
+  revalidatePath("/settings/account");
+  revalidatePath("/settings/flow");
 }
 
 function safeReturnPath(value: string) {
@@ -76,6 +71,7 @@ function safeReturnPath(value: string) {
 export async function saveWorkspace(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings/workspace");
   let message = "Workspace saved";
 
   try {
@@ -130,11 +126,11 @@ export async function saveWorkspace(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Workspace operation failed.";
-    fail(errorMessage);
+    fail(errorMessage, returnTo);
   }
 
   revalidateWorkspaceSurfaces();
-  done(message);
+  done(message, returnTo);
 }
 
 function affiliateProfileInputFromForm(formData: FormData) {
@@ -183,6 +179,7 @@ function affiliateProfilePersonalizationInputFromForm(formData: FormData) {
 export async function saveAffiliateProfile(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings/affiliate-profiles");
   let message = "Affiliate profile saved";
 
   try {
@@ -215,49 +212,11 @@ export async function saveAffiliateProfile(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Affiliate profile operation failed.";
-    fail(errorMessage);
+    fail(errorMessage, returnTo);
   }
 
   revalidateSettingsSurface();
-  done(message);
-}
-
-export async function saveFlowAccount(formData: FormData) {
-  const intent = readText(formData, "intent");
-  const id = readText(formData, "id");
-  let message = "Flow account saved";
-
-  try {
-    if (intent === "create_flow_account") {
-      await createFlowAccount({
-        account_code: readText(formData, "account_code"),
-        account_type: readText(formData, "account_type"),
-        observed_daily_credit: readOptionalNumber(formData, "observed_daily_credit"),
-        observed_monthly_credit: readOptionalNumber(formData, "observed_monthly_credit"),
-        credit_per_generation: readOptionalNumber(formData, "credit_per_generation"),
-        max_parallel_allowed: readOptionalNumber(formData, "max_parallel_allowed"),
-        cooldown_minutes: readOptionalNumber(formData, "cooldown_minutes"),
-        status: readText(formData, "status"),
-        notes: readText(formData, "notes"),
-      });
-      message = "Flow account created";
-    } else if (intent === "archive_flow_account") {
-      if (!id) {
-        throw new Error("Missing flow account id.");
-      }
-
-      await archiveFlowAccount(id);
-      message = "Flow account archived";
-    } else {
-      throw new Error("Unsupported flow account action.");
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Flow account operation failed.";
-    fail(errorMessage);
-  }
-
-  revalidateSettingsSurface();
-  done(message);
+  done(message, returnTo);
 }
 
 export async function saveHelperApiToken(formData: FormData) {
@@ -265,6 +224,7 @@ export async function saveHelperApiToken(formData: FormData) {
   const id = readText(formData, "id");
   const tokenCode = readText(formData, "token_code");
   const rawToken = readText(formData, "raw_token");
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings/account");
   let message = "App API Token saved";
 
   try {
@@ -290,11 +250,11 @@ export async function saveHelperApiToken(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Helper token operation failed.";
-    fail(errorMessage);
+    fail(errorMessage, returnTo);
   }
 
   revalidateSettingsSurface();
-  done(message);
+  done(message, returnTo);
 }
 
 export async function setCurrentWorkspaceFromShell(formData: FormData) {

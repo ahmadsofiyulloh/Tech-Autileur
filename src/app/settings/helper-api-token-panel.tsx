@@ -102,6 +102,7 @@ export function HelperApiTokenPanel({
         {payload ? (
           <form action={saveHelperApiToken}>
             <input type="hidden" name="intent" value="save_helper_api_token" />
+            <input type="hidden" name="return_to" value="/settings/account" />
             <input type="hidden" name="token_code" value={payload.token_code} />
             <input type="hidden" name="raw_token" value={payload.raw_token} />
             <button className="button compact" type="submit">
@@ -111,6 +112,7 @@ export function HelperApiTokenPanel({
         ) : null}
         <form action={saveHelperApiToken}>
           <input type="hidden" name="intent" value="disable_helper_api_token" />
+          <input type="hidden" name="return_to" value="/settings/account" />
           <input type="hidden" name="id" value={currentToken?.id ?? ""} />
           <button className="button compact" type="submit" disabled={!currentToken || currentToken.status === "DISABLED"}>
             Cabut token
