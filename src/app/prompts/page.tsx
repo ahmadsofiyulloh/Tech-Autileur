@@ -32,6 +32,17 @@ type PromptTaskRecord = {
   error_message: string | null;
 };
 
+type PromptsPageProps = {
+  searchParams: Promise<{
+    intake_id?: string | string[];
+    product_id?: string | string[];
+  }>;
+};
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function pickerOption(value: string, label: string, description?: string | null) {
   return {
     value,
@@ -306,7 +317,7 @@ function emptyClipValues() {
   };
 }
 
-export default async function PromptsPage() {
+export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -316,6 +327,9 @@ export default async function PromptsPage() {
     redirect("/login");
   }
 
+  const query = await searchParams;
+  const requestedProductId = firstParam(query.product_id);
+  const requestedIntakeId = firstParam(query.intake_id);
   const currentWorkspace = await getCurrentWorkspace();
   const workspaceId = currentWorkspace?.id ?? undefined;
 
@@ -401,6 +415,19 @@ export default async function PromptsPage() {
           .join(" - "),
       );
     });
+  const requestedIntake = requestedIntakeId ? intakeSessionMap.get(requestedIntakeId) ?? null : null;
+  const defaultProductId =
+    requestedProductId && productMap.has(requestedProductId)
+      ? requestedProductId
+      : requestedIntake?.product_id && productMap.has(requestedIntake.product_id)
+        ? requestedIntake.product_id
+        : products[0]?.id ?? "";
+  const defaultIntakeId =
+    requestedIntake && (!requestedIntake.product_id || requestedIntake.product_id === defaultProductId) ? requestedIntake.id : "";
+  const defaultSourceImageId =
+    productImages.find((image) => image.product_id === defaultProductId && image.is_primary)?.id ??
+    productImages.find((image) => image.product_id === defaultProductId)?.id ??
+    "";
   const emptyClips = PROMPT_CLIP_KEYS.reduce(
     (result, clipKey) => ({
       ...result,
@@ -418,7 +445,7 @@ export default async function PromptsPage() {
             <input type="hidden" name="status" value="DRAFT" />
             <div className="grid two-up">
               <RelationalPicker
-                defaultValue={products[0]?.id ?? ""}
+                defaultValue={defaultProductId}
                 label="Produk"
                 name="product_id"
                 options={productPickerOptions}
@@ -435,7 +462,7 @@ export default async function PromptsPage() {
               <RelationalPicker
                 allowClear
                 emptyLabel="Kosong"
-                defaultValue=""
+                defaultValue={defaultIntakeId}
                 label="Intake"
                 name="intake_session_id"
                 options={intakeSessionPickerOptions}
@@ -456,7 +483,7 @@ export default async function PromptsPage() {
             <RelationalPicker
               allowClear
               emptyLabel="Kosong"
-              defaultValue=""
+              defaultValue={defaultSourceImageId}
               label="Foto Produk Utama"
               name="source_product_image_id"
               options={sourceImagePickerOptions}

@@ -82,6 +82,16 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
   return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
 }
 
+function promptHref(productId: string, intakeId?: string | null) {
+  const searchParams = new URLSearchParams({ product_id: productId });
+
+  if (intakeId) {
+    searchParams.set("intake_id", intakeId);
+  }
+
+  return `/prompts?${searchParams.toString()}`;
+}
+
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -476,6 +486,8 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     ? driveItemMap.get(latestPromptPackSourceImage.drive_item_ref_id) ?? null
     : null;
   const latestPromptPackPromptContextJson = prettyJson((latestPromptPack?.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
+  const promptCreateHref = promptHref(product.id, latestIntakeSession?.id);
+  const promptEditorHref = promptHref(product.id, latestPromptPackIntake?.id ?? latestIntakeSession?.id);
 
   const timelineItems = [
     {
@@ -751,7 +763,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 <PromptPackContractPreview pack={latestPromptPack} />
                 {latestPromptPack.error_message ? <section className="error-box">{latestPromptPack.error_message}</section> : null}
                 <FormActions>
-                  <Link className="button primary" href="/prompts">
+                  <Link className="button primary" href={promptEditorHref}>
                     Buka editor
                   </Link>
                 </FormActions>
@@ -761,7 +773,17 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 </details>
               </div>
             ) : (
-              <EmptyState icon={FileText} title="No prompt pack yet." description="Belum ada prompt pack." />
+              <EmptyState
+                icon={FileText}
+                title="Belum ada prompt pack."
+                description="Buat prompt dari produk ini."
+                action={
+                  <Link className="button primary" href={promptCreateHref}>
+                    <Plus size={16} aria-hidden="true" />
+                    Buat Prompt
+                  </Link>
+                }
+              />
             )}
           </SectionCard>
         </section>

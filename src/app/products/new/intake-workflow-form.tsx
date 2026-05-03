@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, FileImage, Link2, Loader2, Upload, WandSparkles, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileImage, FileText, Link2, Loader2, Upload, WandSparkles, type LucideIcon } from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -83,6 +83,15 @@ function readReviewValue(metadata: JsonRecord | null, key: string, fallbackKey?:
   }
 
   return "";
+}
+
+function promptHref(productId: string, intakeId: string) {
+  const searchParams = new URLSearchParams({
+    product_id: productId,
+    intake_id: intakeId,
+  });
+
+  return `/prompts?${searchParams.toString()}`;
 }
 
 function SubmitButton({
@@ -282,6 +291,7 @@ function AnalysisReadyPanel({
   const defaultSellingAngle = readReviewValue(reviewSource, "selling_angle");
   const defaultTargetViewer = readReviewValue(reviewSource, "target_viewer");
   const defaultRiskNotes = readMetadataTextarea(reviewSource?.catatan_risiko || reviewSource?.risk_notes);
+  const promptProductId = savedSession.status === "REVIEWED" ? savedSession.product_id : null;
 
   return (
     <form action={saveIntake} className="stack">
@@ -352,6 +362,12 @@ function AnalysisReadyPanel({
           <SubmitButton icon={CheckCircle2} pendingLabel="Menyimpan" disabled={!savedSession.id}>
             Simpan Review
           </SubmitButton>
+          {promptProductId ? (
+            <Link className="button primary" href={promptHref(promptProductId, savedSession.id)}>
+              <FileText size={16} aria-hidden="true" />
+              Buat Prompt
+            </Link>
+          ) : null}
           {savedSession.product_id ? (
             <Link className="button" href={`/products/${savedSession.product_id}`}>
               <Link2 size={16} aria-hidden="true" />
