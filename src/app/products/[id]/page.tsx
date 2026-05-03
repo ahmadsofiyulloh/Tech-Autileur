@@ -2,9 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Archive, Clock3, FileText, Image, Link2, Package, Plus, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
+import { FormActions } from "@/components/operator/form-actions";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { listContents } from "@/lib/server/contents";
+import { listFlowAccounts } from "@/lib/server/flow-accounts";
+import { listFlowBatches } from "@/lib/server/flow-batches";
+import { listClipJobs, listGeneratedFiles } from "@/lib/server/clip-jobs";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
@@ -14,11 +19,29 @@ import { getProductById, listProductImages } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
+import { PROMPT_CLIP_KEYS, PROMPT_CLIP_LABELS, PROMPT_TARGET_MARKETPLACE } from "@/lib/prompts/validation";
 
 export const dynamic = "force-dynamic";
 
+type ProductRecord = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
+type ProductImageRecord = Awaited<ReturnType<typeof listProductImages>>[number];
+type IntakeSessionRecord = Awaited<ReturnType<typeof listIntakeSessions>>[number];
+type PromptPackRecord = Awaited<ReturnType<typeof listPromptPacks>>[number];
+type ContentRecord = Awaited<ReturnType<typeof listContents>>[number];
+type FlowBatchRecord = Awaited<ReturnType<typeof listFlowBatches>>[number];
+type FlowAccountRecord = Awaited<ReturnType<typeof listFlowAccounts>>[number];
+type ClipJobRecord = Awaited<ReturnType<typeof listClipJobs>>[number];
+type GeneratedFileRecord = Awaited<ReturnType<typeof listGeneratedFiles>>[number];
+type DriveItemRecord = Awaited<ReturnType<typeof listDriveItems>>[number];
+type AffiliateProfileRecord = Awaited<ReturnType<typeof listAffiliateProfiles>>[number];
+type MarketplaceSourceRecord = Awaited<ReturnType<typeof listProductMarketplaceSources>>[number];
+type ProductAnchorRecord = Awaited<ReturnType<typeof listProductAnchors>>[number];
+type WorkspaceRecord = Awaited<ReturnType<typeof listWorkspaces>>[number];
+
 const detailTabs = [
   { key: "metadata", label: "Metadata" },
+  { key: "prompt_pack", label: "Paket Prompt" },
   { key: "output", label: "Output" },
   { key: "history", label: "History" },
 ] as const;
@@ -59,6 +82,215 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
   return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
 }
 
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readJsonText(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return "";
+}
+
+function readJsonField(record: unknown, key: string) {
+  if (!isJsonRecord(record)) {
+    return null;
+  }
+
+  return record[key] ?? null;
+}
+
+function readJsonFieldText(record: unknown, key: string) {
+  return readJsonText(readJsonField(record, key));
+}
+
+function formatTagText(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    const tags = value
+      .map((item) => readJsonText(item))
+      .filter(Boolean)
+      .map((tag) => tag.replace(/^#+/, ""))
+      .map((tag) => `#${tag}`);
+
+    return tags.length ? tags.join(" ") : "";
+  }
+
+  if (isJsonRecord(value)) {
+    const arrayCandidate = value.tags ?? value.tag_list ?? value.items;
+
+    if (Array.isArray(arrayCandidate)) {
+      return formatTagText(arrayCandidate);
+    }
+  }
+
+  return "";
+}
+
+function resolveCaption(content: ContentRecord | null | undefined) {
+  if (!content) {
+    return "";
+  }
+
+  return (
+    content.caption_shopee?.trim() ||
+    content.caption_tiktok?.trim() ||
+    content.angle?.trim() ||
+    content.hook_type?.trim() ||
+    content.content_code
+  );
+}
+
+function resolveTags(content: ContentRecord | null | undefined) {
+  if (!content) {
+    return "";
+  }
+
+  return formatTagText(content.tags_shopee) || formatTagText(content.tags_tiktok);
+}
+
+function resolveOutputClipStatus(
+  clipJob: ClipJobRecord | null | undefined,
+  generatedFile: GeneratedFileRecord | null | undefined,
+) {
+  if (clipJob?.status === "APPROVED" || generatedFile?.match_status === "MATCHED") {
+    return "Approved";
+  }
+
+  if (
+    generatedFile ||
+    clipJob?.status === "IMPORTED" ||
+    clipJob?.status === "NEEDS_REVIEW" ||
+    clipJob?.status === "RUNNING" ||
+    clipJob?.status === "IMPORTING"
+  ) {
+    return "Imported";
+  }
+
+  return "Belum Ada";
+}
+
+function resolveOutputPackageStatus(clipStatuses: string[]) {
+  if (!clipStatuses.length || clipStatuses.every((status) => status === "Belum Ada")) {
+    return "Belum Ada";
+  }
+
+  if (clipStatuses.every((status) => status === "Approved")) {
+    return "Approved";
+  }
+
+  return "Imported";
+}
+
+function toneForClipStatus(status: string) {
+  if (status === "Approved") {
+    return "success" as const;
+  }
+
+  if (status === "Imported") {
+    return "info" as const;
+  }
+
+  return "neutral" as const;
+}
+
+function toneForFileStatus(status: string) {
+  if (status === "MATCHED" || status === "IMPORTED") {
+    return "success" as const;
+  }
+
+  if (status === "NEEDS_REVIEW") {
+    return "warning" as const;
+  }
+
+  if (status === "ERROR") {
+    return "danger" as const;
+  }
+
+  return "info" as const;
+}
+
+function formatFlowAccountLabel(account: FlowAccountRecord | null | undefined) {
+  return account?.account_code ?? "Akun tidak tersedia";
+}
+
+function flowBatchStatusLabel(batch: FlowBatchRecord) {
+  return batch.status === "READY_TO_EXPORT"
+    ? "Siap Ekspor"
+    : batch.status === "EXPORTED"
+      ? "Terekspor"
+      : batch.status === "RUNNING"
+        ? "Sedang Flow"
+        : batch.status === "IMPORTING"
+          ? "Mengimpor"
+          : batch.status === "PARTIALLY_IMPORTED"
+            ? "Sebagian Masuk"
+            : batch.status === "IMPORTED"
+              ? "Masuk"
+              : batch.status === "NEED_MANUAL_MATCH"
+                ? "Perlu Cocokkan"
+                : batch.status === "CLOSED"
+                  ? "Selesai"
+                : batch.status;
+}
+
+function PromptPackContractPreview({ pack }: { pack: PromptPackRecord }) {
+  const promptSet = readPromptPackEditorPromptSet(pack);
+
+  return (
+    <div className="stack">
+      <section className="grid two-up">
+        {PROMPT_CLIP_KEYS.map((clipKey) => {
+          const clip = promptSet.clips[clipKey];
+
+          return (
+            <div className="muted-box stack-tight" key={clipKey}>
+              <strong>{PROMPT_CLIP_LABELS[clipKey]}</strong>
+              <div className="stack-tight">
+                <span className="subtle">I2I First Frame</span>
+                <p>{clip.i2i_first_frame || "Belum ada."}</p>
+              </div>
+              <div className="stack-tight">
+                <span className="subtle">I2I Last Frame</span>
+                <p>{clip.i2i_last_frame || "Belum ada."}</p>
+              </div>
+              <div className="stack-tight">
+                <span className="subtle">I2V Prompt</span>
+                <p>{clip.i2v_prompt || "Belum ada."}</p>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Caption</span>
+          <strong>{promptSet.caption || "Belum ada"}</strong>
+        </div>
+        <div className="metric">
+          <span>Tags</span>
+          <strong>{promptSet.tags || "Belum ada"}</strong>
+        </div>
+        <div className="metric">
+          <span>Target Marketplace</span>
+          <strong>
+            <StatusBadge status={PROMPT_TARGET_MARKETPLACE} tone="info" />
+          </strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default async function ProductDetailPage({ params, searchParams }: ProductDetailPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -72,43 +304,52 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const activeTab = resolveTab(query.tab);
 
-  let product;
+  let product: ProductRecord | null = null;
+  let productImages: ProductImageRecord[] = [];
+  let driveItems: DriveItemRecord[] = [];
+  let intakeSessions: IntakeSessionRecord[] = [];
+  let marketplaceSources: MarketplaceSourceRecord[] = [];
+  let anchors: ProductAnchorRecord[] = [];
+  let promptPacks: PromptPackRecord[] = [];
+  let workspaces: WorkspaceRecord[] = [];
+  let affiliateProfiles: AffiliateProfileRecord[] = [];
+  let contents: ContentRecord[] = [];
+  let flowBatches: FlowBatchRecord[] = [];
+  let flowAccounts: FlowAccountRecord[] = [];
+  let clipJobs: ClipJobRecord[] = [];
+  let generatedFiles: GeneratedFileRecord[] = [];
 
   try {
-    product = await getProductById(id);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load product.";
-
-    return (
-      <SectionCard icon={Package} badge="Error" title="Unable to load product." description={message}>
-        <EmptyState icon={Package} title="Product unavailable." description="Try again." />
-      </SectionCard>
-    );
-  }
-
-  if (!product) {
-    notFound();
-  }
-
-  let productImages;
-  let driveItems;
-  let intakeSessions;
-  let marketplaceSources;
-  let anchors;
-  let promptPacks;
-  let workspaces;
-  let affiliateProfiles;
-
-  try {
-    [productImages, driveItems, marketplaceSources, anchors, promptPacks, intakeSessions, workspaces, affiliateProfiles] = await Promise.all([
-      listProductImages({ productId: product.id, limit: 200 }),
+    [
+      product,
+      productImages,
+      driveItems,
+      intakeSessions,
+      marketplaceSources,
+      anchors,
+      promptPacks,
+      workspaces,
+      affiliateProfiles,
+      contents,
+      flowBatches,
+      flowAccounts,
+      clipJobs,
+      generatedFiles,
+    ] = await Promise.all([
+      getProductById(id),
+      listProductImages({ productId: id, limit: 200 }),
       listDriveItems({ limit: 200 }),
-      listProductMarketplaceSources({ productId: product.id, limit: 200 }),
-      listProductAnchors({ productId: product.id, limit: 200 }),
-      listPromptPacks({ productId: product.id, limit: 200 }),
-      listIntakeSessions({ productId: product.id, limit: 200 }),
+      listIntakeSessions({ productId: id, limit: 200 }),
+      listProductMarketplaceSources({ productId: id, limit: 200 }),
+      listProductAnchors({ productId: id, limit: 200 }),
+      listPromptPacks({ productId: id, limit: 200 }),
       listWorkspaces({ limit: 200 }),
-      listAffiliateProfiles({ workspaceId: product.workspace_id ?? undefined, limit: 200 }),
+      listAffiliateProfiles({ limit: 200 }),
+      listContents({ productId: id, limit: 200 }),
+      listFlowBatches({ productId: id, limit: 200 }),
+      listFlowAccounts({ limit: 200 }),
+      listClipJobs({ limit: 200 }),
+      listGeneratedFiles({ limit: 200 }),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load product detail.";
@@ -117,9 +358,9 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       <div className="stack">
         <PageHeader
           icon={Package}
-          badge={product.product_code}
-          title={product.product_name}
-          description="Product detail is unavailable."
+          badge="Error"
+          title="Unable to load product detail."
+          description={message}
           actions={
             <Link className="button" href="/products">
               <ArrowLeft size={16} aria-hidden="true" />
@@ -134,13 +375,110 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     );
   }
 
+  if (!product) {
+    notFound();
+  }
+
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
+  const scopedAffiliateProfiles = product.workspace_id
+    ? affiliateProfiles.filter((profile) => profile.workspace_id === product.workspace_id)
+    : affiliateProfiles;
+  const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const flowAccountMap = new Map(flowAccounts.map((account) => [account.id, account]));
   const generatedPromptCount = promptPacks.filter((pack) => pack.status === "GENERATED").length;
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
+  const latestPromptPack = promptPacks[0] ?? null;
+  const latestIntakeSession = intakeSessions.find((session) => session.reviewed_metadata_json || session.parsed_metadata_json) ?? null;
+  const reviewedMetadata = (latestIntakeSession?.reviewed_metadata_json ?? latestIntakeSession?.parsed_metadata_json ?? null) as
+    | Record<string, unknown>
+    | null;
+  const orderedContents = [...contents].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
+  const outputContents = orderedContents.slice(0, 2);
+  const contentMap = new Map(contents.map((content) => [content.id, content]));
+  const relevantContentIds = new Set(contents.map((content) => content.id));
+  const relevantClipJobs = clipJobs.filter((clipJob) => relevantContentIds.has(clipJob.content_id));
+  const clipJobsByContentId = new Map<string, ClipJobRecord[]>();
+  const clipJobMap = new Map<string, ClipJobRecord>();
+
+  for (const clipJob of relevantClipJobs) {
+    clipJobMap.set(clipJob.id, clipJob);
+    const existing = clipJobsByContentId.get(clipJob.content_id) ?? [];
+    existing.push(clipJob);
+    clipJobsByContentId.set(clipJob.content_id, existing);
+  }
+
+  const generatedFilesByClipJobId = new Map<string, GeneratedFileRecord[]>();
+
+  for (const generatedFile of generatedFiles) {
+    if (!generatedFile.clip_job_id || !clipJobMap.has(generatedFile.clip_job_id)) {
+      continue;
+    }
+
+    const existing = generatedFilesByClipJobId.get(generatedFile.clip_job_id) ?? [];
+    existing.push(generatedFile);
+    generatedFilesByClipJobId.set(generatedFile.clip_job_id, existing);
+  }
+
+  const relevantGeneratedFiles = generatedFiles.filter((generatedFile) => generatedFile.clip_job_id && clipJobMap.has(generatedFile.clip_job_id));
+
+  const outputClipRows = [0, 1].map((slotIndex) => {
+    const content = outputContents[slotIndex] ?? null;
+
+    if (!content) {
+      return {
+        content: null,
+        clipJob: null,
+        generatedFile: null,
+        status: "Belum Ada",
+      } as const;
+    }
+
+    const relatedClipJobs = [...(clipJobsByContentId.get(content.id) ?? [])].sort(
+      (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+    );
+    const latestClipJob = relatedClipJobs[0] ?? null;
+    const generatedFile =
+      latestClipJob && generatedFilesByClipJobId.get(latestClipJob.id)
+        ? [...generatedFilesByClipJobId.get(latestClipJob.id)!].sort(
+            (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+          )[0] ?? null
+        : null;
+
+    return {
+      content,
+      clipJob: latestClipJob,
+      generatedFile,
+      status: resolveOutputClipStatus(latestClipJob, generatedFile),
+    } as const;
+  });
+
+  const outputPackageStatus = resolveOutputPackageStatus(outputClipRows.map((item) => item.status));
+  const latestFlowBatch = flowBatches[0] ?? null;
+  const driveFolderLink = latestFlowBatch?.drive_output_folder_url ?? latestFlowBatch?.drive_output_folder_id ?? null;
+  const outputCaption = outputClipRows[0] ? resolveCaption(outputClipRows[0].content) : "";
+  const outputTags = outputClipRows[0] ? resolveTags(outputClipRows[0].content) : "";
+  const outputProductName =
+    readJsonFieldText(reviewedMetadata, "nama_produk") || readJsonFieldText(reviewedMetadata, "product_title") || product.product_name;
+  const outputKeyword =
+    readJsonFieldText(reviewedMetadata, "keyword_cari_etalase") ||
+    readJsonFieldText(reviewedMetadata, "category") ||
+    readJsonFieldText(reviewedMetadata, "selling_angle");
+  const latestPromptPackIntake = latestPromptPack?.intake_session_id
+    ? intakeSessions.find((session) => session.id === latestPromptPack.intake_session_id) ?? null
+    : null;
+  const latestPromptPackAffiliateProfile = latestPromptPack?.affiliate_profile_id
+    ? affiliateProfileMap.get(latestPromptPack.affiliate_profile_id) ?? null
+    : null;
+  const latestPromptPackSourceImage = latestPromptPack?.source_product_image_id
+    ? productImages.find((image) => image.id === latestPromptPack.source_product_image_id) ?? null
+    : null;
+  const latestPromptPackSourceDriveItem = latestPromptPackSourceImage
+    ? driveItemMap.get(latestPromptPackSourceImage.drive_item_ref_id) ?? null
+    : null;
+  const latestPromptPackPromptContextJson = prettyJson((latestPromptPack?.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
 
   const timelineItems = [
     {
@@ -171,6 +509,26 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       description: `${pack.prompt_code} v${pack.version}`,
       status: pack.status,
     })),
+    ...flowBatches.map((batch) => ({
+      at: batch.created_at,
+      title: "Flow batch",
+      description: [batch.batch_code, formatFlowAccountLabel(flowAccountMap.get(batch.flow_account_id) ?? null), batch.target_date]
+        .filter(Boolean)
+        .join(" - "),
+      status: flowBatchStatusLabel(batch),
+    })),
+    ...relevantClipJobs.map((clipJob) => ({
+      at: clipJob.created_at,
+      title: "Clip job",
+      description: [clipJob.job_code, clipJob.clip_code, clipJob.version].filter(Boolean).join(" - "),
+      status: clipJob.status,
+    })),
+    ...relevantGeneratedFiles.map((generatedFile) => ({
+      at: generatedFile.imported_at ?? generatedFile.created_at,
+      title: "Generated file",
+      description: generatedFile.file_name,
+      status: generatedFile.match_status,
+    })),
     ...anchors.map((anchor) => ({
       at: anchor.created_at,
       title: "Anchor",
@@ -185,7 +543,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
         icon={Package}
         badge={product.product_code}
         title={product.product_name}
-        description={`Main product surface. Workspace: ${productWorkspaceLabel}.`}
+        description={`Workspace: ${productWorkspaceLabel}.`}
         actions={
           <>
             <Link className="button" href="/products">
@@ -226,7 +584,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
           <SectionCard
             icon={Package}
             title="Product metadata"
-            description="Product record, intake source, and marketplace context."
             actions={<StatusBadge status={product.status} />}
           >
             <div className="metric-grid">
@@ -268,7 +625,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
             {product.notes ? <p>{product.notes}</p> : <p className="subtle">No product notes yet.</p>}
           </SectionCard>
 
-          <SectionCard icon={Image} title="Source images" description="Existing Drive-backed product image references.">
+          <SectionCard icon={Image} title="Source images">
             {productImages.length ? (
               <ul className="list">
                 {productImages.map((image) => {
@@ -288,11 +645,11 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 })}
               </ul>
             ) : (
-              <EmptyState icon={Image} title="No source images." description="Attach Drive references before live visual prompt work." />
+              <EmptyState icon={Image} title="No source images." description="Belum ada gambar." />
             )}
           </SectionCard>
 
-          <SectionCard icon={Archive} title="Intake" description="Intake sessions linked to this product.">
+          <SectionCard icon={Archive} title="Intake">
             {intakeSessions.length ? (
               <ul className="list">
                 {intakeSessions.map((session) => (
@@ -310,11 +667,11 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 ))}
               </ul>
             ) : (
-              <EmptyState icon={Archive} title="No linked intake." description="New intake sessions appear here after they are linked to a product." />
+              <EmptyState icon={Archive} title="No linked intake." description="Belum ada intake." />
             )}
           </SectionCard>
 
-          <SectionCard icon={Link2} title="Marketplace sources" description="Shopee and TikTok source metadata saved for this product.">
+          <SectionCard icon={Link2} title="Marketplace sources">
             {marketplaceSources.length ? (
               <section className="grid two-up">
                 {marketplaceSources.map((source) => (
@@ -336,11 +693,11 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 ))}
               </section>
             ) : (
-              <EmptyState icon={Link2} title="No marketplace sources." description="Saved source metadata appears here." />
+              <EmptyState icon={Link2} title="No marketplace sources." description="Belum ada source." />
             )}
           </SectionCard>
 
-          <SectionCard icon={Workflow} title="Anchor summary" description="Canonical source anchor for prompt continuity.">
+          <SectionCard icon={Workflow} title="Anchor summary">
             {anchors.length ? (
               <section className="stack">
                 {anchors.map((anchor) => (
@@ -359,7 +716,60 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 ))}
               </section>
             ) : (
-              <EmptyState icon={Workflow} title="No anchor yet." description="Anchor data appears here after the intake review flow creates it." />
+              <EmptyState icon={Workflow} title="No anchor yet." description="Belum ada anchor." />
+            )}
+          </SectionCard>
+        </section>
+      ) : null}
+
+      {activeTab === "prompt_pack" ? (
+        <section className="stack">
+          <SectionCard
+            icon={FileText}
+            title="Paket Prompt"
+            actions={latestPromptPack ? <StatusBadge status={latestPromptPack.status} /> : null}
+          >
+            {latestPromptPack ? (
+              <div className="muted-box stack">
+                <div className="section-card__actions">
+                  <strong>{latestPromptPack.prompt_code}</strong>
+                  <div className="section-card__actions">
+                    <StatusBadge status={latestPromptPack.status} />
+                    <StatusBadge status={`Versi ${latestPromptPack.version}`} tone="info" />
+                  </div>
+                </div>
+                <div className="metric-grid">
+                  <div className="metric">
+                    <span>Intake</span>
+                    <strong>{latestPromptPackIntake?.intake_code ?? "Latest workspace intake"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Affiliate profile</span>
+                    <strong>{latestPromptPackAffiliateProfile?.profile_name ?? "Workspace default"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Source image</span>
+                    <strong>{latestPromptPackSourceDriveItem?.name ?? "Not attached"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Created</span>
+                    <strong>{formatDate(latestPromptPack.created_at)}</strong>
+                  </div>
+                </div>
+                <PromptPackContractPreview pack={latestPromptPack} />
+                {latestPromptPack.error_message ? <section className="error-box">{latestPromptPack.error_message}</section> : null}
+                <FormActions>
+                  <Link className="button primary" href="/prompts">
+                    Buka editor
+                  </Link>
+                </FormActions>
+                <details>
+                  <summary>Prompt context</summary>
+                  <pre className="json-block">{latestPromptPackPromptContextJson}</pre>
+                </details>
+              </div>
+            ) : (
+              <EmptyState icon={FileText} title="No prompt pack yet." description="Belum ada prompt pack." />
             )}
           </SectionCard>
         </section>
@@ -370,34 +780,91 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
           <SectionCard
             icon={Archive}
             title="Output"
-            description="Clips, captions, tags, links, and upload status will live on the product."
           >
-            <div className="metric-grid">
-              <div className="metric">
-                <span>Clips</span>
-                <strong>Not built</strong>
+            {outputContents.length ? (
+              <div className="stack">
+                <div className="metric-grid">
+                  <div className="metric">
+                    <span>Nama Produk</span>
+                    <strong>{outputProductName}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Keyword Etalase</span>
+                    <strong>{outputKeyword || "Belum ada"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Caption</span>
+                    <strong>{outputCaption || "Belum ada"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Tags</span>
+                    <strong>{outputTags || "Belum ada"}</strong>
+                  </div>
+                  <div className="metric">
+                    <span>Folder Drive</span>
+                    <strong>
+                      {driveFolderLink ? (
+                        driveFolderLink.startsWith("http") ? (
+                          <a href={driveFolderLink} target="_blank" rel="noreferrer">
+                            {driveFolderLink}
+                          </a>
+                        ) : (
+                          driveFolderLink
+                        )
+                      ) : (
+                        "Belum ada"
+                      )}
+                    </strong>
+                  </div>
+                  <div className="metric">
+                    <span>Status</span>
+                    <strong>
+                      <StatusBadge status={outputPackageStatus} tone={toneForClipStatus(outputPackageStatus)} />
+                    </strong>
+                  </div>
+                </div>
+                <section className="grid two-up">
+                  {outputClipRows.map(({ generatedFile, status }, index) => {
+                    const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
+                    const clipLabel = `Clip ${index + 1}`;
+
+                    return (
+                      <div className="muted-box stack-tight" key={clipLabel}>
+                        <div className="section-card__actions">
+                          <strong>{clipLabel}</strong>
+                          <StatusBadge status={status} tone={toneForClipStatus(status)} />
+                        </div>
+                        {generatedDriveItem ? (
+                          <a href={generatedDriveItem.drive_url} target="_blank" rel="noreferrer">
+                            {generatedDriveItem.name}
+                          </a>
+                        ) : null}
+                        {!generatedDriveItem ? (
+                          <EmptyState
+                            icon={Archive}
+                            title={`${clipLabel} belum ada.`}
+                            description="Drive link belum tersedia."
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </section>
               </div>
-              <div className="metric">
-                <span>Caption</span>
-                <strong>Not built</strong>
-              </div>
-              <div className="metric">
-                <span>Upload status</span>
-                <strong>Not built</strong>
-              </div>
-            </div>
-            <EmptyState
-              icon={Archive}
-              title="Output package is not implemented in Sprint 12A."
-              description="Controller will show output/import status during execution workflow scaffolding."
-            />
+            ) : (
+              <EmptyState
+                icon={Archive}
+                title="No output package yet."
+                description="Belum ada output."
+              />
+            )}
           </SectionCard>
         </section>
       ) : null}
 
       {activeTab === "history" ? (
         <section className="stack">
-          <SectionCard icon={Clock3} title="History" description="Simple product timeline from existing records.">
+          <SectionCard icon={Clock3} title="History">
             <ol className="timeline">
               {timelineItems.map((item, index) => (
                 <li className="timeline-item" key={`${item.title}-${item.at}-${index}`}>
@@ -411,10 +878,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
               ))}
             </ol>
           </SectionCard>
-          <SectionCard icon={FileText} title="Prompt history" description="Prompt packs remain product history. Prompt editing starts from the intake workflow.">
+          <SectionCard icon={FileText} title="Prompt pack versions">
             {promptPacks.length ? (
               <section className="stack">
-              {promptPacks.map((pack) => {
+                {promptPacks.map((pack) => {
                   const intakeSession = pack.intake_session_id
                     ? intakeSessions.find((session) => session.id === pack.intake_session_id) ?? null
                     : null;
@@ -469,17 +936,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                         </div>
                       </div>
                       {pack.error_message ? <section className="error-box">{pack.error_message}</section> : null}
+                      <PromptPackContractPreview pack={pack} />
                       <details open>
                         <summary>Product analysis</summary>
                         <pre className="json-block">{prettyJson(pack.product_analysis_json)}</pre>
-                      </details>
-                      <details>
-                        <summary>I2I prompts</summary>
-                        <pre className="json-block">{prettyJson(pack.i2i_prompts_json)}</pre>
-                      </details>
-                      <details>
-                        <summary>I2V prompts</summary>
-                        <pre className="json-block">{prettyJson(pack.i2v_prompts_json)}</pre>
                       </details>
                       <details>
                         <summary>Consistency rules</summary>
@@ -502,7 +962,100 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 })}
               </section>
             ) : (
-              <EmptyState icon={FileText} title="No prompt packs yet." description="Prompt packs created for this product will appear here." />
+              <EmptyState icon={FileText} title="No prompt packs yet." description="Belum ada prompt pack." />
+            )}
+          </SectionCard>
+          <SectionCard icon={Workflow} title="Flow batches">
+            {flowBatches.length ? (
+              <ul className="list">
+                {flowBatches.map((batch) => {
+                  const flowAccount = flowAccountMap.get(batch.flow_account_id) ?? null;
+
+                  return (
+                    <li key={batch.id}>
+                      <div className="stack-tight">
+                        <strong>{batch.batch_code}</strong>
+                        <span className="subtle">
+                          {[flowBatchStatusLabel(batch), formatFlowAccountLabel(flowAccount), batch.target_date].filter(Boolean).join(" - ")}
+                        </span>
+                        {batch.drive_output_folder_url ? (
+                          <a href={batch.drive_output_folder_url} target="_blank" rel="noreferrer">
+                            Drive folder
+                          </a>
+                        ) : null}
+                      </div>
+                      <StatusBadge status={batch.status} />
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <EmptyState icon={Workflow} title="No flow batches yet." description="Belum ada batch." />
+            )}
+          </SectionCard>
+          <SectionCard icon={FileText} title="Clip jobs">
+            {relevantClipJobs.length ? (
+              <ul className="list">
+                {[...relevantClipJobs]
+                  .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+                  .map((clipJob) => {
+                    const content = contentMap.get(clipJob.content_id) ?? null;
+                    const generatedFile = generatedFilesByClipJobId.get(clipJob.id)?.[0] ?? null;
+                    const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
+
+                    return (
+                      <li key={clipJob.id}>
+                        <div className="stack-tight">
+                          <strong>{clipJob.job_code}</strong>
+                          <span className="subtle">
+                            {[content?.content_code, clipJob.clip_code, clipJob.version].filter(Boolean).join(" - ")}
+                          </span>
+                          <span className="subtle">{clipJob.prompt_prefix}</span>
+                          {generatedDriveItem ? (
+                            <a href={generatedDriveItem.drive_url} target="_blank" rel="noreferrer">
+                              {generatedDriveItem.name}
+                            </a>
+                          ) : null}
+                        </div>
+                        <StatusBadge status={clipJob.status} />
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : (
+              <EmptyState icon={FileText} title="No clip jobs yet." description="Belum ada clip job." />
+            )}
+          </SectionCard>
+          <SectionCard icon={Archive} title="Generated files">
+            {relevantGeneratedFiles.length ? (
+              <ul className="list">
+                {[...relevantGeneratedFiles]
+                  .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+                  .map((generatedFile) => {
+                    const clipJob = generatedFile.clip_job_id ? clipJobMap.get(generatedFile.clip_job_id) ?? null : null;
+                    const driveItem = driveItemMap.get(generatedFile.drive_item_id) ?? null;
+
+                    return (
+                      <li key={generatedFile.id}>
+                        <div className="stack-tight">
+                          <strong>{generatedFile.file_name}</strong>
+                          <span className="subtle">
+                            {[clipJob?.job_code, clipJob?.clip_code, driveItem?.drive_path].filter(Boolean).join(" - ")}
+                          </span>
+                          {generatedFile.imported_at ? <span className="subtle">Imported {formatDate(generatedFile.imported_at)}</span> : null}
+                          {driveItem ? (
+                            <a href={driveItem.drive_url} target="_blank" rel="noreferrer">
+                              {driveItem.name}
+                            </a>
+                          ) : null}
+                        </div>
+                        <StatusBadge status={generatedFile.match_status} tone={toneForFileStatus(generatedFile.match_status)} />
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : (
+              <EmptyState icon={Archive} title="No generated files yet." description="Belum ada file." />
             )}
           </SectionCard>
         </section>

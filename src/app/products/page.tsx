@@ -72,7 +72,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "All workspaces";
+  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
   const activeCount = products.filter((product) => product.status !== "ARCHIVED").length;
   const draftCount = products.filter((product) => product.status === "DRAFT").length;
 
@@ -80,19 +80,19 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     <div className="stack">
       <PageHeader
         icon={Package}
-        badge="Products"
-        title="Products"
-        description={`Product list only. Scope: ${scopeLabel}.`}
+        badge="Produk"
+        title="Produk"
+        description={`Lingkup: ${scopeLabel}.`}
         actions={
           <>
             {currentWorkspace ? (
               <Link className="button" href={showAllWorkspaces ? "/products" : "/products?workspace=all"}>
-                {showAllWorkspaces ? "Current workspace" : "All workspaces"}
+                {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
               </Link>
             ) : null}
             <Link className="button primary" href="/products/new">
               <Plus size={16} aria-hidden="true" />
-              New intake
+              Intake baru
             </Link>
           </>
         }
@@ -113,7 +113,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   <StatusBadge status={product.status} />
                   <Link className="button compact primary" href={`/products/${product.id}`}>
                     <ArrowRight size={15} aria-hidden="true" />
-                    Open
+                    Buka
                   </Link>
                 </>
               }
@@ -121,7 +121,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               icon={Package}
               key={product.id}
               title={product.product_name}
-              description={[product.marketplace, product.niche].filter(Boolean).join(" - ") || "No marketplace set."}
+              description={[product.marketplace, product.niche].filter(Boolean).join(" - ") || "Marketplace kosong."}
             >
               <div className="metric-grid">
                 <div className="metric">
@@ -141,30 +141,24 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   <strong>{formatDate(product.created_at)}</strong>
                 </div>
               </div>
-              {product.marketplace_product_link ? (
-                <p className="subtle">
-                  Source link saved. Open the detail page to review metadata and source history.
-                </p>
-              ) : (
-                <p className="subtle">No marketplace link saved yet.</p>
-              )}
+              <p className="subtle">{product.marketplace_product_link ? "Source link tersimpan." : "Link marketplace kosong."}</p>
             </SectionCard>
           ))}
         </section>
       ) : (
         <EmptyState
           icon={Package}
-          title={currentWorkspace && !showAllWorkspaces ? "No products in this workspace." : "No products yet."}
-          description={currentWorkspace && !showAllWorkspaces ? "Use All workspaces to see unassigned or legacy products." : "Start from the intake form."}
+          title={currentWorkspace && !showAllWorkspaces ? "Belum ada produk di workspace ini." : "Belum ada produk."}
+          description={currentWorkspace && !showAllWorkspaces ? "Cek semua workspace." : "Mulai dari intake."}
           action={
             currentWorkspace && !showAllWorkspaces ? (
               <Link className="button" href="/products?workspace=all">
-                All workspaces
+                Semua workspace
               </Link>
             ) : (
               <Link className="button primary" href="/products/new">
                 <Plus size={16} aria-hidden="true" />
-                New intake
+                Intake baru
               </Link>
             )
           }
