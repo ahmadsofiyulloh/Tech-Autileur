@@ -180,11 +180,24 @@ export default async function WorkspaceSettingsPage() {
                         </span>
                         <div className="section-card__actions">
                           <StatusBadge status={workspace.status} />
+                          {workspace.drive_root_folder_ref_id ? (
+                            <StatusBadge status="Drive siap" tone="success" />
+                          ) : (
+                            <StatusBadge status="Drive belum ada" tone="warning" />
+                          )}
                           {workspace.is_default ? <StatusBadge status="Default" tone="success" /> : null}
                           {isCurrent ? <StatusBadge status="Aktif" tone="info" /> : null}
                         </div>
                       </div>
                       <div className="section-card__actions">
+                        <form action={saveWorkspace}>
+                          <input type="hidden" name="intent" value="provision_workspace_drive" />
+                          <input type="hidden" name="return_to" value="/settings/workspace" />
+                          <input type="hidden" name="id" value={workspace.id} />
+                          <button className="button compact primary" type="submit">
+                            {workspace.drive_root_folder_ref_id ? "Sinkronkan Folder Drive" : "Buat Folder Drive"}
+                          </button>
+                        </form>
                         <form action={saveWorkspace}>
                           <input type="hidden" name="intent" value="set_current_workspace" />
                           <input type="hidden" name="return_to" value="/settings/workspace" />

@@ -14,6 +14,7 @@ import {
 import {
   archiveWorkspace,
   createWorkspace,
+  provisionWorkspaceDriveStructure,
   setCurrentWorkspace,
   setDefaultWorkspace,
   updateWorkspace,
@@ -47,6 +48,9 @@ function revalidateWorkspaceSurfaces() {
   revalidatePath("/settings");
   revalidatePath("/settings/workspace");
   revalidatePath("/settings/affiliate-profiles");
+  revalidatePath("/settings/drive");
+  revalidatePath("/drive");
+  revalidatePath("/products/new");
   revalidatePath("/", "layout");
 }
 
@@ -114,6 +118,13 @@ export async function saveWorkspace(formData: FormData) {
 
       await setDefaultWorkspace(id);
       message = "Default workspace updated";
+    } else if (intent === "provision_workspace_drive") {
+      if (!id) {
+        throw new Error("Missing workspace id.");
+      }
+
+      await provisionWorkspaceDriveStructure(id);
+      message = "Drive folder created";
     } else if (intent === "archive_workspace") {
       if (!id) {
         throw new Error("Missing workspace id.");

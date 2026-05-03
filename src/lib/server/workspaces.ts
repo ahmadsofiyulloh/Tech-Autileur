@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ensureGoogleDriveFolder } from "@/lib/server/google-drive";
+import { createDriveItem, getDriveItemByDriveItemId, updateDriveItem, type DriveItemRecord } from "@/lib/server/drive-items";
 import {
   WORKSPACE_STATUSES,
   assertWorkspaceStatus,
@@ -12,6 +14,7 @@ import {
   type WorkspaceInput,
   type WorkspaceStatus,
 } from "@/lib/workspaces/validation";
+import type { DriveItemPurpose } from "@/lib/drive/validation";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -205,6 +208,132 @@ async function requireOwnedActiveWorkspace(context: WorkspaceContext, workspaceI
   }
 
   return data as WorkspaceRecord;
+}
+
+function joinDrivePath(...segments: Array<string | null | undefined>) {
+  return `/${segments
+    .map((segment) => readWorkspaceText(segment))
+    .filter(Boolean)
+    .map((segment) => segment.replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/")}`;
+}
+
+async function ensureWorkspaceDriveItemRecord(input: {
+  driveFolder: { id: string; name: string; webViewLink: string };
+  drivePath: string;
+  purpose: DriveItemPurpose;
+  parent: DriveItemRecord | null;
+  notes?: string | null;
+}) {
+  const existing = await getDriveItemByDriveItemId(input.driveFolder.id);
+
+  if (existing) {
+    return await updateDriveItem(existing.id, {
+      item_type: "FOLDER",
+      drive_item_id: input.driveFolder.id,
+      name: input.driveFolder.name,
+      drive_url: input.driveFolder.webViewLink,
+      drive_path: input.drivePath,
+      purpose: input.purpose,
+      status: "ACTIVE",
+      notes: input.notes ?? existing.notes,
+      parent_id: input.parent?.id ?? null,
+      parent_drive_item_id: input.parent?.drive_item_id ?? null,
+    });
+  }
+
+  return await createDriveItem({
+    item_type: "FOLDER",
+    drive_item_id: input.driveFolder.id,
+    name: input.driveFolder.name,
+    drive_url: input.driveFolder.webViewLink,
+    drive_path: input.drivePath,
+    purpose: input.purpose,
+    status: "ACTIVE",
+    notes: input.notes ?? null,
+    parent_id: input.parent?.id ?? null,
+    parent_drive_item_id: input.parent?.drive_item_id ?? null,
+  });
+}
+
+async function ensureWorkspaceDriveTree(workspace: WorkspaceRecord) {
+  const affiliateRootFolder = await ensureGoogleDriveFolder({ name: "AffiliateAI" });
+  const workspacesFolder = await ensureGoogleDriveFolder({
+    name: "02_WORKSPACES",
+    parentFolderId: affiliateRootFolder.id,
+  });
+  const workspaceFolder = await ensureGoogleDriveFolder({
+    name: workspace.workspace_code,
+    parentFolderId: workspacesFolder.id,
+  });
+  const rootFolder = await ensureGoogleDriveFolder({
+    name: "ROOT_FOLDER",
+    parentFolderId: workspaceFolder.id,
+  });
+  const productsFolder = await ensureGoogleDriveFolder({
+    name: "PRODUCTS",
+    parentFolderId: rootFolder.id,
+  });
+  const promptsFolder = await ensureGoogleDriveFolder({
+    name: "PROMPTS",
+    parentFolderId: rootFolder.id,
+  });
+
+  const affiliateRootRecord = await ensureWorkspaceDriveItemRecord({
+    driveFolder: affiliateRootFolder,
+    drivePath: joinDrivePath("AffiliateAI"),
+    purpose: "ADMIN_FOLDER",
+    parent: null,
+    notes: "Google Drive root for AffiliateAI.",
+  });
+
+  const workspacesRecord = await ensureWorkspaceDriveItemRecord({
+    driveFolder: workspacesFolder,
+    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES"),
+    purpose: "ADMIN_FOLDER",
+    parent: affiliateRootRecord,
+    notes: "Workspace container folder.",
+  });
+
+  const workspaceFolderRecord = await ensureWorkspaceDriveItemRecord({
+    driveFolder: workspaceFolder,
+    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code),
+    purpose: "ADMIN_FOLDER",
+    parent: workspacesRecord,
+    notes: "Workspace namespace folder.",
+  });
+
+  const rootFolderRecord = await ensureWorkspaceDriveItemRecord({
+    driveFolder: rootFolder,
+    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code, "ROOT_FOLDER"),
+    purpose: "ROOT_FOLDER",
+    parent: workspaceFolderRecord,
+    notes: "Workspace root folder.",
+  });
+
+  await ensureWorkspaceDriveItemRecord({
+    driveFolder: productsFolder,
+    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code, "ROOT_FOLDER", "PRODUCTS"),
+    purpose: "PRODUCT_FOLDER",
+    parent: rootFolderRecord,
+    notes: "Workspace products folder.",
+  });
+
+  await ensureWorkspaceDriveItemRecord({
+    driveFolder: promptsFolder,
+    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code, "ROOT_FOLDER", "PROMPTS"),
+    purpose: "OTHER",
+    parent: rootFolderRecord,
+    notes: "Workspace prompts folder.",
+  });
+
+  return {
+    affiliateRootRecord,
+    workspacesRecord,
+    workspaceFolderRecord,
+    rootFolderRecord,
+  };
 }
 
 async function resolveCurrentWorkspaceForContext(
@@ -401,6 +530,44 @@ export async function updateWorkspace(id: string, input: WorkspaceUpdateInput) {
   }
 
   return data as WorkspaceRecord;
+}
+
+export async function provisionWorkspaceDriveStructure(id: string) {
+  const context = await requireUser();
+  const { data, error } = await context.supabase
+    .from("workspaces")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", context.user.id)
+    .maybeSingle();
+
+  if (error) {
+    throwWorkspaceError(error);
+  }
+
+  if (!data) {
+    throw new Error("Workspace not found.");
+  }
+
+  const workspace = data as WorkspaceRecord;
+  const driveTree = await ensureWorkspaceDriveTree(workspace);
+  const { data: updated, error: updateError } = await context.supabase
+    .from("workspaces")
+    .update({
+      drive_root_folder_ref_id: driveTree.rootFolderRecord.id,
+      drive_root_folder_url: driveTree.rootFolderRecord.drive_url,
+      drive_root_folder_path: driveTree.rootFolderRecord.drive_path,
+    })
+    .eq("id", workspace.id)
+    .eq("user_id", context.user.id)
+    .select("*")
+    .single();
+
+  if (updateError) {
+    throwWorkspaceError(updateError);
+  }
+
+  return updated as WorkspaceRecord;
 }
 
 export async function archiveWorkspace(id: string) {
