@@ -9,8 +9,8 @@
 | S2 | Intake Workflow | `/products/new`, real image/screenshot uploads, Gemini analysis | Codex |
 | S3 | Paket Prompt | Affiliate profiles, prompt rules, editor/generator, versioning, prompt context | Codex |
 | S4 | Flow Control | global Flow pool, board, manifest, Windows Helper callback | Codex |
-| S5 | Product Detail | Metadata, Paket Prompt, Output, History surfaces | Codex |
-| S6 | Pengaturan Hub | workspace, affiliate profile, Gemini, Drive, Flow, Account, helper token, picker grammar | Codex |
+| S5 | Product Detail | Metadata, Output, History surfaces | Codex |
+| S6 | Pengaturan Hub | workspace, affiliate profile, Gemini, Drive, Flow link, Account, helper token, picker grammar, nested routing, list drawer table/card grammar | Codex |
 | S7 | Dashboard Analytics | Gemini, Drive, prompt, output/import metrics | Codex |
 | S8 | Hardening | build, tests, minimal copy, security pass | Codex + User review |
 
@@ -26,7 +26,7 @@ S0 -> S1 -> S2 -> S3 -> S4 -> S5 -> S6 -> S7 -> S8
 Login
 -> Dashboard
 -> Produk list
--> /products/new upload Foto Produk Utama + Screenshot Marketplace
+-> /products/new upload Foto Produk Utama + Screenshot Shopee + Screenshot TikTok
 -> Analisis Gemini
 -> Metadata review
 -> Paket Prompt

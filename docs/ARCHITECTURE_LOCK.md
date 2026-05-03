@@ -28,8 +28,8 @@ Shell rules:
 ```text
 /products       -> Produk list
 /products/new   -> mobile-first intake workflow
-/products/[id]  -> Metadata, Paket Prompt, Output, History
-/prompts        -> Paket Prompt working surface and compatibility manager
+/products/[id]  -> Metadata, Output, History
+/prompts        -> Paket Prompt editor surface
 /controller     -> desktop-only Flow Control board
 /settings       -> Pengaturan hub
 /intake         -> compatibility redirect to /products/new
@@ -41,7 +41,17 @@ Shell rules:
 
 `/controller` must not be exposed in mobile bottom nav. Direct mobile access should show a minimal desktop-required state.
 
-`/settings` is the configuration hub and overview-first surface. Linked tool sections may live inside the hub page, but the app must not create a second primary nav path for settings.
+`/settings` is the configuration hub and overview-only surface. Section work must live in locked nested settings routes, not in one long flat settings page. The app must not create a second global settings navigation.
+
+Locked settings routes:
+
+```text
+/settings/workspace
+/settings/affiliate-profiles
+/settings/gemini
+/settings/drive
+/settings/account
+```
 
 ## UI Copy Policy
 
@@ -79,6 +89,12 @@ Locked presentation:
 - static suggestions with free fallback only when the field is intentionally loose.
 - every active surface must include loading, empty, and error states.
 - mobile and desktop layouts must stay responsive without text overlap.
+- desktop mutable master lists use searchable table + right side drawer.
+- mobile mutable master lists use compact cards + full-screen drawer or bottom sheet.
+- cards are for individual repeated items, modals, and framed tools only; do not put UI cards inside other UI cards.
+- create entrypoints appear only in page header and empty state CTA.
+- row actions are `Open` plus edit/archive/delete in overflow.
+- archive-first lifecycle is the default; hard delete is exceptional.
 
 ## Auth
 
@@ -171,9 +187,18 @@ Pengaturan is the configuration hub for:
 - Akun Affiliate.
 - Gemini.
 - Google Drive.
-- Flow Accounts.
+- Flow link/status.
 - Windows Helper / App API Token.
 - Account/logout.
+
+Settings detail grammar:
+
+- Workspace: list + drawer CRUD, auto-generated code, name, niche picker, Drive root picker, default switch, archive.
+- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive.
+- Gemini: single minimal form surface; no list/history UI.
+- Drive: folder-centric list + drawer, workspace-scoped, folders only.
+- Account: Chrome pairing, App API Token, and sign out.
+- Flow Accounts are controller-owned execution tools and must not become a separate Settings CRUD surface.
 
 ## Deployment
 

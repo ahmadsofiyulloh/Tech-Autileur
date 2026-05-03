@@ -17,6 +17,7 @@ Google refresh token
 Encryption secret
 Chrome profile paths
 Windows Helper Drive OAuth token
+Windows Helper local output folder path
 App API Token plaintext
 ```
 
@@ -49,6 +50,8 @@ These stay local to the helper machine:
 - helper local output folder paths.
 - plaintext App API Token after initial copy.
 
+The app may store `helper_output_folder_key` as an inert label for manifest matching. It must never store the absolute local helper output folder path.
+
 The app stores only helper token metadata and hash. Helper uploads output video bytes directly to Google Drive and sends metadata callback only.
 
 ## Encryption Requirements
@@ -71,6 +74,7 @@ APP_ENCRYPTION_KEY=
 - All owner-owned tables must include `user_id`.
 - MVP policies: authenticated user can only read/write own rows.
 - Helper metadata callback must resolve owner from App API Token and write only that owner scope.
+- If a service-role client is used after helper token verification, every write must include the resolved `user_id` owner scope.
 
 ## Review Checklist
 
@@ -82,3 +86,4 @@ Before every commit:
 - Check migrations do not include real secret values.
 - Check Chrome profile paths are not stored in Supabase migrations or seed data.
 - Check helper OAuth tokens are not stored in Supabase migrations or seed data.
+- Check helper local output folder paths are not stored in Supabase migrations, seed data, docs examples, or runtime metadata.

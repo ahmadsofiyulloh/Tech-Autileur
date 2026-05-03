@@ -43,8 +43,8 @@ Pengaturan
 ```text
 /products       -> Produk list
 /products/new   -> mobile-first intake workflow
-/products/[id]  -> product detail with Metadata, Paket Prompt, Output, History
-/prompts        -> Paket Prompt working surface and compatibility manager
+/products/[id]  -> product detail with Metadata, Output, History
+/prompts        -> Paket Prompt editor surface
 /controller     -> desktop-only Flow Control board
 /settings       -> Pengaturan hub
 ```
@@ -84,10 +84,11 @@ Mobile intake upload
 
 Before Gemini analysis, intake is upload-only.
 
-Required uploads:
+Required upload cards:
 
 - `Foto Produk Utama`: at least 1 product image.
-- `Screenshot Marketplace`: at least 1 marketplace screenshot.
+- `Screenshot Shopee`: at least 1 Shopee marketplace screenshot.
+- `Screenshot TikTok`: at least 1 TikTok marketplace screenshot.
 
 Optional uploads:
 
@@ -242,11 +243,63 @@ Pengaturan is the configuration hub for:
 - Akun Affiliate.
 - Gemini.
 - Google Drive.
-- Flow Accounts.
+- Flow link/status.
 - Windows Helper / App API Token.
 - Account/logout.
 
-`/settings` is overview-first. The hub must surface cards or sections for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link in a single minimal configuration surface. It must not create a second navigation system.
+`/settings` is overview-only. The hub must surface compact cards for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link. It must not become the edit form itself and must not create a second global navigation system.
+
+Settings section routes are locked:
+
+```text
+/settings/workspace
+/settings/affiliate-profiles
+/settings/gemini
+/settings/drive
+/settings/account
+```
+
+The Flow card links to `/controller`; Flow Accounts remain controller-owned execution tools, not a separate settings CRUD surface.
+
+Desktop settings sections use list + right side drawer for mutable master data. Mobile settings sections use list cards + full-screen drawer or bottom sheet. The drawer is the only edit surface for Workspace, Affiliate Profiles, and Drive folder records.
+
+Settings > Workspace:
+
+- list + drawer CRUD.
+- auto-generated workspace code, shown read-only after creation.
+- visible fields: `Nama Ruang Kerja`, `Niche`, `Folder Drive Utama`, `Default`.
+- `Niche` uses static suggestions with free fallback.
+- `Folder Drive Utama` uses Drive folder picker.
+- archive-first lifecycle; hard delete is not a primary action.
+
+Settings > Affiliate Profiles:
+
+- list + drawer CRUD.
+- visible base fields: profile name, platform/mode label, account label, affiliate URL, status.
+- `notes` is not a required surface field.
+- character and environment are two separate image cards.
+- each image card supports upload/replace/remove, local preview, Drive reference status, and lock status.
+- asset lock is per profile and defaults ON when the profile uses asset locks.
+- rule editors remain editable for i2i, i2v, caption, hashtag, and negative prompt.
+- no separate background-reference asset slot exists.
+
+Settings > Gemini:
+
+- single form surface only, not list/history.
+- visible fields: `name`, `model`, `purpose`, masked encrypted API key.
+- `model` uses a static supported model picker.
+- `purpose` uses Analyze / Prompt / OCR-Review / Test.
+- actions: Save, Test, Copy Key, Regenerate.
+- key code stays internal/hidden.
+
+Settings > Drive:
+
+- folder-centric list + drawer.
+- workspace-scoped.
+- folders only for Phase awal management.
+- visible fields: `name`, `path`, `URL`, `status`.
+- actions: Save, Open Folder, Archive.
+- drive code stays internal/hidden.
 
 `Pengaturan > Account` owns Chrome profile pairing, App API Token, and sign out. Chrome pairing actions are `Buat`, `Salin`, `Unduh JSON`, and `Lepas Pairing`.
 
@@ -258,15 +311,6 @@ Workspace field labels are minimal:
 Nama Ruang Kerja
 Folder Drive Utama
 ```
-
-Flow Account form is minimal:
-
-```text
-Kode Akun
-Tipe Akun
-```
-
-The app may keep advanced Flow account defaults hidden unless needed.
 
 ### 1.12 UI Copy Lock
 
@@ -306,6 +350,11 @@ Locked baseline:
 - custom picker for relational fields instead of raw browser dropdowns.
 - static suggestions with free fallback for non-relational text fields that still need loose input.
 - loading, empty, and error states on every active surface.
+- desktop list surfaces prefer searchable table + side drawer.
+- mobile list surfaces prefer compact cards + full-screen drawer or bottom sheet.
+- CRUD create entrypoints appear only in page header and empty state CTA.
+- row actions are `Open` plus edit/archive/delete in overflow.
+- archive-first lifecycle is required; hard delete is rare and never the default.
 
 Recommended hierarchy:
 
@@ -395,6 +444,7 @@ Prompt rules: editable in UI, not hardcoded in JSX/HTML
 Google Flow is the external executor
 Flow Control manages a global Flow account pool
 Flow accounts are global tools and never workspace-bound
+Flow account management belongs to /controller support panels, not Settings CRUD
 Windows Helper opens Chrome profile + Flow URL and imports outputs
 Google Flow generation remains manual
 ```

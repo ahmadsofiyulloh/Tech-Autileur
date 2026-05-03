@@ -29,7 +29,7 @@ This backlog replaces older sprint assumptions. Implement one micro-task at a ti
 ## S2 - Intake Workflow
 
 ### S2-001 - Upload-only intake before Gemini
-**Goal:** `/products/new` requires `Foto Produk Utama` and `Screenshot Marketplace` uploads before analysis.
+**Goal:** `/products/new` requires `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok` upload cards before analysis.
 **Owner:** Codex
 **Acceptance:** no title/account/metadata fields are shown before `Analisis Gemini`.
 
@@ -85,9 +85,9 @@ This backlog replaces older sprint assumptions. Implement one micro-task at a ti
 ## S5 - Product Detail and Output Package
 
 ### S5-001 - Detail surfaces
-**Goal:** Product detail shows Metadata, Paket Prompt, Output, and History.
+**Goal:** Product detail shows Metadata, Output, and History.
 **Owner:** Codex
-**Acceptance:** history reads prompt pack versions, Flow batches, clip jobs, and generated files.
+**Acceptance:** history reads prompt pack versions, Flow batches, clip jobs, and generated files; product detail does not become a second prompt editor.
 
 ### S5-002 - Output package
 **Goal:** Show Nama Produk, Keyword Etalase, Caption, Tags, Clip 1, Clip 2, Folder Drive, Status.
@@ -97,19 +97,29 @@ This backlog replaces older sprint assumptions. Implement one micro-task at a ti
 ## S6 - Pengaturan Hub
 
 ### S6-001 - Workspace and affiliate settings
-**Goal:** Use minimal fields for Ruang Kerja and Akun Affiliate.
+**Goal:** Use list + drawer CRUD and minimal fields for Ruang Kerja and Akun Affiliate.
 **Owner:** Codex
-**Acceptance:** workspace labels are Nama Ruang Kerja and Folder Drive Utama, and the settings hub is overview-first.
+**Acceptance:** workspace drawer uses auto-generated code, Nama Ruang Kerja, niche picker, Folder Drive Utama picker, default switch, and archive; affiliate drawer uses base info, Character/Environment image cards, editable rule editors, and no required notes field.
 
 ### S6-002 - Tool settings
-**Goal:** Keep Gemini, Drive, Flow Accounts, and Windows Helper/App API Token in Pengaturan.
+**Goal:** Keep Gemini, Drive, Flow link/status, Account, and Windows Helper/App API Token in Pengaturan.
 **Owner:** Codex
-**Acceptance:** Flow account form starts with Kode Akun and Tipe Akun only, Gemini is a single form surface, Drive is folder-centric, and Account contains Chrome pairing plus token controls.
+**Acceptance:** Gemini is a single form surface, Drive is folder-centric list + drawer, Account contains Chrome pairing plus token controls, and Flow Accounts remain controller-owned rather than Settings CRUD.
 
 ### S6-003 - Picker and typography lock
-**Goal:** Replace raw browser dropdown assumptions with custom pickers and lock the compact type hierarchy.
+**Goal:** Apply custom picker grammar and lock the compact type hierarchy.
 **Owner:** Codex
 **Acceptance:** relational fields use custom picker behavior, loose text fields can use static suggestions with free fallback, and the locked type hierarchy is documented.
+
+### S6-004 - Nested settings routing desktop/mobile
+**Goal:** Split `/settings` into overview plus nested sections so desktop and mobile have clear section routing without adding a second global settings nav.
+**Owner:** Codex
+**Acceptance:** `/settings` stays overview-first, nested sections exist for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link, desktop gets compact internal section navigation, mobile stays scroll-efficient, and `Pengaturan > Account` remains the only place for Chrome pairing, App API Token, and sign out.
+
+### S6-005 - List drawer table/card grammar
+**Goal:** Apply the locked list + drawer CRUD grammar across mutable master surfaces.
+**Owner:** Codex
+**Acceptance:** desktop mutable lists use searchable tables plus right side drawers, mobile mutable lists use compact cards plus full-screen drawers or bottom sheets, create entrypoints exist only in header and empty state CTA, row actions are Open plus edit/archive/delete in overflow, and archive-first lifecycle is the default.
 
 ## S7 - Dashboard Analytics
 

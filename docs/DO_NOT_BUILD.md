@@ -18,11 +18,16 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Per-prompt character/environment/background lock overrides in Phase awal.
 - A third background-reference asset slot for Affiliate Profiles in Phase awal.
 - Duplicate Settings entry points in topbar, header, and sidebar at the same time.
+- A separate Settings CRUD surface for Flow Accounts in Phase awal.
+- Inline flat settings forms replacing the locked overview + section route + drawer grammar.
+- Raw desktop data tables as the primary mobile list interaction.
+- Hard delete as the default lifecycle for mutable master data.
 - Claims of visual parsing from marketplace links when image bytes are not available.
 - Supabase Storage for large video/image assets.
 - Server-side ZIP generation for output packages.
 - Storing Chrome profile paths in Supabase.
 - Storing Windows Helper Google Drive OAuth tokens in Supabase.
+- Storing Windows Helper local output folder paths in Supabase or the repo.
 - Proxying large helper-uploaded video bytes through Next.js or Supabase.
 - Bypassing Gemini, Google Flow, TikTok, Shopee, or Google quota/rate limits.
 - Verbose UI descriptions outside empty/error states.

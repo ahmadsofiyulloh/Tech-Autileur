@@ -80,15 +80,21 @@ A prompt pack should include:
   "product_analysis": {},
   "prompt_context": {},
   "i2i_prompts": {
-    "clip_1": "",
-    "clip_2": ""
+    "clip_1": {
+      "first_frame": "",
+      "last_frame": ""
+    },
+    "clip_2": {
+      "first_frame": "",
+      "last_frame": ""
+    }
   },
   "i2v_prompts": {
     "clip_1": "",
     "clip_2": ""
   },
   "caption": "",
-  "tags": [],
+  "tags": "",
   "target_marketplace": "",
   "consistency_rules": [],
   "negative_rules": []

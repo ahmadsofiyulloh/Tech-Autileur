@@ -24,7 +24,8 @@ Before `Analisis Gemini`, only upload evidence is required.
 Required:
 
 - `Foto Produk Utama`: at least 1 image byte upload.
-- `Screenshot Marketplace`: at least 1 screenshot byte upload.
+- `Screenshot Shopee`: at least 1 Shopee screenshot byte upload.
+- `Screenshot TikTok`: at least 1 TikTok screenshot byte upload.
 
 Optional:
 
@@ -99,6 +100,8 @@ Tandai Siap Flow
 
 Prompt set structure:
 
+- Desktop `/prompts` uses a left library and right editor layout.
+- Mobile `/prompts` shows the editor first and keeps the library collapsible.
 - Prompt Clip 1 and Prompt Clip 2 are separate clip panels.
 - Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as editable fields.
 - `I2I First Frame` and `I2I Last Frame` are the two frame anchors for the clip-specific image-to-image prompt path.
@@ -118,15 +121,21 @@ Prompt generation must persist structured JSON with at least:
   "product_analysis": {},
   "prompt_context": {},
   "i2i_prompts": {
-    "clip_1": "",
-    "clip_2": ""
+    "clip_1": {
+      "first_frame": "",
+      "last_frame": ""
+    },
+    "clip_2": {
+      "first_frame": "",
+      "last_frame": ""
+    }
   },
   "i2v_prompts": {
     "clip_1": "",
     "clip_2": ""
   },
   "caption": "",
-  "tags": [],
+  "tags": "",
   "target_marketplace": "",
   "negative_prompt_rules": [],
   "consistency_rules": [],
@@ -165,5 +174,6 @@ Prompt generation must persist structured JSON with at least:
 - Flow Control is the execution workspace.
 - Ready prompt packs move into the global Flow account pool.
 - Flow accounts are not owned by workspace.
+- Flow account management belongs to `/controller` support panels, not Settings CRUD.
 - Account recommendation is based on availability, observed credit, and status.
 - User confirms the account before running Flow.

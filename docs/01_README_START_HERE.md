@@ -43,7 +43,7 @@ Do not start broad feature work. Start with the locked vertical slice:
 ```text
 Dashboard
 -> /products
--> /products/new upload Foto Produk Utama + Screenshot Marketplace
+-> /products/new upload Foto Produk Utama + Screenshot Shopee + Screenshot TikTok
 -> Analisis Gemini
 -> Metadata review
 -> /prompts Paket Prompt

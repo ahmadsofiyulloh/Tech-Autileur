@@ -314,6 +314,8 @@ UI note: `notes` may remain as legacy/internal metadata, but it is not a require
 
 Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive.
 
+UI surface lock: Affiliate Profile create/edit happens in a list + drawer CRUD surface. Character and environment are separate image cards in the drawer. Asset upload/replace/remove controls live inside the editable drawer only.
+
 ### `prompt_packs`
 
 Structured prompt output from the editor/generator step.
@@ -375,6 +377,8 @@ UI tiny form:
 Kode Akun
 Tipe Akun
 ```
+
+UI surface lock: Flow Accounts are controller-owned execution tools. They can be managed from `/controller` support panels, but they must not become a separate Settings CRUD surface.
 
 ### `flow_batches`
 

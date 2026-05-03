@@ -42,6 +42,8 @@ notes
 
 `Pengaturan > Account` owns Chrome profile pairing and App API Token controls. `/controller` must not duplicate pairing actions.
 
+Flow Accounts are controller-owned execution tools. They may appear in `/controller` support panels for recommendation, status, credit, cooldown, and slot management. They must not become a separate Settings CRUD surface. Settings may only link to Flow Control or show a minimal Flow status card.
+
 ## Account Recommendation
 
 Flow Control recommends an account only when:
@@ -79,6 +81,8 @@ Progress source:
 - Windows Helper metadata callback after upload.
 
 Do not claim real-time Google Flow progress unless helper or extension data explicitly reports it.
+
+Support panels on `/controller` should be collapsed by default so the board remains queue-first.
 
 ## Batch Outputs
 

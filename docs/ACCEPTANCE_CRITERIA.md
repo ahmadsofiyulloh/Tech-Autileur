@@ -17,9 +17,9 @@
 
 - `/products` shows the product list only.
 - `/products/new` is the intake workflow entrypoint.
-- `/products/[id]` shows `Metadata`, `Paket Prompt`, `Output`, and `History`.
+- `/products/[id]` shows `Metadata`, `Output`, and `History`.
 - Intake uses upload cards with local preview.
-- Intake requires at least 1 `Foto Produk Utama` and 1 `Screenshot Marketplace`.
+- Intake requires at least 1 `Foto Produk Utama`, 1 `Screenshot Shopee`, and 1 `Screenshot TikTok`.
 - No product title/account/metadata field is required before Gemini analysis.
 - `Analisis Gemini` runs against uploaded image bytes for real E2E.
 - If image bytes are missing, the app does not claim visual parsing.
@@ -88,7 +88,12 @@
 - Profile UI exposes only two asset slots: Character and Environment.
 - No third background-reference asset slot exists in MVP.
 - Workspace settings use `Nama Ruang Kerja` and `Folder Drive Utama`.
-- Flow account form starts with `Kode Akun` and `Tipe Akun`.
+- Workspace settings use list + drawer CRUD with auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
+- Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, and archive.
+- Affiliate Profile settings do not promote `notes` as a required surface field.
+- Gemini settings are a single minimal form surface, not list/history.
+- Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
+- Flow Accounts are controller-owned execution tools and do not become a separate Settings CRUD surface.
 - Chrome profile pairing and App API Token controls live in `Pengaturan > Account`.
 
 ## Dashboard Analytics
@@ -110,6 +115,11 @@
 - Duplicate Settings entry points do not exist across the shell.
 - Relational fields use custom picker behavior rather than raw browser dropdowns.
 - The compact type hierarchy is documented and followed on mobile and desktop.
+- Desktop mutable master lists use searchable tables plus right side drawers.
+- Mobile mutable master lists use compact cards plus full-screen drawers or bottom sheets.
+- Create entrypoints appear only in page header and empty state CTA.
+- Row actions are `Open` plus edit/archive/delete in overflow.
+- Archive-first lifecycle is used for mutable master data.
 
 ## Hardening
 

@@ -60,7 +60,8 @@ The minimal state can offer a single return path to `Pengaturan` or `Dashboard`,
 Mobile intake must support:
 
 - upload `Foto Produk Utama`.
-- upload `Screenshot Marketplace`.
+- upload `Screenshot Shopee`.
+- upload `Screenshot TikTok`.
 - local preview before submit.
 - `Analisis Gemini` action.
 - loading, empty, and error states.
@@ -78,3 +79,9 @@ Mobile prompt must support:
 - `Tandai Siap Flow`.
 
 The user may prepare prompts on mobile, then continue Flow execution on desktop.
+
+## Mobile Settings Contract
+
+Mobile settings must keep `/settings` as the overview entrypoint, then open section routes or equivalent section screens for Workspace, Affiliate Profiles, Gemini, Drive, and Account.
+
+Mutable master lists use compact cards. Edit/create forms open as a full-screen drawer or bottom sheet. Mobile must not expose large desktop tables as the primary interaction.
