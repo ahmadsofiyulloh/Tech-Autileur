@@ -8,6 +8,7 @@ import { setCurrentWorkspaceFromShell } from "@/app/settings/actions";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { RouteToaster } from "@/components/operator/route-toaster";
+import { TopbarProvider, useTopbar } from "@/components/operator/topbar-context";
 
 type AppShellWorkspaceState = {
   schemaReady: boolean;
@@ -37,9 +38,43 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
+
+  if (isPublicRoute) {
+    return (
+      <div className="public-shell">
+        <Suspense fallback={null}>
+          <RouteToaster />
+        </Suspense>
+        <main className="public-main">{children}</main>
+      </div>
+    );
+  }
+
+  return (
+    <TopbarProvider>
+      <OperatorShellContent workspaceState={workspaceState}>{children}</OperatorShellContent>
+    </TopbarProvider>
+  );
+}
+
+function OperatorShellContent({
+  children,
+  workspaceState,
+}: {
+  children: ReactNode;
+  workspaceState: AppShellWorkspaceState;
+}) {
+  const pathname = usePathname();
   const isControllerRoute = pathname.startsWith("/controller") || pathname.startsWith("/flow");
-  const activeTitle =
-    routeTitles.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ?? "Operator";
+  const activeRoute =
+    routeTitles
+      .slice()
+      .sort((left, right) => right.href.length - left.href.length)
+      .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? null;
+  const { override } = useTopbar();
+  const activeTitle = override?.title ?? activeRoute?.label ?? "Operator";
+  const activeSubtitle = override?.subtitle ?? activeRoute?.subtitle ?? "Content OS.";
+  const ActiveIcon = activeRoute?.icon ?? Workflow;
 
   function isActive(href: string) {
     if (href === "/settings" && (pathname.startsWith("/gemini") || pathname.startsWith("/drive"))) {
@@ -59,17 +94,6 @@ export function AppShell({
     }
 
     return pathname === href || pathname.startsWith(`${href}/`);
-  }
-
-  if (isPublicRoute) {
-    return (
-      <div className="public-shell">
-        <Suspense fallback={null}>
-          <RouteToaster />
-        </Suspense>
-        <main className="public-main">{children}</main>
-      </div>
-    );
   }
 
   return (
@@ -106,8 +130,14 @@ export function AppShell({
 
       <div className="operator-workspace">
         <header className="operator-topbar">
-          <div>
-            <h1>{activeTitle}</h1>
+          <div className="topbar-title">
+            <span className="icon-frame topbar-title__icon" aria-hidden="true">
+              <ActiveIcon size={18} />
+            </span>
+            <div className="topbar-title__copy">
+              <h1>{activeTitle}</h1>
+              {activeSubtitle ? <p>{activeSubtitle}</p> : null}
+            </div>
           </div>
           <div className="topbar-tools">
             <form className="workspace-selector" action={setCurrentWorkspaceFromShell}>
