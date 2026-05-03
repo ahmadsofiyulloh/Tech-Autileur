@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Package, Plus } from "lucide-react";
+import { Package, Plus } from "lucide-react";
+import { ProductList, type ProductListRow } from "./product-list";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PageHeader } from "@/components/operator/page-header";
 import { SectionCard } from "@/components/operator/section-card";
-import { StatusBadge } from "@/components/operator/status-badge";
+import { listIntakeSessions } from "@/lib/server/intake";
 import { listProducts } from "@/lib/server/products";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,7 +17,7 @@ type ProductsPageProps = {
 };
 
 function fieldValue(value: string | number | null | undefined) {
-  return value ?? "Not set";
+  return value ? String(value) : "";
 }
 
 function formatDate(value: string) {
@@ -32,11 +33,27 @@ function firstParam(value: string | string[] | undefined) {
 
 function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
   if (!workspaceId) {
-    return "Unassigned";
+    return "Tanpa workspace";
   }
 
   const workspace = workspaceMap.get(workspaceId);
-  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
+  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace tidak tersedia";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readJsonText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function metadataText(record: unknown, key: string, fallbackKey?: string) {
+  if (!isRecord(record)) {
+    return "";
+  }
+
+  return readJsonText(record[key]) || (fallbackKey ? readJsonText(record[fallbackKey]) : "");
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
@@ -54,27 +71,62 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   let products;
   let currentWorkspace;
   let workspaces;
+  let intakeSessions;
 
   try {
     [currentWorkspace, workspaces] = await Promise.all([getCurrentWorkspace(), listWorkspaces({ limit: 200 })]);
-    products = await listProducts({
-      limit: 200,
-      workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
-    });
+    const workspaceId = currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined;
+
+    [products, intakeSessions] = await Promise.all([
+      listProducts({
+        limit: 200,
+        workspaceId,
+      }),
+      listIntakeSessions({
+        limit: 200,
+        workspaceId,
+      }),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load products.";
 
     return (
-      <SectionCard icon={Package} badge="Error" title="Unable to load products." description={message}>
-        <EmptyState icon={Package} title="Products unavailable." description="Try again." />
+      <SectionCard icon={Package} badge="Error" title="Produk tidak bisa dimuat." description={message}>
+        <EmptyState icon={Package} title="Produk tidak tersedia." description="Coba lagi." />
       </SectionCard>
     );
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
-  const activeCount = products.filter((product) => product.status !== "ARCHIVED").length;
-  const draftCount = products.filter((product) => product.status === "DRAFT").length;
+  const latestIntakeByProductId = new Map<string, (typeof intakeSessions)[number]>();
+
+  for (const session of intakeSessions) {
+    if (!session.product_id || latestIntakeByProductId.has(session.product_id)) {
+      continue;
+    }
+
+    latestIntakeByProductId.set(session.product_id, session);
+  }
+
+  const productRows: ProductListRow[] = products.map((product) => {
+    const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
+    const metadata = latestIntake?.reviewed_metadata_json ?? latestIntake?.parsed_metadata_json ?? null;
+    const keyword = metadataText(metadata, "keyword_cari_etalase", "category") || fieldValue(product.niche);
+
+    return {
+      id: product.id,
+      product_code: product.product_code,
+      product_name: product.product_name,
+      workspace_label: workspaceLabel(product.workspace_id, workspaceMap),
+      marketplace: fieldValue(product.marketplace),
+      keyword,
+      product_status: product.status,
+      intake_status: latestIntake?.status ?? "",
+      created_at_label: formatDate(product.created_at),
+      href: `/products/${product.id}`,
+    };
+  });
 
   return (
     <div className="stack">
@@ -96,55 +148,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </Link>
           </>
         }
-        stats={[
-          { label: "Scope", value: scopeLabel },
-          { label: "Total", value: products.length },
-          { label: "Active", value: activeCount },
-          { label: "Draft", value: draftCount },
-        ]}
       />
 
       {products.length ? (
-        <section className="stack" aria-label="Product list">
-          {products.map((product) => (
-            <SectionCard
-              actions={
-                <>
-                  <StatusBadge status={product.status} />
-                  <Link className="button compact primary" href={`/products/${product.id}`}>
-                    <ArrowRight size={15} aria-hidden="true" />
-                    Buka
-                  </Link>
-                </>
-              }
-              badge={product.product_code}
-              icon={Package}
-              key={product.id}
-              title={product.product_name}
-              description={[product.marketplace, product.niche].filter(Boolean).join(" - ") || "Marketplace kosong."}
-            >
-              <div className="metric-grid">
-                <div className="metric">
-                  <span>Workspace</span>
-                  <strong>{workspaceLabel(product.workspace_id, workspaceMap)}</strong>
-                </div>
-                <div className="metric">
-                  <span>Marketplace</span>
-                  <strong>{fieldValue(product.marketplace)}</strong>
-                </div>
-                <div className="metric">
-                  <span>Niche</span>
-                  <strong>{fieldValue(product.niche)}</strong>
-                </div>
-                <div className="metric">
-                  <span>Created</span>
-                  <strong>{formatDate(product.created_at)}</strong>
-                </div>
-              </div>
-              <p className="subtle">{product.marketplace_product_link ? "Source link tersimpan." : "Link marketplace kosong."}</p>
-            </SectionCard>
-          ))}
-        </section>
+        <ProductList products={productRows} />
       ) : (
         <EmptyState
           icon={Package}

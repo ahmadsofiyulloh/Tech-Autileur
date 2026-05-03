@@ -347,7 +347,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       listAffiliateProfiles({ limit: 200 }),
       listContents({ productId: id, limit: 200 }),
       listFlowBatches({ productId: id, limit: 200 }),
-      listFlowAccounts({ limit: 200 }),
+      listFlowAccounts(),
       listClipJobs({ limit: 200 }),
       listGeneratedFiles({ limit: 200 }),
     ]);
