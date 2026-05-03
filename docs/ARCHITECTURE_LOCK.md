@@ -81,9 +81,10 @@ The app should read as a neutral dark workbench, not a marketing site.
 Locked presentation:
 
 - compact spacing and dense information hierarchy.
+- Graphite Gold workbench treatment is allowed: graphite surfaces, restrained champagne-gold accents, emerald operational status accents, and subtle depth.
 - no oversized hero blocks on operational pages.
 - 8px radius or less for cards and framed surfaces unless a local component rule requires otherwise.
-- Inter as the default type family.
+- Geist Sans as the default type family.
 - page title > section title > card title > label/body hierarchy.
 - custom picker for relational fields, not raw dropdowns.
 - static suggestions with free fallback only when the field is intentionally loose.

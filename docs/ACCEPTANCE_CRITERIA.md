@@ -113,6 +113,8 @@
 - Error states use at most one short sentence.
 - Overview pages may use a short summary line, but operational pages do not.
 - Duplicate Settings entry points do not exist across the shell.
+- The UI uses Geist Sans as the base type family.
+- Graphite Gold styling remains a compact dark workbench, not a marketing theme.
 - Relational fields use custom picker behavior rather than raw browser dropdowns.
 - The compact type hierarchy is documented and followed on mobile and desktop.
 - Desktop mutable master lists use searchable tables plus right side drawers.

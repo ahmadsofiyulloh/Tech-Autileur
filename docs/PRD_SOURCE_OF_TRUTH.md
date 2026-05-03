@@ -341,10 +341,11 @@ The final UI must stay minimal, dense, and responsive on mobile and desktop.
 Locked baseline:
 
 - neutral dark workbench styling.
+- Graphite Gold visual direction is allowed for the workbench: graphite surfaces, restrained champagne-gold accents, emerald operational status accents, and subtle depth.
 - compact operational spacing.
 - no oversized hero blocks on functional pages.
 - 8px radius or less for cards and framed surfaces unless a component already has a stronger local rule.
-- Inter as the base typography.
+- Geist Sans as the base typography.
 - clear type hierarchy with page title above section title above card title above label/body.
 - no duplicate settings affordances in topbar, header, and sidebar at the same time.
 - custom picker for relational fields instead of raw browser dropdowns.
