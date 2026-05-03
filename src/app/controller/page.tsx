@@ -1,4 +1,4 @@
-import { FileText, HardDrive, Package, Workflow, type LucideIcon } from "lucide-react";
+import { FileText, HardDrive, Package, Plus, Workflow, type LucideIcon } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { saveController } from "./actions";
@@ -15,7 +15,7 @@ import {
   type ControllerPromptPackRecord,
   type ControllerProductRecord,
 } from "@/lib/server/controller";
-import { type FlowAccountPoolRecord } from "@/lib/server/flow-accounts";
+import { FLOW_ACCOUNT_TYPES, type FlowAccountPoolRecord } from "@/lib/server/flow-accounts";
 import { type FlowBatchRecord, type FlowBatchStatus } from "@/lib/server/flow-batches";
 import { type ClipJobRecord, type GeneratedFileRecord } from "@/lib/server/clip-jobs";
 
@@ -137,6 +137,20 @@ function accountLabel(account: FlowAccountPoolRecord | undefined | null) {
   return [account.account_code, account.account_type].filter(Boolean).join(" - ");
 }
 
+function accountTypeLabel(value: string) {
+  return value.replace("FLOW_", "Flow ");
+}
+
+function flowAccountPoolStats(accounts: FlowAccountPoolRecord[]) {
+  return {
+    activeCount: accounts.filter((account) => account.status === "ACTIVE").length,
+    availableCount: accounts.filter((account) => account.is_available).length,
+    creditsRemaining: accounts.reduce((sum, account) => sum + account.credits_remaining, 0),
+    slotsRemaining: accounts.reduce((sum, account) => sum + account.slots_remaining, 0),
+    totalCount: accounts.length,
+  };
+}
+
 function promptContextLine(promptPack: ControllerPromptPackRecord) {
   return buildPromptContextSummary(promptPack)
     .replace("No persisted prompt context.", "Belum ada konteks prompt tersimpan.")
@@ -232,6 +246,125 @@ function BatchActionButton({
         {label}
       </button>
     </form>
+  );
+}
+
+function PreserveFlowAccountFields({ account, status }: { account: FlowAccountPoolRecord; status: string }) {
+  return (
+    <>
+      <input type="hidden" name="id" value={account.id} />
+      <input type="hidden" name="account_code" value={account.account_code} />
+      <input type="hidden" name="account_type" value={account.account_type} />
+      <input type="hidden" name="observed_daily_credit" value={account.observed_daily_credit} />
+      <input type="hidden" name="observed_monthly_credit" value={account.observed_monthly_credit ?? ""} />
+      <input type="hidden" name="credit_per_generation" value={account.credit_per_generation} />
+      <input type="hidden" name="max_parallel_allowed" value={account.max_parallel_allowed} />
+      <input type="hidden" name="cooldown_minutes" value={account.cooldown_minutes} />
+      <input type="hidden" name="status" value={status} />
+      <input type="hidden" name="notes" value={account.notes ?? ""} />
+    </>
+  );
+}
+
+function FlowAccountActions({ account }: { account: FlowAccountPoolRecord }) {
+  return (
+    <div className="section-card__actions">
+      {account.status === "DISABLED" ? (
+        <form action={saveController}>
+          <input type="hidden" name="intent" value="update_flow_account" />
+          <PreserveFlowAccountFields account={account} status="ACTIVE" />
+          <button className="button compact" type="submit">
+            Aktifkan
+          </button>
+        </form>
+      ) : (
+        <form action={saveController}>
+          <input type="hidden" name="intent" value="archive_flow_account" />
+          <input type="hidden" name="id" value={account.id} />
+          <button className="button compact" type="submit">
+            Arsipkan
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function FlowAccountPanel({ accounts }: { accounts: FlowAccountPoolRecord[] }) {
+  const stats = flowAccountPoolStats(accounts);
+
+  return (
+    <details className="controller-support-panel">
+      <summary>
+        <span>Akun Flow</span>
+        <span className="section-card__actions controller-support-panel__summary">
+          <StatusBadge status={`${stats.availableCount}/${stats.totalCount} tersedia`} tone={stats.availableCount > 0 ? "success" : "warning"} />
+          <StatusBadge status={`${stats.activeCount} aktif`} tone="info" />
+          <StatusBadge status={`${stats.creditsRemaining} kredit`} tone="info" />
+          <StatusBadge status={`${stats.slotsRemaining} slot`} tone="info" />
+        </span>
+      </summary>
+
+      <div className="controller-support-panel__body stack">
+        <form className="stack" action={saveController}>
+          <input type="hidden" name="intent" value="create_flow_account" />
+          <input type="hidden" name="status" value="ACTIVE" />
+          <div className="grid two-up">
+            <label className="stack auth-field" htmlFor="flow-account-code">
+              <span>Kode Akun</span>
+              <input id="flow-account-code" name="account_code" type="text" placeholder="FLOW-FREE-01" required />
+            </label>
+            <label className="stack auth-field" htmlFor="flow-account-type">
+              <span>Tipe Akun</span>
+              <select id="flow-account-type" name="account_type" defaultValue="FLOW_FREE" required>
+                {FLOW_ACCOUNT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {accountTypeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <FormActions>
+            <button className="button compact primary" type="submit">
+              <Plus size={16} aria-hidden="true" />
+              Tambah akun
+            </button>
+          </FormActions>
+        </form>
+
+        {accounts.length ? (
+          <ul className="list controller-account-list">
+            {accounts.map((account) => (
+              <li key={account.id}>
+                <div className="stack-tight">
+                  <strong>{account.account_code}</strong>
+                  <span className="subtle">
+                    {[
+                      accountTypeLabel(account.account_type),
+                      `${account.credits_remaining}/${account.observed_daily_credit} kredit`,
+                      `${account.slots_remaining}/${account.max_parallel_allowed} slot`,
+                      account.cooldown_remaining_minutes ? `${account.cooldown_remaining_minutes} menit cooldown` : "tanpa cooldown",
+                    ]
+                      .filter(Boolean)
+                      .join(" - ")}
+                  </span>
+                  <div className="section-card__actions">
+                    <StatusBadge status={account.status} />
+                    <StatusBadge status={account.is_available ? "Ready" : "Tertahan"} tone={account.is_available ? "success" : "warning"} />
+                    <StatusBadge status={`Saran ${account.recommended_max_jobs} job`} tone="info" />
+                  </div>
+                  {account.eligibility_reasons.length ? <span className="subtle">{account.eligibility_reasons.join(" - ")}</span> : null}
+                </div>
+                <FlowAccountActions account={account} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState icon={Workflow} title="Belum ada akun Flow." description="Buat akun pertama." />
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -502,6 +635,8 @@ export default async function ControllerPage() {
 
   return (
     <div className="stack">
+      <FlowAccountPanel accounts={state.flowAccounts} />
+
       <section className="controller-board">
         {BOARD_COLUMNS.map((column) => {
           const batches = batchesByColumn.get(column.key) ?? [];

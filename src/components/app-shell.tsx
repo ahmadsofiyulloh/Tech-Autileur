@@ -150,7 +150,7 @@ function OperatorShellContent({
                 disabled={!workspaceState.schemaReady || workspaceState.workspaces.length === 0}
                 emptyLabel="Belum ada workspace"
                 helperText={workspaceState.errorMessage ?? undefined}
-                label="Workspace/profile"
+                label="Workspace"
                 name="current_workspace_id"
                 options={workspaceState.workspaces.map((workspace) => ({
                   value: workspace.id,
