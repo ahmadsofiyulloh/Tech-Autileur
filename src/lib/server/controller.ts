@@ -21,8 +21,9 @@ import {
   estimateRecommendedMaxJobs,
 } from "@/lib/server/flow-accounts";
 import { createClipJob, listClipJobs, listGeneratedFiles, type ClipJobRecord, type GeneratedFileRecord } from "@/lib/server/clip-jobs";
+import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
 
-export const READY_CONTROLLER_PROMPT_PACK_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED"] as const;
+export const READY_CONTROLLER_PROMPT_PACK_STATUSES = [PROMPT_READY_FOR_FLOW_STATUS] as const;
 
 export type ControllerPromptPackRecord = {
   id: string;
@@ -124,10 +125,10 @@ export type ControllerDashboardState = {
 };
 
 type PromptPackContextSnapshot = {
-  currentWorkspace?: { workspace_code?: string; workspace_name?: string } | null;
-  affiliateProfile?: { profile_code?: string; profile_name?: string } | null;
-  latestAnchor?: { anchor_code?: string; version?: number } | null;
-  marketplaceSources?: unknown[] | null;
+  workspace?: { workspace_code?: string; workspace_name?: string } | null;
+  affiliate_profile?: { profile_code?: string; profile_name?: string } | null;
+  latest_anchor?: { anchor_code?: string; version?: number } | null;
+  marketplace_sources?: unknown[] | null;
 };
 
 function readText(value: string | null | undefined) {
@@ -155,26 +156,31 @@ function toPromptPackContextSnapshot(promptPack: ControllerPromptPackRecord): Pr
     return {};
   }
 
+  const workspace = context.workspace ?? context.currentWorkspace;
+  const affiliateProfile = context.affiliate_profile ?? context.affiliateProfile;
+  const latestAnchor = context.latest_anchor ?? context.latestAnchor;
+  const marketplaceSources = context.marketplace_sources ?? context.marketplaceSources;
+
   return {
-    currentWorkspace: isRecord(context.currentWorkspace)
+    workspace: isRecord(workspace)
       ? {
-          workspace_code: typeof context.currentWorkspace.workspace_code === "string" ? context.currentWorkspace.workspace_code : undefined,
-          workspace_name: typeof context.currentWorkspace.workspace_name === "string" ? context.currentWorkspace.workspace_name : undefined,
+          workspace_code: typeof workspace.workspace_code === "string" ? workspace.workspace_code : undefined,
+          workspace_name: typeof workspace.workspace_name === "string" ? workspace.workspace_name : undefined,
         }
       : null,
-    affiliateProfile: isRecord(context.affiliateProfile)
+    affiliate_profile: isRecord(affiliateProfile)
       ? {
-          profile_code: typeof context.affiliateProfile.profile_code === "string" ? context.affiliateProfile.profile_code : undefined,
-          profile_name: typeof context.affiliateProfile.profile_name === "string" ? context.affiliateProfile.profile_name : undefined,
+          profile_code: typeof affiliateProfile.profile_code === "string" ? affiliateProfile.profile_code : undefined,
+          profile_name: typeof affiliateProfile.profile_name === "string" ? affiliateProfile.profile_name : undefined,
         }
       : null,
-    latestAnchor: isRecord(context.latestAnchor)
+    latest_anchor: isRecord(latestAnchor)
       ? {
-          anchor_code: typeof context.latestAnchor.anchor_code === "string" ? context.latestAnchor.anchor_code : undefined,
-          version: typeof context.latestAnchor.version === "number" ? context.latestAnchor.version : undefined,
+          anchor_code: typeof latestAnchor.anchor_code === "string" ? latestAnchor.anchor_code : undefined,
+          version: typeof latestAnchor.version === "number" ? latestAnchor.version : undefined,
         }
       : null,
-    marketplaceSources: Array.isArray(context.marketplaceSources) ? context.marketplaceSources : null,
+    marketplace_sources: Array.isArray(marketplaceSources) ? marketplaceSources : null,
   };
 }
 
@@ -187,29 +193,47 @@ function firstPromptFromObject(value: unknown) {
   return typeof prompt === "string" ? prompt.trim() : "";
 }
 
+function firstTextFromObject(value: unknown, keys: string[]) {
+  if (!isRecord(value)) {
+    return "";
+  }
+
+  for (const key of keys) {
+    const text = value[key];
+
+    if (typeof text === "string" && text.trim()) {
+      return text.trim();
+    }
+  }
+
+  return "";
+}
+
 function buildPromptSnippet(promptPack: ControllerPromptPackRecord) {
   const i2v = promptPack.i2v_prompts_json;
   const i2i = promptPack.i2i_prompts_json;
   const candidates = [
+    firstPromptFromObject(i2v?.clip_1),
+    firstPromptFromObject(i2v?.clip_2),
+    firstTextFromObject(i2i?.clip_1, ["first_frame", "last_frame"]),
+    firstTextFromObject(i2i?.clip_2, ["first_frame", "last_frame"]),
     firstPromptFromObject(i2v?.clip_01),
     firstPromptFromObject(i2v?.clip_02),
-    firstPromptFromObject(i2i?.clip_01_start_frame),
-    firstPromptFromObject(i2i?.clip_01_last_frame),
   ];
 
-  return candidates.find(Boolean) ?? `Prompt pack ${promptPack.prompt_code} v${promptPack.version}.`;
+  return candidates.find(Boolean) ?? `Paket prompt ${promptPack.prompt_code} v${promptPack.version}.`;
 }
 
 export function buildPromptContextSummary(promptPack: ControllerPromptPackRecord) {
   const snapshot = toPromptPackContextSnapshot(promptPack);
   const parts = [
-    snapshot.currentWorkspace?.workspace_code ? `WS ${snapshot.currentWorkspace.workspace_code}` : null,
-    snapshot.affiliateProfile?.profile_code ? `Profile ${snapshot.affiliateProfile.profile_code}` : null,
-    snapshot.latestAnchor?.anchor_code ? `Anchor ${snapshot.latestAnchor.anchor_code} v${snapshot.latestAnchor.version ?? 1}` : null,
-    snapshot.marketplaceSources?.length ? `${snapshot.marketplaceSources.length} source(s)` : null,
+    snapshot.workspace?.workspace_code ? `Ruang kerja ${snapshot.workspace.workspace_code}` : null,
+    snapshot.affiliate_profile?.profile_code ? `Profil ${snapshot.affiliate_profile.profile_code}` : null,
+    snapshot.latest_anchor?.anchor_code ? `Anchor ${snapshot.latest_anchor.anchor_code} v${snapshot.latest_anchor.version ?? 1}` : null,
+    snapshot.marketplace_sources?.length ? `${snapshot.marketplace_sources.length} sumber` : null,
   ].filter(Boolean);
 
-  return parts.length ? parts.join(" · ") : "No persisted prompt context.";
+  return parts.length ? parts.join(" - ") : "Belum ada konteks prompt tersimpan.";
 }
 
 export function buildClipJobDraft(input: {
@@ -221,7 +245,7 @@ export function buildClipJobDraft(input: {
   const promptPack = input.promptPack ?? null;
   const batch = input.batch ?? null;
   const promptSnippet = promptPack ? buildPromptSnippet(promptPack) : content.caption_tiktok || content.caption_shopee || content.angle || content.hook_type || content.content_code;
-  const promptContextSummary = promptPack ? buildPromptContextSummary(promptPack) : "No persisted prompt context.";
+  const promptContextSummary = promptPack ? buildPromptContextSummary(promptPack) : "Belum ada konteks prompt tersimpan.";
   const promptPrefix = [
     promptPack?.prompt_code ?? null,
     content.content_code,
@@ -274,7 +298,7 @@ export function buildFlowAssignmentPlan(input: {
         recommendedAccountCode: null,
         recommendedMaxJobs: 0,
         status: "SKIPPED",
-        reason: "Already assigned to a batch.",
+        reason: "Sudah dipakai batch lain.",
       });
       continue;
     }
@@ -291,7 +315,7 @@ export function buildFlowAssignmentPlan(input: {
         recommendedAccountCode: null,
         recommendedMaxJobs: 0,
         status: "SKIPPED",
-        reason: "No available Flow account meets credit and slot requirements.",
+        reason: "Tidak ada akun Flow yang lolos kredit dan slot.",
       });
       continue;
     }
@@ -307,7 +331,7 @@ export function buildFlowAssignmentPlan(input: {
         recommendedAccountCode: null,
         recommendedMaxJobs: 0,
         status: "SKIPPED",
-        reason: "Available account does not have enough credit for a job.",
+        reason: "Kredit akun tidak cukup untuk satu job.",
       });
       continue;
     }
@@ -321,7 +345,7 @@ export function buildFlowAssignmentPlan(input: {
       recommendedAccountCode: account.account_code,
       recommendedMaxJobs,
       status: "READY",
-      reason: account.account_type === "FLOW_PLUS" ? "Fallback to Flow Plus reserve account." : "Assigned to an available Flow Free account.",
+      reason: account.account_type === "FLOW_PLUS" ? "Pakai akun cadangan Flow Plus." : "Pakai akun Flow Free yang tersedia.",
     });
 
     account.open_batch_count += 1;
@@ -364,7 +388,7 @@ export async function getControllerDashboardState() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Authentication required.");
+    throw new Error("Autentikasi diperlukan.");
   }
 
   const targetDate = todayInJakarta();
@@ -451,4 +475,3 @@ export async function autoAssignReadyPromptPacks(input?: { targetDate?: string |
     plan,
   };
 }
-

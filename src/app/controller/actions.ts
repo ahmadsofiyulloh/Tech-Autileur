@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { autoAssignReadyPromptPacks, buildClipJobDraft, buildPromptContextSummary } from "@/lib/server/controller";
+import { buildClipJobDraft, buildPromptContextSummary } from "@/lib/server/controller";
 import { createContent, archiveContent, updateContent } from "@/lib/server/contents";
-import { createFlowAccount, archiveFlowAccount, updateFlowAccount } from "@/lib/server/flow-accounts";
+import { createFlowAccount, archiveFlowAccount, getFlowAccountPool, updateFlowAccount } from "@/lib/server/flow-accounts";
 import { archiveFlowBatch, createFlowBatch, updateFlowBatch } from "@/lib/server/flow-batches";
 import { archiveClipJob, createClipJob, markGeneratedFileImported, updateClipJob, updateGeneratedFile } from "@/lib/server/clip-jobs";
 import { createGeneratedFile } from "@/lib/server/clip-jobs";
@@ -54,9 +54,8 @@ export async function saveController(formData: FormData) {
 
   try {
     if (intent === "auto_assign_ready_prompt_packs") {
-      const result = await autoAssignReadyPromptPacks({ targetDate: readNullableText(formData, "target_date") });
       revalidateController();
-      done(`Auto-assigned ${result.createdBatches.length} batch(es); skipped ${result.skipped}.`);
+      done("Review the recommended account before queueing.");
     }
 
     if (intent === "create_flow_account") {
@@ -106,6 +105,17 @@ export async function saveController(formData: FormData) {
       const flowAccountId = readText(formData, "flow_account_id");
       const promptPackId = readNullableText(formData, "prompt_pack_id");
       const promptPack = promptPackId ? await getPromptPackById(promptPackId) : null;
+      const targetDate = readNullableText(formData, "target_date");
+      const flowAccountPool = await getFlowAccountPool({ targetDate, limit: 200 });
+      const selectedAccount = flowAccountPool.find((account) => account.id === flowAccountId) ?? null;
+
+      if (!flowAccountId) {
+        throw new Error("Flow account is required.");
+      }
+
+      if (!selectedAccount || !selectedAccount.is_available) {
+        throw new Error("Selected Flow account is unavailable.");
+      }
 
       await createFlowBatch({
         workspace_id: readNullableText(formData, "workspace_id"),
@@ -113,9 +123,9 @@ export async function saveController(formData: FormData) {
         prompt_pack_id: promptPackId,
         flow_account_id: flowAccountId,
         batch_code: readText(formData, "batch_code"),
-        target_date: readNullableText(formData, "target_date") ?? undefined,
+        target_date: targetDate ?? undefined,
         model: readText(formData, "model"),
-        max_jobs: readNumber(formData, "max_jobs"),
+        max_jobs: selectedAccount.recommended_max_jobs,
         drive_output_folder_url: readNullableText(formData, "drive_output_folder_url"),
         drive_output_folder_id: readNullableText(formData, "drive_output_folder_id"),
         status: readText(formData, "status"),
