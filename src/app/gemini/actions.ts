@@ -107,14 +107,14 @@ function buildGeminiKeyCode(value: string) {
     .replace(/[^A-Za-z0-9]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+  const suffix = crypto.randomUUID().slice(0, 8).toUpperCase();
 
-  return normalized ? normalized.toUpperCase() : `GEMINI-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  return normalized ? `${normalized.toUpperCase()}-${suffix}` : `GEMINI-${suffix}`;
 }
 
 export async function saveGeminiKey(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
-  const keyCode = readText(formData, "key_code");
   const label = readText(formData, "label") || readText(formData, "name");
   const googleAccountLabel = readText(formData, "google_account_label");
   const projectLabel = readText(formData, "project_label");
@@ -122,7 +122,6 @@ export async function saveGeminiKey(formData: FormData) {
   const role = readText(formData, "role") || readText(formData, "purpose");
   const status = readText(formData, "status");
   const rawApiKey = readText(formData, "raw_api_key");
-  const notes = readText(formData, "notes");
   const rpmLimit = parseOptionalInt(readText(formData, "rpm_limit"), "RPM limit");
   const rpdLimit = parseOptionalInt(readText(formData, "rpd_limit"), "RPD limit");
   const tpmLimit = parseOptionalInt(readText(formData, "tpm_limit"), "TPM limit");
@@ -169,12 +168,12 @@ export async function saveGeminiKey(formData: FormData) {
     fail("Raw API key is required on create.");
   }
 
-  const normalizedKeyCode = keyCode || buildGeminiKeyCode(label);
   const normalizedModel = readModelName(modelName);
   const normalizedRole = readRole(role);
   const normalizedStatus = readStatus(status);
 
   if (intent === "create") {
+    const normalizedKeyCode = buildGeminiKeyCode(label);
     const encryptedApiKey = encryptGeminiApiKey(rawApiKey);
     const { data: createdKey, error: createError } = await supabase
       .from("gemini_api_keys")
@@ -191,7 +190,6 @@ export async function saveGeminiKey(formData: FormData) {
         rpd_limit: rpdLimit,
         tpm_limit: tpmLimit,
         status: normalizedStatus,
-        notes: notes || null,
       })
       .select("id")
       .single();
@@ -225,7 +223,7 @@ export async function saveGeminiKey(formData: FormData) {
 
   const { data: existingKey, error: existingError } = await supabase
     .from("gemini_api_keys")
-    .select("id, user_id")
+    .select("id, user_id, key_code")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -267,7 +265,7 @@ export async function saveGeminiKey(formData: FormData) {
   const { error: updateError } = await supabase
     .from("gemini_api_keys")
     .update({
-      key_code: normalizedKeyCode,
+      key_code: existingKey.key_code || buildGeminiKeyCode(label),
       label,
       provider: "gemini",
       google_account_label: googleAccountLabel || null,
@@ -278,7 +276,6 @@ export async function saveGeminiKey(formData: FormData) {
       rpd_limit: rpdLimit,
       tpm_limit: tpmLimit,
       status: normalizedStatus,
-      notes: notes || null,
     })
     .eq("id", id)
     .eq("user_id", user.id);

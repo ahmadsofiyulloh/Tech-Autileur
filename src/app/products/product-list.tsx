@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/operator/status-badge";
 
 export type ProductListRow = {
   id: string;
-  product_code: string;
   product_name: string;
   workspace_label: string;
   marketplace: string;
@@ -34,7 +33,6 @@ function matchesQuery(product: ProductListRow, query: string) {
   }
 
   return [
-    product.product_code,
     product.product_name,
     product.workspace_label,
     product.marketplace,
@@ -98,7 +96,6 @@ export function ProductList({ products }: ProductListProps) {
                   <td>
                     <div className="stack-tight">
                       <strong>{product.product_name}</strong>
-                      <span className="subtle">{product.product_code}</span>
                     </div>
                   </td>
                   <td>{product.workspace_label}</td>
@@ -134,7 +131,6 @@ export function ProductList({ products }: ProductListProps) {
               <div className="section-card__actions">
                 <div className="stack-tight">
                   <strong>{product.product_name}</strong>
-                  <span className="subtle">{product.product_code}</span>
                 </div>
                 <StatusBadge status={product.product_status} />
               </div>
@@ -182,10 +178,6 @@ export function ProductList({ products }: ProductListProps) {
         {selectedProduct ? (
           <>
             <dl className="product-drawer__meta">
-              <div>
-                <dt>Kode</dt>
-                <dd>{selectedProduct.product_code}</dd>
-              </div>
               <div>
                 <dt>Workspace</dt>
                 <dd>{selectedProduct.workspace_label}</dd>

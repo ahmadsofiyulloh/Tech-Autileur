@@ -50,7 +50,6 @@ export async function saveDriveItem(formData: FormData) {
   const sizeBytes = parseOptionalNumber(readText(formData, "size_bytes"), "Size bytes");
   const purpose = readText(formData, "purpose");
   const status = readText(formData, "status");
-  const notes = readText(formData, "notes");
 
   if (intent === "archive") {
     if (!id) {
@@ -92,7 +91,6 @@ export async function saveDriveItem(formData: FormData) {
       size_bytes: sizeBytes,
       purpose: normalizedPurpose,
       status: status || undefined,
-      notes: notes || null,
     });
 
     revalidatePath("/drive");
@@ -135,7 +133,6 @@ export async function saveDriveItem(formData: FormData) {
     size_bytes: sizeBytes,
     purpose: normalizedPurpose,
     status: status || undefined,
-    notes: notes || null,
   });
 
   revalidatePath("/drive");

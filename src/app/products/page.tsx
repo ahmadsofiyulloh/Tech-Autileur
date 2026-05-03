@@ -36,7 +36,7 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
   }
 
   const workspace = workspaceMap.get(workspaceId);
-  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace tidak tersedia";
+  return workspace ? workspace.workspace_name : "Workspace tidak tersedia";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -115,7 +115,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
     return {
       id: product.id,
-      product_code: product.product_code,
       product_name: product.product_name,
       workspace_label: workspaceLabel(product.workspace_id, workspaceMap),
       marketplace: fieldValue(product.marketplace),

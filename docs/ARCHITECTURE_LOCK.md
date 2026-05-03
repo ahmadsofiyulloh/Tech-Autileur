@@ -194,7 +194,7 @@ Pengaturan is the configuration hub for:
 
 Settings detail grammar:
 
-- Workspace: list + drawer CRUD, auto-generated code, name, niche picker, Drive root picker, default switch, archive.
+- Workspace: list + drawer CRUD, hidden auto-generated code, name, niche picker, Drive root picker, default switch, archive.
 - Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, and explicit workspace links/default selection.
 - Gemini: single minimal form surface; no list/history UI.
 - Drive: folder-centric list + drawer, workspace-scoped, folders only.

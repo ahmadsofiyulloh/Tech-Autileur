@@ -46,21 +46,6 @@ type AssetUploadCardProps = {
   onSelectionChange: (state: AssetSelectionState) => void;
 };
 
-function readMetadataTextarea(value: unknown) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter((item) => item.length > 0)
-      .join("\n");
-  }
-
-  return "";
-}
-
 function readReviewValue(metadata: JsonRecord | null, key: string, fallbackKey?: string) {
   if (!metadata) {
     return "";
@@ -290,7 +275,6 @@ function AnalysisReadyPanel({
   const defaultPainPoint = readReviewValue(reviewSource, "pain_point");
   const defaultSellingAngle = readReviewValue(reviewSource, "selling_angle");
   const defaultTargetViewer = readReviewValue(reviewSource, "target_viewer");
-  const defaultRiskNotes = readMetadataTextarea(reviewSource?.catatan_risiko || reviewSource?.risk_notes);
   const promptProductId = savedSession.status === "REVIEWED" ? savedSession.product_id : null;
 
   return (
@@ -349,12 +333,6 @@ function AnalysisReadyPanel({
             name="review_target_viewer"
             defaultValue={defaultTargetViewer}
             placeholder="Target viewer"
-          />
-          <ReviewTextarea
-            label="Catatan Risiko"
-            name="review_catatan_risiko"
-            defaultValue={defaultRiskNotes}
-            placeholder="Catatan risiko"
           />
         </div>
 

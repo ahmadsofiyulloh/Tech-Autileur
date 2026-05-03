@@ -6,7 +6,7 @@ export type AffiliatePlatform = (typeof AFFILIATE_PLATFORMS)[number];
 export type AffiliateProfileStatus = (typeof AFFILIATE_PROFILE_STATUSES)[number];
 
 export type AffiliateProfileInput = {
-  profile_code: string;
+  profile_code?: string | null;
   profile_name: string;
   platform?: string;
   account_label?: string | null;
@@ -44,6 +44,18 @@ export function readAffiliateProfileText(value: string | null | undefined) {
 
 export function normalizeAffiliateProfileCode(value: string) {
   return readAffiliateProfileText(value).replace(/\s+/g, "_").toUpperCase();
+}
+
+export function buildAffiliateProfileCode(value: string) {
+  const base =
+    readAffiliateProfileText(value)
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .toUpperCase()
+      .slice(0, 24) || "PROFILE";
+
+  return `${base}_${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
 export function normalizeNullableAffiliateProfileText(value: string | null | undefined) {
@@ -92,14 +104,10 @@ export function assertAffiliateProfileStatus(value: string): asserts value is Af
 }
 
 export function validateAffiliateProfileInput(input: AffiliateProfileInput) {
-  const profileCode = normalizeAffiliateProfileCode(input.profile_code);
   const profileName = readAffiliateProfileText(input.profile_name);
+  const profileCode = input.profile_code ? normalizeAffiliateProfileCode(input.profile_code) : buildAffiliateProfileCode(profileName);
   const platform = input.platform || "TIKTOK";
   const status = input.status || "ACTIVE";
-
-  if (!profileCode) {
-    throw new Error("Profile code is required.");
-  }
 
   if (!profileName) {
     throw new Error("Profile name is required.");

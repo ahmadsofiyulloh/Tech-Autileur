@@ -242,11 +242,6 @@ function buildReviewedMetadataFromInput(metadata: JsonRecord, fallback?: JsonRec
     pain_point: readJsonText(metadata.pain_point) || readJsonText(source.pain_point),
     selling_angle: readJsonText(metadata.selling_angle) || readJsonText(source.selling_angle),
     target_viewer: readJsonText(metadata.target_viewer) || readJsonText(source.target_viewer),
-    catatan_risiko:
-      readJsonText(metadata.catatan_risiko) ||
-      readJsonText(source.catatan_risiko) ||
-      readStringArrayLike(metadata.risk_notes).join("\n") ||
-      readStringArrayLike(source.risk_notes).join("\n"),
     product_title: readJsonText(metadata.product_title) || readJsonText(source.product_title),
     marketplace: readJsonText(metadata.marketplace) || readJsonText(source.marketplace),
     category: readJsonText(metadata.category) || readJsonText(source.category),
@@ -566,7 +561,7 @@ function buildIntakeParsePrompt(input: {
     "You are analysing uploaded product evidence for a single-owner operator workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
     "Return exactly one JSON object with these keys and no extras:",
-    '{ "nama_produk": "", "keyword_cari_etalase": "", "deskripsi_visual": "", "use_case": "", "pain_point": "", "selling_angle": "", "target_viewer": "", "catatan_risiko": "", "product_title": "", "marketplace": "", "category": "", "rating_text": "", "sold_count_text": "", "price_text": "", "shop_name": "", "visible_product_attributes": [], "risk_notes": [], "confidence_notes": [] }',
+    '{ "nama_produk": "", "keyword_cari_etalase": "", "deskripsi_visual": "", "use_case": "", "pain_point": "", "selling_angle": "", "target_viewer": "", "product_title": "", "marketplace": "", "category": "", "rating_text": "", "sold_count_text": "", "price_text": "", "shop_name": "", "visible_product_attributes": [], "risk_notes": [], "confidence_notes": [] }',
     "Use short operator-friendly Indonesian values.",
     "Analyse the uploaded product image, Shopee screenshot, and TikTok screenshot bytes directly.",
     "If a field is unknown, return an empty string or empty array.",
@@ -594,7 +589,6 @@ function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput) {
     pain_point: metadata.pain_point,
     selling_angle: metadata.selling_angle,
     target_viewer: metadata.target_viewer,
-    catatan_risiko: metadata.catatan_risiko,
     product_title: metadata.product_title,
     marketplace: metadata.marketplace,
     category: metadata.category,

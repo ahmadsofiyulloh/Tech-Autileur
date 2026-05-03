@@ -119,7 +119,7 @@ function promptPackSnippet(promptPack: ControllerPromptPackRecord) {
     readPromptText(promptPack.i2i_prompts_json?.clip_01_last_frame),
   ];
 
-  return candidates.find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0)?.trim() ?? `Paket prompt ${promptPack.prompt_code}.`;
+  return candidates.find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0)?.trim() ?? "Paket prompt.";
 }
 
 function productLabel(product: ControllerProductRecord | undefined | null) {
@@ -127,7 +127,7 @@ function productLabel(product: ControllerProductRecord | undefined | null) {
     return "Produk tidak tersedia";
   }
 
-  return [product.product_code, product.product_name].filter(Boolean).join(" - ");
+  return product.product_name;
 }
 
 function accountLabel(account: FlowAccountPoolRecord | undefined | null) {
@@ -135,7 +135,7 @@ function accountLabel(account: FlowAccountPoolRecord | undefined | null) {
     return "Akun tidak tersedia";
   }
 
-  return [account.account_code, account.account_type].filter(Boolean).join(" - ");
+  return accountTypeLabel(account.account_type);
 }
 
 function accountTypeLabel(value: string) {
@@ -322,7 +322,6 @@ function PreserveFlowAccountFields({ account, status }: { account: FlowAccountPo
   return (
     <>
       <input type="hidden" name="id" value={account.id} />
-      <input type="hidden" name="account_code" value={account.account_code} />
       <input type="hidden" name="account_type" value={account.account_type} />
       <input type="hidden" name="observed_daily_credit" value={account.observed_daily_credit} />
       <input type="hidden" name="observed_monthly_credit" value={account.observed_monthly_credit ?? ""} />
@@ -330,7 +329,6 @@ function PreserveFlowAccountFields({ account, status }: { account: FlowAccountPo
       <input type="hidden" name="max_parallel_allowed" value={account.max_parallel_allowed} />
       <input type="hidden" name="cooldown_minutes" value={account.cooldown_minutes} />
       <input type="hidden" name="status" value={status} />
-      <input type="hidden" name="notes" value={account.notes ?? ""} />
     </>
   );
 }
@@ -378,21 +376,15 @@ function FlowAccountPanel({ accounts }: { accounts: FlowAccountPoolRecord[] }) {
         <form className="stack" action={saveController}>
           <input type="hidden" name="intent" value="create_flow_account" />
           <input type="hidden" name="status" value="ACTIVE" />
-          <div className="grid two-up">
-            <label className="stack auth-field" htmlFor="flow-account-code">
-              <span>Kode Akun</span>
-              <input id="flow-account-code" name="account_code" type="text" placeholder="FLOW-FREE-01" required />
-            </label>
-            <RelationalPicker
-              defaultValue="FLOW_FREE"
-              label="Tipe Akun"
-              name="account_type"
-              options={pickerOptions(FLOW_ACCOUNT_TYPES)}
-              placeholder="Pilih tipe akun"
-              required
-              searchable={false}
-            />
-          </div>
+          <RelationalPicker
+            defaultValue="FLOW_FREE"
+            label="Tipe Akun"
+            name="account_type"
+            options={pickerOptions(FLOW_ACCOUNT_TYPES)}
+            placeholder="Pilih tipe akun"
+            required
+            searchable={false}
+          />
           <FormActions>
             <button className="button compact primary" type="submit">
               <Plus size={16} aria-hidden="true" />
@@ -406,7 +398,7 @@ function FlowAccountPanel({ accounts }: { accounts: FlowAccountPoolRecord[] }) {
             {accounts.map((account) => (
               <li key={account.id}>
                 <div className="stack-tight">
-                  <strong>{account.account_code}</strong>
+                  <strong>{accountTypeLabel(account.account_type)}</strong>
                   <span className="subtle">
                     {[
                       accountTypeLabel(account.account_type),
@@ -454,12 +446,12 @@ function FlowAccountPicker({
       return 1;
     }
 
-    return left.account_code.localeCompare(right.account_code);
+    return left.created_at.localeCompare(right.created_at);
   });
 
   const options = orderedAccounts.map((account) => ({
     value: account.id,
-    label: account.id === recommendedAccountId ? `${account.account_code} - Disarankan` : account.account_code,
+    label: account.id === recommendedAccountId ? `${accountTypeLabel(account.account_type)} - Disarankan` : accountTypeLabel(account.account_type),
     description: [
       account.account_type,
       `${account.credits_remaining} kredit`,
@@ -504,7 +496,7 @@ function PromptQueueCard({
   return (
     <li>
       <div className="stack-tight">
-        <strong>{promptPack.prompt_code}</strong>
+        <strong>{product?.product_name ?? "Paket prompt"}</strong>
         <span className="subtle">{[productLabel(product), `v${promptPack.version}`, promptContext].filter(Boolean).join(" - ")}</span>
         <p className="subtle">{promptSnippet}</p>
         <div className="section-card__actions">
@@ -512,7 +504,7 @@ function PromptQueueCard({
           <StatusBadge status="Klip 0" tone="info" />
           {plan?.status === "READY" ? (
             <>
-              <StatusBadge status={`Disarankan ${plan.recommendedAccountCode ?? "akun Flow"}`} tone="success" />
+              <StatusBadge status="Akun disarankan" tone="success" />
               <StatusBadge status={`Saran ${plan.recommendedMaxJobs} job`} tone="info" />
             </>
           ) : (
@@ -572,8 +564,8 @@ function BatchCard({
   return (
     <li>
       <div className="stack-tight">
-        <strong>{batch.batch_code}</strong>
-        <span className="subtle">{[productLabel(product), promptPack?.prompt_code, accountLabel(account)].filter(Boolean).join(" - ")}</span>
+        <strong>{productLabel(product)}</strong>
+        <span className="subtle">{[promptPack ? `Versi ${promptPack.version}` : null, accountLabel(account)].filter(Boolean).join(" - ")}</span>
         <p className="subtle">
           Klip {stats.clipCount} - Output {stats.outputCount}
         </p>

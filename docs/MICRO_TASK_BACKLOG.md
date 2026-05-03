@@ -119,7 +119,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S6-001 - Workspace and affiliate settings _(DONE)_
 **Goal:** Use list + drawer CRUD and minimal fields for Ruang Kerja and Akun Affiliate.
 **Owner:** Codex
-**Acceptance:** workspace drawer uses auto-generated code, Nama Ruang Kerja, niche picker, Folder Drive Utama picker, default switch, and archive; affiliate drawer uses base info, Character/Environment image cards, editable rule editors, and no required notes field.
+**Acceptance:** workspace drawer hides auto-generated code and uses Nama Ruang Kerja, niche picker, Folder Drive Utama picker, default switch, and archive; affiliate drawer uses base info, Character/Environment image cards, editable rule editors, and no notes field.
 
 ### S6-002 - Tool settings _(DONE)_
 **Goal:** Keep Gemini, Drive, Flow link/status, Account, and Windows Helper/App API Token in Pengaturan.
@@ -144,7 +144,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S6-006 - Affiliate Profile drawer rewrite
 **Goal:** Replace the current form-heavy Akun Affiliate surface with the locked list + drawer model and two first-class asset cards.
 **Owner:** Codex
-**Acceptance:** row summaries stay minimal, the drawer is the only edit surface, Character and Environment each have upload/replace/remove plus preview/status, explicit workspace links and default selection live in the drawer, and notes stay secondary.
+**Acceptance:** row summaries stay minimal, the drawer is the only edit surface, Character and Environment each have upload/replace/remove plus preview/status, explicit workspace links and default selection live in the drawer, and notes are not shown in forms.
 
 ## S7 - Dashboard Analytics
 
@@ -164,3 +164,8 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Run dev E2E with real sample images, live Gemini, Drive upload, prompt persistence, Flow manifest, and output metadata callback when helper is available.
 **Owner:** Codex + User setup
 **Acceptance:** failures are classified as product blocker, helper limitation, auth limitation, or missing external setup.
+
+### S8-003 - Hide codes and remove form notes
+**Goal:** Make all operator-facing code fields internal/auto-generated and remove notes/catatan fields from forms.
+**Owner:** Codex
+**Acceptance:** no primary UI form asks for codes or notes, codes are still generated for database/helper artifacts, and technical manifest/helper identifiers keep working.

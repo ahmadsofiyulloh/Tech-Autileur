@@ -382,7 +382,7 @@ async function getWorkspaceSelectionStateForContext(context: WorkspaceContext): 
 function buildWorkspaceUpdatePayload(input: WorkspaceUpdateInput) {
   const payload: Record<string, string | boolean | null> = {};
 
-  if (input.workspace_code !== undefined) {
+  if (input.workspace_code !== undefined && input.workspace_code !== null) {
     const workspaceCode = normalizeWorkspaceCode(input.workspace_code);
 
     if (workspaceCode) {

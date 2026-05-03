@@ -9,7 +9,6 @@ export type IntakeReviewMetadata = {
   pain_point: string;
   selling_angle: string;
   target_viewer: string;
-  catatan_risiko: string;
 };
 
 export type IntakeVisionParseOutput = IntakeReviewMetadata & {
@@ -33,7 +32,6 @@ const INTAKE_REVIEW_KEYS = [
   "pain_point",
   "selling_angle",
   "target_viewer",
-  "catatan_risiko",
 ] as const;
 
 const INTAKE_COMPAT_KEYS = [
@@ -137,14 +135,6 @@ function buildVisibleFallback(review: IntakeReviewMetadata) {
   ].filter((item) => item.length > 0);
 }
 
-function buildRiskNotes(review: IntakeReviewMetadata, fallback: string[]) {
-  if (fallback.length > 0) {
-    return fallback;
-  }
-
-  return splitLines(review.catatan_risiko);
-}
-
 function hasUsefulContent(output: IntakeVisionParseOutput) {
   return Boolean(
     output.nama_produk ||
@@ -154,7 +144,6 @@ function hasUsefulContent(output: IntakeVisionParseOutput) {
       output.pain_point ||
       output.selling_angle ||
       output.target_viewer ||
-      output.catatan_risiko ||
       output.product_title ||
       output.marketplace ||
       output.category ||
@@ -189,7 +178,6 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
     pain_point: readString(record.pain_point, "pain_point"),
     selling_angle: readString(record.selling_angle, "selling_angle"),
     target_viewer: readString(record.target_viewer, "target_viewer"),
-    catatan_risiko: readString(record.catatan_risiko, "catatan_risiko"),
   };
 
   const productTitle = readOptionalString(record.product_title) || review.nama_produk || review.keyword_cari_etalase;
@@ -213,7 +201,7 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
     price_text: priceText,
     shop_name: shopName,
     visible_product_attributes: visibleProductAttributes.length ? visibleProductAttributes : buildVisibleFallback(review),
-    risk_notes: buildRiskNotes(review, riskNotes),
+    risk_notes: riskNotes,
     confidence_notes: confidenceNotes.length
       ? confidenceNotes
       : ["Analisis Gemini live dari bytes upload."],

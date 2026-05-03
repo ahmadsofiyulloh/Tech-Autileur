@@ -29,7 +29,7 @@
 ## Metadata Review
 
 - Gemini output is reviewable and editable.
-- Required review fields are `Nama Produk`, `Keyword Cari Etalase`, `Deskripsi Visual`, `Use Case`, `Pain Point`, `Selling Angle`, `Target Viewer`, `Catatan Risiko`.
+- Required review fields are `Nama Produk`, `Keyword Cari Etalase`, `Deskripsi Visual`, `Use Case`, `Pain Point`, `Selling Angle`, `Target Viewer`.
 
 ## Prompt Pipeline
 
@@ -91,9 +91,9 @@
 - Default profile selection is explicit per workspace.
 - New profiles default asset locks to ON.
 - Workspace settings use `Nama Ruang Kerja` and `Folder Drive Utama`.
-- Workspace settings use list + drawer CRUD with auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
+- Workspace settings use list + drawer CRUD with hidden auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
 - Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, archive, and explicit workspace links/default selection.
-- Affiliate Profile settings do not promote `notes` as a required surface field.
+- Affiliate Profile settings do not show `notes` fields.
 - Gemini settings are a single minimal form surface, not list/history.
 - Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
 - Flow Accounts are controller-owned execution tools and do not become a separate Settings CRUD surface.

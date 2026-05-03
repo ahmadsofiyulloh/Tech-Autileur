@@ -64,7 +64,7 @@ export default async function WorkspaceSettingsPage() {
     pickerOption(
       workspace.id,
       workspace.workspace_name,
-      [workspace.workspace_code, workspace.is_default ? "default" : null].filter(Boolean).join(" - "),
+      workspace.is_default ? "default" : null,
     ),
   );
 
@@ -121,10 +121,6 @@ export default async function WorkspaceSettingsPage() {
                 <details>
                   <summary>Lanjutan</summary>
                   <div className="stack">
-                    <label className="stack auth-field" htmlFor="workspace-code">
-                      <span>Kode Ruang Kerja</span>
-                      <input id="workspace-code" name="workspace_code" type="text" placeholder="Otomatis dari nama" />
-                    </label>
                     <div className="grid two-up">
                       <RelationalPicker
                         allowClear
@@ -140,16 +136,10 @@ export default async function WorkspaceSettingsPage() {
                         <input id="workspace-drive-path" name="drive_root_folder_path" type="text" placeholder="/AffiliateAI/WORKSPACES/FASHION_MEN" />
                       </label>
                     </div>
-                    <div className="grid two-up">
-                      <label className="stack auth-field" htmlFor="workspace-niche">
-                        <span>Niche</span>
-                        <input id="workspace-niche" name="niche" type="text" placeholder="Optional niche" />
-                      </label>
-                      <label className="stack auth-field" htmlFor="workspace-notes">
-                        <span>Catatan</span>
-                        <textarea id="workspace-notes" name="notes" rows={3} placeholder="Operator notes" />
-                      </label>
-                    </div>
+                    <label className="stack auth-field" htmlFor="workspace-niche">
+                      <span>Niche</span>
+                      <input id="workspace-niche" name="niche" type="text" placeholder="Optional niche" />
+                    </label>
                     <label className="checkbox-row" htmlFor="workspace-is-default">
                       <input id="workspace-is-default" name="is_default" type="checkbox" />
                       <span>Jadikan default</span>

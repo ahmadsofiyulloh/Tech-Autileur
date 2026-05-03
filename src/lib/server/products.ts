@@ -45,7 +45,7 @@ type ProductImageRecord = {
 type ProductInput = {
   id?: string;
   workspace_id?: string | null;
-  product_code: string;
+  product_code?: string | null;
   product_name: string;
   niche?: string | null;
   marketplace?: string | null;
@@ -107,7 +107,10 @@ async function resolveWorkspaceIdForInsert(workspaceId: string | null | undefine
 }
 
 function ensureProductCode(value: string) {
-  const trimmed = readText(value);
+  const trimmed = readText(value)
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
   if (!trimmed) {
     throw new Error("Product code is required.");
@@ -118,14 +121,13 @@ function ensureProductCode(value: string) {
 
 export function buildProductCode(name: string) {
   const normalized = readText(name)
-    .replace(/[^A-Za-z0-9]+/g, "")
-    .toUpperCase();
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase()
+    .slice(0, 24);
 
-  if (!normalized) {
-    return "PRODUCT0001";
-  }
-
-  return normalized.slice(0, 8).padEnd(8, "0");
+  return `${normalized || "PRODUCT"}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
 export async function createProduct(input: ProductInput) {
@@ -139,7 +141,7 @@ export async function createProduct(input: ProductInput) {
     .insert({
       user_id: user.id,
       workspace_id: workspaceId,
-      product_code: ensureProductCode(input.product_code),
+      product_code: input.product_code ? ensureProductCode(input.product_code) : buildProductCode(input.product_name),
       product_name: readText(input.product_name),
       niche: normalizeNullableText(input.niche),
       marketplace: normalizeNullableText(input.marketplace),
@@ -207,7 +209,9 @@ export async function updateProduct(id: string, input: Partial<ProductInput>) {
     .from("products")
     .update({
       ...(input.workspace_id !== undefined ? { workspace_id: normalizeNullableWorkspaceUuid(input.workspace_id) } : {}),
-      ...(input.product_code !== undefined ? { product_code: ensureProductCode(input.product_code) } : {}),
+      ...(input.product_code !== undefined && input.product_code !== null
+        ? { product_code: ensureProductCode(input.product_code) }
+        : {}),
       ...(input.product_name !== undefined ? { product_name: readText(input.product_name) } : {}),
       ...(input.niche !== undefined ? { niche: normalizeNullableText(input.niche) } : {}),
       ...(input.marketplace !== undefined ? { marketplace: normalizeNullableText(input.marketplace) } : {}),

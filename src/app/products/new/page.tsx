@@ -30,7 +30,7 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
   }
 
   const workspace = workspaceMap.get(workspaceId);
-  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
+  return workspace ? workspace.workspace_name : "Workspace unavailable";
 }
 
 export default async function NewProductPage({ searchParams }: NewProductPageProps) {

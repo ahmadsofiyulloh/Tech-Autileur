@@ -117,7 +117,7 @@ type PromptPackInput = {
   intake_session_id?: string | null;
   affiliate_profile_id?: string | null;
   source_product_image_id?: string | null;
-  prompt_code: string;
+  prompt_code?: string | null;
   version?: number;
   status?: string;
   product_analysis_json?: JsonObject | null;
@@ -181,6 +181,16 @@ function readText(value: string | null | undefined) {
 function normalizeNullableText(value: string | null | undefined) {
   const trimmed = readText(value);
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildPromptCode(productCode: string | null | undefined) {
+  const base = readText(productCode)
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  const prefix = base ? `PROMPT-${base.toUpperCase()}` : "PROMPT";
+
+  return `${prefix}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
 function assertPromptPackStatus(value: string): asserts value is PromptPackStatus {
@@ -1549,7 +1559,7 @@ export async function createPromptPack(input: PromptPackInput) {
       intake_session_id: intakeSessionId,
       affiliate_profile_id: affiliateProfileId,
       source_product_image_id: sourceProductImageId,
-      prompt_code: normalizePromptCode(input.prompt_code),
+      prompt_code: normalizePromptCode(input.prompt_code ?? buildPromptCode(product.product_code)),
       version,
       status,
       product_analysis_json: input.product_analysis_json ?? null,
@@ -1644,7 +1654,9 @@ export async function updatePromptPack(id: string, input: PromptPackUpdateInput)
         : input.product_id !== undefined
           ? { affiliate_profile_id: null }
           : {}),
-      ...(input.prompt_code !== undefined ? { prompt_code: normalizePromptCode(input.prompt_code) } : {}),
+      ...(input.prompt_code !== undefined && input.prompt_code !== null
+        ? { prompt_code: normalizePromptCode(input.prompt_code) }
+        : {}),
       ...(input.version !== undefined ? { version: ensurePromptVersion(input.version) } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(input.product_analysis_json !== undefined ? { product_analysis_json: input.product_analysis_json } : {}),

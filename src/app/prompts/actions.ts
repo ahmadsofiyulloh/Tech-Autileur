@@ -15,7 +15,7 @@ import {
 } from "@/lib/server/prompt-packs";
 import { getProductById } from "@/lib/server/products";
 import { buildPromptPackEditorStoragePayload } from "@/lib/prompts/prompt-pack-contract";
-import { PROMPT_CLIP_KEYS, isPromptPackStatus, normalizePromptCode, type PromptClipKey } from "@/lib/prompts/validation";
+import { PROMPT_CLIP_KEYS, isPromptPackStatus, type PromptClipKey } from "@/lib/prompts/validation";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -110,19 +110,13 @@ async function generatePromptPack(promptPackId: string, generationMode: Generati
 async function savePromptPackFields(formData: FormData, id: string) {
   const existing = await getPromptPackById(id);
   const productId = readText(formData, "product_id");
-  const promptCode = normalizePromptCode(readText(formData, "prompt_code"));
   const intakeSessionId = readNullableText(formData, "intake_session_id");
   const affiliateProfileId = readNullableText(formData, "affiliate_profile_id");
   const sourceProductImageId = readNullableText(formData, "source_product_image_id");
-  const notes = readNullableText(formData, "notes");
   const storagePayload = readPromptEditorPayload(formData, existing.personalization_json);
 
   if (!productId) {
     fail("Produk wajib dipilih.");
-  }
-
-  if (!promptCode) {
-    fail("Kode prompt wajib diisi.");
   }
 
   return await updatePromptPack(id, {
@@ -130,9 +124,7 @@ async function savePromptPackFields(formData: FormData, id: string) {
     intake_session_id: intakeSessionId,
     affiliate_profile_id: affiliateProfileId,
     source_product_image_id: sourceProductImageId,
-    prompt_code: promptCode,
     version: readVersion(formData, "version"),
-    notes,
     i2i_prompts_json: storagePayload.i2i_prompts_json,
     i2v_prompts_json: storagePayload.i2v_prompts_json,
     personalization_json: storagePayload.personalization_json,
@@ -158,16 +150,15 @@ export async function savePromptPack(formData: FormData) {
 
   if (intent === "create_generate" || intent === "create") {
     const productId = readText(formData, "product_id");
-    const product = productId ? await getProductById(productId) : null;
-    const promptCode = normalizePromptCode(readText(formData, "prompt_code")) || product?.product_code || "";
     const status = readText(formData, "status") || "DRAFT";
 
     if (!productId) {
       fail("Produk wajib dipilih.");
     }
 
-    if (!promptCode) {
-      fail("Kode prompt wajib diisi.");
+    const product = await getProductById(productId);
+    if (!product) {
+      fail("Produk tidak ditemukan.");
     }
 
     if (status && !isPromptPackStatus(status)) {
@@ -180,10 +171,8 @@ export async function savePromptPack(formData: FormData) {
       intake_session_id: readNullableText(formData, "intake_session_id"),
       affiliate_profile_id: readNullableText(formData, "affiliate_profile_id"),
       source_product_image_id: readNullableText(formData, "source_product_image_id"),
-      prompt_code: promptCode,
       version: readVersion(formData, "version"),
       status,
-      notes: readNullableText(formData, "notes"),
       i2i_prompts_json: storagePayload.i2i_prompts_json,
       i2v_prompts_json: storagePayload.i2v_prompts_json,
       personalization_json: storagePayload.personalization_json,
@@ -225,7 +214,6 @@ export async function savePromptPack(formData: FormData) {
       intakeSessionId: readNullableText(formData, "intake_session_id"),
       affiliateProfileId: readNullableText(formData, "affiliate_profile_id"),
       sourceProductImageId: readNullableText(formData, "source_product_image_id"),
-      notes: readNullableText(formData, "notes"),
     });
     const result = await generatePromptPack(nextVersion.id, generationMode);
 

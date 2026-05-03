@@ -50,7 +50,6 @@ function reviewedMetadataFromForm(formData: FormData): JsonRecord {
     pain_point: readText(formData, "review_pain_point"),
     selling_angle: readText(formData, "review_selling_angle"),
     target_viewer: readText(formData, "review_target_viewer"),
-    catatan_risiko: readText(formData, "review_catatan_risiko") || readText(formData, "review_risk_notes"),
   };
 }
 
@@ -66,7 +65,6 @@ function sourceFromForm(formData: FormData, prefix: string) {
     shop_name: readText(formData, `${prefix}_shop_name`) || null,
     screenshot_drive_item_ref_id: readText(formData, `${prefix}_screenshot_drive_item_ref_id`) || null,
     status: readText(formData, `${prefix}_status`) || "DRAFT",
-    notes: readText(formData, `${prefix}_notes`) || null,
     parsed_metadata_json: {
       entry_mode: "manual",
       platform: prefix.toUpperCase(),
@@ -95,7 +93,6 @@ export async function saveIntake(formData: FormData) {
         tiktok_url: readText(formData, "tiktok_url"),
         product_photo_drive_item_ref_id: readText(formData, "product_photo_drive_item_ref_id"),
         screenshot_drive_item_ref_id: readText(formData, "screenshot_drive_item_ref_id"),
-        raw_notes: readText(formData, "raw_notes"),
         status: "SUBMITTED",
       });
       message = "Intake saved";
@@ -115,7 +112,6 @@ export async function saveIntake(formData: FormData) {
         tiktok_url: readText(formData, "tiktok_url"),
         product_photo_drive_item_ref_id: readText(formData, "product_photo_drive_item_ref_id"),
         screenshot_drive_item_ref_id: readText(formData, "screenshot_drive_item_ref_id"),
-        raw_notes: readText(formData, "raw_notes"),
         status: readText(formData, "status") || undefined,
       });
       message = "Intake updated";
@@ -170,10 +166,8 @@ export async function saveIntake(formData: FormData) {
       }
 
       await createProductFromIntake(id, {
-        product_code: readText(formData, "product_code"),
         product_name: readText(formData, "product_name"),
         niche: readText(formData, "niche"),
-        notes: readText(formData, "product_notes"),
       });
       message = "Product created";
     } else if (intent === "save_sources") {
@@ -192,9 +186,7 @@ export async function saveIntake(formData: FormData) {
       }
 
       await createProductAnchorFromIntake(id, {
-        anchor_code: readText(formData, "anchor_code"),
         source_product_image_id: readText(formData, "source_product_image_id"),
-        notes: readText(formData, "anchor_notes"),
       });
       message = "Anchor updated";
     } else {

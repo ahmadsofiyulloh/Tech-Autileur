@@ -35,7 +35,7 @@ export default async function GeminiPage() {
   const { data: geminiKeys, error } = await supabase
     .from("gemini_api_keys")
     .select(
-      "id, key_code, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, status, notes, created_at, updated_at",
+      "id, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, status, created_at, updated_at",
     )
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false })
@@ -68,14 +68,12 @@ export default async function GeminiPage() {
         <form className="stack" action={saveGeminiKey}>
           <input type="hidden" name="intent" value={hasKey ? "update" : "create"} />
           {geminiKey ? <input type="hidden" name="id" value={geminiKey.id} /> : null}
-          {geminiKey ? <input type="hidden" name="key_code" value={geminiKey.key_code} /> : null}
           {geminiKey ? <input type="hidden" name="status" value={geminiKey.status} /> : null}
           {geminiKey ? <input type="hidden" name="google_account_label" value={fieldValue(geminiKey.google_account_label)} /> : null}
           {geminiKey ? <input type="hidden" name="project_label" value={fieldValue(geminiKey.project_label)} /> : null}
           {geminiKey ? <input type="hidden" name="rpm_limit" value={fieldValue(geminiKey.rpm_limit)} /> : null}
           {geminiKey ? <input type="hidden" name="rpd_limit" value={fieldValue(geminiKey.rpd_limit)} /> : null}
           {geminiKey ? <input type="hidden" name="tpm_limit" value={fieldValue(geminiKey.tpm_limit)} /> : null}
-          {geminiKey ? <input type="hidden" name="notes" value={fieldValue(geminiKey.notes)} /> : null}
           <div className="grid two-up">
             <label className="stack auth-field" htmlFor="gemini-name">
               <span>Nama</span>

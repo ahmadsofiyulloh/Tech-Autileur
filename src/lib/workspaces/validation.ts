@@ -3,7 +3,7 @@ export const WORKSPACE_STATUSES = ["ACTIVE", "ARCHIVED", "DISABLED", "ERROR"] as
 export type WorkspaceStatus = (typeof WORKSPACE_STATUSES)[number];
 
 export type WorkspaceInput = {
-  workspace_code: string;
+  workspace_code?: string | null;
   workspace_name: string;
   niche?: string | null;
   drive_root_folder_ref_id?: string | null;
@@ -26,6 +26,18 @@ export function readWorkspaceText(value: string | null | undefined) {
 
 export function normalizeWorkspaceCode(value: string) {
   return readWorkspaceText(value).replace(/\s+/g, "_").toUpperCase();
+}
+
+export function buildWorkspaceCode(value: string) {
+  const base =
+    readWorkspaceText(value)
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .toUpperCase()
+      .slice(0, 24) || "WORKSPACE";
+
+  return `${base}_${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
 export function normalizeNullableWorkspaceText(value: string | null | undefined) {
@@ -55,15 +67,11 @@ export function assertWorkspaceStatus(value: string): asserts value is Workspace
 
 export function validateWorkspaceInput(input: WorkspaceInput) {
   const workspaceName = readWorkspaceText(input.workspace_name);
-  const workspaceCode = normalizeWorkspaceCode(input.workspace_code || workspaceName);
+  const workspaceCode = input.workspace_code ? normalizeWorkspaceCode(input.workspace_code) : buildWorkspaceCode(workspaceName);
   const status = input.status ?? "ACTIVE";
 
   if (!workspaceName) {
     throw new Error("Workspace name is required.");
-  }
-
-  if (!workspaceCode) {
-    throw new Error("Workspace code is required.");
   }
 
   assertWorkspaceStatus(status);

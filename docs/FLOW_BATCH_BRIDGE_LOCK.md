@@ -24,9 +24,10 @@ The app prepares prompt batches for Google Flow. Google Flow remains the externa
 Tiny form fields:
 
 ```text
-Kode Akun
 Tipe Akun
 ```
+
+`account_code` is auto-generated and hidden from operator UI.
 
 Advanced defaults may be hidden:
 
@@ -37,7 +38,6 @@ credit_per_generation
 max_parallel_allowed
 cooldown_minutes
 status
-notes
 ```
 
 `Pengaturan > Account` owns Chrome profile pairing and App API Token controls. `/controller` must not duplicate pairing actions.
@@ -68,9 +68,8 @@ Selesai
 
 Each card shows:
 
-- product name or code.
-- batch code.
-- selected Flow account code.
+- product name.
+- selected Flow account type/status.
 - clip count.
 - status.
 - last action timestamp.
@@ -164,6 +163,8 @@ Helper must not:
 - submit prompts automatically.
 - store Chrome profile path in Supabase.
 - store helper Drive OAuth token in Supabase.
+
+Operator-facing desktop sequence, staging rules, and Chrome profile reuse details live in [FLOW_HELPER_DESKTOP_WORKFLOW.md](FLOW_HELPER_DESKTOP_WORKFLOW.md).
 
 ## Output Rename Pattern
 

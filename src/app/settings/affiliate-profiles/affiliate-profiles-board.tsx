@@ -46,7 +46,6 @@ function profileMatchesQuery(profile: AffiliateProfileRecord, query: string) {
   }
 
   return [
-    profile.profile_code,
     profile.profile_name,
     profile.platform,
     profile.account_label,
@@ -65,7 +64,7 @@ function workspaceLabel(workspace: WorkspaceRecord | undefined) {
     return "Workspace tidak tersedia";
   }
 
-  return `${workspace.workspace_code} - ${workspace.workspace_name}`;
+  return workspace.workspace_name;
 }
 
 function choiceOptions(values: readonly string[]) {
@@ -143,7 +142,7 @@ export function AffiliateProfilesBoard({
       activeWorkspaces.map((workspace) => ({
         value: workspace.id,
         label: workspace.workspace_name,
-        description: [workspace.workspace_code, workspace.is_default ? "default" : null].filter(Boolean).join(" - "),
+        description: workspace.is_default ? "default" : "",
       })),
     [activeWorkspaces],
   );
@@ -340,16 +339,10 @@ export function AffiliateProfilesBoard({
               <input type="hidden" name="current_seed_character_drive_item_ref_id" value={initialProfile?.seed_character_drive_item_ref_id ?? ""} />
               <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile?.environment_drive_item_ref_id ?? ""} />
 
-              <div className="grid two-up">
-                <label className="stack auth-field" htmlFor="affiliate-profile-code">
-                  <span>Profile code</span>
-                  <input id="affiliate-profile-code" name="profile_code" type="text" placeholder="FASHION_TTK_01" defaultValue={initialProfile?.profile_code ?? ""} required />
-                </label>
-                <label className="stack auth-field" htmlFor="affiliate-profile-name">
-                  <span>Profile name</span>
-                  <input id="affiliate-profile-name" name="profile_name" type="text" placeholder="Fashion TikTok 01" defaultValue={initialProfile?.profile_name ?? ""} required />
-                </label>
-              </div>
+              <label className="stack auth-field" htmlFor="affiliate-profile-name">
+                <span>Profile name</span>
+                <input id="affiliate-profile-name" name="profile_name" type="text" placeholder="Fashion TikTok 01" defaultValue={initialProfile?.profile_name ?? ""} required />
+              </label>
 
               <div className="grid two-up">
                 <RelationalPicker
@@ -475,10 +468,6 @@ export function AffiliateProfilesBoard({
                         searchPlaceholder="Cari Drive item"
                       />
                     </details>
-                    <label className="stack auth-field" htmlFor="seed-character-notes">
-                      <span>Character notes</span>
-                      <textarea id="seed-character-notes" name="seed_character_notes" rows={3} defaultValue={initialProfile?.seed_character_notes ?? ""} />
-                    </label>
                   </section>
 
                   <section className="asset-upload-card stack-tight">
@@ -531,10 +520,6 @@ export function AffiliateProfilesBoard({
                         searchPlaceholder="Cari Drive item"
                       />
                     </details>
-                    <label className="stack auth-field" htmlFor="environment-notes">
-                      <span>Environment notes</span>
-                      <textarea id="environment-notes" name="environment_notes" rows={3} defaultValue={initialProfile?.environment_notes ?? ""} />
-                    </label>
                   </section>
                 </div>
               </section>
@@ -555,10 +540,6 @@ export function AffiliateProfilesBoard({
                   <label className="stack auth-field" htmlFor="affiliate-url">
                     <span>Affiliate URL</span>
                     <input id="affiliate-url" name="affiliate_url" type="url" placeholder="https://..." defaultValue={initialProfile?.affiliate_url ?? ""} />
-                  </label>
-                  <label className="stack auth-field" htmlFor="affiliate-notes">
-                    <span>Catatan</span>
-                    <textarea id="affiliate-notes" name="notes" rows={3} placeholder="Operator notes" defaultValue={initialProfile?.notes ?? ""} />
                   </label>
                 </div>
               </details>
@@ -589,10 +570,6 @@ export function AffiliateProfilesBoard({
                   <label className="stack auth-field" htmlFor="affiliate-negative-rules">
                     <span>Negative prompt rules</span>
                     <textarea id="affiliate-negative-rules" name="negative_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.negative_prompt_rules ?? ""} />
-                  </label>
-                  <label className="stack auth-field" htmlFor="affiliate-positioning-notes">
-                    <span>Product positioning notes</span>
-                    <textarea id="affiliate-positioning-notes" name="product_positioning_notes" rows={4} placeholder="Editable notes" defaultValue={initialProfile?.product_positioning_notes ?? ""} />
                   </label>
                   <div className="grid two-up">
                     <div className="muted-box stack-tight">

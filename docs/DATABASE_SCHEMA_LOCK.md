@@ -309,7 +309,7 @@ updated_at timestamptz
 
 Affiliate Profile is the only owner for character and environment locks in Phase awal. The environment asset is the background-lock asset. There is no separate background-reference column in MVP.
 
-UI note: `notes` may remain as legacy/internal metadata, but it is not a required surface field for Phase awal.
+UI note: `notes` may remain as legacy/internal metadata, but it must not be shown in Phase awal forms.
 
 Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive.
 
@@ -389,9 +389,10 @@ google_refresh_token
 UI tiny form:
 
 ```text
-Kode Akun
 Tipe Akun
 ```
+
+`account_code` is generated internally and hidden from operator UI.
 
 UI surface lock: Flow Accounts are controller-owned execution tools. They can be managed from `/controller` support panels, but they must not become a separate Settings CRUD surface.
 

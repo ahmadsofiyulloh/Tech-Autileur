@@ -4,11 +4,9 @@ import { useState } from "react";
 import { CopyButton } from "@/components/operator/copy-button";
 import { FormActions } from "@/components/operator/form-actions";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { HELPER_API_TOKEN_CODE } from "@/lib/helper-api-tokens";
 import { saveHelperApiToken } from "./actions";
 
 type HelperApiTokenPayload = {
-  token_code: string;
   raw_token: string;
   owner_email: string | null;
   created_at: string;
@@ -16,14 +14,12 @@ type HelperApiTokenPayload = {
 
 type HelperApiTokenRecord = {
   id: string;
-  token_code: string;
   status: string;
   last_used_at: string | null;
 };
 
 function createTokenPayload(ownerEmail: string | null): HelperApiTokenPayload {
   return {
-    token_code: HELPER_API_TOKEN_CODE,
     raw_token: `apt_${crypto.randomUUID().replaceAll("-", "")}`,
     owner_email: ownerEmail,
     created_at: new Date().toISOString(),
@@ -67,7 +63,6 @@ export function HelperApiTokenPanel({
         <strong>App API Token</strong>
         <div className="section-card__actions">
           <StatusBadge status={currentToken?.status ?? "Belum ada"} tone={tokenTone} />
-          <StatusBadge status={HELPER_API_TOKEN_CODE} tone="info" />
         </div>
         <span className="subtle">Token rahasia hanya tampil sekali.</span>
       </div>
@@ -75,7 +70,7 @@ export function HelperApiTokenPanel({
       <div className="muted-box stack-tight">
         {currentToken ? (
           <>
-            <strong>{currentToken.token_code}</strong>
+            <strong>Token aktif</strong>
             <span className="subtle">{currentToken.last_used_at ? `Terakhir dipakai ${currentToken.last_used_at}` : "Belum dipakai."}</span>
           </>
         ) : (
@@ -103,7 +98,6 @@ export function HelperApiTokenPanel({
           <form action={saveHelperApiToken}>
             <input type="hidden" name="intent" value="save_helper_api_token" />
             <input type="hidden" name="return_to" value="/settings/account" />
-            <input type="hidden" name="token_code" value={payload.token_code} />
             <input type="hidden" name="raw_token" value={payload.raw_token} />
             <button className="button compact" type="submit">
               Simpan hash

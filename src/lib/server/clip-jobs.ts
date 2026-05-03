@@ -234,7 +234,7 @@ async function validateClipJobReferences(
     }
   }
 
-  const clipCode = normalizeNullableText(input.clip_code) ?? "CLIP";
+  const clipCode = normalizeNullableText(input.clip_code) ?? buildCode("CLIP", [content.content_code]);
   const jobCode = normalizeNullableText(input.job_code) ?? buildCode("JOB", [content.content_code, clipCode]);
   const promptPrefix =
     normalizeNullableText(input.prompt_prefix) ??
@@ -640,4 +640,3 @@ export async function updateGeneratedFile(id: string, input: GeneratedFileUpdate
 export async function markGeneratedFileImported(id: string) {
   return await updateGeneratedFile(id, { match_status: "IMPORTED", imported_at: new Date().toISOString() });
 }
-

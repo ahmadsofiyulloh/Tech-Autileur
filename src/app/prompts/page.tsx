@@ -158,7 +158,6 @@ function PromptPackEditorForm({
     <form className="stack" action={savePromptPack}>
       <input type="hidden" name="id" value={pack.id} />
       <input type="hidden" name="product_id" value={pack.product_id} />
-      <input type="hidden" name="prompt_code" value={pack.prompt_code} />
       <input type="hidden" name="version" value={pack.version} />
       <input type="hidden" name="intake_session_id" value={pack.intake_session_id ?? intakeSession?.id ?? ""} />
       <input type="hidden" name="affiliate_profile_id" value={pack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
@@ -167,11 +166,11 @@ function PromptPackEditorForm({
       <div className="metric-grid">
         <div className="metric">
           <span>Produk</span>
-          <strong>{product ? `${product.product_code} - ${product.product_name}` : "Produk tidak tersedia"}</strong>
+          <strong>{product?.product_name ?? "Produk tidak tersedia"}</strong>
         </div>
         <div className="metric">
           <span>Intake</span>
-          <strong>{intakeSession?.intake_code ?? "Intake terbaru"}</strong>
+          <strong>{intakeSession ? "Sudah direview" : "Intake terbaru"}</strong>
         </div>
         <div className="metric">
           <span>Akun Affiliate</span>
@@ -258,7 +257,6 @@ function PromptPackCreateForm({
       <input type="hidden" name="status" value="DRAFT" />
       <input type="hidden" name="version" value={1} />
       <input type="hidden" name="product_id" value={product.id} />
-      <input type="hidden" name="prompt_code" value={product.product_code} />
       <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
       <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
       <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
@@ -266,11 +264,11 @@ function PromptPackCreateForm({
       <div className="metric-grid">
         <div className="metric">
           <span>Produk</span>
-          <strong>{product.product_code} - {product.product_name}</strong>
+          <strong>{product.product_name}</strong>
         </div>
         <div className="metric">
           <span>Intake</span>
-          <strong>{intakeSession?.intake_code ?? "Belum ada intake direview"}</strong>
+          <strong>{intakeSession ? "Sudah direview" : "Belum ada intake direview"}</strong>
         </div>
         <div className="metric">
           <span>Akun Affiliate</span>
@@ -327,7 +325,6 @@ function PromptRowCard({
       <summary>
         <span className="section-card__actions">
           <strong>{product.product_name}</strong>
-          <span className="subtle">{product.product_code}</span>
         </span>
         <span className="section-card__actions">
           <StatusBadge status={statusLabel} />
@@ -343,7 +340,7 @@ function PromptRowCard({
           </div>
           <div className="metric">
             <span>Intake</span>
-            <strong>{intakeSession?.intake_code ?? "Belum direview"}</strong>
+            <strong>{intakeSession ? "Sudah direview" : "Belum direview"}</strong>
           </div>
           <div className="metric">
             <span>Akun Affiliate</span>
@@ -355,7 +352,7 @@ function PromptRowCard({
           </div>
           <div className="metric">
             <span>Prompt pack</span>
-            <strong>{promptPack ? `${promptPack.prompt_code} v${promptPack.version}` : "Belum ada"}</strong>
+            <strong>{promptPack ? `Versi ${promptPack.version}` : "Belum ada"}</strong>
           </div>
         </div>
 
@@ -540,7 +537,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
               return (
                 <li key={pack.id}>
                   <div className="stack-tight">
-                    <strong>{pack.prompt_code}</strong>
+                    <strong>{product?.product_name ?? "Produk tidak tersedia"}</strong>
                     <span className="subtle">
                       {[product?.product_name ?? "Produk tidak tersedia", `v${pack.version}`].filter(Boolean).join(" - ")}
                     </span>

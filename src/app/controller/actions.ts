@@ -1,5 +1,6 @@
 "use server";
 
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { buildClipJobDraft, buildPromptContextSummary } from "@/lib/server/controller";
 import { createContent, archiveContent, updateContent } from "@/lib/server/contents";
@@ -63,7 +64,6 @@ export async function saveController(formData: FormData) {
   try {
     if (intent === "create_flow_account") {
       await createFlowAccount({
-        account_code: readText(formData, "account_code"),
         account_type: readText(formData, "account_type"),
         observed_daily_credit: readNumber(formData, "observed_daily_credit"),
         observed_monthly_credit: readNumber(formData, "observed_monthly_credit"),
@@ -71,7 +71,6 @@ export async function saveController(formData: FormData) {
         max_parallel_allowed: readNumber(formData, "max_parallel_allowed"),
         cooldown_minutes: readNumber(formData, "cooldown_minutes"),
         status: readText(formData, "status"),
-        notes: readNullableText(formData, "notes"),
       });
       done("Flow account created.");
     }
@@ -82,15 +81,13 @@ export async function saveController(formData: FormData) {
       }
 
       await updateFlowAccount(id, {
-        account_code: readText(formData, "account_code"),
-        account_type: readText(formData, "account_type"),
+        account_type: readOptionalText(formData, "account_type"),
         observed_daily_credit: readNumber(formData, "observed_daily_credit"),
         observed_monthly_credit: readNumber(formData, "observed_monthly_credit"),
         credit_per_generation: readNumber(formData, "credit_per_generation"),
         max_parallel_allowed: readNumber(formData, "max_parallel_allowed"),
         cooldown_minutes: readNumber(formData, "cooldown_minutes"),
-        status: readText(formData, "status"),
-        notes: readNullableText(formData, "notes"),
+        status: readOptionalText(formData, "status"),
       });
       done("Flow account updated.");
     }
@@ -130,13 +127,11 @@ export async function saveController(formData: FormData) {
         product_id: readNullableText(formData, "product_id") ?? (promptPack ? promptPack.product_id : null),
         prompt_pack_id: promptPackId,
         flow_account_id: flowAccountId,
-        batch_code:
-          readText(formData, "batch_code") ||
-          buildFlowBatchCode({
-            promptPackCode: promptPack?.prompt_code ?? "FLOW",
-            accountCode: selectedAccount.account_code,
-            targetDate: targetDate ?? undefined,
-          }),
+        batch_code: buildFlowBatchCode({
+          promptPackCode: promptPack?.prompt_code ?? "FLOW",
+          accountCode: selectedAccount.account_code,
+          targetDate: targetDate ?? undefined,
+        }),
         target_date: targetDate ?? undefined,
         model: readText(formData, "model"),
         max_jobs: selectedAccount.recommended_max_jobs,
@@ -156,7 +151,6 @@ export async function saveController(formData: FormData) {
 
       await updateFlowBatch(id, {
         flow_account_id: readOptionalNullableText(formData, "flow_account_id") ?? undefined,
-        batch_code: readOptionalText(formData, "batch_code"),
         target_date: readOptionalNullableText(formData, "target_date") ?? undefined,
         model: readOptionalText(formData, "model"),
         max_jobs: readOptionalNumber(formData, "max_jobs"),
@@ -195,7 +189,6 @@ export async function saveController(formData: FormData) {
     if (intent === "create_content") {
       await createContent({
         product_id: readText(formData, "product_id"),
-        content_code: readText(formData, "content_code"),
         platform: readNullableText(formData, "platform"),
         hook_type: readNullableText(formData, "hook_type"),
         angle: readNullableText(formData, "angle"),
@@ -214,7 +207,6 @@ export async function saveController(formData: FormData) {
 
       await updateContent(id, {
         product_id: readNullableText(formData, "product_id") ?? undefined,
-        content_code: readText(formData, "content_code"),
         platform: readNullableText(formData, "platform"),
         hook_type: readNullableText(formData, "hook_type"),
         angle: readNullableText(formData, "angle"),
@@ -261,8 +253,6 @@ export async function saveController(formData: FormData) {
         content_id: contentId,
         prompt_pack_id: promptPackId,
         batch_id: batchId,
-        job_code: readText(formData, "job_code"),
-        clip_code: readText(formData, "clip_code"),
         version: readText(formData, "version"),
         prompt_prefix: readText(formData, "prompt_prefix") || draft.prompt_prefix,
         prompt_one_paragraph: readText(formData, "prompt_one_paragraph") || draft.prompt_one_paragraph,
@@ -283,8 +273,6 @@ export async function saveController(formData: FormData) {
         content_id: readNullableText(formData, "content_id") ?? undefined,
         prompt_pack_id: readNullableText(formData, "prompt_pack_id"),
         batch_id: readNullableText(formData, "batch_id"),
-        job_code: readText(formData, "job_code"),
-        clip_code: readText(formData, "clip_code"),
         version: readText(formData, "version"),
         prompt_prefix: readText(formData, "prompt_prefix"),
         prompt_one_paragraph: readText(formData, "prompt_one_paragraph"),
@@ -344,6 +332,10 @@ export async function saveController(formData: FormData) {
 
     throw new Error("Unsupported controller action.");
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : "Controller operation failed.";
     fail(message);
   }

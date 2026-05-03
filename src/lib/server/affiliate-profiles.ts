@@ -390,7 +390,7 @@ function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) 
     status: AffiliateProfileStatus;
   }> = {};
 
-  if (input.profile_code !== undefined) {
+  if (input.profile_code !== undefined && input.profile_code !== null) {
     const profileCode = normalizeAffiliateProfileCode(input.profile_code);
 
     if (!profileCode) {

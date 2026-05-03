@@ -51,7 +51,6 @@ Use Case
 Pain Point
 Selling Angle
 Target Viewer
-Catatan Risiko
 ```
 
 ## Prompt Personalization Inputs
@@ -179,3 +178,4 @@ Prompt generation must persist structured JSON with at least:
 - Flow account management belongs to `/controller` support panels, not Settings CRUD.
 - Account recommendation is based on availability, observed credit, and status.
 - User confirms the account before running Flow.
+- Desktop execution details, including helper staging and Chrome profile reuse, live in [FLOW_HELPER_DESKTOP_WORKFLOW.md](FLOW_HELPER_DESKTOP_WORKFLOW.md).

@@ -122,7 +122,6 @@ Use Case
 Pain Point
 Selling Angle
 Target Viewer
-Catatan Risiko
 ```
 
 ### 1.6 Prompt UX
@@ -266,7 +265,7 @@ Desktop settings sections use list + right side drawer for mutable master data. 
 Settings > Workspace:
 
 - list + drawer CRUD.
-- auto-generated workspace code, shown read-only after creation.
+- auto-generated workspace code, hidden from operator UI.
 - visible fields: `Nama Ruang Kerja`, `Niche`, `Folder Drive Utama`, `Default`.
 - `Niche` uses static suggestions with free fallback.
 - `Folder Drive Utama` uses Drive folder picker.
@@ -277,7 +276,7 @@ Settings > Affiliate Profiles:
 - list + drawer CRUD.
 - visible base fields: profile name, platform/mode label, account label, affiliate URL, status.
 - workspace links are managed in the drawer and one link per workspace can be marked default.
-- `notes` is not a required surface field.
+- `notes` is internal metadata only and must not be shown in forms.
 - character and environment are two separate image cards.
 - each image card supports upload/replace/remove, local preview, Drive reference status, and lock status.
 - asset lock is per profile and defaults ON for new profiles.

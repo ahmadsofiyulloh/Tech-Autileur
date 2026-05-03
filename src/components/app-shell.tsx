@@ -155,7 +155,7 @@ function OperatorShellContent({
                 options={workspaceState.workspaces.map((workspace) => ({
                   value: workspace.id,
                   label: workspace.workspace_name,
-                  description: [workspace.workspace_code, workspace.is_default ? "default" : null].filter(Boolean).join(" - "),
+                  description: workspace.is_default ? "default" : "",
                 }))}
                 placeholder="Pilih workspace"
                 searchPlaceholder="Cari workspace"

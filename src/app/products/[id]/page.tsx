@@ -79,7 +79,7 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
   }
 
   const workspace = workspaceMap.get(workspaceId);
-  return workspace ? `${workspace.workspace_code} - ${workspace.workspace_name}` : "Workspace unavailable";
+  return workspace ? workspace.workspace_name : "Workspace unavailable";
 }
 
 function promptHref(productId: string, intakeId?: string | null) {
@@ -156,7 +156,7 @@ function resolveCaption(content: ContentRecord | null | undefined) {
     content.caption_tiktok?.trim() ||
     content.angle?.trim() ||
     content.hook_type?.trim() ||
-    content.content_code
+    ""
   );
 }
 
@@ -230,7 +230,7 @@ function toneForFileStatus(status: string) {
 }
 
 function formatFlowAccountLabel(account: FlowAccountRecord | null | undefined) {
-  return account?.account_code ?? "Akun tidak tersedia";
+  return account?.account_type?.replace("FLOW_", "Flow ") ?? "Akun tidak tersedia";
 }
 
 function flowBatchStatusLabel(batch: FlowBatchRecord) {
@@ -494,7 +494,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     {
       at: product.created_at,
       title: "Product created",
-      description: `${product.product_code} - ${product.product_name}`,
+      description: product.product_name,
       status: product.status,
     },
     ...(product.updated_at !== product.created_at
@@ -510,19 +510,19 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     ...intakeSessions.map((session) => ({
       at: session.created_at,
       title: "Intake saved",
-      description: session.product_title ?? session.intake_code,
+      description: session.product_title ?? "Intake",
       status: session.status,
     })),
     ...promptPacks.map((pack) => ({
       at: pack.created_at,
       title: "Prompt pack",
-      description: `${pack.prompt_code} v${pack.version}`,
+      description: `Version ${pack.version}`,
       status: pack.status,
     })),
     ...flowBatches.map((batch) => ({
       at: batch.created_at,
       title: "Flow batch",
-      description: [batch.batch_code, formatFlowAccountLabel(flowAccountMap.get(batch.flow_account_id) ?? null), batch.target_date]
+      description: [flowBatchStatusLabel(batch), formatFlowAccountLabel(flowAccountMap.get(batch.flow_account_id) ?? null), batch.target_date]
         .filter(Boolean)
         .join(" - "),
       status: flowBatchStatusLabel(batch),
@@ -530,7 +530,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     ...relevantClipJobs.map((clipJob) => ({
       at: clipJob.created_at,
       title: "Clip job",
-      description: [clipJob.job_code, clipJob.clip_code, clipJob.version].filter(Boolean).join(" - "),
+      description: `Version ${clipJob.version}`,
       status: clipJob.status,
     })),
     ...relevantGeneratedFiles.map((generatedFile) => ({
@@ -542,7 +542,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     ...anchors.map((anchor) => ({
       at: anchor.created_at,
       title: "Anchor",
-      description: `${anchor.anchor_code} v${anchor.version}`,
+      description: `Version ${anchor.version}`,
       status: anchor.status,
     })),
   ].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
@@ -551,7 +551,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     <div className="stack">
       <TopbarOverride
         title={product.product_name}
-        subtitle={[product.product_code, productWorkspaceLabel, product.status].filter(Boolean).join(" - ")}
+        subtitle={[productWorkspaceLabel, product.status].filter(Boolean).join(" - ")}
       />
 
       <div className="surface-toolbar">
@@ -597,10 +597,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 <strong>{productWorkspaceLabel}</strong>
               </div>
               <div className="metric">
-                <span>Code</span>
-                <strong>{product.product_code}</strong>
-              </div>
-              <div className="metric">
                 <span>Marketplace</span>
                 <strong>{fieldValue(product.marketplace)}</strong>
               </div>
@@ -627,7 +623,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 Open source link
               </a>
             ) : null}
-            {product.notes ? <p>{product.notes}</p> : <p className="subtle">No product notes yet.</p>}
           </SectionCard>
 
           <SectionCard icon={Image} title="Source images">
@@ -641,7 +636,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                       <div className="stack-tight">
                         <strong>{driveItem?.name ?? image.drive_item_ref_id}</strong>
                         <span className="subtle">
-                          {[driveItem?.drive_path, image.is_primary ? "Primary" : null, image.notes].filter(Boolean).join(" - ")}
+                          {[driveItem?.drive_path, image.is_primary ? "Primary" : null].filter(Boolean).join(" - ")}
                         </span>
                       </div>
                       <StatusBadge status={image.status} />
@@ -662,7 +657,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                     <div className="stack-tight">
                       <strong>{fieldValue(session.product_title)}</strong>
                       <span className="subtle">
-                        {[session.shopee_url ? "Shopee" : null, session.tiktok_url ? "TikTok" : null, session.intake_code]
+                        {[session.shopee_url ? "Shopee" : null, session.tiktok_url ? "TikTok" : null]
                           .filter(Boolean)
                           .join(" - ")}
                       </span>
@@ -708,11 +703,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 {anchors.map((anchor) => (
                   <div className="muted-box stack-tight" key={anchor.id}>
                     <div className="section-card__actions">
-                      <strong>{anchor.anchor_code}</strong>
+                      <strong>Anchor</strong>
                       <StatusBadge status={anchor.status} />
                     </div>
                     <p>Version {anchor.version}</p>
-                    {anchor.notes ? <p className="subtle">{anchor.notes}</p> : null}
                     <details>
                       <summary>Anchor JSON</summary>
                       <pre className="json-block">{prettyJson(anchor.anchor_json)}</pre>
@@ -737,7 +731,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
             {latestPromptPack ? (
               <div className="muted-box stack">
                 <div className="section-card__actions">
-                  <strong>{latestPromptPack.prompt_code}</strong>
+                  <strong>Paket Prompt</strong>
                   <div className="section-card__actions">
                     <StatusBadge status={latestPromptPack.status} />
                     <StatusBadge status={`Versi ${latestPromptPack.version}`} tone="info" />
@@ -746,7 +740,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                 <div className="metric-grid">
                   <div className="metric">
                     <span>Intake</span>
-                    <strong>{latestPromptPackIntake?.intake_code ?? "Latest workspace intake"}</strong>
+                    <strong>{latestPromptPackIntake ? "Sudah direview" : "Latest workspace intake"}</strong>
                   </div>
                   <div className="metric">
                     <span>Affiliate profile</span>
@@ -918,8 +912,8 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                       key={pack.id}
                       title={`Version ${pack.version}`}
                       description={[
-                        intakeSession ? `Intake ${intakeSession.intake_code}` : null,
-                        affiliateProfile ? `Profile ${affiliateProfile.profile_code}` : null,
+                        intakeSession ? "Intake reviewed" : null,
+                        affiliateProfile ? affiliateProfile.profile_name : null,
                         sourceDriveItem?.name ?? null,
                       ]
                         .filter(Boolean)
@@ -934,7 +928,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                         </div>
                         <div className="metric">
                           <span>Intake</span>
-                          <strong>{intakeSession?.intake_code ?? "Latest workspace intake"}</strong>
+                          <strong>{intakeSession ? "Sudah direview" : "Latest workspace intake"}</strong>
                         </div>
                         <div className="metric">
                           <span>Affiliate profile</span>
@@ -988,7 +982,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                   return (
                     <li key={batch.id}>
                       <div className="stack-tight">
-                        <strong>{batch.batch_code}</strong>
+                        <strong>{flowBatchStatusLabel(batch)}</strong>
                         <span className="subtle">
                           {[flowBatchStatusLabel(batch), formatFlowAccountLabel(flowAccount), batch.target_date].filter(Boolean).join(" - ")}
                         </span>
@@ -1020,9 +1014,9 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                     return (
                       <li key={clipJob.id}>
                         <div className="stack-tight">
-                          <strong>{clipJob.job_code}</strong>
+                          <strong>Clip job</strong>
                           <span className="subtle">
-                            {[content?.content_code, clipJob.clip_code, clipJob.version].filter(Boolean).join(" - ")}
+                            {`Version ${clipJob.version}`}
                           </span>
                           <span className="subtle">{clipJob.prompt_prefix}</span>
                           {generatedDriveItem ? (
@@ -1054,7 +1048,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                         <div className="stack-tight">
                           <strong>{generatedFile.file_name}</strong>
                           <span className="subtle">
-                            {[clipJob?.job_code, clipJob?.clip_code, driveItem?.drive_path].filter(Boolean).join(" - ")}
+                            {[clipJob ? "Clip job" : null, driveItem?.drive_path].filter(Boolean).join(" - ")}
                           </span>
                           {generatedFile.imported_at ? <span className="subtle">Imported {formatDate(generatedFile.imported_at)}</span> : null}
                           {driveItem ? (

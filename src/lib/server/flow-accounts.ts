@@ -39,7 +39,7 @@ export type FlowAccountPoolRecord = FlowAccountRecord & {
 };
 
 type FlowAccountInput = {
-  account_code: string;
+  account_code?: string | null;
   account_type: FlowAccountType | string;
   observed_daily_credit?: number | string | null;
   observed_monthly_credit?: number | string | null;
@@ -178,7 +178,7 @@ export async function getFlowAccountById(id: string) {
   return (data ?? null) as FlowAccountRecord | null;
 }
 
-export function buildFlowAccountCode(value: string) {
+export function buildFlowAccountCode(value?: string | null) {
   const normalized = readText(value)
     .replace(/[^A-Za-z0-9]+/g, "-")
     .replace(/-+/g, "-")

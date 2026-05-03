@@ -73,7 +73,7 @@ export default async function FlowSettingsPage() {
               {flowAccounts.map((account) => (
                 <li key={account.id}>
                   <div className="stack-tight">
-                    <strong>{account.account_code}</strong>
+                    <strong>{account.account_type.replace("FLOW_", "Flow ")}</strong>
                     <span className="subtle">
                       {[
                         account.account_type,
