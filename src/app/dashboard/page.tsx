@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, FileVideo, HardDrive, Sparkles } from "lucide-react";
+import { Archive, FileText, FileVideo, HardDrive, Inbox, Plus, Sparkles, Workflow } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
+import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
 import { GENERATED_FILE_MATCH_STATUSES } from "@/lib/server/clip-jobs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -31,6 +34,12 @@ type StatusBreakdown = {
   statuses: StatusCount[];
 };
 
+type IntakeReviewTarget = {
+  id: string;
+  product_id: string | null;
+};
+
+const PROMPT_WORK_STATUSES = ["DRAFT", "GENERATED", "NEEDS_REVIEW"] as const;
 const numberFormatter = new Intl.NumberFormat("id-ID");
 
 function formatCount(value: number) {
@@ -124,6 +133,59 @@ async function countByStatus(input: {
   };
 }
 
+async function countMatchingStatuses(input: {
+  supabase: SupabaseServerClient;
+  tableName: string;
+  statusColumn: string;
+  userId: string;
+  statuses: readonly string[];
+}): Promise<MetricResult<number>> {
+  const results = await Promise.all(
+    input.statuses.map((status) =>
+      countRows(input.supabase, input.tableName, input.userId, {
+        column: input.statusColumn,
+        value: status,
+      }),
+    ),
+  );
+  const failed = results.find((result) => result.status === "unavailable");
+
+  if (failed?.status === "unavailable") {
+    return failed;
+  }
+
+  return {
+    status: "available",
+    data: results.reduce((sum, result) => sum + (result.status === "available" ? result.data : 0), 0),
+  };
+}
+
+async function getLatestIntakeReviewTarget(
+  supabase: SupabaseServerClient,
+  userId: string,
+): Promise<MetricResult<IntakeReviewTarget | null>> {
+  const { data, error } = await supabase
+    .from("product_intake_sessions")
+    .select("id, product_id")
+    .eq("user_id", userId)
+    .eq("status", "NEEDS_REVIEW")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      status: "unavailable",
+      message: error.message,
+    };
+  }
+
+  return {
+    status: "available",
+    data: data ? ({ id: data.id, product_id: data.product_id } as IntakeReviewTarget) : null,
+  };
+}
+
 function MetricTile({
   label,
   metric,
@@ -145,6 +207,111 @@ function UnavailableMetricTile({ label }: { label: string }) {
       <span>{label}</span>
       <strong>Tidak tersedia</strong>
     </div>
+  );
+}
+
+function ActionCountBadge({ metric, suffix }: { metric?: MetricResult<number>; suffix: string }) {
+  if (!metric) {
+    return null;
+  }
+
+  if (metric.status === "unavailable") {
+    return <StatusBadge status="Tidak tersedia" tone="warning" />;
+  }
+
+  return <StatusBadge status={`${formatCount(metric.data)} ${suffix}`} tone={metric.data > 0 ? "info" : "neutral"} />;
+}
+
+function ActionRailItem({
+  count,
+  countSuffix,
+  description,
+  href,
+  icon: Icon,
+  label,
+  primary = false,
+  title,
+}: {
+  count?: MetricResult<number>;
+  countSuffix: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  primary?: boolean;
+  title: string;
+}) {
+  return (
+    <li>
+      <div className="stack-tight">
+        <div className="section-card__actions">
+          <span className="icon-frame" aria-hidden="true">
+            <Icon size={16} />
+          </span>
+          <strong>{title}</strong>
+          <ActionCountBadge metric={count} suffix={countSuffix} />
+        </div>
+        <span className="subtle">{description}</span>
+      </div>
+      <Link className={primary ? "button compact primary" : "button compact"} href={href}>
+        {label}
+      </Link>
+    </li>
+  );
+}
+
+function ActionRail({
+  promptWork,
+  readyPrompts,
+  reviewHref,
+  reviewIntakes,
+}: {
+  promptWork: MetricResult<number>;
+  readyPrompts: MetricResult<number>;
+  reviewHref: string;
+  reviewIntakes: MetricResult<number>;
+}) {
+  return (
+    <SectionCard icon={Workflow} title="Aksi Berikutnya">
+      <ul className="list" aria-label="Aksi berikutnya">
+        <ActionRailItem
+          countSuffix="baru"
+          description="Upload evidence produk."
+          href="/products/new"
+          icon={Plus}
+          label="Mulai"
+          primary
+          title="Intake baru"
+        />
+        <ActionRailItem
+          count={reviewIntakes}
+          countSuffix="review"
+          description="Cek hasil Gemini."
+          href={reviewHref}
+          icon={Inbox}
+          label="Review"
+          title="Review metadata"
+        />
+        <ActionRailItem
+          count={promptWork}
+          countSuffix="prompt"
+          description="Edit atau generate paket."
+          href="/prompts"
+          icon={FileText}
+          label="Prompt"
+          title="Lanjut prompt"
+        />
+        <ActionRailItem
+          count={readyPrompts}
+          countSuffix="siap"
+          description="Desktop saja."
+          href="/controller"
+          icon={Workflow}
+          label="Buka"
+          title="Flow Control"
+        />
+      </ul>
+    </SectionCard>
   );
 }
 
@@ -196,7 +363,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [geminiTasks, driveItems, generatedFiles, promptPacks, outputImport] = await Promise.all([
+  const [geminiTasks, driveItems, generatedFiles, promptPacks, outputImport, reviewIntakes, promptWork, readyPrompts, latestReviewTarget] = await Promise.all([
     countByStatus({
       supabase,
       tableName: "ai_tasks",
@@ -214,13 +381,40 @@ export default async function DashboardPage() {
       userId: user.id,
       statuses: GENERATED_FILE_MATCH_STATUSES,
     }),
+    countRows(supabase, "product_intake_sessions", user.id, {
+      column: "status",
+      value: "NEEDS_REVIEW",
+    }),
+    countMatchingStatuses({
+      supabase,
+      tableName: "prompt_packs",
+      statusColumn: "status",
+      userId: user.id,
+      statuses: PROMPT_WORK_STATUSES,
+    }),
+    countRows(supabase, "prompt_packs", user.id, {
+      column: "status",
+      value: PROMPT_READY_FOR_FLOW_STATUS,
+    }),
+    getLatestIntakeReviewTarget(supabase, user.id),
   ]);
 
   const geminiTaskCount: MetricResult<number> = getBreakdownTotal(geminiTasks);
   const outputImportCount = getBreakdownTotal(outputImport);
+  const reviewHref =
+    latestReviewTarget.status === "available" && latestReviewTarget.data
+      ? `/products/new?step=prompt&intake_id=${latestReviewTarget.data.id}`
+      : "/products/new";
 
   return (
     <div className="stack">
+      <ActionRail
+        promptWork={promptWork}
+        readyPrompts={readyPrompts}
+        reviewHref={reviewHref}
+        reviewIntakes={reviewIntakes}
+      />
+
       <SectionCard icon={Sparkles} title="Gemini">
         <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Task count" metric={geminiTaskCount} />
