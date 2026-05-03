@@ -49,7 +49,7 @@ Required context:
 
 - reviewed Prompt Essentials.
 - active workspace.
-- selected workspace-scoped Affiliate Profile.
+- selected or workspace-default-linked Affiliate Profile.
 - profile-owned character lock.
 - profile-owned environment lock.
 - uploaded image/screenshot context when bytes are available.

@@ -158,7 +158,7 @@ Prompt versions must be preserved. Regenerate must not overwrite previous versio
 
 ### 1.7 Affiliate Profile Personalization
 
-Affiliate Profile is workspace-scoped and acts as the prompt persona.
+Affiliate Profile is a top-level persona object and acts as the prompt persona.
 
 Profile-owned locks only:
 
@@ -171,9 +171,9 @@ Character and environment are the only profile-owned image assets in Phase awal.
 
 There is no separate background-reference asset slot in MVP. Prompt pages must not create per-prompt overrides for character or environment locks in Phase awal. The prompt page may show which profile is active, but the source of personalization remains the Affiliate Profile.
 
-Prompt generation must always consume the active workspace, active affiliate profile, the profile character/environment Drive references, and the reviewed Gemini metadata for that workspace.
+Prompt generation must always consume the active workspace, the workspace-linked or explicitly selected affiliate profile, the profile character/environment Drive references, and the reviewed Gemini metadata for that workspace. If a profile lock is enabled but the matching Drive reference is missing, generation must block instead of falling back.
 
-The default workspace supplies the default affiliate profile when one is configured.
+Each workspace resolves its default-linked affiliate profile when one is configured.
 
 ### 1.8 Flow Control UX
 
@@ -276,10 +276,12 @@ Settings > Affiliate Profiles:
 
 - list + drawer CRUD.
 - visible base fields: profile name, platform/mode label, account label, affiliate URL, status.
+- workspace links are managed in the drawer and one link per workspace can be marked default.
 - `notes` is not a required surface field.
 - character and environment are two separate image cards.
 - each image card supports upload/replace/remove, local preview, Drive reference status, and lock status.
-- asset lock is per profile and defaults ON when the profile uses asset locks.
+- asset lock is per profile and defaults ON for new profiles.
+- if a locked asset ref is missing, prompt generation blocks until the reference is filled.
 - rule editors remain editable for i2i, i2v, caption, hashtag, and negative prompt.
 - no separate background-reference asset slot exists.
 
@@ -348,7 +350,7 @@ Locked baseline:
 - Geist Sans as the base typography.
 - clear type hierarchy with page title above section title above card title above label/body.
 - no duplicate settings affordances in topbar, header, and sidebar at the same time.
-- custom picker for relational fields instead of raw browser dropdowns.
+- shared custom picker for choice fields instead of raw browser dropdowns.
 - static suggestions with free fallback for non-relational text fields that still need loose input.
 - loading, empty, and error states on every active surface.
 - desktop list surfaces prefer searchable table + side drawer.
@@ -372,7 +374,7 @@ Body: 14/20
 1. Reduce manual work in intake and prompt preparation.
 2. Keep images, screenshots, prompts, Flow assignments, and outputs organized by product and workspace.
 3. Keep Flow accounts global execution tools, not workspace-bound.
-4. Allow unlimited workspace-scoped affiliate profiles with editable prompt rules.
+4. Allow unlimited top-level affiliate profiles with editable prompt rules and explicit workspace links.
 5. Use mobile for upload/review/prompt work and desktop for Flow execution.
 6. Keep Supabase as metadata source of truth and Google Drive as asset source of truth.
 
@@ -382,7 +384,7 @@ MVP means the system can:
 
 - Log in through Supabase Auth.
 - Create a workspace and store its Drive root folder metadata.
-- Create a workspace-scoped affiliate profile.
+- Create an affiliate profile and link it to one or more workspaces.
 - Upload real product images and marketplace screenshots to Google Drive.
 - Run live Gemini analysis from uploaded image bytes.
 - Review and edit generated product metadata.

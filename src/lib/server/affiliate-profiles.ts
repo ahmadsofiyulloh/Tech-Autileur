@@ -28,10 +28,9 @@ type AffiliateProfileContext = {
   };
 };
 
-export type AffiliateProfileRecord = {
+type AffiliateProfileRow = {
   id: string;
   user_id: string;
-  workspace_id: string;
   profile_code: string;
   profile_name: string;
   platform: AffiliatePlatform;
@@ -56,7 +55,31 @@ export type AffiliateProfileRecord = {
   updated_at: string;
 };
 
-type AffiliateProfileUpdateInput = Partial<AffiliateProfileInput>;
+export type AffiliateProfileWorkspaceLinkRecord = {
+  id: string;
+  user_id: string;
+  workspace_id: string;
+  affiliate_profile_id: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AffiliateProfileRecord = AffiliateProfileRow & {
+  workspace_ids: string[];
+  default_workspace_id: string | null;
+  workspace_id: string | null;
+};
+
+type AffiliateProfileMutationInput = AffiliateProfileInput & {
+  workspace_ids?: string[] | null;
+  default_workspace_id?: string | null;
+};
+
+type AffiliateProfileUpdateInput = Partial<AffiliateProfileInput> & {
+  workspace_ids?: string[] | null;
+  default_workspace_id?: string | null;
+};
 
 function errorCode(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
@@ -82,6 +105,7 @@ export function isAffiliateProfileSchemaMissingError(error: unknown) {
     errorCode(error) === "42704" ||
     message.includes("affiliate profile schema is not applied") ||
     (message.includes("relation") && message.includes("affiliate_profiles") && message.includes("does not exist")) ||
+    (message.includes("relation") && message.includes("affiliate_profile_workspace_links") && message.includes("does not exist")) ||
     (message.includes("type") &&
       (message.includes("affiliate_platform") || message.includes("affiliate_profile_status")) &&
       message.includes("does not exist"))
@@ -89,7 +113,7 @@ export function isAffiliateProfileSchemaMissingError(error: unknown) {
 }
 
 function affiliateProfileSchemaMissingError() {
-  return new Error("Affiliate profile schema is not applied yet. Apply the Sprint 13 migration first.");
+  return new Error("Affiliate profile schema is not applied yet. Apply the affiliate profile migration first.");
 }
 
 function throwAffiliateProfileError(error: unknown): never {
@@ -148,7 +172,7 @@ async function requireOwnedDriveItem(context: AffiliateProfileContext, driveItem
   }
 }
 
-async function requireOwnedAffiliateProfile(context: AffiliateProfileContext, id: string) {
+async function requireOwnedAffiliateProfileRow(context: AffiliateProfileContext, id: string) {
   const { data, error } = await context.supabase
     .from("affiliate_profiles")
     .select("*")
@@ -164,18 +188,18 @@ async function requireOwnedAffiliateProfile(context: AffiliateProfileContext, id
     throw new Error("Affiliate profile not found.");
   }
 
-  return data as AffiliateProfileRecord;
+  return data as AffiliateProfileRow;
+}
+
+async function requireOwnedAffiliateProfile(context: AffiliateProfileContext, id: string) {
+  const profile = await requireOwnedAffiliateProfileRow(context, id);
+  return await hydrateAffiliateProfileRecord(context, profile);
 }
 
 async function validateReferences(context: AffiliateProfileContext, input: {
-  workspace_id?: string | null;
   seed_character_drive_item_ref_id?: string | null;
   environment_drive_item_ref_id?: string | null;
 }) {
-  if (input.workspace_id) {
-    await requireOwnedActiveWorkspace(context, input.workspace_id);
-  }
-
   if (input.seed_character_drive_item_ref_id) {
     await requireOwnedDriveItem(context, input.seed_character_drive_item_ref_id);
   }
@@ -185,9 +209,162 @@ async function validateReferences(context: AffiliateProfileContext, input: {
   }
 }
 
+function normalizeWorkspaceIds(input: string[] | string | null | undefined) {
+  const values = Array.isArray(input) ? input : typeof input === "string" ? [input] : [];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => normalizeNullableAffiliateProfileUuid(value, "Workspace reference must be a valid row id."))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
+async function requireAffiliateProfileWorkspaceLink(context: AffiliateProfileContext, profileId: string, workspaceId: string) {
+  const { data, error } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .select("id")
+    .eq("user_id", context.user.id)
+    .eq("affiliate_profile_id", profileId)
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (error) {
+    throwAffiliateProfileError(error);
+  }
+
+  if (!data) {
+    throw new Error("Affiliate profile must be linked to the selected workspace.");
+  }
+}
+
+async function loadAffiliateProfileWorkspaceLinks(context: AffiliateProfileContext, profileIds: string[]) {
+  if (!profileIds.length) {
+    return [] as AffiliateProfileWorkspaceLinkRecord[];
+  }
+
+  const { data, error } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .select("*")
+    .eq("user_id", context.user.id)
+    .in("affiliate_profile_id", profileIds)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throwAffiliateProfileError(error);
+  }
+
+  return (data ?? []) as AffiliateProfileWorkspaceLinkRecord[];
+}
+
+async function hydrateAffiliateProfileRecord(context: AffiliateProfileContext, profile: AffiliateProfileRow) {
+  const links = await loadAffiliateProfileWorkspaceLinks(context, [profile.id]);
+  return {
+    ...profile,
+    workspace_ids: links.map((link) => link.workspace_id),
+    default_workspace_id: links.find((link) => link.is_default)?.workspace_id ?? null,
+    workspace_id: links.find((link) => link.is_default)?.workspace_id ?? links[0]?.workspace_id ?? null,
+  } satisfies AffiliateProfileRecord;
+}
+
+async function hydrateAffiliateProfileRows(context: AffiliateProfileContext, profiles: AffiliateProfileRow[]) {
+  if (!profiles.length) {
+    return [] as AffiliateProfileRecord[];
+  }
+
+  const links = await loadAffiliateProfileWorkspaceLinks(
+    context,
+    profiles.map((profile) => profile.id),
+  );
+  const linksByProfileId = new Map<string, AffiliateProfileWorkspaceLinkRecord[]>();
+
+  for (const link of links) {
+    const existing = linksByProfileId.get(link.affiliate_profile_id) ?? [];
+    existing.push(link);
+    linksByProfileId.set(link.affiliate_profile_id, existing);
+  }
+
+  return profiles.map((profile) => {
+    const profileLinks = linksByProfileId.get(profile.id) ?? [];
+    return {
+      ...profile,
+      workspace_ids: profileLinks.map((link) => link.workspace_id),
+      default_workspace_id: profileLinks.find((link) => link.is_default)?.workspace_id ?? null,
+      workspace_id: profileLinks.find((link) => link.is_default)?.workspace_id ?? profileLinks[0]?.workspace_id ?? null,
+    } satisfies AffiliateProfileRecord;
+  });
+}
+
+async function syncAffiliateProfileWorkspaceLinks(
+  context: AffiliateProfileContext,
+  profileId: string,
+  workspaceIds: string[] | null | undefined,
+  defaultWorkspaceId: string | null | undefined,
+) {
+  const uniqueWorkspaceIds = normalizeWorkspaceIds(workspaceIds ?? []);
+  const normalizedDefaultWorkspaceId =
+    defaultWorkspaceId === undefined || defaultWorkspaceId === null || defaultWorkspaceId === ""
+      ? uniqueWorkspaceIds[0] ?? null
+      : normalizeNullableAffiliateProfileUuid(defaultWorkspaceId, "Choose a default workspace.");
+  const selectedWorkspaceIds = Array.from(new Set([...uniqueWorkspaceIds, normalizedDefaultWorkspaceId].filter(Boolean) as string[]));
+
+  if (!selectedWorkspaceIds.length) {
+    const { error: deleteError } = await context.supabase
+      .from("affiliate_profile_workspace_links")
+      .delete()
+      .eq("user_id", context.user.id)
+      .eq("affiliate_profile_id", profileId);
+
+    if (deleteError) {
+      throwAffiliateProfileError(deleteError);
+    }
+
+    return;
+  }
+
+  for (const workspaceId of selectedWorkspaceIds) {
+    await requireOwnedActiveWorkspace(context, workspaceId);
+  }
+
+  const { error: clearDefaultError } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .update({ is_default: false })
+    .eq("user_id", context.user.id)
+    .in("workspace_id", selectedWorkspaceIds)
+    .neq("affiliate_profile_id", profileId)
+    .eq("is_default", true);
+
+  if (clearDefaultError) {
+    throwAffiliateProfileError(clearDefaultError);
+  }
+
+  const { error: deleteError } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .delete()
+    .eq("user_id", context.user.id)
+    .eq("affiliate_profile_id", profileId);
+
+  if (deleteError) {
+    throwAffiliateProfileError(deleteError);
+  }
+
+  const { error: insertError } = await context.supabase.from("affiliate_profile_workspace_links").insert(
+    selectedWorkspaceIds.map((workspaceId) => ({
+      user_id: context.user.id,
+      workspace_id: workspaceId,
+      affiliate_profile_id: profileId,
+      is_default: workspaceId === normalizedDefaultWorkspaceId,
+    })),
+  );
+
+  if (insertError) {
+    throwAffiliateProfileError(insertError);
+  }
+}
+
 function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) {
   const payload: Partial<{
-    workspace_id: string;
     profile_code: string;
     profile_name: string;
     platform: AffiliatePlatform;
@@ -209,10 +386,6 @@ function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) 
     environment_drive_item_ref_id: string | null;
     status: AffiliateProfileStatus;
   }> = {};
-
-  if (input.workspace_id !== undefined) {
-    payload.workspace_id = normalizeAffiliateProfileUuid(input.workspace_id, "Choose a workspace.");
-  }
 
   if (input.profile_code !== undefined) {
     const profileCode = normalizeAffiliateProfileCode(input.profile_code);
@@ -317,7 +490,7 @@ function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) 
   return payload;
 }
 
-export async function createAffiliateProfile(input: AffiliateProfileInput) {
+export async function createAffiliateProfile(input: AffiliateProfileMutationInput) {
   const context = await requireUser();
   const payload = validateAffiliateProfileInput(input);
 
@@ -336,8 +509,15 @@ export async function createAffiliateProfile(input: AffiliateProfileInput) {
     throwAffiliateProfileError(error);
   }
 
+  const profile = data as AffiliateProfileRow;
+  const workspaceIds = normalizeWorkspaceIds(input.workspace_ids ?? []);
+
+  if (workspaceIds.length) {
+    await syncAffiliateProfileWorkspaceLinks(context, profile.id, workspaceIds, input.default_workspace_id);
+  }
+
   revalidatePath("/settings");
-  return data as AffiliateProfileRecord;
+  return await requireOwnedAffiliateProfile(context, profile.id);
 }
 
 export async function listAffiliateProfiles(input?: {
@@ -364,10 +544,6 @@ export async function listAffiliateProfiles(input?: {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (input?.workspaceId) {
-    query = query.eq("workspace_id", input.workspaceId);
-  }
-
   if (input?.status) {
     query = query.eq("status", input.status);
   }
@@ -382,7 +558,46 @@ export async function listAffiliateProfiles(input?: {
     throwAffiliateProfileError(error);
   }
 
-  return (data ?? []) as AffiliateProfileRecord[];
+  const rows = (data ?? []) as AffiliateProfileRow[];
+  const hydrated = await hydrateAffiliateProfileRows(context, rows);
+
+  if (!input?.workspaceId) {
+    return hydrated;
+  }
+
+  return hydrated.filter((profile) => profile.workspace_ids.includes(input.workspaceId!));
+}
+
+export async function listAffiliateProfileWorkspaceLinks(input?: {
+  workspaceId?: string | null;
+  affiliateProfileId?: string | null;
+  limit?: number;
+}) {
+  const context = await requireUser();
+  const limit = Math.min(Math.max(input?.limit ?? 200, 1), 500);
+  let query = context.supabase
+    .from("affiliate_profile_workspace_links")
+    .select("*")
+    .eq("user_id", context.user.id)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (input?.workspaceId) {
+    query = query.eq("workspace_id", input.workspaceId);
+  }
+
+  if (input?.affiliateProfileId) {
+    query = query.eq("affiliate_profile_id", input.affiliateProfileId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throwAffiliateProfileError(error);
+  }
+
+  return (data ?? []) as AffiliateProfileWorkspaceLinkRecord[];
 }
 
 export async function getAffiliateProfileById(id: string) {
@@ -396,22 +611,25 @@ export async function getDefaultAffiliateProfileForWorkspace(workspaceId: string
   }
 
   const context = await requireUser();
-  const { data, error } = await context.supabase
-    .from("affiliate_profiles")
-    .select("*")
+  const { data: defaultLink, error: linkError } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .select("affiliate_profile_id")
     .eq("user_id", context.user.id)
     .eq("workspace_id", workspaceId)
-    .eq("status", "ACTIVE")
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .eq("is_default", true)
     .maybeSingle();
 
-  if (error) {
-    throwAffiliateProfileError(error);
+  if (linkError) {
+    throwAffiliateProfileError(linkError);
   }
 
-  return (data ?? null) as AffiliateProfileRecord | null;
+  if (!defaultLink?.affiliate_profile_id) {
+    return null;
+  }
+
+  const profile = await requireOwnedAffiliateProfile(context, defaultLink.affiliate_profile_id);
+
+  return profile.status === "ACTIVE" ? profile : null;
 }
 
 export async function resolvePromptAffiliateProfile(input: { workspaceId: string | null; affiliateProfileId?: string | null }) {
@@ -420,8 +638,8 @@ export async function resolvePromptAffiliateProfile(input: { workspaceId: string
   if (input.affiliateProfileId) {
     const profile = await requireOwnedAffiliateProfile(context, input.affiliateProfileId);
 
-    if (input.workspaceId && profile.workspace_id !== input.workspaceId) {
-      throw new Error("Affiliate profile must belong to the selected workspace.");
+    if (input.workspaceId) {
+      await requireAffiliateProfileWorkspaceLink(context, profile.id, input.workspaceId);
     }
 
     return profile;
@@ -457,8 +675,14 @@ export async function updateAffiliateProfile(id: string, input: AffiliateProfile
     throwAffiliateProfileError(error);
   }
 
+  const nextProfile = data as AffiliateProfileRow;
+
+  if (input.workspace_ids !== undefined || input.default_workspace_id !== undefined) {
+    await syncAffiliateProfileWorkspaceLinks(context, id, input.workspace_ids ?? [], input.default_workspace_id);
+  }
+
   revalidatePath("/settings");
-  return data as AffiliateProfileRecord;
+  return await requireOwnedAffiliateProfile(context, nextProfile.id);
 }
 
 export async function archiveAffiliateProfile(id: string) {

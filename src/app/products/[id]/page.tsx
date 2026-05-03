@@ -387,8 +387,9 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const scopedAffiliateProfiles = product.workspace_id
-    ? affiliateProfiles.filter((profile) => profile.workspace_id === product.workspace_id)
+  const productWorkspaceId = product.workspace_id;
+  const scopedAffiliateProfiles = productWorkspaceId
+    ? affiliateProfiles.filter((profile) => profile.workspace_ids.includes(productWorkspaceId))
     : affiliateProfiles;
   const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);

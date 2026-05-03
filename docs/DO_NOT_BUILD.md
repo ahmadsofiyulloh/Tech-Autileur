@@ -17,6 +17,8 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Hardcoded prompt rules in JSX, HTML, route handlers, or inline code.
 - Per-prompt character/environment/background lock overrides in Phase awal.
 - A third background-reference asset slot for Affiliate Profiles in Phase awal.
+- Implicit latest-active default profile selection.
+- Reverting Affiliate Profile to workspace-scoped only in the revised model.
 - Duplicate Settings entry points in topbar, header, and sidebar at the same time.
 - A separate Settings CRUD surface for Flow Accounts in Phase awal.
 - Inline flat settings forms replacing the locked overview + section route + drawer grammar.

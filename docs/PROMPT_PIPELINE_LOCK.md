@@ -61,13 +61,15 @@ Prompt generation must consume:
 - reviewed product metadata.
 - uploaded product image and screenshot context when bytes are available.
 - workspace context.
-- active workspace-scoped Affiliate Profile.
+- selected or workspace-default-linked Affiliate Profile.
 - Affiliate Profile i2i, i2v, caption, hashtag, and negative rules.
 - Affiliate Profile character lock.
 - Affiliate Profile environment lock.
 - Drive item references for profile assets.
 
 Character and environment are profile-owned only in Phase awal. The environment asset is the background-lock asset for prompt generation. Prompt pages must not create per-prompt overrides for these locks.
+
+If a selected profile lock is enabled but the matching Drive reference is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
 
 Prompt generation must also consume the active workspace's reviewed Gemini output and must not invent any extra profile asset slot beyond character and environment.
 

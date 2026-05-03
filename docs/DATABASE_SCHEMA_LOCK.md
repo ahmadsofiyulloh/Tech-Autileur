@@ -278,12 +278,11 @@ updated_at timestamptz
 
 ### `affiliate_profiles`
 
-Unlimited affiliate profile records. Workspace scoped.
+Top-level affiliate persona records. One profile can link to many workspaces through `affiliate_profile_workspace_links`.
 
 ```text
 id uuid pk
 user_id uuid fk auth.users
-workspace_id uuid fk workspaces(id, user_id)
 profile_code text unique per user
 profile_name text
 platform affiliate_platform
@@ -315,6 +314,22 @@ UI note: `notes` may remain as legacy/internal metadata, but it is not a require
 Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive.
 
 UI surface lock: Affiliate Profile create/edit happens in a list + drawer CRUD surface. Character and environment are separate image cards in the drawer. Asset upload/replace/remove controls live inside the editable drawer only.
+
+### `affiliate_profile_workspace_links`
+
+Explicit workspace-to-profile relation with default selection.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid fk workspaces(id, user_id)
+affiliate_profile_id uuid fk affiliate_profiles(id, user_id)
+is_default boolean
+created_at timestamptz
+updated_at timestamptz
+```
+
+Each workspace can link to multiple affiliate profiles, but only one link should be marked default per workspace. Create flows should default both asset locks to `true`; save may still happen without asset refs, but prompt generation must block if a locked asset reference is missing.
 
 ### `prompt_packs`
 

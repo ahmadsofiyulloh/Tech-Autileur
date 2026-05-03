@@ -86,7 +86,7 @@ Locked presentation:
 - 8px radius or less for cards and framed surfaces unless a local component rule requires otherwise.
 - Geist Sans as the default type family.
 - page title > section title > card title > label/body hierarchy.
-- custom picker for relational fields, not raw dropdowns.
+- shared custom picker for choice fields, not raw dropdowns.
 - static suggestions with free fallback only when the field is intentionally loose.
 - every active surface must include loading, empty, and error states.
 - mobile and desktop layouts must stay responsive without text overlap.
@@ -139,9 +139,9 @@ Gemini may analyze image bytes uploaded by the operator. The app must not claim 
 
 ## Prompt Personalization
 
-Affiliate Profile is workspace-scoped and acts as the prompt persona. Character and environment locks are profile-owned only in Phase awal.
+Affiliate Profile is a top-level prompt persona. Workspace links are explicit and can mark one default per workspace. Character and environment locks are profile-owned only in Phase awal.
 
-Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides.
+Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides. If a selected profile lock is enabled but the Drive reference is missing, generation must block.
 
 The final lock keeps only character and environment as first-class profile assets. The environment asset carries the background-lock role.
 
@@ -195,7 +195,7 @@ Pengaturan is the configuration hub for:
 Settings detail grammar:
 
 - Workspace: list + drawer CRUD, auto-generated code, name, niche picker, Drive root picker, default switch, archive.
-- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive.
+- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, and explicit workspace links/default selection.
 - Gemini: single minimal form surface; no list/history UI.
 - Drive: folder-centric list + drawer, workspace-scoped, folders only.
 - Account: Chrome pairing, App API Token, and sign out.

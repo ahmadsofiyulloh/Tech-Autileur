@@ -37,8 +37,9 @@
 - Required fields exist: `Prompt Clip 1`, `Prompt Clip 2`, `Caption`, `Tags`, `Target Marketplace`, `Instruksi Revisi`.
 - Each clip panel exposes `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt`.
 - Required actions exist: `Buat Prompt`, `Buat Ulang`, `Tandai Siap Flow`.
-- Prompt generation consumes selected Affiliate Profile and product context.
+- Prompt generation consumes the selected or workspace-default-linked Affiliate Profile and product context.
 - Character and environment locks come from Affiliate Profile only in Phase awal.
+- Prompt generation blocks when a locked Character or Environment reference is missing.
 - There is no separate background-reference profile asset in Phase awal.
 - Prompt rules are editable in UI and not hardcoded in JSX/HTML/route handlers.
 - Prompt packs are stored as structured JSON.
@@ -82,14 +83,16 @@
 ## Affiliate Profiles and Settings
 
 - User can create unlimited affiliate profiles.
-- Profiles belong to a workspace.
+- Profiles are top-level personas linked to one or more workspaces.
 - Profiles store editable prompt personalization rules.
 - Profiles can lock character and environment with Drive references.
 - Profile UI exposes only two asset slots: Character and Environment.
 - No third background-reference asset slot exists in MVP.
+- Default profile selection is explicit per workspace.
+- New profiles default asset locks to ON.
 - Workspace settings use `Nama Ruang Kerja` and `Folder Drive Utama`.
 - Workspace settings use list + drawer CRUD with auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
-- Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, and archive.
+- Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, archive, and explicit workspace links/default selection.
 - Affiliate Profile settings do not promote `notes` as a required surface field.
 - Gemini settings are a single minimal form surface, not list/history.
 - Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
@@ -115,7 +118,7 @@
 - Duplicate Settings entry points do not exist across the shell.
 - The UI uses Geist Sans as the base type family.
 - Graphite Gold styling remains a compact dark workbench, not a marketing theme.
-- Relational fields use custom picker behavior rather than raw browser dropdowns.
+- Choice fields use shared custom picker behavior rather than raw browser dropdowns.
 - The compact type hierarchy is documented and followed on mobile and desktop.
 - Desktop mutable master lists use searchable tables plus right side drawers.
 - Mobile mutable master lists use compact cards plus full-screen drawers or bottom sheets.

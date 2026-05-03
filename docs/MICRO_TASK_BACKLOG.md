@@ -63,10 +63,17 @@ Completed on this branch:
 **Owner:** Codex
 **Acceptance:** profile rules are UI-editable and not hardcoded, profile assets are limited to Character and Environment, and no separate background-reference slot exists.
 
+Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top-level persona model is tracked by S3-003.
+
 ### S3-002 - Paket Prompt editor/generator _(DONE)_
 **Goal:** Build `/prompts` and product detail prompt surface with Prompt Clip 1, Prompt Clip 2, Caption, Tags, Target Marketplace, Instruksi Revisi, and clip-level I2I/I2V fields.
 **Owner:** Codex
 **Acceptance:** prompt pack JSON persists, includes `prompt_context`, versions are preserved, clip-level first-frame/last-frame/I2V inputs are represented, and the selected Flow-ready version is explicit.
+
+### S3-003 - Top-level Affiliate Profile relation and strict lock semantics
+**Goal:** Move Affiliate Profile to a top-level persona model with explicit workspace links, default selection, and strict character/environment lock behavior.
+**Owner:** Codex
+**Acceptance:** one profile can link to multiple workspaces, each workspace can mark one default profile link, new profiles default asset locks to ON, save may happen before asset refs exist, and prompt generation blocks when a locked Character or Environment reference is missing.
 
 ## S4 - Flow Control and Windows Helper
 
@@ -119,10 +126,10 @@ Completed on this branch:
 **Owner:** Codex
 **Acceptance:** Gemini is a single form surface, Drive is folder-centric list + drawer, Account contains Chrome pairing plus token controls, and Flow Accounts remain controller-owned rather than Settings CRUD.
 
-### S6-003 - Picker and typography lock
-**Goal:** Apply custom picker grammar and lock the compact type hierarchy.
+### S6-003 - Picker grammar lock
+**Goal:** Apply the shared picker grammar across all choice fields.
 **Owner:** Codex
-**Acceptance:** relational fields use custom picker behavior, loose text fields can use static suggestions with free fallback, and the locked type hierarchy is documented.
+**Acceptance:** choice fields use the shared custom picker, searchable mode is used only when the option set needs search, desktop panels anchor to the field, and mobile panels become bottom sheets.
 
 ### S6-004 - Nested settings routing desktop/mobile _(DONE)_
 **Goal:** Split `/settings` into overview plus nested sections so desktop and mobile have clear section routing without adding a second global settings nav.
@@ -133,6 +140,11 @@ Completed on this branch:
 **Goal:** Apply the locked list + drawer CRUD grammar across mutable master surfaces.
 **Owner:** Codex
 **Acceptance:** desktop mutable lists use searchable tables plus right side drawers, mobile mutable lists use compact cards plus full-screen drawers or bottom sheets, create entrypoints exist only in header and empty state CTA, row actions are Open plus edit/archive/delete in overflow, and archive-first lifecycle is the default.
+
+### S6-006 - Affiliate Profile drawer rewrite
+**Goal:** Replace the current form-heavy Akun Affiliate surface with the locked list + drawer model and two first-class asset cards.
+**Owner:** Codex
+**Acceptance:** row summaries stay minimal, the drawer is the only edit surface, Character and Environment each have upload/replace/remove plus preview/status, explicit workspace links and default selection live in the drawer, and notes stay secondary.
 
 ## S7 - Dashboard Analytics
 

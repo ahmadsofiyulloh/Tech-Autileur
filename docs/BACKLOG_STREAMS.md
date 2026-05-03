@@ -7,10 +7,10 @@
 | S0 | Project Control | Docs, AGENTS, repo rules, quality gates | Codex + User review |
 | S1 | App Shell | desktop/mobile nav, route lock, settings/account shell, compatibility routes | Codex |
 | S2 | Intake Workflow | `/products/new`, real image/screenshot uploads, Gemini analysis | Codex |
-| S3 | Paket Prompt | Affiliate profiles, prompt rules, editor/generator, versioning, prompt context | Codex |
+| S3 | Paket Prompt | Affiliate personas, workspace links, prompt rules, editor/generator, versioning, prompt context | Codex |
 | S4 | Flow Control | global Flow pool, board, manifest, Windows Helper callback | Codex |
 | S5 | Product Detail | Metadata, Output, History surfaces | Codex |
-| S6 | Pengaturan Hub | workspace, affiliate profile, Gemini, Drive, Flow link, Account, helper token, picker grammar, nested routing, list drawer table/card grammar | Codex |
+| S6 | Pengaturan Hub | workspace, affiliate profile drawer, Gemini, Drive, Flow link, Account, helper token, picker grammar, nested routing, list drawer table/card grammar | Codex |
 | S7 | Dashboard Analytics | Gemini, Drive, prompt, output/import metrics | Codex |
 | S8 | Hardening | build, tests, minimal copy, security pass | Codex + User review |
 

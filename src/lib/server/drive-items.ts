@@ -218,6 +218,23 @@ export async function getDriveItemByDriveItemId(driveItemId: string) {
   return (data ?? null) as DriveItemRecord | null;
 }
 
+export async function getDriveItemByDrivePath(drivePath: string) {
+  const { supabase, user } = await requireUser();
+
+  const { data, error } = await supabase
+    .from("drive_items")
+    .select("*")
+    .eq("drive_path", readUserFacingText(drivePath))
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? null) as DriveItemRecord | null;
+}
+
 export async function updateDriveItem(
   id: string,
   input: Partial<DriveItemInput> & { name?: string; drive_url?: string; drive_path?: string },

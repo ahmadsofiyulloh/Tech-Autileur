@@ -82,8 +82,8 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 - Create standard folders.
 - Upload product image bytes and store Drive metadata.
 - Upload marketplace screenshot bytes and store Drive metadata.
-- Upload affiliate profile character and environment assets into the profile-owned admin folders.
-- Store those profile assets as Drive metadata references that resolve back to the active Affiliate Profile.
+- Upload affiliate profile character and environment assets from the Affiliate Profile drawer into the profile-owned admin folders.
+- Store those profile assets as Drive metadata references that resolve back to the active Affiliate Profile or its linked workspace context.
 - Attach existing Drive file metadata by URL or picker when needed.
 - Store prompt reference file metadata.
 - Store batch manifest metadata.

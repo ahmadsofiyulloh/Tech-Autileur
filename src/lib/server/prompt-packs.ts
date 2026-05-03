@@ -376,10 +376,10 @@ function buildAffiliateProfileSnapshot(profile: AffiliateProfileRecord | null) {
 
   return {
     id: profile.id,
-    workspace_id: profile.workspace_id,
     profile_code: profile.profile_code,
     profile_name: profile.profile_name,
     platform: profile.platform,
+    workspace_id: profile.workspace_id,
     account_label: profile.account_label,
     niche: profile.niche,
     affiliate_url: profile.affiliate_url,
@@ -397,6 +397,8 @@ function buildAffiliateProfileSnapshot(profile: AffiliateProfileRecord | null) {
     environment_notes: profile.environment_notes,
     environment_drive_item_ref_id: profile.environment_drive_item_ref_id,
     status: profile.status,
+    workspace_ids: profile.workspace_ids,
+    default_workspace_id: profile.default_workspace_id,
   } satisfies JsonObject;
 }
 
@@ -561,13 +563,21 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     ? getAffiliateProfileById(promptPack.affiliate_profile_id)
     : getDefaultAffiliateProfileForWorkspace(resolvedWorkspaceId));
 
-  if (affiliateProfile && resolvedWorkspaceId && affiliateProfile.workspace_id !== resolvedWorkspaceId) {
-    throw new Error("Affiliate profile must belong to the selected workspace.");
+  if (affiliateProfile && resolvedWorkspaceId && !affiliateProfile.workspace_ids.includes(resolvedWorkspaceId)) {
+    throw new Error("Affiliate profile must be linked to the selected workspace.");
   }
 
-  if (!resolvedWorkspaceId && affiliateProfile?.workspace_id) {
-    resolvedWorkspaceId = affiliateProfile.workspace_id;
+  if (!resolvedWorkspaceId && affiliateProfile?.default_workspace_id) {
+    resolvedWorkspaceId = affiliateProfile.default_workspace_id;
     resolvedWorkspace = resolvedWorkspaceId ? await getWorkspaceById(resolvedWorkspaceId) : null;
+  }
+
+  if (affiliateProfile?.lock_seed_character && !affiliateProfile.seed_character_drive_item_ref_id) {
+    throw new Error("Character lock is enabled but no Character Drive reference is configured.");
+  }
+
+  if (affiliateProfile?.lock_environment && !affiliateProfile.environment_drive_item_ref_id) {
+    throw new Error("Environment lock is enabled but no Environment Drive reference is configured.");
   }
 
   const latestAnchor = await getLatestProductAnchor({
@@ -823,11 +833,11 @@ function buildNegativePromptRules(context: MockPromptContext) {
 
 function buildSeedCharacterState(context: MockPromptContext): PromptPackGenerationOutput["seed_character"] {
   if (!context.affiliateProfile?.lock_seed_character) {
-  return {
-    locked: false,
-    notes: "No locked seed character configured.",
-    drive_item_ref_id: null,
-  };
+    return {
+      locked: false,
+      notes: "No locked seed character configured.",
+      drive_item_ref_id: null,
+    };
   }
 
   return {
@@ -841,11 +851,11 @@ function buildSeedCharacterState(context: MockPromptContext): PromptPackGenerati
 
 function buildEnvironmentState(context: MockPromptContext): PromptPackGenerationOutput["environment"] {
   if (!context.affiliateProfile?.lock_environment) {
-  return {
-    locked: false,
-    notes: "No locked environment configured.",
-    drive_item_ref_id: null,
-  };
+    return {
+      locked: false,
+      notes: "No locked environment configured.",
+      drive_item_ref_id: null,
+    };
   }
 
   return {
@@ -1484,7 +1494,7 @@ export async function createPromptPack(input: PromptPackInput) {
   const status = input.status ?? "DRAFT";
   assertPromptPackStatus(status);
   const version = ensurePromptVersion(input.version ?? 1);
-  const resolvedWorkspaceId = product.workspace_id ?? (await getCurrentWorkspace())?.id ?? null;
+  let resolvedWorkspaceId = product.workspace_id ?? (await getCurrentWorkspace())?.id ?? null;
   const explicitIntakeSessionId = normalizeNullableText(input.intake_session_id);
   const explicitSourceProductImageId = normalizeNullableText(input.source_product_image_id);
   const explicitAffiliateProfileId = normalizeNullableText(input.affiliate_profile_id);
@@ -1523,8 +1533,12 @@ export async function createPromptPack(input: PromptPackInput) {
     throw new Error("Source product image not found.");
   }
 
-  if (affiliateProfile && resolvedWorkspaceId && affiliateProfile.workspace_id !== resolvedWorkspaceId) {
-    throw new Error("Affiliate profile must belong to the selected workspace.");
+  if (affiliateProfile && resolvedWorkspaceId && !affiliateProfile.workspace_ids.includes(resolvedWorkspaceId)) {
+    throw new Error("Affiliate profile must be linked to the selected workspace.");
+  }
+
+  if (!resolvedWorkspaceId && affiliateProfile?.default_workspace_id) {
+    resolvedWorkspaceId = affiliateProfile.default_workspace_id;
   }
 
   const { data, error } = await supabase
@@ -1606,8 +1620,8 @@ export async function updatePromptPack(id: string, input: PromptPackUpdateInput)
   if (nextAffiliateProfileId) {
     const affiliateProfile = await getAffiliateProfileById(nextAffiliateProfileId);
 
-    if (resolvedWorkspaceId && affiliateProfile.workspace_id !== resolvedWorkspaceId) {
-      throw new Error("Affiliate profile must belong to the selected workspace.");
+    if (resolvedWorkspaceId && !affiliateProfile.workspace_ids.includes(resolvedWorkspaceId)) {
+      throw new Error("Affiliate profile must be linked to the selected workspace.");
     }
   }
 

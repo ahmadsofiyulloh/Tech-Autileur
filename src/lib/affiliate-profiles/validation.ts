@@ -6,7 +6,6 @@ export type AffiliatePlatform = (typeof AFFILIATE_PLATFORMS)[number];
 export type AffiliateProfileStatus = (typeof AFFILIATE_PROFILE_STATUSES)[number];
 
 export type AffiliateProfileInput = {
-  workspace_id: string;
   profile_code: string;
   profile_name: string;
   platform?: string;
@@ -93,7 +92,6 @@ export function assertAffiliateProfileStatus(value: string): asserts value is Af
 }
 
 export function validateAffiliateProfileInput(input: AffiliateProfileInput) {
-  const workspaceId = normalizeAffiliateProfileUuid(input.workspace_id, "Choose a workspace.");
   const profileCode = normalizeAffiliateProfileCode(input.profile_code);
   const profileName = readAffiliateProfileText(input.profile_name);
   const platform = input.platform || "TIKTOK";
@@ -111,7 +109,6 @@ export function validateAffiliateProfileInput(input: AffiliateProfileInput) {
   assertAffiliateProfileStatus(status);
 
   return {
-    workspace_id: workspaceId,
     profile_code: profileCode,
     profile_name: profileName,
     platform,
@@ -125,13 +122,13 @@ export function validateAffiliateProfileInput(input: AffiliateProfileInput) {
     hashtag_rules: normalizeAffiliateProfileRulesText(input.hashtag_rules),
     negative_prompt_rules: normalizeAffiliateProfileRulesText(input.negative_prompt_rules),
     product_positioning_notes: normalizeAffiliateProfileRulesText(input.product_positioning_notes),
-    lock_seed_character: input.lock_seed_character ?? false,
+    lock_seed_character: input.lock_seed_character ?? true,
     seed_character_notes: normalizeAffiliateProfileRulesText(input.seed_character_notes),
     seed_character_drive_item_ref_id: normalizeNullableAffiliateProfileUuid(
       input.seed_character_drive_item_ref_id,
       "Seed character Drive reference must be a valid row id.",
     ),
-    lock_environment: input.lock_environment ?? false,
+    lock_environment: input.lock_environment ?? true,
     environment_notes: normalizeAffiliateProfileRulesText(input.environment_notes),
     environment_drive_item_ref_id: normalizeNullableAffiliateProfileUuid(
       input.environment_drive_item_ref_id,
