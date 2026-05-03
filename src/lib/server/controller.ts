@@ -5,19 +5,15 @@ import { getCurrentWorkspace, type WorkspaceRecord } from "@/lib/server/workspac
 import { listProducts } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { listDriveItems } from "@/lib/server/drive-items";
-import { createContent, listContents, type ContentRecord, buildContentCode } from "@/lib/server/contents";
+import { listContents, type ContentRecord } from "@/lib/server/contents";
 import {
-  createFlowBatch,
   listFlowBatches,
   type FlowBatchRecord,
-  buildFlowBatchCode,
 } from "@/lib/server/flow-batches";
 import {
-  createFlowAccount,
   getFlowAccountPool,
   pickBestAvailableFlowAccount,
   type FlowAccountPoolRecord,
-  type FlowAccountRecord,
   estimateRecommendedMaxJobs,
 } from "@/lib/server/flow-accounts";
 import { createClipJob, listClipJobs, listGeneratedFiles, type ClipJobRecord, type GeneratedFileRecord } from "@/lib/server/clip-jobs";
@@ -277,6 +273,15 @@ function buildExistingPromptPackBatchSet(batches: FlowBatchRecord[]) {
   return new Set(batches.filter((batch) => batch.prompt_pack_id && batch.status !== "CLOSED").map((batch) => batch.prompt_pack_id as string));
 }
 
+function summarizeUnavailableFlowAccounts(accounts: FlowAccountPoolRecord[]) {
+  if (!accounts.length) {
+    return "Belum ada akun Flow.";
+  }
+
+  const reasons = Array.from(new Set(accounts.flatMap((account) => account.eligibility_reasons))).slice(0, 3);
+  return reasons.length ? `Tidak ada akun Flow layak: ${reasons.join(", ")}.` : "Tidak ada akun Flow yang layak.";
+}
+
 export function buildFlowAssignmentPlan(input: {
   promptPacks: ControllerPromptPackRecord[];
   accounts: FlowAccountPoolRecord[];
@@ -315,7 +320,7 @@ export function buildFlowAssignmentPlan(input: {
         recommendedAccountCode: null,
         recommendedMaxJobs: 0,
         status: "SKIPPED",
-        reason: "Tidak ada akun Flow yang lolos kredit dan slot.",
+        reason: summarizeUnavailableFlowAccounts(accountPool),
       });
       continue;
     }
@@ -351,34 +356,15 @@ export function buildFlowAssignmentPlan(input: {
     account.open_batch_count += 1;
     account.credits_remaining = Math.max(account.credits_remaining - recommendedMaxJobs * account.credit_per_generation, 0);
     account.slots_remaining = Math.max(account.slots_remaining - 1, 0);
-    account.is_available = account.status === "ACTIVE" && account.slots_remaining > 0 && account.credits_remaining >= account.credit_per_generation;
+    account.cooldown_remaining_minutes = account.cooldown_minutes > 0 ? account.cooldown_minutes : account.cooldown_remaining_minutes;
+    account.is_available =
+      account.status === "ACTIVE" &&
+      account.slots_remaining > 0 &&
+      account.credits_remaining >= account.credit_per_generation &&
+      account.cooldown_remaining_minutes === 0;
   }
 
   return plan;
-}
-
-async function ensureContentForPromptPack(
-  promptPack: ControllerPromptPackRecord,
-  product: ControllerProductRecord,
-  existingContents: ContentRecord[],
-) {
-  const existing = existingContents.find((content) => content.prompt_pack_id === promptPack.id && content.product_id === product.id);
-
-  if (existing) {
-    return existing;
-  }
-
-  return await createContent({
-    product_id: product.id,
-    content_code: buildContentCode(product.product_code),
-    platform: product.marketplace,
-    hook_type: "EXECUTION",
-    angle: null,
-    caption_tiktok: null,
-    caption_shopee: null,
-    prompt_pack_id: promptPack.id,
-    status: "READY",
-  });
 }
 
 export async function getControllerDashboardState() {
@@ -397,7 +383,7 @@ export async function getControllerDashboardState() {
       getCurrentWorkspace(),
       listProducts({ limit: 200 }),
       listPromptPacks({ limit: 200 }),
-      getFlowAccountPool({ targetDate, limit: 200 }),
+      getFlowAccountPool({ targetDate }),
       listFlowBatches({ limit: 200 }),
       listContents({ limit: 200 }),
       listClipJobs({ limit: 200 }),
@@ -417,61 +403,4 @@ export async function getControllerDashboardState() {
     generatedFiles,
     driveItems: driveItems as ControllerDriveItemRecord[],
   } satisfies ControllerDashboardState;
-}
-
-export async function autoAssignReadyPromptPacks(input?: { targetDate?: string | null }) {
-  const state = await getControllerDashboardState();
-  const existingPromptPackIds = buildExistingPromptPackBatchSet(state.flowBatches);
-  const plan = buildFlowAssignmentPlan({
-    promptPacks: state.promptPacks,
-    accounts: state.flowAccounts,
-    existingPromptPackIds,
-  });
-  const targetDate = input?.targetDate?.trim() || todayInJakarta();
-  const createdBatches: FlowBatchRecord[] = [];
-  const createdContents: ContentRecord[] = [];
-  let skipped = 0;
-
-  for (const item of plan) {
-    if (item.status !== "READY" || !item.recommendedAccountId) {
-      skipped += 1;
-      continue;
-    }
-
-    const promptPack = state.promptPacks.find((entry) => entry.id === item.promptPackId);
-    const product = state.products.find((entry) => entry.id === item.productId);
-
-    if (!promptPack || !product) {
-      skipped += 1;
-      continue;
-    }
-
-    const content = await ensureContentForPromptPack(promptPack, product, state.contents);
-    createdContents.push(content);
-
-    const batch = await createFlowBatch({
-      workspace_id: product.workspace_id ?? state.currentWorkspace?.id ?? null,
-      product_id: product.id,
-      prompt_pack_id: promptPack.id,
-      flow_account_id: item.recommendedAccountId,
-      batch_code: buildFlowBatchCode({
-        promptPackCode: promptPack.prompt_code,
-        accountCode: item.recommendedAccountCode,
-        targetDate,
-      }),
-      target_date: targetDate,
-      model: "google-flow",
-      max_jobs: item.recommendedMaxJobs,
-      status: "READY_TO_EXPORT",
-    });
-
-    createdBatches.push(batch);
-  }
-
-  return {
-    createdBatches,
-    createdContents,
-    skipped,
-    plan,
-  };
 }

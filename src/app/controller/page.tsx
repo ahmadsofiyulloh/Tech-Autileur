@@ -279,7 +279,12 @@ function FlowAccountPicker({
                   {isRecommended ? <StatusBadge status="Disarankan" tone="success" /> : null}
                 </span>
                 <span className="controller-account-option__meta">
-                  {[account.account_type, `${account.credits_remaining} kredit`, `${account.slots_remaining} slot`]
+                  {[
+                    account.account_type,
+                    `${account.credits_remaining} kredit`,
+                    `${account.slots_remaining} slot`,
+                    account.cooldown_minutes ? `${account.cooldown_minutes} menit cooldown` : "tanpa cooldown",
+                  ]
                     .filter(Boolean)
                     .join(" - ")}
                 </span>
@@ -344,9 +349,13 @@ function PromptQueueCard({
             <span>Akun Flow</span>
             <FlowAccountPicker accounts={eligibleAccounts} recommendedAccountId={plan?.recommendedAccountId} name="flow_account_id" />
           </label>
+          <label className="checkbox-row">
+            <input name="confirm_flow_account" type="checkbox" required />
+            <span>Konfirmasi akun Flow pilihan.</span>
+          </label>
           <FormActions>
             <button className="button compact primary" type="submit">
-              Antre batch
+              Konfirmasi batch
             </button>
           </FormActions>
         </form>

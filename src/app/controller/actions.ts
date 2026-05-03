@@ -1,11 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { buildClipJobDraft, buildPromptContextSummary } from "@/lib/server/controller";
 import { createContent, archiveContent, updateContent } from "@/lib/server/contents";
 import { createFlowAccount, archiveFlowAccount, getFlowAccountPool, updateFlowAccount } from "@/lib/server/flow-accounts";
-import { archiveFlowBatch, createFlowBatch, updateFlowBatch } from "@/lib/server/flow-batches";
+import { archiveFlowBatch, buildFlowBatchCode, createFlowBatch, updateFlowBatch } from "@/lib/server/flow-batches";
 import { archiveClipJob, createClipJob, markGeneratedFileImported, updateClipJob, updateGeneratedFile } from "@/lib/server/clip-jobs";
 import { createGeneratedFile } from "@/lib/server/clip-jobs";
 import { getContentById } from "@/lib/server/contents";
@@ -30,10 +29,6 @@ function fail(message: string): never {
   redirect(`/controller?error=${encodeURIComponent(message)}`);
 }
 
-function revalidateController() {
-  revalidatePath("/controller");
-}
-
 function readNumber(formData: FormData, key: string) {
   const value = readText(formData, key);
   if (!value) {
@@ -53,11 +48,6 @@ export async function saveController(formData: FormData) {
   const id = readText(formData, "id");
 
   try {
-    if (intent === "auto_assign_ready_prompt_packs") {
-      revalidateController();
-      done("Review the recommended account before queueing.");
-    }
-
     if (intent === "create_flow_account") {
       await createFlowAccount({
         account_code: readText(formData, "account_code"),
@@ -103,11 +93,16 @@ export async function saveController(formData: FormData) {
 
     if (intent === "create_flow_batch") {
       const flowAccountId = readText(formData, "flow_account_id");
+      const confirmed = formData.get("confirm_flow_account") === "on";
       const promptPackId = readNullableText(formData, "prompt_pack_id");
       const promptPack = promptPackId ? await getPromptPackById(promptPackId) : null;
       const targetDate = readNullableText(formData, "target_date");
-      const flowAccountPool = await getFlowAccountPool({ targetDate, limit: 200 });
+      const flowAccountPool = await getFlowAccountPool({ targetDate });
       const selectedAccount = flowAccountPool.find((account) => account.id === flowAccountId) ?? null;
+
+      if (!confirmed) {
+        throw new Error("Konfirmasi akun Flow diperlukan.");
+      }
 
       if (!flowAccountId) {
         throw new Error("Flow account is required.");
@@ -122,7 +117,13 @@ export async function saveController(formData: FormData) {
         product_id: readNullableText(formData, "product_id") ?? (promptPack ? promptPack.product_id : null),
         prompt_pack_id: promptPackId,
         flow_account_id: flowAccountId,
-        batch_code: readText(formData, "batch_code"),
+        batch_code:
+          readText(formData, "batch_code") ||
+          buildFlowBatchCode({
+            promptPackCode: promptPack?.prompt_code ?? "FLOW",
+            accountCode: selectedAccount.account_code,
+            targetDate: targetDate ?? undefined,
+          }),
         target_date: targetDate ?? undefined,
         model: readText(formData, "model"),
         max_jobs: selectedAccount.recommended_max_jobs,

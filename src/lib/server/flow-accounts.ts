@@ -30,6 +30,10 @@ export type FlowAccountPoolRecord = FlowAccountRecord & {
   batch_credit_load: number;
   credits_remaining: number;
   slots_remaining: number;
+  last_batch_at: string | null;
+  cooldown_until: string | null;
+  cooldown_remaining_minutes: number;
+  eligibility_reasons: string[];
   recommended_max_jobs: number;
   is_available: boolean;
 };
@@ -136,13 +140,19 @@ export async function listFlowAccounts(input?: { status?: AccountStatus | string
     assertAccountStatus(input.status);
   }
 
-  const limit = Math.min(Math.max(input?.limit ?? 100, 1), 200);
   let query = supabase
     .from("flow_accounts")
     .select("*")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .order("created_at", { ascending: false });
+
+  if (input?.limit !== undefined) {
+    if (!Number.isFinite(input.limit) || input.limit < 1) {
+      throw new Error("Flow account list limit must be a positive number.");
+    }
+
+    query = query.limit(Math.floor(input.limit));
+  }
 
   if (input?.status) {
     query = query.eq("status", input.status);
@@ -285,24 +295,34 @@ export async function archiveFlowAccount(id: string) {
   return await updateFlowAccount(id, { status: "DISABLED" });
 }
 
+function compareFlowAccountRecommendation(left: FlowAccountPoolRecord, right: FlowAccountPoolRecord) {
+  if (left.is_available !== right.is_available) {
+    return left.is_available ? -1 : 1;
+  }
+
+  if (left.account_type !== right.account_type) {
+    return left.account_type === "FLOW_FREE" ? -1 : 1;
+  }
+
+  if (right.credits_remaining !== left.credits_remaining) {
+    return right.credits_remaining - left.credits_remaining;
+  }
+
+  if (right.slots_remaining !== left.slots_remaining) {
+    return right.slots_remaining - left.slots_remaining;
+  }
+
+  if (left.cooldown_remaining_minutes !== right.cooldown_remaining_minutes) {
+    return left.cooldown_remaining_minutes - right.cooldown_remaining_minutes;
+  }
+
+  return left.created_at.localeCompare(right.created_at);
+}
+
 export function pickBestAvailableFlowAccount(pool: FlowAccountPoolRecord[]) {
   return pool
     .filter((account) => account.is_available)
-    .sort((left, right) => {
-      if (left.account_type !== right.account_type) {
-        return left.account_type === "FLOW_FREE" ? -1 : 1;
-      }
-
-      if (right.credits_remaining !== left.credits_remaining) {
-        return right.credits_remaining - left.credits_remaining;
-      }
-
-      if (right.slots_remaining !== left.slots_remaining) {
-        return right.slots_remaining - left.slots_remaining;
-      }
-
-      return left.created_at.localeCompare(right.created_at);
-    })[0] ?? null;
+    .sort(compareFlowAccountRecommendation)[0] ?? null;
 }
 
 export function estimateRecommendedMaxJobs(account: FlowAccountPoolRecord) {
@@ -314,29 +334,54 @@ export function estimateRecommendedMaxJobs(account: FlowAccountPoolRecord) {
 }
 
 export async function getFlowAccountPool(input?: { targetDate?: string | null; limit?: number }) {
-  const accounts = await listFlowAccounts({ limit: input?.limit ?? 200 });
+  const accounts = await listFlowAccounts(input?.limit === undefined ? undefined : { limit: input.limit });
   const targetDate = input?.targetDate?.trim() || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
-  const batches = (await listFlowBatches({ targetDate, limit: 200 })) as FlowBatchRecord[];
-  const loadMap = new Map<string, { openBatchCount: number; batchCreditLoad: number }>();
+  const batches = (await listFlowBatches()) as FlowBatchRecord[];
+  const nowMs = Date.now();
+  const loadMap = new Map<string, { openBatchCount: number; batchCreditLoad: number; lastBatchAt: string | null; lastBatchAtMs: number | null }>();
 
   for (const batch of batches) {
-    if (!OPEN_BATCH_STATUSES.has(batch.status)) {
-      continue;
+    const current = loadMap.get(batch.flow_account_id) ?? {
+      openBatchCount: 0,
+      batchCreditLoad: 0,
+      lastBatchAt: null,
+      lastBatchAtMs: null,
+    };
+    const batchUpdatedAtMs = Date.parse(batch.updated_at || batch.created_at);
+
+    if (OPEN_BATCH_STATUSES.has(batch.status)) {
+      current.openBatchCount += 1;
+
+      if (batch.target_date === targetDate) {
+        current.batchCreditLoad += batch.max_jobs;
+      }
     }
 
-    const current = loadMap.get(batch.flow_account_id) ?? { openBatchCount: 0, batchCreditLoad: 0 };
-    current.openBatchCount += 1;
-    current.batchCreditLoad += batch.max_jobs;
+    if (!Number.isNaN(batchUpdatedAtMs) && (current.lastBatchAtMs === null || batchUpdatedAtMs > current.lastBatchAtMs)) {
+      current.lastBatchAt = batch.updated_at || batch.created_at;
+      current.lastBatchAtMs = batchUpdatedAtMs;
+    }
+
     loadMap.set(batch.flow_account_id, current);
   }
 
   return accounts
     .map<FlowAccountPoolRecord>((account) => {
-      const load = loadMap.get(account.id) ?? { openBatchCount: 0, batchCreditLoad: 0 };
+      const load = loadMap.get(account.id) ?? { openBatchCount: 0, batchCreditLoad: 0, lastBatchAt: null, lastBatchAtMs: null };
       const creditsUsed = load.batchCreditLoad * account.credit_per_generation;
       const creditsRemaining = Math.max(account.observed_daily_credit - creditsUsed, 0);
       const slotsRemaining = Math.max(account.max_parallel_allowed - load.openBatchCount, 0);
-      const isAvailable = account.status === "ACTIVE" && slotsRemaining > 0 && creditsRemaining >= account.credit_per_generation;
+      const cooldownUntilMs =
+        account.cooldown_minutes > 0 && load.lastBatchAtMs !== null ? load.lastBatchAtMs + account.cooldown_minutes * 60 * 1000 : null;
+      const cooldownRemainingMinutes = cooldownUntilMs && cooldownUntilMs > nowMs ? Math.ceil((cooldownUntilMs - nowMs) / 60000) : 0;
+      const cooldownUntil = cooldownUntilMs ? new Date(cooldownUntilMs).toISOString() : null;
+      const eligibilityReasons = [
+        account.status !== "ACTIVE" ? `Status ${account.status}` : null,
+        creditsRemaining < account.credit_per_generation ? `Kredit tersisa ${creditsRemaining}/${account.credit_per_generation}` : null,
+        slotsRemaining <= 0 ? "Slot aktif penuh" : null,
+        cooldownRemainingMinutes > 0 ? `Cooldown ${cooldownRemainingMinutes} menit` : null,
+      ].filter((reason): reason is string => Boolean(reason));
+      const isAvailable = eligibilityReasons.length === 0;
       const recommendedMaxJobs = isAvailable ? Math.max(1, Math.min(5, Math.floor(creditsRemaining / account.credit_per_generation))) : 0;
 
       return {
@@ -345,28 +390,13 @@ export async function getFlowAccountPool(input?: { targetDate?: string | null; l
         batch_credit_load: creditsUsed,
         credits_remaining: creditsRemaining,
         slots_remaining: slotsRemaining,
+        last_batch_at: load.lastBatchAt,
+        cooldown_until: cooldownUntil,
+        cooldown_remaining_minutes: cooldownRemainingMinutes,
+        eligibility_reasons: eligibilityReasons,
         recommended_max_jobs: recommendedMaxJobs,
         is_available: isAvailable,
       };
     })
-    .sort((left, right) => {
-      if (left.is_available !== right.is_available) {
-        return left.is_available ? -1 : 1;
-      }
-
-      if (left.account_type !== right.account_type) {
-        return left.account_type === "FLOW_FREE" ? -1 : 1;
-      }
-
-      if (right.credits_remaining !== left.credits_remaining) {
-        return right.credits_remaining - left.credits_remaining;
-      }
-
-      if (right.slots_remaining !== left.slots_remaining) {
-        return right.slots_remaining - left.slots_remaining;
-      }
-
-      return left.created_at.localeCompare(right.created_at);
-    });
+    .sort(compareFlowAccountRecommendation);
 }
-

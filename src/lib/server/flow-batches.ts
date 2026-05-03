@@ -259,13 +259,19 @@ export async function listFlowBatches(input?: {
     assertFlowBatchStatus(input.status);
   }
 
-  const limit = Math.min(Math.max(input?.limit ?? 100, 1), 200);
   let query = supabase
     .from("flow_batches")
     .select("*")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .order("created_at", { ascending: false });
+
+  if (input?.limit !== undefined) {
+    if (!Number.isFinite(input.limit) || input.limit < 1) {
+      throw new Error("Flow batch list limit must be a positive number.");
+    }
+
+    query = query.limit(Math.floor(input.limit));
+  }
 
   if (input?.workspaceId) {
     query = query.eq("workspace_id", input.workspaceId);
@@ -459,4 +465,3 @@ export function extractFlowAccountLoad(batches: BatchState[]) {
 
   return loadMap;
 }
-
