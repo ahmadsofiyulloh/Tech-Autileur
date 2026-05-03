@@ -28,6 +28,7 @@ import {
   readIntakeText,
 } from "@/lib/intake/validation";
 import { type GeminiModelName } from "@/lib/gemini/validation";
+import { createDriveItem, getDriveItemById } from "@/lib/server/drive-items";
 import { buildProductCode, createProduct, getProductById, listProductImages, updateProduct } from "@/lib/server/products";
 import { buildProductAnchorCode, createProductAnchor, listProductAnchors, type ProductAnchorRecord } from "@/lib/server/product-anchors";
 import {
@@ -36,6 +37,7 @@ import {
   createMarketplaceSource,
   listProductMarketplaceSources,
 } from "@/lib/server/product-marketplace-sources";
+import { uploadFileToGoogleDrive } from "@/lib/server/google-drive";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
@@ -804,6 +806,138 @@ function buildUploadedImageSummary(file: File) {
   };
 }
 
+function readDrivePath(value: string | null | undefined) {
+  const trimmed = readText(value);
+  return trimmed ? trimmed.replace(/\/+$/g, "") : "";
+}
+
+function sanitizeDriveLeafName(value: string) {
+  const trimmed = readText(value);
+
+  if (!trimmed) {
+    return "upload.bin";
+  }
+
+  return trimmed.replace(/[\\/:*?"<>|]+/g, "-");
+}
+
+function readDrivePathSegments(value: string | null | undefined) {
+  return readDrivePath(value)
+    .split("/")
+    .map((segment) => readText(segment))
+    .filter((segment) => segment.length > 0)
+    .map((segment) => sanitizeDriveLeafName(segment))
+    .filter((segment) => segment.length > 0);
+}
+
+function buildIntakeDrivePath(input: {
+  workspaceCode: string;
+  workspaceDrivePath: string | null;
+  intakeCode: string;
+  folderLabel: string;
+  fileName: string;
+}) {
+  const rootSegments = readDrivePathSegments(input.workspaceDrivePath);
+  const fallbackRootSegments = [`AffiliateAI`, "02_WORKSPACES", input.workspaceCode, "ROOT_FOLDER"].map(sanitizeDriveLeafName);
+  const folderSegments = readDrivePathSegments(input.folderLabel);
+  const intakeFolder = sanitizeDriveLeafName(input.intakeCode);
+  const fileName = sanitizeDriveLeafName(input.fileName);
+  const segments = rootSegments.length ? rootSegments : fallbackRootSegments;
+
+  return [...segments, "INTAKE", intakeFolder, ...folderSegments, fileName].filter(Boolean).join("/");
+}
+
+async function uploadIntakeEvidenceToDrive(input: {
+  productImage: File;
+  shopeeScreenshot: File;
+  tiktokScreenshot: File;
+}) {
+  const workspace = await getCurrentWorkspace();
+
+  if (!workspace) {
+    throw new Error("Pilih workspace aktif dulu.");
+  }
+
+  if (!workspace.drive_root_folder_ref_id) {
+    throw new Error("Folder Drive Utama belum diisi.");
+  }
+
+  const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
+
+  if (!rootFolder?.drive_item_id) {
+    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+  }
+
+  const intakeCode = `INTAKE-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`;
+  const uploads = [
+    {
+      file: input.productImage,
+      folderLabel: "SOURCE_IMAGES",
+      name: sanitizeDriveLeafName(input.productImage.name) || "product-image",
+      notes: "Foto Produk Utama",
+      purpose: "SOURCE_IMAGE" as const,
+    },
+    {
+      file: input.shopeeScreenshot,
+      folderLabel: "SCREENSHOTS/SHOPEE",
+      name: sanitizeDriveLeafName(input.shopeeScreenshot.name) || "shopee-screenshot",
+      notes: "Screenshot Shopee",
+      purpose: "OTHER" as const,
+    },
+    {
+      file: input.tiktokScreenshot,
+      folderLabel: "SCREENSHOTS/TIKTOK",
+      name: sanitizeDriveLeafName(input.tiktokScreenshot.name) || "tiktok-screenshot",
+      notes: "Screenshot TikTok",
+      purpose: "OTHER" as const,
+    },
+  ] as const;
+
+  const results = [];
+
+  for (const upload of uploads) {
+    const uploaded = await uploadFileToGoogleDrive({
+      file: upload.file,
+      name: upload.name,
+      description: upload.notes,
+      parentFolderId: rootFolder.drive_item_id,
+    });
+    const drivePath = buildIntakeDrivePath({
+      workspaceCode: workspace.workspace_code,
+      workspaceDrivePath: workspace.drive_root_folder_path,
+      intakeCode,
+      folderLabel: upload.folderLabel,
+      fileName: upload.file.name,
+    });
+
+    const driveItem = await createDriveItem({
+      item_type: "FILE",
+      drive_item_id: uploaded.driveItemId,
+      name: uploaded.name,
+      drive_url: uploaded.driveUrl,
+      drive_path: drivePath,
+      mime_type: uploaded.mimeType,
+      size_bytes: uploaded.sizeBytes,
+      purpose: upload.purpose,
+      status: "ACTIVE",
+      notes: upload.notes,
+    });
+
+    results.push({
+      ...uploaded,
+      driveItem,
+    });
+  }
+
+  return {
+    workspace,
+    intakeCode,
+    productImageDriveItem: results[0]?.driveItem ?? null,
+    shopeeScreenshotDriveItem: results[1]?.driveItem ?? null,
+    tiktokScreenshotDriveItem: results[2]?.driveItem ?? null,
+  };
+}
+
 export async function createIntakeSession(input: IntakeSessionInput) {
   const { supabase, user } = await requireUser();
   const status = input.status ?? "SUBMITTED";
@@ -1116,6 +1250,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
   }
 
+  const uploadedEvidence = await uploadIntakeEvidenceToDrive(input);
   const productImageSummary = buildUploadedImageSummary(input.productImage);
   const shopeeScreenshotSummary = buildUploadedImageSummary(input.shopeeScreenshot);
   const tiktokScreenshotSummary = buildUploadedImageSummary(input.tiktokScreenshot);
@@ -1187,6 +1322,8 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     analysisSession = await createIntakeSession({
       product_title: buildIntakeProductTitle(parsedWithNote),
       parsed_metadata_json: parsedJson,
+      product_photo_drive_item_ref_id: uploadedEvidence.productImageDriveItem?.id ?? null,
+      screenshot_drive_item_ref_id: uploadedEvidence.shopeeScreenshotDriveItem?.id ?? null,
       status: "NEEDS_REVIEW",
     });
     const product = await createProductFromIntake(analysisSession.id, {
