@@ -14,10 +14,12 @@ Read these docs in order:
 6. `docs/PROMPT_PIPELINE_LOCK.md`
 7. `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
 8. `docs/FLOW_BATCH_BRIDGE_LOCK.md`
-9. `docs/GOOGLE_DRIVE_FILE_SYSTEM_LOCK.md`
-10. `docs/MICRO_TASK_BACKLOG.md`
-11. `docs/SUPABASE_MCP_RUNBOOK.md`
-12. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
+9. `docs/FLOW_HELPER_DESKTOP_WORKFLOW.md`
+10. `docs/GOOGLE_DRIVE_FILE_SYSTEM_LOCK.md`
+11. `docs/MICRO_TASK_BACKLOG.md`
+12. `docs/SUPABASE_MCP_RUNBOOK.md`
+13. `docs/SMOKE_E2E_RUNBOOK.md`
+14. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
 
 ## MVP Core
 The MVP is not a generic affiliate planner. It is an AI production control center for one operator.
@@ -32,10 +34,11 @@ Core flow:
 6. Paket Prompt preview/edit/regenerate.
 7. Desktop-only Flow Control in `/controller`.
 8. Windows Helper handoff to Chrome profile + Google Flow URL.
-9. Manual Google Flow generation by the user.
-10. Helper rename/upload to Google Drive and metadata callback.
-11. Output package and history.
-12. Pengaturan hub, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
+9. Helper desktop SOP for staging, Chrome profile reuse, i2i, and i2v sequencing.
+10. Manual Google Flow generation by the user.
+11. Helper rename/upload to Google Drive and metadata callback.
+12. Output package and history.
+13. Pengaturan hub, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
 
 ## Sprint Rule
 Do not start broad feature work. Start with the locked vertical slice:
@@ -48,6 +51,7 @@ Dashboard
 -> Metadata review
 -> /prompts Paket Prompt
 -> /controller Flow Control on desktop
+-> Helper desktop SOP for staging, Chrome profile reuse, i2i, and i2v sequencing
 -> Windows Helper manifest/output callback
 -> Output package/history
 ```

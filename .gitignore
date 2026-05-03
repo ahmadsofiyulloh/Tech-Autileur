@@ -9,3 +9,6 @@ dist
 .env.*.local
 .vercel
 supabase/.temp
+.playwright
+playwright-report
+test-results
