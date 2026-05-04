@@ -47,7 +47,9 @@ Drive
 /products       -> Produk list
 /products/new   -> mobile-first intake workflow
 /products/[id]  -> product detail with Metadata, Output, History
-/prompts        -> Paket Prompt editor surface
+/prompts        -> Paket Prompt list/launcher
+/prompts/[id]   -> prompt detail/editor output surface
+/prompts/[id]/history -> prompt generation history
 /drive          -> visual Drive manager
 /dashboard      -> secondary analytics route
 /settings       -> Pengaturan hub
@@ -76,7 +78,7 @@ Mobile intake upload
 -> Analisis Gemini
 -> Metadata review
 -> Affiliate Profile selection / binding
--> Paket Prompt preview/edit/regenerate
+-> Paket Prompt generated output/regenerate
 -> Drive visual asset review
 -> Output/history when available
 ```
@@ -136,7 +138,7 @@ The prompt surface label is:
 Paket Prompt
 ```
 
-Required editable fields:
+Read-only generated fields:
 
 ```text
 Prompt Clip 1
@@ -144,20 +146,26 @@ Prompt Clip 2
 Caption
 Tags
 Target Marketplace
+```
+
+Editable regeneration field:
+
+```text
 Instruksi Revisi
 ```
 
-Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as editable fields. `Caption` is shared, `Tags` render as a hashtag string, and `Target Marketplace` is a fixed read-only chip for `Shopee + TikTok`.
+Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready fields after generation. `Caption` is shared and copy-ready, `Tags` render as a copy-ready hashtag string, and `Target Marketplace` is a fixed read-only chip for `Shopee + TikTok`.
 
 Required actions:
 
 ```text
 Buat Prompt
 Buat Ulang
-Tandai Siap Flow
 ```
 
 Prompt versions must be preserved. Regenerate must not overwrite previous versions without history.
+
+Phase 1 controller is frozen: `GENERATED` is the final operator-facing prompt status. Controller readiness actions such as `Tandai Siap Flow` are retained only for dormant backend compatibility and must not be exposed in the Phase 1 prompt UI.
 
 ### 1.7 Affiliate Profile Personalization
 
@@ -298,11 +306,12 @@ Settings > Affiliate Profiles:
 
 Settings > Gemini:
 
-- single form surface only, not list/history.
+- multi-key list + drawer CRUD, not a history page.
 - visible fields: `name`, `model`, `purpose`, masked encrypted API key.
 - `model` uses a static supported model picker.
-- `purpose` uses Analyze / Prompt / OCR-Review / Test.
-- actions: Save, Test, Copy Key, Regenerate.
+- `purpose` uses the locked Gemini role picker.
+- actions: Gemini baru, Kelola, Simpan, Disable.
+- Test, Copy Key, and Regenerate are out of scope for the MVP UI.
 - key code stays internal/hidden.
 
 Settings > Drive:
@@ -418,14 +427,14 @@ MVP means the system can:
 - Run live Gemini analysis from uploaded image bytes.
 - Review and edit generated product metadata.
 - Select an Affiliate Profile for prompt handoff.
-- Generate, edit, regenerate, persist, and version prompt packs.
+- Generate, review copy-ready output, regenerate, persist, and version prompt packs.
 - Browse Google Drive metadata through a touch-friendly visual grid.
 - Review output package links and history in the app.
 - Show dashboard counts for Gemini, Drive, prompts, and outputs as a secondary route.
 
 Phase 2 / Backlog capabilities:
 
-- Assign ready prompt packs to global Flow accounts based on status, credit, and availability.
+- Retain dormant controller compatibility for assigning ready prompt packs to global Flow accounts based on status, credit, and availability.
 - Export/download a batch manifest for Windows Helper.
 - Use Windows Helper to open the correct Chrome profile and Google Flow URL.
 - Let the operator run Google Flow manually.

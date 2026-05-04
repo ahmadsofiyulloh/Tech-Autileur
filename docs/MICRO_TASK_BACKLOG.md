@@ -12,7 +12,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S3-001, S3-002, S3-003
 - S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002
-- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006
+- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007
 - S7-001
 - S8-001, S8-002, S8-003, S8-004
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
@@ -168,7 +168,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S6-002 - Tool settings _(DONE)_
 **Goal:** Keep Gemini, Drive, Flow link/status, Account, and Windows Helper/App API Token in Pengaturan.
 **Owner:** Codex
-**Acceptance:** Gemini is a single form surface, Drive is folder-centric list + drawer, Account contains Chrome pairing plus token controls, and Flow Accounts remain controller-owned rather than Settings CRUD.
+**Acceptance:** Gemini, Drive, Flow link/status, Account, and Windows Helper/App API Token stay in Pengaturan; Drive is folder-centric list + drawer, Account contains Chrome pairing plus token controls, and Flow Accounts remain controller-owned rather than Settings CRUD.
 
 ### S6-003 - Picker grammar lock _(DONE)_
 **Goal:** Apply the shared picker grammar across all choice fields.
@@ -189,6 +189,11 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Replace the current form-heavy Akun Affiliate surface with the locked list + drawer model and two first-class asset cards.
 **Owner:** Codex
 **Acceptance:** row summaries stay minimal, the drawer is the only edit surface, Character and Environment each have upload/replace/remove plus preview/status, explicit workspace links and default selection live in the drawer, and notes are not shown in forms.
+
+### S6-007 - Gemini multi-key settings list-card _(DONE)_
+**Goal:** Convert `/settings/gemini` into a workspace-style list-card surface with create/edit drawer and disable action.
+**Owner:** Codex
+**Acceptance:** multiple Gemini keys can be created, listed, edited, and disabled from `/settings/gemini`; the add button matches the workspace pattern without search; and Test, Copy Key, Regenerate, and history UI remain out of scope.
 
 ## S7 - Dashboard Analytics
 

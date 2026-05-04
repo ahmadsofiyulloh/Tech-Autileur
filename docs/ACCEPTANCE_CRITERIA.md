@@ -38,7 +38,9 @@
 - Prompt surface label is `Paket Prompt`.
 - Required fields exist: `Prompt Clip 1`, `Prompt Clip 2`, `Caption`, `Tags`, `Target Marketplace`, `Instruksi Revisi`.
 - Each clip panel exposes `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt`.
-- Required actions exist: `Buat Prompt`, `Buat Ulang`, `Tandai Siap Flow`.
+- Generated prompt fields are read-only, copy-ready, and grouped by collapsible clip section.
+- Required actions exist: `Buat Prompt` and `Buat Ulang`.
+- Prompt list row action for existing prompts opens `History`; prompt detail opens the generated output/editor route.
 - Prompt generation consumes the selected or workspace-default-linked Affiliate Profile and product context.
 - Character and environment locks come from Affiliate Profile only in Phase awal.
 - Prompt generation blocks when a locked Character or Environment reference is missing.
@@ -47,6 +49,7 @@
 - Prompt packs are stored as structured JSON.
 - `prompt_context` persists in `prompt_packs.personalization_json`.
 - Prompt pack versions are preserved.
+- `GENERATED` is the Phase 1 final operator-facing prompt status.
 
 ## Flow Control and Flow Accounts
 
@@ -96,7 +99,7 @@
 - Workspace settings use list + drawer CRUD with hidden auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
 - Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, archive, and explicit workspace links/default selection.
 - Affiliate Profile settings do not show `notes` fields.
-- Gemini settings are a single minimal form surface, not list/history.
+- Gemini settings expose a multi-key list-card CRUD surface with a workspace-style add button, no search, and create/edit/disable only.
 - Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
 - Flow Accounts are controller-owned execution tools and do not become a separate Settings CRUD surface.
 - Chrome profile pairing and App API Token controls live in `Pengaturan > Account`.

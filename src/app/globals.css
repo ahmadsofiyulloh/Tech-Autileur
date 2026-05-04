@@ -1924,6 +1924,14 @@ summary::marker {
   padding: 20px;
 }
 
+.success-box {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-status-success-border);
+  background: var(--color-status-success-soft);
+  color: var(--color-status-success);
+  padding: 20px;
+}
+
 .auth-form {
   width: min(720px, calc(100% - 32px));
   margin: 0 auto;
@@ -3292,6 +3300,10 @@ details,
   min-width: 0;
 }
 
+.prompt-list-card__action-form {
+  display: contents;
+}
+
 .prompt-list-card__editor {
   border-top: 1px solid var(--color-border-standard);
   background: var(--color-surface-base);
@@ -3317,6 +3329,74 @@ details,
 
 .prompt-history-compact .list {
   margin-top: 10px;
+}
+
+.prompt-output-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.prompt-output-section {
+  border: 1px solid var(--color-border-standard);
+  border-radius: 8px;
+  background: var(--color-surface-base);
+}
+
+.prompt-output-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px;
+  color: var(--color-text-primary);
+  font-size: var(--type-card-size);
+  font-weight: var(--type-card-weight);
+  line-height: var(--type-card-line);
+  cursor: pointer;
+}
+
+.prompt-output-section__body {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.prompt-readonly-field {
+  display: grid;
+  gap: 6px;
+}
+
+.prompt-readonly-field__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-readonly-field__header strong {
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-weight);
+  line-height: var(--type-control-line);
+}
+
+.prompt-readonly-field__body {
+  min-height: 72px;
+  overflow: auto;
+  border: 1px solid var(--color-border-standard);
+  border-radius: 8px;
+  background: var(--color-surface-muted-soft);
+  color: var(--color-text-primary);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.prompt-readonly-field__body[data-empty="true"] {
+  color: var(--color-text-secondary);
 }
 
 .prompt-editor-grid {
@@ -4005,6 +4085,20 @@ body {
 .settings-list-card {
   gap: 12px;
   padding: 12px;
+}
+
+.settings-list-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.settings-list-card__header strong,
+.settings-list-card__header .subtle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-list-card .section-card__actions {

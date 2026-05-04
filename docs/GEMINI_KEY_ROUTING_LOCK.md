@@ -30,7 +30,7 @@ optional prompt regeneration when user submits Instruksi Revisi
 
 Do not expose extra Gemini task fields in the main UI unless the workflow needs them.
 
-The Gemini settings surface is a single minimal form with `name`, `model`, `purpose`, and masked `encrypted API key` controls only. It is not a list or history page.
+The Gemini settings surface is a multi-key list-card CRUD surface. Visible fields remain `name`, `model`, `purpose`, and masked `encrypted API key` controls. Create/edit happen in a drawer, row actions are Kelola and Disable, and it is not a history page. Test, Copy Key, and Regenerate stay out of scope for the MVP UI.
 
 ## Routing Rules
 

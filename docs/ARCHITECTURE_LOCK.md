@@ -221,7 +221,7 @@ Settings detail grammar:
 
 - Workspace: list + drawer CRUD, hidden auto-generated code, name, niche picker, Drive root picker, default switch, archive.
 - Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, and explicit workspace links/default selection.
-- Gemini: single minimal form surface; no list/history UI.
+- Gemini: multi-key list + drawer CRUD; no list/history UI.
 - Drive settings: folder-centric list + drawer, workspace-scoped, folders only.
 - Drive primary route: visual all-items grid/gallery with bottom-sheet preview.
 - Account: Chrome pairing, App API Token, and sign out.
