@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowRight, HardDrive } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
-import { SettingsSectionNav } from "../settings-section-nav";
+import { StatusBadge } from "@/components/operator/status-badge";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -35,31 +35,39 @@ export default async function DriveSettingsPage() {
     driveError = errorMessage(error);
   }
 
+  const isConnected = !driveError && driveItemCount > 0;
+
   return (
     <div className="stack">
-      <SettingsSectionNav />
-
       <SectionCard
         icon={HardDrive}
         title="Drive"
+        description="Status koneksi Drive dan ringkasan aset yang terhubung."
         actions={
           <Link className="button primary" href="/drive">
             <ArrowRight size={16} aria-hidden="true" />
-            Open
+            Buka Drive
           </Link>
         }
       >
         {driveError ? (
           <EmptyState icon={HardDrive} title="Drive unavailable." description={driveError} />
         ) : (
-          <div className="metric-grid">
-            <div className="metric">
-              <span>Folders</span>
-              <strong>{folderCount}</strong>
+          <div className="stack">
+            <div className="section-card__actions">
+              <StatusBadge status={isConnected ? "Connected" : "Belum terhubung"} tone={isConnected ? "success" : "warning"} />
+              <StatusBadge status={`${folderCount} folder`} tone="info" />
+              <StatusBadge status={`${driveItemCount} item`} tone="neutral" />
             </div>
-            <div className="metric">
-              <span>Items</span>
-              <strong>{driveItemCount}</strong>
+            <div className="metric-grid">
+              <div className="metric">
+                <span>Folders</span>
+                <strong>{folderCount}</strong>
+              </div>
+              <div className="metric">
+                <span>Items</span>
+                <strong>{driveItemCount}</strong>
+              </div>
             </div>
           </div>
         )}
