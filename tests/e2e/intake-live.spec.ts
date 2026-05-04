@@ -48,8 +48,9 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
     await expect(page.getByRole("heading", { name: "Review metadata" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Simpan Review" })).toBeVisible();
     await page.getByRole("button", { name: "Simpan Review" }).click();
-    await expect(page.getByText("Review saved")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Buat Prompt" })).toBeVisible();
+    await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.has("product_id"));
+    await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Buat Prompt" })).toBeVisible();
   } catch (error) {
     if (error instanceof Error && error.message.includes("timeout")) {
       throw classifySmokeError("intake live timeout", error);

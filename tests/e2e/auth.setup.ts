@@ -13,8 +13,8 @@ setup("prepare smoke auth state", async ({ page }) => {
     await page.getByLabel("Password").fill(state.user.password);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await page.waitForURL(/\/dashboard/);
-    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await page.waitForURL(/\/products\/new/);
+    await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();
 
     await mkdir(path.dirname(smokeAuthStatePath), { recursive: true });
     await page.context().storageState({ path: smokeAuthStatePath });

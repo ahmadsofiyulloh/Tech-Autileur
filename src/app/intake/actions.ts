@@ -26,8 +26,13 @@ function readUploadedFile(formData: FormData, key: string) {
   return value instanceof File ? value : null;
 }
 
-function redirectWithError(message: string): never {
+function redirectWithError(message: string, params?: Record<string, string>): never {
   const searchParams = new URLSearchParams({ error: message });
+
+  for (const [key, value] of Object.entries(params ?? {})) {
+    searchParams.set(key, value);
+  }
+
   redirect(`${INTAKE_RETURN_PATH}?${searchParams.toString()}`);
 }
 
@@ -39,6 +44,24 @@ function redirectWithMessage(message: string, params?: Record<string, string>): 
   }
 
   redirect(`${INTAKE_RETURN_PATH}?${searchParams.toString()}`);
+}
+
+function buildPromptEditorRedirect(message: string, params: {
+  productId: string;
+  intakeId: string;
+  affiliateProfileId?: string | null;
+}) {
+  const searchParams = new URLSearchParams({
+    message,
+    product_id: params.productId,
+    intake_id: params.intakeId,
+  });
+
+  if (params.affiliateProfileId) {
+    searchParams.set("affiliate_profile_id", params.affiliateProfileId);
+  }
+
+  return `/prompts?${searchParams.toString()}`;
 }
 
 function reviewedMetadataFromForm(formData: FormData): JsonRecord {
@@ -85,6 +108,7 @@ export async function saveIntake(formData: FormData) {
   const affiliateProfileId = readText(formData, "affiliate_profile_id");
   let message = "Intake saved";
   let redirectParams: Record<string, string> | undefined;
+  let finalRedirectPath: string | null = null;
 
   try {
     if (intent === "create_session") {
@@ -143,7 +167,7 @@ export async function saveIntake(formData: FormData) {
         throw new Error("Missing intake id.");
       }
 
-      await reviewIntakeMetadata(id, reviewedMetadataFromForm(formData));
+      const reviewedSession = await reviewIntakeMetadata(id, reviewedMetadataFromForm(formData));
       message = "Review saved";
       redirectParams = {
         step: "prompt",
@@ -151,6 +175,14 @@ export async function saveIntake(formData: FormData) {
         ...(workspaceScope === "all" ? { workspace: "all" } : {}),
         ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
       };
+
+      if (reviewedSession.product_id) {
+        finalRedirectPath = buildPromptEditorRedirect(message, {
+          productId: reviewedSession.product_id,
+          intakeId: reviewedSession.id,
+          affiliateProfileId,
+        });
+      }
     } else if (intent === "link_product") {
       if (!id) {
         throw new Error("Missing intake id.");
@@ -198,11 +230,26 @@ export async function saveIntake(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unable to save intake.";
-    redirectWithError(errorMessage);
+    const errorParams =
+      intent === "review_metadata" || intent === "save_reviewed_metadata"
+        ? {
+            step: "prompt",
+            ...(id ? { intake_id: id } : {}),
+            ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+            ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
+          }
+        : undefined;
+
+    redirectWithError(errorMessage, errorParams);
   }
 
   revalidatePath("/intake");
   revalidatePath(INTAKE_RETURN_PATH);
   revalidatePath("/products");
+
+  if (finalRedirectPath) {
+    redirect(finalRedirectPath);
+  }
+
   redirectWithMessage(message, redirectParams);
 }
