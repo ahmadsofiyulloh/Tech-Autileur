@@ -253,20 +253,18 @@ function PromptPackContractPreview({ pack }: { pack: PromptPackRecord }) {
           );
         })}
       </section>
-      <div className="metric-grid">
-        <div className="metric">
-          <span>Caption</span>
+      <div className="stack-tight">
+        <div className="stack-tight">
+          <span className="subtle">Caption</span>
           <strong>{promptSet.caption || "Belum ada"}</strong>
         </div>
-        <div className="metric">
-          <span>Tags</span>
+        <div className="stack-tight">
+          <span className="subtle">Tags</span>
           <strong>{promptSet.tags || "Belum ada"}</strong>
         </div>
-        <div className="metric">
-          <span>Target Marketplace</span>
-          <strong>
-            <StatusBadge status={PROMPT_TARGET_MARKETPLACE} tone="info" />
-          </strong>
+        <div className="section-card__actions">
+          <span className="subtle">Target Marketplace</span>
+          <StatusBadge status={PROMPT_TARGET_MARKETPLACE} tone="info" />
         </div>
       </div>
     </div>
@@ -360,7 +358,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
-  const generatedPromptCount = promptPacks.filter((pack) => pack.status === "GENERATED").length;
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
   const latestPromptPack = promptPacks[0] ?? null;
@@ -437,21 +434,9 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     readJsonFieldText(reviewedMetadata, "keyword_cari_etalase") ||
     readJsonFieldText(reviewedMetadata, "category") ||
     readJsonFieldText(reviewedMetadata, "selling_angle");
-  const latestPromptPackIntake = latestPromptPack?.intake_session_id
-    ? intakeSessions.find((session) => session.id === latestPromptPack.intake_session_id) ?? null
-    : null;
-  const latestPromptPackAffiliateProfile = latestPromptPack?.affiliate_profile_id
-    ? affiliateProfileMap.get(latestPromptPack.affiliate_profile_id) ?? null
-    : null;
-  const latestPromptPackSourceImage = latestPromptPack?.source_product_image_id
-    ? productImages.find((image) => image.id === latestPromptPack.source_product_image_id) ?? null
-    : null;
-  const latestPromptPackSourceDriveItem = latestPromptPackSourceImage
-    ? driveItemMap.get(latestPromptPackSourceImage.drive_item_ref_id) ?? null
-    : null;
   const latestPromptPackPromptContextJson = prettyJson((latestPromptPack?.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
   const promptCreateHref = promptHref(product.id, latestIntakeSession?.id);
-  const promptEditorHref = promptHref(product.id, latestPromptPackIntake?.id ?? latestIntakeSession?.id);
+  const promptEditorHref = promptHref(product.id, latestPromptPack?.intake_session_id ?? latestIntakeSession?.id);
 
   const timelineItems = [
     {
@@ -509,23 +494,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
         subtitle={[productWorkspaceLabel, product.status].filter(Boolean).join(" - ")}
       />
 
-      <div className="surface-toolbar">
-        <span className="surface-context">
-          {productImages.length} gambar sumber - {promptPacks.length} prompt pack - {generatedPromptCount} generated
-        </span>
-        <div className="surface-toolbar__actions">
-          <Link className="button compact" href="/products">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Products
-          </Link>
-          <Link className="button compact primary" href="/products/new">
-            <Plus size={16} aria-hidden="true" />
-            New intake
-          </Link>
-        </div>
-      </div>
-
-      <nav className="tab-nav" aria-label="Product detail tabs">
+      <nav className="tab-nav tab-nav--flush" aria-label="Product detail tabs">
         {detailTabs.map((tab) => (
           <Link
             aria-current={activeTab === tab.key ? "page" : undefined}
@@ -692,27 +661,9 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                     <StatusBadge status={`Versi ${latestPromptPack.version}`} tone="info" />
                   </div>
                 </div>
-                <div className="metric-grid">
-                  <div className="metric">
-                    <span>Intake</span>
-                    <strong>{latestPromptPackIntake ? "Sudah direview" : "Latest workspace intake"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Affiliate profile</span>
-                    <strong>{latestPromptPackAffiliateProfile?.profile_name ?? "Workspace default"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Source image</span>
-                    <strong>{latestPromptPackSourceDriveItem?.name ?? "Not attached"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Created</span>
-                    <strong>{formatDate(latestPromptPack.created_at)}</strong>
-                  </div>
-                </div>
                 <PromptPackContractPreview pack={latestPromptPack} />
                 {latestPromptPack.error_message ? <section className="error-box">{latestPromptPack.error_message}</section> : null}
-                <FormActions>
+                <FormActions layout="single">
                   <Link className="button primary" href={promptEditorHref}>
                     Buka editor
                   </Link>
@@ -862,30 +813,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                         .filter(Boolean)
                         .join(" - ") || "No source image selected."}
                     >
-                      <div className="metric-grid">
-                        <div className="metric">
-                          <span>Status</span>
-                          <strong>
-                            <StatusBadge status={pack.status} />
-                          </strong>
-                        </div>
-                        <div className="metric">
-                          <span>Intake</span>
-                          <strong>{intakeSession ? "Sudah direview" : "Latest workspace intake"}</strong>
-                        </div>
-                        <div className="metric">
-                          <span>Affiliate profile</span>
-                          <strong>{affiliateProfile?.profile_name ?? "Workspace default"}</strong>
-                        </div>
-                        <div className="metric">
-                          <span>Created</span>
-                          <strong>{formatDate(pack.created_at)}</strong>
-                        </div>
-                        <div className="metric">
-                          <span>Source image</span>
-                          <strong>{sourceDriveItem?.name ?? "Not attached"}</strong>
-                        </div>
-                      </div>
                       {pack.error_message ? <section className="error-box">{pack.error_message}</section> : null}
                       <PromptPackContractPreview pack={pack} />
                       <details open>

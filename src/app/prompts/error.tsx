@@ -12,7 +12,7 @@ export default function PromptsError({
 }) {
   return (
     <SectionCard title="Prompt tidak tersedia." description={error.message}>
-      <FormActions>
+      <FormActions layout="single">
         <button className="button primary" type="button" onClick={reset}>
           Coba lagi
         </button>
