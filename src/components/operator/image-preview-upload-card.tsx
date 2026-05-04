@@ -57,7 +57,7 @@ export function ImagePreviewUploadCard({
   const displayPreviewUrl = isRemoved ? null : localPreviewUrl ?? previewUrl ?? null;
   const previewLabel = isPreparing ? "Menyiapkan" : isRemoved ? "Dihapus" : displayPreviewUrl ? "Preview" : "Kosong";
   const previewTone = isPreparing ? "warning" : isRemoved ? "warning" : displayPreviewUrl ? "success" : "neutral";
-  const frameAriaLabel = displayPreviewUrl ? `${label}. Ganti gambar.` : `${label}. Unggah gambar.`;
+  const frameAriaLabel = displayPreviewUrl ? `${label}. Ganti gambar` : undefined;
   const clearLabel = isRemoved ? "Pulihkan" : hasLocalSelection && hasRemotePreview ? "Batal" : "Hapus";
   const showClearButton = !disabled && (hasLocalSelection || hasRemotePreview || isRemoved);
   const emptyStateTitle = isRemoved ? removedTitle ?? "Referensi dihapus" : emptyTitle;
@@ -190,6 +190,11 @@ export function ImagePreviewUploadCard({
             </div>
           )}
 
+          {displayPreviewUrl ? (
+            <span className="image-preview-upload-card__trigger" aria-hidden="true">
+              <RotateCcw size={15} aria-hidden="true" />
+            </span>
+          ) : null}
         </button>
 
         {showClearButton ? (

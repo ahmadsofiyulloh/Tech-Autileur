@@ -1813,7 +1813,8 @@ summary::marker {
 }
 
 .image-preview-upload-card__media,
-.image-preview-upload-card__empty {
+.image-preview-upload-card__empty,
+.image-preview-upload-card__trigger {
   grid-area: 1 / 1;
 }
 
@@ -1839,6 +1840,28 @@ summary::marker {
 
 .image-preview-upload-card__empty svg {
   color: var(--accent-strong);
+}
+
+.image-preview-upload-card__trigger {
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 30%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-strong) 12%, var(--surface));
+  color: var(--accent-strong);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.image-preview-upload-card__frame:hover .image-preview-upload-card__trigger,
+.image-preview-upload-card__frame:focus-visible .image-preview-upload-card__trigger {
+  border-color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-strong) 18%, var(--surface-strong));
 }
 
 .image-preview-upload-card__clear {
@@ -2813,16 +2836,16 @@ details,
   color: #ffffff;
 }
 
-.drive-sheet-backdrop,
-.settings-sheet-backdrop {
+.drive-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 120;
   border: 0;
   background: rgba(18, 32, 48, 0.22);
   backdrop-filter: blur(2px);
-.drive-bottom-sheet,
-.settings-sheet {
+}
+
+.drive-bottom-sheet {
   position: fixed;
   right: 10px;
   bottom: calc(74px + env(safe-area-inset-bottom));
@@ -2839,52 +2862,12 @@ details,
   padding: 12px;
 }
 
-.drive-bottom-sheet__handle,
-.settings-sheet__handle {
+.drive-bottom-sheet__handle {
   width: 44px;
   height: 4px;
   border-radius: 999px;
   background: var(--color-component-inactive);
   justify-self: center;
-}
-
-.settings-sheet__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.settings-sheet__copy {
-  min-width: 0;
-}
-
-.settings-sheet__title {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.15;
-}
-
-.settings-sheet__description {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.settings-sheet__close {
-  flex: 0 0 auto;
-}
-
-.settings-sheet__actions {
-  justify-content: flex-end;
-}
-
-.settings-sheet__body {
-  display: grid;
-  gap: 12px;
 }
 
 .settings-native-list {
@@ -3042,8 +3025,7 @@ details,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .drive-bottom-sheet,
-  .settings-sheet {
+  .drive-bottom-sheet {
     bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
