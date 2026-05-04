@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { KeyRound } from "lucide-react";
-import { EmptyState } from "@/components/operator/empty-state";
+import { ArrowRight, KeyRound } from "lucide-react";
 import { SectionCard } from "@/components/operator/section-card";
-import { GeminiSettingsBoard } from "./gemini-settings-board";
+import { StatusBadge } from "@/components/operator/status-badge";
+import { SettingsSectionNav } from "../settings-section-nav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -17,29 +18,21 @@ export default async function GeminiSettingsPage() {
     redirect("/login");
   }
 
-  const { data: geminiKeys, error } = await supabase
-    .from("gemini_api_keys")
-    .select(
-      "id, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, status, updated_at",
-    )
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false })
-    .limit(50);
-
-  if (error) {
-    return (
-      <div className="stack">
-        <SectionCard icon={KeyRound} title="Gemini" description="Kelola key server dan role analisis Gemini.">
-          <EmptyState icon={KeyRound} title="Unable to load Gemini." description={error.message} />
-        </SectionCard>
-      </div>
-    );
-  }
-
   return (
     <div className="stack">
-      <SectionCard icon={KeyRound} title="Gemini" description="Kelola key server dan role analisis Gemini.">
-        <GeminiSettingsBoard geminiKeys={geminiKeys ?? []} />
+      <SettingsSectionNav />
+
+      <SectionCard
+        icon={KeyRound}
+        title="Gemini"
+        actions={
+          <Link className="button primary" href="/gemini">
+            <ArrowRight size={16} aria-hidden="true" />
+            Open
+          </Link>
+        }
+      >
+        <StatusBadge status="Configured in Gemini section" tone="info" />
       </SectionCard>
     </div>
   );
