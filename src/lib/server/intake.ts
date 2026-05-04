@@ -192,16 +192,6 @@ function readJsonText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function readTextArray(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
-}
-
 function splitLines(value: string) {
   return value
     .split(/\r?\n+/)
@@ -209,18 +199,48 @@ function splitLines(value: string) {
     .filter((item) => item.length > 0);
 }
 
-function readStringArrayLike(value: unknown) {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter((item) => item.length > 0);
-  }
+function readTextArray(value: unknown) {
+  return readStringArrayLike(value);
+}
 
+function readStringArrayItem(value: unknown) {
   if (typeof value === "string") {
-    return splitLines(value);
+    return value.trim();
   }
 
-  return [];
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+
+  for (const key of ["label", "name", "value", "text", "title"] as const) {
+    const candidate = record[key];
+
+    if (typeof candidate === "string") {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+
+  return "";
+}
+
+function readStringArrayLike(value: unknown) {
+  if (!Array.isArray(value)) {
+    if (typeof value === "string") {
+      return splitLines(value);
+    }
+
+    const singleValue = readStringArrayItem(value);
+    return singleValue ? [singleValue] : [];
+  }
+
+  return value
+    .map((item) => readStringArrayItem(item))
+    .filter((item) => item.length > 0);
 }
 
 function buildReviewedMetadataFromInput(metadata: JsonRecord, fallback?: JsonRecord | null) {

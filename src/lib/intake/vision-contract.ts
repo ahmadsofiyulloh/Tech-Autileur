@@ -74,10 +74,33 @@ function splitLines(value: string) {
     .filter((item) => item.length > 0);
 }
 
-function readStringArray(value: unknown, label: string) {
+function readStringArrayItem(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (!isRecord(value)) {
+    return "";
+  }
+
+  for (const key of ["label", "name", "value", "text", "title"] as const) {
+    const candidate = value[key];
+
+    if (typeof candidate === "string") {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+
+  return "";
+}
+
+function readStringArray(value: unknown) {
   if (Array.isArray(value)) {
     return value
-      .map((item, index) => readString(item, `${label}[${index}]`))
+      .map((item) => readStringArrayItem(item))
       .filter((item) => item.length > 0);
   }
 
@@ -85,11 +108,8 @@ function readStringArray(value: unknown, label: string) {
     return splitLines(value);
   }
 
-  if (value === undefined || value === null) {
-    return [];
-  }
-
-  throw new Error(`${label} must be an array.`);
+  const singleValue = readStringArrayItem(value);
+  return singleValue ? [singleValue] : [];
 }
 
 function readOptionalString(value: unknown) {
@@ -187,9 +207,9 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
   const soldCountText = readOptionalString(record.sold_count_text);
   const priceText = readOptionalString(record.price_text);
   const shopName = readOptionalString(record.shop_name);
-  const visibleProductAttributes = readStringArray(record.visible_product_attributes, "visible_product_attributes");
-  const riskNotes = readStringArray(record.risk_notes, "risk_notes");
-  const confidenceNotes = readStringArray(record.confidence_notes, "confidence_notes");
+  const visibleProductAttributes = readStringArray(record.visible_product_attributes);
+  const riskNotes = readStringArray(record.risk_notes);
+  const confidenceNotes = readStringArray(record.confidence_notes);
 
   const output: IntakeVisionParseOutput = {
     ...review,
