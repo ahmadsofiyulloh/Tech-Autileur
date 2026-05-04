@@ -4,10 +4,12 @@
 
 - User can log in with Supabase Auth.
 - User sees a protected dashboard.
-- Desktop sidebar is exactly `Dashboard`, `Produk`, `Prompt`, `Flow Control`, `Pengaturan`.
-- Mobile bottom nav is exactly `Dashboard`, `Produk`, `Prompt`, `Pengaturan`.
+- Primary app navigation is exactly `Intake`, `Produk`, `Prompt`, `Drive`.
+- Mobile bottom nav is exactly `Intake`, `Produk`, `Prompt`, `Drive`.
 - `/controller` is hidden from mobile bottom nav.
-- Topbar does not duplicate a Settings button or second settings entry point.
+- Topbar shows one Settings gear on every non-Settings route.
+- `/settings` has no right-side topbar gear/action.
+- The global shell does not show a workspace picker.
 - Compatibility routes keep working without becoming primary duplicate funnels.
 - Metadata is stored in Supabase.
 - File bytes and asset folders are stored in Google Drive.
@@ -98,6 +100,16 @@
 - Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
 - Flow Accounts are controller-owned execution tools and do not become a separate Settings CRUD surface.
 - Chrome profile pairing and App API Token controls live in `Pengaturan > Account`.
+- `/settings` overview uses a grouped native-style list.
+- Settings groups cover Account, Affiliate Profiles, and Connected Services when backed by real data.
+
+## Drive Visual Manager
+
+- `/drive` is a touch-friendly grid/gallery, not a table-first surface.
+- Image-like Drive items show a thumbnail/preview when metadata supports it.
+- Non-image Drive items show file-type icons or placeholders instead of fake images.
+- Tap opens a bottom sheet preview with file metadata and Open link action.
+- Long-press select is client-side only and does not create batch archive/delete mutations.
 
 ## Dashboard Analytics
 
@@ -115,9 +127,11 @@
 - Empty states use at most one short sentence.
 - Error states use at most one short sentence.
 - Overview pages may use a short summary line, but operational pages do not.
-- Duplicate Settings entry points do not exist across the shell.
-- The UI uses Geist Sans as the base type family.
-- Graphite Gold styling remains a compact dark workbench, not a marketing theme.
+- The only global Settings entry point is the topbar gear on non-Settings routes.
+- The UI uses Inter as the base type family.
+- The UI follows the Visual PWA Mobile-First light native design tokens from 2026-05-04.
+- Primary color is `#007AFF`.
+- Status chips and loading states use semantic status tokens.
 - Choice fields use shared custom picker behavior rather than raw browser dropdowns.
 - The compact type hierarchy is documented and followed on mobile and desktop.
 - Desktop mutable master lists use searchable tables plus right side drawers.

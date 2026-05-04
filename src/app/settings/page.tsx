@@ -1,17 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { ArrowRight, FolderKanban, HardDrive, KeyRound, Settings, UserRound, Users, Workflow, type LucideIcon } from "lucide-react";
+import { ChevronRight, FolderKanban, HardDrive, KeyRound, Settings, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { SettingsSectionNav } from "./settings-section-nav";
 import {
   isAffiliateProfileSchemaMissingError,
   listAffiliateProfiles,
 } from "@/lib/server/affiliate-profiles";
 import { listDriveItems } from "@/lib/server/drive-items";
-import { getFlowAccountPool } from "@/lib/server/flow-accounts";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -30,6 +27,39 @@ type SettingsCard = {
   detail: string;
 };
 
+function SettingsRow({ card }: { card: SettingsCard }) {
+  const Icon = card.icon;
+
+  return (
+    <Link className="settings-native-row" href={card.href}>
+      <span className="settings-native-row__icon" aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <span className="settings-native-row__copy">
+        <strong>{card.title}</strong>
+        <span>{card.detail}</span>
+      </span>
+      <span className="section-card__actions">
+        {typeof card.status === "number" ? <StatusBadge status={`${card.status}`} tone="info" /> : card.status}
+        <ChevronRight size={18} aria-hidden="true" />
+      </span>
+    </Link>
+  );
+}
+
+function SettingsGroup({ title, cards }: { title: string; cards: SettingsCard[] }) {
+  return (
+    <section className="settings-native-group">
+      <h2>{title}</h2>
+      <div className="settings-native-card">
+        {cards.map((card) => (
+          <SettingsRow card={card} key={card.href} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default async function SettingsPage() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -46,8 +76,6 @@ export default async function SettingsPage() {
   let affiliateDetail = "Belum ada profil.";
   let driveCount: number | ReactNode = 0;
   let driveDetail = "Belum ada folder.";
-  let flowCount: number | ReactNode = 0;
-  let flowDetail = "Belum ada akun Flow.";
   let accountStatus: ReactNode = <StatusBadge status="Ready" tone="success" />;
 
   try {
@@ -80,59 +108,30 @@ export default async function SettingsPage() {
   }
 
   try {
-    const flowAccounts = await getFlowAccountPool();
-    flowCount = flowAccounts.length;
-    flowDetail = `${flowAccounts.filter((account) => account.is_available).length} tersedia.`;
-  } catch (error) {
-    flowCount = <StatusBadge status="Error" tone="danger" />;
-    flowDetail = errorMessage(error);
-  }
-
-  try {
     await getHelperApiToken();
   } catch (error) {
     accountStatus = <StatusBadge status={isHelperApiTokenSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />;
   }
 
   const cards: SettingsCard[] = [
-    { href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
-    { href: "/settings/affiliate-profiles", title: "Akun Affiliate", icon: Users, status: affiliateCount, detail: affiliateDetail },
-    { href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
-    { href: "/settings/drive", title: "Drive", icon: HardDrive, status: driveCount, detail: driveDetail },
-    { href: "/settings/flow", title: "Flow", icon: Workflow, status: flowCount, detail: flowDetail },
     { href: "/settings/account", title: "Account", icon: UserRound, status: accountStatus, detail: user.email ?? "Signed in." },
+    { href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
+    { href: "/settings/affiliate-profiles", title: "Manage Profiles", icon: Users, status: affiliateCount, detail: affiliateDetail },
+    { href: "/settings/drive", title: "Google Drive", icon: HardDrive, status: driveCount, detail: driveDetail },
+    { href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
+    { href: "/settings", title: "Supabase", icon: Zap, status: <StatusBadge status="Connected" tone="success" />, detail: "Auth aktif." },
   ];
+  const accountCards = cards.filter((card) => card.href === "/settings/account" || card.href === "/settings/workspace");
+  const profileCards = cards.filter((card) => card.href === "/settings/affiliate-profiles");
+  const serviceCards = cards.filter((card) => card.href === "/settings/drive" || card.href === "/settings/gemini" || card.title === "Supabase");
 
   return (
     <div className="stack">
-      <SettingsSectionNav />
-
       {cards.length ? (
-        <section className="grid two-up">
-          {cards.map((card) => {
-            const Icon = card.icon;
-
-            return (
-              <SectionCard
-                actions={
-                  <Link className="button compact primary" href={card.href}>
-                    <ArrowRight size={16} aria-hidden="true" />
-                    Open
-                  </Link>
-                }
-                icon={Icon}
-                key={card.href}
-                title={card.title}
-              >
-                <div className="stack-tight">
-                  <div className="section-card__actions">
-                    {typeof card.status === "number" ? <strong>{card.status}</strong> : card.status}
-                  </div>
-                  <span className="subtle">{card.detail}</span>
-                </div>
-              </SectionCard>
-            );
-          })}
+        <section className="settings-native-list">
+          <SettingsGroup title="Account" cards={accountCards} />
+          <SettingsGroup title="Affiliate Profiles" cards={profileCards} />
+          <SettingsGroup title="Connected Services" cards={serviceCards} />
         </section>
       ) : (
         <EmptyState icon={Settings} title="Pengaturan kosong." description="Belum ada section." />

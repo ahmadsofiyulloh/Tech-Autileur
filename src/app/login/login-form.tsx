@@ -20,10 +20,8 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
   const error = state.error ?? bannerError;
 
   return (
-    <form className="panel stack auth-form" action={formAction}>
-      <div className="stack">
-        <h2>Sign in to the control center.</h2>
-      </div>
+    <form className="panel stack auth-form auth-mobile-card" action={formAction}>
+      <h2>Sign in to control</h2>
 
       {message ? (
         <div className="muted-box auth-notice auth-success" role="status">
@@ -40,12 +38,12 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
       <div className="auth-grid">
         <label className="stack auth-field" htmlFor="email">
           <span>Email</span>
-          <input id="email" name="email" type="email" autoComplete="email" required />
+          <input id="email" name="email" type="email" autoComplete="email" placeholder="name@example.com" required />
         </label>
 
         <label className="stack auth-field" htmlFor="password">
           <span>Password</span>
-          <input id="password" name="password" type="password" autoComplete="current-password" required minLength={6} />
+          <input id="password" name="password" type="password" autoComplete="current-password" placeholder="Password" required minLength={6} />
         </label>
       </div>
 
@@ -53,7 +51,7 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
         <button className="button primary" type="submit" name="intent" value="login" disabled={isPending}>
           {isPending ? "Working..." : "Sign in"}
         </button>
-        <button className="button" type="submit" name="intent" value="signup" disabled={isPending}>
+        <button className="button auth-secondary-action" type="submit" name="intent" value="signup" disabled={isPending}>
           {isPending ? "Working..." : "Create account"}
         </button>
       </div>

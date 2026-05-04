@@ -3,7 +3,17 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, FileImage, FileText, Link2, Loader2, Upload, WandSparkles, type LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Link2,
+  Loader2,
+  Plus,
+  Upload,
+  WandSparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -11,6 +21,7 @@ import { StatusBadge } from "@/components/operator/status-badge";
 import type { JsonRecord } from "@/lib/intake/validation";
 
 type IntakeWorkflowStep = "intake" | "prompt";
+type IntakeEvidenceSegment = "produk" | "metadata";
 
 export type IntakeWorkflowSession = {
   id: string;
@@ -25,18 +36,27 @@ export type IntakeWorkflowSession = {
 };
 
 type IntakeWorkflowFormProps = {
+  affiliateProfiles: Array<{
+    id: string;
+    profile_name: string;
+    account_label: string | null;
+    platform: string;
+    status: string;
+  }>;
   currentWorkspaceName: string | null;
   errorMessage: string | null;
   initialStep: IntakeWorkflowStep;
   message: string | null;
   savedSession: IntakeWorkflowSession | null;
   savedSessionWorkspaceName: string | null;
+  selectedAffiliateProfileId: string | null;
   showAllWorkspaces: boolean;
 };
 
 type AssetSelectionState = {
   selected: boolean;
   fileName: string | null;
+  previewUrl: string | null;
 };
 
 type AssetUploadCardProps = {
@@ -70,11 +90,15 @@ function readReviewValue(metadata: JsonRecord | null, key: string, fallbackKey?:
   return "";
 }
 
-function promptHref(productId: string, intakeId: string) {
+function promptHref(productId: string, intakeId: string, affiliateProfileId?: string | null) {
   const searchParams = new URLSearchParams({
     product_id: productId,
     intake_id: intakeId,
   });
+
+  if (affiliateProfileId) {
+    searchParams.set("affiliate_profile_id", affiliateProfileId);
+  }
 
   return `/prompts?${searchParams.toString()}`;
 }
@@ -107,10 +131,6 @@ function AssetUploadCard({ description, label, name, onSelectionChange }: AssetU
   const [isPreparing, setIsPreparing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  function updateSelection(selected: boolean, nextFileName: string | null) {
-    onSelectionChange({ selected, fileName: nextFileName });
-  }
-
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
 
@@ -119,7 +139,7 @@ function AssetUploadCard({ description, label, name, onSelectionChange }: AssetU
       setFileName(null);
       setIsPreparing(false);
       setPreviewUrl(null);
-      updateSelection(false, null);
+      onSelectionChange({ selected: false, fileName: null, previewUrl: null });
       return;
     }
 
@@ -128,7 +148,7 @@ function AssetUploadCard({ description, label, name, onSelectionChange }: AssetU
       setFileName(null);
       setIsPreparing(false);
       setPreviewUrl(null);
-      updateSelection(false, null);
+      onSelectionChange({ selected: false, fileName: null, previewUrl: null });
       event.target.value = "";
       return;
     }
@@ -137,56 +157,58 @@ function AssetUploadCard({ description, label, name, onSelectionChange }: AssetU
     setFileName(file.name);
     setIsPreparing(true);
     setPreviewUrl(null);
-    updateSelection(true, file.name);
+    onSelectionChange({ selected: true, fileName: file.name, previewUrl: null });
 
     const reader = new FileReader();
 
     reader.addEventListener("load", () => {
-      setPreviewUrl(typeof reader.result === "string" ? reader.result : null);
+      const nextPreviewUrl = typeof reader.result === "string" ? reader.result : null;
+      setPreviewUrl(nextPreviewUrl);
       setIsPreparing(false);
+      onSelectionChange({ selected: true, fileName: file.name, previewUrl: nextPreviewUrl });
     });
     reader.addEventListener("error", () => {
       setError("Tidak bisa menyiapkan pratinjau lokal.");
       setFileName(null);
       setIsPreparing(false);
       setPreviewUrl(null);
-      updateSelection(false, null);
+      onSelectionChange({ selected: false, fileName: null, previewUrl: null });
       event.target.value = "";
     });
     reader.readAsDataURL(file);
   }
 
   return (
-    <section className="asset-upload-card stack-tight" data-has-preview={previewUrl ? "true" : "false"}>
-      <div className="section-card__actions">
+    <section className="asset-upload-card intake-upload-card stack-tight" data-has-preview={previewUrl ? "true" : "false"}>
+      <div className="intake-upload-card__header">
         <div className="stack-tight">
           <strong>{label}</strong>
           <span className="subtle">{description}</span>
         </div>
         {isPreparing ? (
-          <StatusBadge status="MENYIAPKAN" tone="warning" />
+          <StatusBadge status="Menyiapkan" tone="warning" />
         ) : previewUrl ? (
-          <StatusBadge status="PRATINJAU_LOKAL" />
+          <StatusBadge status="Preview" />
         ) : (
-          <StatusBadge status="KOSONG" tone="neutral" />
+          <StatusBadge status="Kosong" tone="neutral" />
         )}
       </div>
       <div className="asset-upload-card__preview">
         {isPreparing ? (
           <div className="asset-upload-card__empty" role="status">
             <Loader2 className="spin" size={34} aria-hidden="true" />
-            <span>Menyiapkan pratinjau lokal</span>
+            <span>Menyiapkan pratinjau</span>
           </div>
         ) : previewUrl ? (
           <img alt={`${label} local preview`} src={previewUrl} />
         ) : (
           <div className="asset-upload-card__empty">
-            <FileImage size={34} aria-hidden="true" />
-            <span>Pratinjau kosong</span>
+            <Plus size={28} aria-hidden="true" />
+            <span>Tambah gambar</span>
           </div>
         )}
         <button
-          className="asset-upload-card__overlay button compact"
+          className="asset-upload-card__overlay button compact intake-upload-card__button"
           disabled={isPreparing}
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -210,6 +232,91 @@ function AssetUploadCard({ description, label, name, onSelectionChange }: AssetU
           {error}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+function affiliateInitials(profileName: string) {
+  const parts = profileName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "A";
+}
+
+function AffiliateProfileCarousel({
+  profiles,
+  selectedId,
+  onSelect,
+}: {
+  profiles: IntakeWorkflowFormProps["affiliateProfiles"];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  if (!profiles.length) {
+    return <EmptyState icon={FileText} title="Belum ada profil affiliate." description="Atur profil di Pengaturan." />;
+  }
+
+  return (
+    <section className="stack-tight" aria-label="Profil Affiliate">
+      <h3 className="section-card__title">Profil Affiliate</h3>
+      <div className="profile-carousel">
+        {profiles.map((profile) => {
+          const selected = selectedId === profile.id;
+
+          return (
+            <button
+              aria-pressed={selected}
+              className="profile-card"
+              data-active={selected ? "true" : undefined}
+              key={profile.id}
+              type="button"
+              onClick={() => onSelect(profile.id)}
+            >
+              <span className="profile-card__avatar" aria-hidden="true">
+                {affiliateInitials(profile.profile_name)}
+              </span>
+              <span className="stack-tight">
+                <strong>{profile.profile_name}</strong>
+                <span className="subtle">{profile.account_label || profile.platform}</span>
+              </span>
+              <span className={`button compact ${selected ? "primary" : ""}`}>Pilih</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SubmitSkeleton() {
+  const { pending } = useFormStatus();
+
+  if (!pending) {
+    return null;
+  }
+
+  return (
+    <section className="muted-box stack analysis-skeleton-card" role="status">
+      <div className="section-card__actions">
+        <Loader2 className="spin" size={16} aria-hidden="true" />
+        <strong>Gemini analyzing...</strong>
+      </div>
+      <div className="visual-list-card">
+        <div className="visual-list-card__thumb">
+          <div className="skeleton long" />
+        </div>
+        <div className="stack-tight">
+          <div className="skeleton long" />
+          <div className="skeleton medium" />
+          <div className="visual-chip-row">
+            <div className="skeleton short" />
+            <div className="skeleton short" />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -255,11 +362,13 @@ function ReviewTextarea({
 }
 
 function AnalysisReadyPanel({
+  affiliateProfileId,
   currentWorkspaceName,
   savedSession,
   showAllWorkspaces,
   savedSessionWorkspaceName,
 }: {
+  affiliateProfileId: string | null;
   currentWorkspaceName: string | null;
   savedSession: IntakeWorkflowSession;
   showAllWorkspaces: boolean;
@@ -282,6 +391,7 @@ function AnalysisReadyPanel({
       <input type="hidden" name="intent" value="review_metadata" />
       <input type="hidden" name="id" value={savedSession.id} />
       <input type="hidden" name="workspace_scope" value={showAllWorkspaces ? "all" : ""} />
+      <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId ?? ""} />
 
       <section className="prompt-preview-panel stack">
         <div className="section-card__actions">
@@ -341,7 +451,7 @@ function AnalysisReadyPanel({
             Simpan Review
           </SubmitButton>
           {promptProductId ? (
-            <Link className="button primary" href={promptHref(promptProductId, savedSession.id)}>
+            <Link className="button primary" href={promptHref(promptProductId, savedSession.id, affiliateProfileId)}>
               <FileText size={16} aria-hidden="true" />
               Buat Prompt
             </Link>
@@ -359,22 +469,30 @@ function AnalysisReadyPanel({
 }
 
 export function IntakeWorkflowForm({
+  affiliateProfiles,
   currentWorkspaceName,
   errorMessage,
   initialStep,
   message,
   savedSession,
   savedSessionWorkspaceName,
+  selectedAffiliateProfileId,
   showAllWorkspaces,
 }: IntakeWorkflowFormProps) {
   const [step, setStep] = useState<IntakeWorkflowStep>(initialStep);
-  const [productImage, setProductImage] = useState<AssetSelectionState>({ selected: false, fileName: null });
-  const [shopeeScreenshot, setShopeeScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null });
-  const [tiktokScreenshot, setTiktokScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null });
+  const [activeSegment, setActiveSegment] = useState<IntakeEvidenceSegment>("produk");
+  const [productImage, setProductImage] = useState<AssetSelectionState>({ selected: false, fileName: null, previewUrl: null });
+  const [shopeeScreenshot, setShopeeScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null, previewUrl: null });
+  const [tiktokScreenshot, setTiktokScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null, previewUrl: null });
+  const [affiliateProfileId, setAffiliateProfileId] = useState(selectedAffiliateProfileId ?? affiliateProfiles[0]?.id ?? "");
 
   useEffect(() => {
     setStep(initialStep);
   }, [initialStep, savedSession?.id]);
+
+  useEffect(() => {
+    setAffiliateProfileId(selectedAffiliateProfileId ?? affiliateProfiles[0]?.id ?? "");
+  }, [affiliateProfiles, selectedAffiliateProfileId]);
 
   const hasMinimum = productImage.selected && shopeeScreenshot.selected && tiktokScreenshot.selected;
 
@@ -397,25 +515,67 @@ export function IntakeWorkflowForm({
         <form action={saveIntake} className="stack">
           <input type="hidden" name="intent" value="parse_intake" />
           <input type="hidden" name="workspace_scope" value={showAllWorkspaces ? "all" : ""} />
-          <div className="grid two-up">
-            <AssetUploadCard
-              label="Foto Produk Utama"
-              description="Unggah 1 gambar utama."
-              name="product_image"
-              onSelectionChange={setProductImage}
-            />
-            <AssetUploadCard
-              label="Screenshot Shopee"
-              description="Unggah 1 screenshot Shopee."
-              name="shopee_screenshot"
-              onSelectionChange={setShopeeScreenshot}
-            />
-            <AssetUploadCard
-              label="Screenshot TikTok"
-              description="Unggah 1 screenshot TikTok."
-              name="tiktok_screenshot"
-              onSelectionChange={setTiktokScreenshot}
-            />
+          <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId} />
+          <div className="intake-segment-control" role="tablist" aria-label="Evidence intake">
+            <button
+              aria-selected={activeSegment === "produk"}
+              className="intake-segment-control__button"
+              data-active={activeSegment === "produk" ? "true" : undefined}
+              role="tab"
+              type="button"
+              onClick={() => setActiveSegment("produk")}
+            >
+              Produk
+            </button>
+            <button
+              aria-selected={activeSegment === "metadata"}
+              className="intake-segment-control__button"
+              data-active={activeSegment === "metadata" ? "true" : undefined}
+              role="tab"
+              type="button"
+              onClick={() => setActiveSegment("metadata")}
+            >
+              Metadata
+            </button>
+          </div>
+
+          <div className="intake-segment-panels">
+            <section
+              aria-hidden={activeSegment !== "produk"}
+              className="intake-segment-panel"
+              data-active={activeSegment === "produk" ? "true" : undefined}
+            >
+              <AssetUploadCard
+                label="Foto Produk Utama"
+                description="Foto utama sebagai konteks produk."
+                name="product_image"
+                onSelectionChange={setProductImage}
+              />
+              <AffiliateProfileCarousel profiles={affiliateProfiles} selectedId={affiliateProfileId} onSelect={setAffiliateProfileId} />
+            </section>
+
+            <section
+              aria-hidden={activeSegment !== "metadata"}
+              className="intake-segment-panel"
+              data-active={activeSegment === "metadata" ? "true" : undefined}
+            >
+              <div className="intake-metadata-note stack-tight">
+                <h3>Metadata Marketplace</h3>
+                <p>Screenshot marketplace dipakai untuk memperkaya analisis Gemini.</p>
+              </div>
+              <AssetUploadCard
+                label="Screenshot Shopee"
+                description="Bukti marketplace Shopee."
+                name="shopee_screenshot"
+                onSelectionChange={setShopeeScreenshot}
+              />
+              <AssetUploadCard
+                label="Screenshot TikTok"
+                description="Bukti marketplace TikTok."
+                name="tiktok_screenshot"
+                onSelectionChange={setTiktokScreenshot}
+              />
+            </section>
           </div>
           {!hasMinimum ? (
             <div className="error-box status-box" role="alert">
@@ -428,9 +588,11 @@ export function IntakeWorkflowForm({
               Analisis Gemini
             </SubmitButton>
           </FormActions>
+          <SubmitSkeleton />
         </form>
       ) : savedSession ? (
         <AnalysisReadyPanel
+          affiliateProfileId={affiliateProfileId}
           currentWorkspaceName={currentWorkspaceName}
           savedSession={savedSession}
           showAllWorkspaces={showAllWorkspaces}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, CheckCircle, FileText, Package, Plus, Play, RefreshCcw, Save } from "lucide-react";
+import { Archive, FileText, Package, Plus, Play, RefreshCcw, Save } from "lucide-react";
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -36,6 +36,7 @@ type PromptTaskRecord = {
 
 type PromptsPageProps = {
   searchParams: Promise<{
+    affiliate_profile_id?: string | string[];
     intake_id?: string | string[];
     product_id?: string | string[];
   }>;
@@ -221,13 +222,13 @@ function PromptPackEditorForm({
           <RefreshCcw size={16} aria-hidden="true" />
           Buat Ulang
         </button>
-        <button className="button" name="intent" type="submit" value="mark_ready">
-          <CheckCircle size={16} aria-hidden="true" />
-          Tandai Siap Flow
-        </button>
         <button className="button" name="intent" type="submit" value="archive">
           <Archive size={16} aria-hidden="true" />
           Arsipkan
+        </button>
+        <button className="button primary" name="intent" type="submit" value="mark_ready">
+          <Play size={16} aria-hidden="true" />
+          Tandai Siap Flow
         </button>
       </FormActions>
     </form>
@@ -321,14 +322,14 @@ function PromptRowCard({
   const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
 
   return (
-    <details className="muted-box stack" open={isOpen}>
+    <details className="prompt-list-card stack" data-open={isOpen ? "true" : undefined} open={isOpen}>
       <summary>
-        <span className="section-card__actions">
+        <span className="stack-tight">
           <strong>{product.product_name}</strong>
+          <span className="subtle">{affiliateProfile?.profile_name ?? defaultAffiliateProfileName}</span>
         </span>
         <span className="section-card__actions">
           <StatusBadge status={statusLabel} />
-          <span className="subtle">{workspaceName}</span>
         </span>
       </summary>
 
@@ -393,6 +394,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   }
 
   const query = await searchParams;
+  const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id);
   const requestedProductId = firstParam(query.product_id);
   const requestedIntakeId = firstParam(query.intake_id);
   const currentWorkspace = await getCurrentWorkspace();
@@ -427,6 +429,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const productMap = new Map(products.map((product) => [product.id, product]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
+  const requestedAffiliateProfile =
+    requestedAffiliateProfileId && affiliateProfileMap.has(requestedAffiliateProfileId)
+      ? affiliateProfileMap.get(requestedAffiliateProfileId) ?? null
+      : null;
   const latestPromptPackByProductId = new Map<string, PromptPackRecord>();
   const latestReviewedIntakeByProductId = new Map<string, IntakeSessionRecord>();
 
@@ -488,7 +494,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
               const intakeSession = latestReviewedIntakeByProductId.get(product.id) ?? null;
               const affiliateProfile = promptPack?.affiliate_profile_id
                 ? affiliateProfileMap.get(promptPack.affiliate_profile_id) ?? null
-                : currentAffiliateProfile;
+                : requestedAffiliateProfile ?? currentAffiliateProfile;
               const sourceImage =
                 promptPack?.source_product_image_id
                   ? productImages.find((image) => image.id === promptPack.source_product_image_id) ?? null
@@ -529,7 +535,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
         )}
       </SectionCard>
 
-      <SectionCard icon={Archive} title="Prompt siap Flow">
+      <SectionCard icon={Archive} title="Riwayat prompt">
         {promptPacks.length ? (
           <ul className="list">
             {promptPacks.map((pack) => {
@@ -551,7 +557,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
             })}
           </ul>
         ) : (
-          <EmptyState icon={Archive} title="Belum ada prompt siap Flow." description="Buat prompt dulu." />
+          <EmptyState icon={Archive} title="Belum ada prompt." description="Buat prompt dulu." />
         )}
       </SectionCard>
     </div>

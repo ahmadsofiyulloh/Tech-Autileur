@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!error) {
-      return NextResponse.redirect(new URL("/dashboard?message=account_confirmed", request.url));
+      return NextResponse.redirect(new URL("/products/new?message=account_confirmed", request.url));
     }
   }
 

@@ -7,32 +7,34 @@ Mobile is for upload, review, prompt preparation, and light monitoring. Desktop 
 
 The mobile PWA is not a remote desktop layer. It does not operate Google Flow directly.
 
+Visual override: the Visual PWA Mobile-First references approved on 2026-05-04 define the active mobile shell. If older mobile nav language conflicts with this section, this section wins.
+
 ## Mobile Bottom Navigation
 
 Mobile bottom navigation labels are exactly:
 
 ```text
-Dashboard
+Intake
 Produk
 Prompt
-Pengaturan
+Drive
 ```
 
 `Flow Control` is hidden from mobile bottom navigation.
 
-Mobile must not expose a second settings shortcut outside the bottom navigation. `Pengaturan` is the only settings entry point on mobile.
+Settings is not a mobile bottom navigation item in Phase 1. Mobile uses one global Settings gear in the topbar on every non-Settings route. `/settings` renders no right-side topbar gear.
 
 ## Mobile Surfaces
 
 In scope on mobile:
 
-- Dashboard counts.
+- `/products/new` Intake as the primary entrypoint.
 - Produk list.
-- `/products/new` intake upload.
 - Gemini analysis trigger and metadata review.
 - Paket Prompt preview/edit/regenerate.
+- Drive visual grid/gallery and bottom-sheet preview.
 - Output package review through product detail when available.
-- Pengaturan access for workspace, affiliate profile, Gemini, Drive, and account basics.
+- Pengaturan access through the topbar gear for workspace, affiliate profile, Gemini, Drive, and account basics.
 
 Out of scope on mobile:
 
@@ -53,7 +55,7 @@ Flow Control tersedia di desktop.
 
 No mobile queue management UI should be added in Phase awal.
 
-The minimal state can offer a single return path to `Pengaturan` or `Dashboard`, but it must not surface helper actions, queue columns, or Chrome profile controls.
+The minimal state can offer a single return path to `/products/new` or `/settings`, but it must not surface helper actions, queue columns, or Chrome profile controls.
 
 ## Mobile Intake Contract
 
@@ -85,3 +87,5 @@ The user may prepare prompts on mobile, then continue Flow execution on desktop.
 Mobile settings must keep `/settings` as the overview entrypoint, then open section routes or equivalent section screens for Workspace, Affiliate Profiles, Gemini, Drive, and Account.
 
 Mutable master lists use compact cards. Edit/create forms open as a full-screen drawer or bottom sheet. Mobile must not expose large desktop tables as the primary interaction.
+
+The Settings overview should read as a native grouped list. Account, Affiliate Profiles, Connected Services, Preferences, and System/Support groups may appear when backed by real app state.

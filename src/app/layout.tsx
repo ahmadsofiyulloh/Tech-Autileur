@@ -1,10 +1,14 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getWorkspaceShellState } from "@/lib/server/workspaces";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "Affiliate AI Content OS",
@@ -14,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#080806",
+  themeColor: "#F8F8F8",
 };
 
 export default async function RootLayout({
@@ -22,12 +26,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const workspaceState = await getWorkspaceShellState();
-
   return (
     <html lang="en">
-      <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
-        <AppShell workspaceState={workspaceState}>{children}</AppShell>
+      <body className={`${inter.variable} ${GeistMono.variable}`}>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

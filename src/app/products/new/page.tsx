@@ -4,6 +4,7 @@ import { ArrowLeft, Inbox } from "lucide-react";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
+import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { getIntakeSessionById } from "@/lib/server/intake";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -17,6 +18,7 @@ type NewProductPageProps = {
     message?: string | string[];
     step?: string | string[];
     workspace?: string | string[];
+    affiliate_profile_id?: string | string[];
   }>;
 };
 
@@ -47,9 +49,11 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   const showAllWorkspaces = firstParam(query.workspace) === "all";
   const requestedStep = firstParam(query.step);
   const intakeId = firstParam(query.intake_id);
+  const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id) ?? null;
   let selectedSession: Awaited<ReturnType<typeof getIntakeSessionById>> | null = null;
   let currentWorkspace: Awaited<ReturnType<typeof getCurrentWorkspace>>;
   let workspaces: Awaited<ReturnType<typeof listWorkspaces>>;
+  let affiliateProfiles: Awaited<ReturnType<typeof listAffiliateProfiles>> = [];
 
   try {
     [currentWorkspace, selectedSession, workspaces] = await Promise.all([
@@ -57,6 +61,12 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
       intakeId ? getIntakeSessionById(intakeId) : Promise.resolve(null),
       listWorkspaces({ limit: 200 }),
     ]);
+
+    affiliateProfiles = await listAffiliateProfiles({
+      workspaceId: currentWorkspace?.id ?? undefined,
+      status: "ACTIVE",
+      limit: 50,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load intake.";
 
@@ -73,35 +83,51 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   const message = firstParam(query.message) ?? null;
   const errorMessage = firstParam(query.error) ?? null;
   const savedSessionWorkspaceName = selectedSession ? workspaceLabel(selectedSession.workspace_id, workspaceMap) : null;
+  const selectedAffiliateProfileId =
+    requestedAffiliateProfileId && affiliateProfiles.some((profile) => profile.id === requestedAffiliateProfileId)
+      ? requestedAffiliateProfileId
+      : affiliateProfiles[0]?.id ?? null;
 
   return (
-    <div className="stack">
-      <div className="surface-toolbar">
-        <span className="surface-context">Lingkup: {scopeLabel}</span>
-        <div className="surface-toolbar__actions">
+    <div className="stack intake-native-page">
+      <div className="intake-native-header">
+        <div className="stack-tight">
+          <h2>Intake Workflow</h2>
+          <p>Upload dan analisis</p>
+        </div>
+        <div className="intake-scope-row">
+          <span className="intake-scope-chip">Lingkup: {scopeLabel}</span>
           {currentWorkspace ? (
-            <Link className="button compact" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
+            <Link className="button compact intake-secondary-link" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
               {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
             </Link>
           ) : null}
-          <Link className="button compact" href="/products">
-            <ArrowLeft size={16} aria-hidden="true" />
+          <Link className="button compact intake-secondary-link" href="/products">
+            <ArrowLeft size={15} aria-hidden="true" />
             Produk
           </Link>
         </div>
       </div>
 
-      <SectionCard icon={Inbox} title="Workflow intake produk">
+      <section className="intake-native-surface" aria-label="Workflow intake produk">
         <IntakeWorkflowForm
+          affiliateProfiles={affiliateProfiles.map((profile) => ({
+            id: profile.id,
+            profile_name: profile.profile_name,
+            account_label: profile.account_label,
+            platform: profile.platform,
+            status: profile.status,
+          }))}
           currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
           errorMessage={errorMessage}
           initialStep={initialStep}
           message={message}
           savedSession={selectedSession}
           savedSessionWorkspaceName={savedSessionWorkspaceName}
+          selectedAffiliateProfileId={selectedAffiliateProfileId}
           showAllWorkspaces={showAllWorkspaces}
         />
-      </SectionCard>
+      </section>
     </div>
   );
 }

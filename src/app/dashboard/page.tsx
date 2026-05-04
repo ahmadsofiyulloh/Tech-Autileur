@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Archive, FileText, FileVideo, HardDrive, Inbox, Plus, Sparkles, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { CSSProperties, ReactNode } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
 import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
@@ -48,6 +48,38 @@ function formatCount(value: number) {
 
 function formatMetricValue(metric: MetricResult<number>) {
   return metric.status === "available" ? formatCount(metric.data) : "Tidak tersedia";
+}
+
+function getMetricFill(metric: MetricResult<number>) {
+  if (metric.status === "unavailable") {
+    return "18%";
+  }
+
+  return `${Math.min(92, Math.max(10, metric.data * 11 + 14))}%`;
+}
+
+function DashboardSection({
+  children,
+  icon: Icon,
+  title,
+}: {
+  children: ReactNode;
+  icon: LucideIcon;
+  title: string;
+}) {
+  const sectionId = `dashboard-section-${title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
+
+  return (
+    <section className="dashboard-section" aria-labelledby={sectionId}>
+      <div className="dashboard-section__header">
+        <span className="icon-frame dashboard-section__icon" aria-hidden="true">
+          <Icon size={18} />
+        </span>
+        <h2 id={sectionId}>{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
 }
 
 async function countRows(
@@ -194,18 +226,20 @@ function MetricTile({
   metric: MetricResult<number>;
 }) {
   return (
-    <div className="metric dashboard-kpi">
+    <div className="metric dashboard-kpi" style={{ "--metric-fill": getMetricFill(metric) } as CSSProperties}>
       <span>{label}</span>
       <strong>{formatMetricValue(metric)}</strong>
+      <i aria-hidden="true" />
     </div>
   );
 }
 
 function UnavailableMetricTile({ label }: { label: string }) {
   return (
-    <div className="metric dashboard-kpi dashboard-kpi--unavailable">
+    <div className="metric dashboard-kpi dashboard-kpi--unavailable" style={{ "--metric-fill": "0%" } as CSSProperties}>
       <span>{label}</span>
       <strong>Tidak tersedia</strong>
+      <i aria-hidden="true" />
     </div>
   );
 }
@@ -242,16 +276,16 @@ function ActionRailItem({
   title: string;
 }) {
   return (
-    <li>
-      <div className="stack-tight">
-        <div className="section-card__actions">
-          <span className="icon-frame" aria-hidden="true">
-            <Icon size={16} />
-          </span>
+    <li className={primary ? "dashboard-action-card dashboard-action-card--primary" : "dashboard-action-card"}>
+      <div className="dashboard-action-card__content">
+        <span className="dashboard-action-card__orb" aria-hidden="true">
+          <Icon size={22} />
+        </span>
+        <div className="dashboard-action-card__copy">
           <strong>{title}</strong>
           <ActionCountBadge metric={count} suffix={countSuffix} />
+          <span>{description}</span>
         </div>
-        <span className="subtle">{description}</span>
       </div>
       <Link className={primary ? "button compact primary" : "button compact"} href={href}>
         {label}
@@ -272,8 +306,8 @@ function ActionRail({
   reviewIntakes: MetricResult<number>;
 }) {
   return (
-    <SectionCard icon={Workflow} title="Aksi Berikutnya">
-      <ul className="list" aria-label="Aksi berikutnya">
+    <DashboardSection icon={Workflow} title="Aksi Berikutnya">
+      <ul className="dashboard-action-grid" aria-label="Aksi berikutnya">
         <ActionRailItem
           countSuffix="baru"
           description="Upload evidence produk."
@@ -304,14 +338,14 @@ function ActionRail({
         <ActionRailItem
           count={readyPrompts}
           countSuffix="siap"
-          description="Desktop saja."
-          href="/controller"
-          icon={Workflow}
-          label="Buka"
-          title="Flow Control"
+          description="Cek aset Drive."
+          href="/drive"
+          icon={HardDrive}
+          label="Drive"
+          title="Drive visual"
         />
       </ul>
-    </SectionCard>
+    </DashboardSection>
   );
 }
 
@@ -333,11 +367,18 @@ function StatusBreakdownList({
   }
 
   return (
-    <ul className="list" aria-label={emptyTitle}>
+    <ul className="dashboard-status-list" aria-label={emptyTitle}>
       {metric.data.statuses.map((item) => (
-        <li key={item.status}>
-          <StatusBadge status={item.status} />
-          <strong>{formatCount(item.count)}</strong>
+        <li
+          className="dashboard-status-row"
+          key={item.status}
+          style={{ "--status-fill": `${Math.max(8, Math.round((item.count / metric.data.total) * 100))}%` } as CSSProperties}
+        >
+          <div className="dashboard-status-row__meta">
+            <StatusBadge status={item.status} />
+            <strong>{formatCount(item.count)}</strong>
+          </div>
+          <span className="dashboard-status-row__bar" aria-hidden="true" />
         </li>
       ))}
     </ul>
@@ -407,7 +448,7 @@ export default async function DashboardPage() {
       : "/products/new";
 
   return (
-    <div className="stack">
+    <div className="dashboard-page">
       <ActionRail
         promptWork={promptWork}
         readyPrompts={readyPrompts}
@@ -415,7 +456,7 @@ export default async function DashboardPage() {
         reviewIntakes={reviewIntakes}
       />
 
-      <SectionCard icon={Sparkles} title="Gemini">
+      <DashboardSection icon={Sparkles} title="Gemini">
         <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Task count" metric={geminiTaskCount} />
           <UnavailableMetricTile label="Token/cost" />
@@ -425,17 +466,17 @@ export default async function DashboardPage() {
           emptyTitle="Belum ada Gemini task."
           unavailableTitle="Gemini task tidak tersedia."
         />
-      </SectionCard>
+      </DashboardSection>
 
-      <SectionCard icon={HardDrive} title="Drive dan prompt">
+      <DashboardSection icon={HardDrive} title="Drive dan prompt">
         <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Drive item" metric={driveItems} />
           <MetricTile label="Generated file" metric={generatedFiles} />
           <MetricTile label="Prompt pack" metric={promptPacks} />
         </div>
-      </SectionCard>
+      </DashboardSection>
 
-      <SectionCard icon={FileVideo} title="Output/import">
+      <DashboardSection icon={FileVideo} title="Output/import">
         <div className="metric-grid dashboard-kpi-grid">
           <MetricTile label="Status count" metric={outputImportCount} />
         </div>
@@ -444,7 +485,7 @@ export default async function DashboardPage() {
           emptyTitle="Belum ada output/import."
           unavailableTitle="Output/import tidak tersedia."
         />
-      </SectionCard>
+      </DashboardSection>
     </div>
   );
 }

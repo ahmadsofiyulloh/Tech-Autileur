@@ -14,6 +14,7 @@ Completed on this branch:
 - S5-001, S5-002
 - S6-001, S6-002, S6-004, S6-005
 - S7-001
+- VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 
 ## S0 - Docs and Source of Truth Sync
 
@@ -22,12 +23,54 @@ Completed on this branch:
 **Owner:** Codex
 **Acceptance:** no doc treats Flow accounts as workspace-bound, mobile Flow Control as primary, duplicate Settings entry points as acceptable, or verbose UI copy as allowed.
 
+## VIS - Visual PWA Mobile-First Sync
+
+These tasks document the visual implementation state after the 2026-05-04 Visual PWA Mobile-First override.
+
+### VIS-001 - Design System _(DONE)_
+**Goal:** Add visual design tokens, Inter typography, shared card/list/nav/status styling, and light native mobile baseline.
+**Owner:** Codex
+**Acceptance:** `src/app/globals.css` contains visual token utilities and `src/app/layout.tsx` uses Inter as the app font.
+
+### VIS-002 - App Shell _(DONE)_
+**Goal:** Remove the workspace picker from the shell, keep fixed bottom nav for Intake/Produk/Prompt/Drive, and add the topbar Settings gear.
+**Owner:** Codex
+**Acceptance:** non-Settings routes show one Settings gear, `/settings` shows no right-side topbar action, and safe-area spacing is preserved.
+
+### VIS-003 - Intake _(DONE visually)_
+**Goal:** Align `/products/new` with the mobile visual reference using camera-style preview, upload cards, profile carousel, and Gemini skeleton/loading treatment.
+**Owner:** Codex
+**Acceptance:** affiliate profiles render from real profile data and selected profile handoff does not require a database migration.
+
+### VIS-004 - Products and Prompts _(DONE visually)_
+**Goal:** Redesign Product and Prompt lists as mobile visual cards using real product/prompt data.
+**Owner:** Codex
+**Acceptance:** thumbnails use Drive metadata when available, file/icon fallbacks are used otherwise, status chips use semantic tokens, and no fake metrics are added.
+
+### VIS-005 - Drive Visual Manager _(DONE visually)_
+**Goal:** Replace the Drive table-first surface with a visual grid/gallery and bottom-sheet preview.
+**Owner:** Codex
+**Acceptance:** tap opens preview, long-press enters client-side multi-select only, and no batch archive/delete mutation is added.
+
+### VIS-006 - Settings Native List _(DONE visually)_
+**Goal:** Convert `/settings` overview into grouped native-style list sections.
+**Owner:** Codex
+**Acceptance:** Account, Affiliate Profiles, and Connected Services groups are visible when backed by app state, while nested settings routes remain intact.
+
+Known visual/backend gaps:
+
+- No schema migration has been added for Drive thumbnail metadata.
+- Drive thumbnails use available metadata/URL and fall back to icons/placeholders.
+- Drive multi-select is client-side only.
+- Settings service status still needs a more explicit backend view-model contract.
+- No fake metrics or fake service statuses should be introduced.
+
 ## S1 - Navigation and Route Lock
 
 ### S1-001 - Lock desktop and mobile nav _(DONE)_
-**Goal:** Desktop sidebar is Dashboard, Produk, Prompt, Flow Control, Pengaturan. Mobile bottom nav is Dashboard, Produk, Prompt, Pengaturan.
+**Goal:** Primary navigation is Intake, Produk, Prompt, Drive. Mobile bottom nav is Intake, Produk, Prompt, Drive.
 **Owner:** Codex
-**Acceptance:** `/controller` is hidden from mobile nav, direct mobile access shows a desktop-required state, and the topbar does not duplicate Settings.
+**Acceptance:** `/controller` is hidden from primary nav, `/flow` and `/controller` redirect to `/products/new`, Settings is reached by the approved topbar gear on non-Settings routes, and `/settings` has no right-side topbar action.
 
 ### S1-002 - Route compatibility _(DONE)_
 **Goal:** Keep `/intake`, `/flow`, and `/outputs` compatibility behavior without creating duplicate primary funnels.
@@ -37,7 +80,7 @@ Completed on this branch:
 ### S1-003 - Shell settings and account lock _(DONE)_
 **Goal:** Move Sign out and Chrome profile pairing into `Pengaturan > Account`, with no duplicate shell settings entry points.
 **Owner:** Codex
-**Acceptance:** Settings remains the only configuration hub, Sign out is not in the header, and Chrome profile pairing includes Buat, Salin, Unduh JSON, and Lepas Pairing.
+**Acceptance:** Settings remains the only configuration hub, the shell uses one approved topbar gear on non-Settings routes, Sign out is not in the header, and Chrome profile pairing includes Buat, Salin, Unduh JSON, and Lepas Pairing.
 
 ## S2 - Intake Workflow
 

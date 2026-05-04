@@ -7,8 +7,6 @@ import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { TopbarOverride } from "@/components/operator/topbar-context";
 import { listContents } from "@/lib/server/contents";
-import { listFlowAccounts } from "@/lib/server/flow-accounts";
-import { listFlowBatches } from "@/lib/server/flow-batches";
 import { listClipJobs, listGeneratedFiles } from "@/lib/server/clip-jobs";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
@@ -29,8 +27,6 @@ type ProductImageRecord = Awaited<ReturnType<typeof listProductImages>>[number];
 type IntakeSessionRecord = Awaited<ReturnType<typeof listIntakeSessions>>[number];
 type PromptPackRecord = Awaited<ReturnType<typeof listPromptPacks>>[number];
 type ContentRecord = Awaited<ReturnType<typeof listContents>>[number];
-type FlowBatchRecord = Awaited<ReturnType<typeof listFlowBatches>>[number];
-type FlowAccountRecord = Awaited<ReturnType<typeof listFlowAccounts>>[number];
 type ClipJobRecord = Awaited<ReturnType<typeof listClipJobs>>[number];
 type GeneratedFileRecord = Awaited<ReturnType<typeof listGeneratedFiles>>[number];
 type DriveItemRecord = Awaited<ReturnType<typeof listDriveItems>>[number];
@@ -229,30 +225,6 @@ function toneForFileStatus(status: string) {
   return "info" as const;
 }
 
-function formatFlowAccountLabel(account: FlowAccountRecord | null | undefined) {
-  return account?.account_type?.replace("FLOW_", "Flow ") ?? "Akun tidak tersedia";
-}
-
-function flowBatchStatusLabel(batch: FlowBatchRecord) {
-  return batch.status === "READY_TO_EXPORT"
-    ? "Siap Ekspor"
-    : batch.status === "EXPORTED"
-      ? "Terekspor"
-      : batch.status === "RUNNING"
-        ? "Sedang Flow"
-        : batch.status === "IMPORTING"
-          ? "Mengimpor"
-          : batch.status === "PARTIALLY_IMPORTED"
-            ? "Sebagian Masuk"
-            : batch.status === "IMPORTED"
-              ? "Masuk"
-              : batch.status === "NEED_MANUAL_MATCH"
-                ? "Perlu Cocokkan"
-                : batch.status === "CLOSED"
-                  ? "Selesai"
-                : batch.status;
-}
-
 function PromptPackContractPreview({ pack }: { pack: PromptPackRecord }) {
   const promptSet = readPromptPackEditorPromptSet(pack);
 
@@ -324,8 +296,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   let workspaces: WorkspaceRecord[] = [];
   let affiliateProfiles: AffiliateProfileRecord[] = [];
   let contents: ContentRecord[] = [];
-  let flowBatches: FlowBatchRecord[] = [];
-  let flowAccounts: FlowAccountRecord[] = [];
   let clipJobs: ClipJobRecord[] = [];
   let generatedFiles: GeneratedFileRecord[] = [];
 
@@ -341,8 +311,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       workspaces,
       affiliateProfiles,
       contents,
-      flowBatches,
-      flowAccounts,
       clipJobs,
       generatedFiles,
     ] = await Promise.all([
@@ -356,8 +324,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       listWorkspaces({ limit: 200 }),
       listAffiliateProfiles({ limit: 200 }),
       listContents({ productId: id, limit: 200 }),
-      listFlowBatches({ productId: id, limit: 200 }),
-      listFlowAccounts(),
       listClipJobs({ limit: 200 }),
       listGeneratedFiles({ limit: 200 }),
     ]);
@@ -394,7 +360,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
-  const flowAccountMap = new Map(flowAccounts.map((account) => [account.id, account]));
   const generatedPromptCount = promptPacks.filter((pack) => pack.status === "GENERATED").length;
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
@@ -464,8 +429,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   });
 
   const outputPackageStatus = resolveOutputPackageStatus(outputClipRows.map((item) => item.status));
-  const latestFlowBatch = flowBatches[0] ?? null;
-  const driveFolderLink = latestFlowBatch?.drive_output_folder_url ?? latestFlowBatch?.drive_output_folder_id ?? null;
   const outputCaption = outputClipRows[0] ? resolveCaption(outputClipRows[0].content) : "";
   const outputTags = outputClipRows[0] ? resolveTags(outputClipRows[0].content) : "";
   const outputProductName =
@@ -518,14 +481,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       title: "Prompt pack",
       description: `Version ${pack.version}`,
       status: pack.status,
-    })),
-    ...flowBatches.map((batch) => ({
-      at: batch.created_at,
-      title: "Flow batch",
-      description: [flowBatchStatusLabel(batch), formatFlowAccountLabel(flowAccountMap.get(batch.flow_account_id) ?? null), batch.target_date]
-        .filter(Boolean)
-        .join(" - "),
-      status: flowBatchStatusLabel(batch),
     })),
     ...relevantClipJobs.map((clipJob) => ({
       at: clipJob.created_at,
@@ -811,19 +766,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                   </div>
                   <div className="metric">
                     <span>Folder Drive</span>
-                    <strong>
-                      {driveFolderLink ? (
-                        driveFolderLink.startsWith("http") ? (
-                          <a href={driveFolderLink} target="_blank" rel="noreferrer">
-                            {driveFolderLink}
-                          </a>
-                        ) : (
-                          driveFolderLink
-                        )
-                      ) : (
-                        "Belum ada"
-                      )}
-                    </strong>
+                    <strong>Belum ada</strong>
                   </div>
                   <div className="metric">
                     <span>Status</span>
@@ -971,34 +914,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
               </section>
             ) : (
               <EmptyState icon={FileText} title="No prompt packs yet." description="Belum ada prompt pack." />
-            )}
-          </SectionCard>
-          <SectionCard icon={Workflow} title="Flow batches">
-            {flowBatches.length ? (
-              <ul className="list">
-                {flowBatches.map((batch) => {
-                  const flowAccount = flowAccountMap.get(batch.flow_account_id) ?? null;
-
-                  return (
-                    <li key={batch.id}>
-                      <div className="stack-tight">
-                        <strong>{flowBatchStatusLabel(batch)}</strong>
-                        <span className="subtle">
-                          {[flowBatchStatusLabel(batch), formatFlowAccountLabel(flowAccount), batch.target_date].filter(Boolean).join(" - ")}
-                        </span>
-                        {batch.drive_output_folder_url ? (
-                          <a href={batch.drive_output_folder_url} target="_blank" rel="noreferrer">
-                            Drive folder
-                          </a>
-                        ) : null}
-                      </div>
-                      <StatusBadge status={batch.status} />
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <EmptyState icon={Workflow} title="No flow batches yet." description="Belum ada batch." />
             )}
           </SectionCard>
           <SectionCard icon={FileText} title="Clip jobs">

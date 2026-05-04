@@ -4,8 +4,9 @@ import { Package, Plus } from "lucide-react";
 import { ProductList, type ProductListRow } from "./product-list";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
+import { listDriveItems } from "@/lib/server/drive-items";
 import { listIntakeSessions } from "@/lib/server/intake";
-import { listProducts } from "@/lib/server/products";
+import { listProductImages, listProducts } from "@/lib/server/products";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -71,12 +72,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   let currentWorkspace;
   let workspaces;
   let intakeSessions;
+  let productImages;
+  let driveItems;
 
   try {
     [currentWorkspace, workspaces] = await Promise.all([getCurrentWorkspace(), listWorkspaces({ limit: 200 })]);
     const workspaceId = currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined;
 
-    [products, intakeSessions] = await Promise.all([
+    [products, intakeSessions, productImages, driveItems] = await Promise.all([
       listProducts({
         limit: 200,
         workspaceId,
@@ -85,6 +88,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         limit: 200,
         workspaceId,
       }),
+      listProductImages({ limit: 200 }),
+      listDriveItems({ limit: 200 }),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load products.";
@@ -97,6 +102,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
   const latestIntakeByProductId = new Map<string, (typeof intakeSessions)[number]>();
 
@@ -112,6 +118,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
     const metadata = latestIntake?.reviewed_metadata_json ?? latestIntake?.parsed_metadata_json ?? null;
     const keyword = metadataText(metadata, "keyword_cari_etalase", "category") || fieldValue(product.niche);
+    const primaryImage =
+      productImages.find((image) => image.product_id === product.id && image.is_primary) ??
+      productImages.find((image) => image.product_id === product.id) ??
+      null;
+    const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
 
     return {
       id: product.id,
@@ -122,6 +133,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       product_status: product.status,
       intake_status: latestIntake?.status ?? "",
       created_at_label: formatDate(product.created_at),
+      thumbnail_url: primaryDriveItem?.mime_type?.startsWith("image/") ? primaryDriveItem.drive_url : null,
       href: `/products/${product.id}`,
     };
   });

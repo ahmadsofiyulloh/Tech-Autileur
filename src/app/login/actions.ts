@@ -61,7 +61,7 @@ export async function authenticate(
       };
     }
 
-    redirect("/dashboard");
+    redirect("/products/new");
   }
 
   if (intent === "signup") {
@@ -82,7 +82,7 @@ export async function authenticate(
     }
 
     if (data.session) {
-      redirect("/dashboard");
+      redirect("/products/new");
     }
 
     return {

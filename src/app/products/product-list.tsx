@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, PanelRightOpen, Search, X } from "lucide-react";
+import { ArrowRight, Package, PanelRightOpen, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/operator/status-badge";
 
 export type ProductListRow = {
@@ -14,6 +15,7 @@ export type ProductListRow = {
   product_status: string;
   intake_status: string;
   created_at_label: string;
+  thumbnail_url: string | null;
   href: string;
 };
 
@@ -43,6 +45,28 @@ function matchesQuery(product: ProductListRow, query: string) {
     .join(" ")
     .toLowerCase()
     .includes(value);
+}
+
+function statusProgress(status: string) {
+  const value = status.toUpperCase();
+
+  if (value.includes("READY") || value.includes("UPLOADED")) {
+    return "92%";
+  }
+
+  if (value.includes("PROMPT")) {
+    return "72%";
+  }
+
+  if (value.includes("ANALYZED") || value.includes("REVIEW")) {
+    return "58%";
+  }
+
+  if (value.includes("IMAGE")) {
+    return "38%";
+  }
+
+  return "18%";
 }
 
 export function ProductList({ products }: ProductListProps) {
@@ -127,36 +151,30 @@ export function ProductList({ products }: ProductListProps) {
 
         <div className="products-cards-mobile">
           {filteredProducts.map((product) => (
-            <article className="product-card" key={product.id}>
-              <div className="section-card__actions">
+            <article className="visual-list-card" key={product.id}>
+              <div className="visual-list-card__thumb" aria-hidden="true">
+                {product.thumbnail_url ? <img alt="" src={product.thumbnail_url} /> : <Package size={28} />}
+              </div>
+              <div className="stack-tight">
                 <div className="stack-tight">
                   <strong>{product.product_name}</strong>
+                  <span className="subtle">{fieldValue(product.keyword)}</span>
                 </div>
-                <StatusBadge status={product.product_status} />
-              </div>
-              <dl className="product-card__meta">
-                <div>
-                  <dt>Workspace</dt>
-                  <dd>{product.workspace_label}</dd>
+                <div className="visual-chip-row">
+                  <StatusBadge status={product.product_status} />
+                  {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
                 </div>
-                <div>
-                  <dt>Keyword</dt>
-                  <dd>{fieldValue(product.keyword)}</dd>
+                <span className="dashboard-status-row__bar" style={{ "--status-fill": statusProgress(product.product_status) } as CSSProperties} />
+                <div className="product-row-actions">
+                  <button className="button compact" type="button" onClick={() => openDrawer(product.id)}>
+                    <PanelRightOpen size={15} aria-hidden="true" />
+                    Detail
+                  </button>
+                  <Link className="button compact primary" href={product.href}>
+                    <ArrowRight size={15} aria-hidden="true" />
+                    Buka
+                  </Link>
                 </div>
-                <div>
-                  <dt>Intake</dt>
-                  <dd>{fieldValue(product.intake_status)}</dd>
-                </div>
-              </dl>
-              <div className="product-row-actions">
-                <button className="button compact" type="button" onClick={() => openDrawer(product.id)}>
-                  <PanelRightOpen size={15} aria-hidden="true" />
-                  Detail
-                </button>
-                <Link className="button compact primary" href={product.href}>
-                  <ArrowRight size={15} aria-hidden="true" />
-                  Buka
-                </Link>
               </div>
             </article>
           ))}

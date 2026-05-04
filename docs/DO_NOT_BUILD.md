@@ -8,6 +8,9 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Video editor inside the PWA.
 - Browser automation that clicks, selects, or submits Google Flow automatically.
 - Custom remote desktop engine.
+- Complex visual flow builders.
+- Drag-and-drop node editors.
+- Mobile Flow queue managers while Controller/Flow are frozen in Phase 1.
 - Multi-user/team permissions.
 - Google Flow Business/Enterprise/Pro account support.
 - Workspace-bound Flow accounts.
@@ -19,10 +22,13 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - A third background-reference asset slot for Affiliate Profiles in Phase awal.
 - Implicit latest-active default profile selection.
 - Reverting Affiliate Profile to workspace-scoped only in the revised model.
-- Duplicate Settings entry points in topbar, header, and sidebar at the same time.
+- Multiple simultaneous Settings entry points across topbar, header, sidebar, and bottom nav. The single approved topbar Settings gear on non-Settings routes is allowed.
 - A separate Settings CRUD surface for Flow Accounts in Phase awal.
 - Inline flat settings forms replacing the locked overview + section route + drawer grammar.
 - Raw desktop data tables as the primary mobile list interaction.
+- Dense data tables for mobile views.
+- Full edit forms inside Drive preview bottom sheets.
+- Batch archive/delete mutations from Drive multi-select in the initial Phase 1 visual manager.
 - Hard delete as the default lifecycle for mutable master data.
 - Claims of visual parsing from marketplace links when image bytes are not available.
 - Supabase Storage for large video/image assets.
@@ -33,8 +39,12 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Proxying large helper-uploaded video bytes through Next.js or Supabase.
 - Bypassing Gemini, Google Flow, TikTok, Shopee, or Google quota/rate limits.
 - Verbose UI descriptions outside empty/error states.
+- Service worker cache engines, background sync, or custom offline data persistence in Phase 1.
+- Page-swipe navigation or a custom gesture routing framework in Phase 1.
 
 ## Explicitly Allowed In Phase Awal
+
+- One global Settings gear in the topbar on every non-Settings route. `/settings` must hide the right-side topbar action.
 
 Windows Helper is allowed only as a local companion that:
 

@@ -82,6 +82,7 @@ export async function saveIntake(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
   const workspaceScope = readText(formData, "workspace_scope");
+  const affiliateProfileId = readText(formData, "affiliate_profile_id");
   let message = "Intake saved";
   let redirectParams: Record<string, string> | undefined;
 
@@ -100,6 +101,7 @@ export async function saveIntake(formData: FormData) {
         step: "prompt",
         intake_id: session.id,
         ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+        ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
       };
     } else if (intent === "update_session") {
       if (!id) {
@@ -134,6 +136,7 @@ export async function saveIntake(formData: FormData) {
         step: "prompt",
         intake_id: result.session.id,
         ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+        ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
       };
     } else if (intent === "review_metadata" || intent === "save_reviewed_metadata") {
       if (!id) {
@@ -146,6 +149,7 @@ export async function saveIntake(formData: FormData) {
         step: "prompt",
         intake_id: id,
         ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+        ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
       };
     } else if (intent === "link_product") {
       if (!id) {

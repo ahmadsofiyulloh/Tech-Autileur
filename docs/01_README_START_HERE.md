@@ -26,33 +26,31 @@ The MVP is not a generic affiliate planner. It is an AI production control cente
 
 Core flow:
 
-1. Dashboard entrypoint.
-2. Produk list.
-3. Mobile-first intake in `/products/new`.
+1. `/products/new` Intake entrypoint.
+2. Mobile upload/capture for product image, Shopee screenshot, and TikTok screenshot.
+3. Affiliate Profile selection through the mobile carousel.
 4. Live Gemini analysis from uploaded image bytes.
 5. Metadata review.
-6. Paket Prompt preview/edit/regenerate.
-7. Desktop-only Flow Control in `/controller`.
-8. Windows Helper handoff to Chrome profile + Google Flow URL.
-9. Helper desktop SOP for staging, Chrome profile reuse, i2i, and i2v sequencing.
-10. Manual Google Flow generation by the user.
-11. Helper rename/upload to Google Drive and metadata callback.
-12. Output package and history.
-13. Pengaturan hub, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
+6. Produk list review.
+7. Paket Prompt preview/edit/regenerate and `Tandai Siap Flow`.
+8. Drive visual grid/gallery review with bottom-sheet preview.
+9. Output package and history when available.
+10. Pengaturan hub through the topbar Settings gear, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
+11. Controller/Flow and Windows Helper execution remain retained backend/desktop surfaces, but are not primary Phase 1 mobile navigation.
 
 ## Sprint Rule
 Do not start broad feature work. Start with the locked vertical slice:
 
 ```text
-Dashboard
--> /products
--> /products/new upload Foto Produk Utama + Screenshot Shopee + Screenshot TikTok
+/products/new Intake
+-> upload Foto Produk Utama + Screenshot Shopee + Screenshot TikTok
 -> Analisis Gemini
 -> Metadata review
+-> Affiliate Profile selector handoff
+-> /products visual card list
 -> /prompts Paket Prompt
--> /controller Flow Control on desktop
--> Helper desktop SOP for staging, Chrome profile reuse, i2i, and i2v sequencing
--> Windows Helper manifest/output callback
+-> /drive visual grid/gallery
+-> /settings grouped native list through topbar gear
 -> Output package/history
 ```
 

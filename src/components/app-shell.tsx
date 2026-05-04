@@ -1,41 +1,14 @@
 "use client";
 
-import { Workflow } from "lucide-react";
+import { Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { setCurrentWorkspaceFromShell } from "@/app/settings/actions";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
-import { RelationalPicker } from "@/components/operator/relational-picker";
 import { RouteToaster } from "@/components/operator/route-toaster";
 import { TopbarProvider, useTopbar } from "@/components/operator/topbar-context";
 
-type AppShellWorkspaceState = {
-  schemaReady: boolean;
-  errorMessage: string | null;
-  workspaces: Array<{
-    id: string;
-    workspace_code: string;
-    workspace_name: string;
-    is_default: boolean;
-  }>;
-  currentWorkspaceId: string | null;
-};
-
-const emptyWorkspaceState: AppShellWorkspaceState = {
-  schemaReady: true,
-  errorMessage: null,
-  workspaces: [],
-  currentWorkspaceId: null,
-};
-
-export function AppShell({
-  children,
-  workspaceState = emptyWorkspaceState,
-}: {
-  children: ReactNode;
-  workspaceState?: AppShellWorkspaceState;
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
@@ -52,20 +25,13 @@ export function AppShell({
 
   return (
     <TopbarProvider>
-      <OperatorShellContent workspaceState={workspaceState}>{children}</OperatorShellContent>
+      <OperatorShellContent>{children}</OperatorShellContent>
     </TopbarProvider>
   );
 }
 
-function OperatorShellContent({
-  children,
-  workspaceState,
-}: {
-  children: ReactNode;
-  workspaceState: AppShellWorkspaceState;
-}) {
+function OperatorShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isControllerRoute = pathname.startsWith("/controller") || pathname.startsWith("/flow");
   const activeRoute =
     routeTitles
       .slice()
@@ -75,18 +41,15 @@ function OperatorShellContent({
   const activeTitle = override?.title ?? activeRoute?.label ?? "Operator";
   const activeSubtitle = override?.subtitle ?? activeRoute?.subtitle ?? "Content OS.";
   const ActiveIcon = activeRoute?.icon ?? Workflow;
+  const showSettingsGear = !pathname.startsWith("/settings");
 
   function isActive(href: string) {
-    if (href === "/settings" && (pathname.startsWith("/gemini") || pathname.startsWith("/drive"))) {
+    if (href === "/products/new" && pathname.startsWith("/intake")) {
       return true;
     }
 
-    if (href === "/products" && pathname.startsWith("/intake")) {
-      return true;
-    }
-
-    if (href === "/controller" && pathname.startsWith("/flow")) {
-      return true;
+    if (href === "/products" && (pathname.startsWith("/intake") || pathname.startsWith("/products/new"))) {
+      return false;
     }
 
     if (href === "/") {
@@ -99,7 +62,7 @@ function OperatorShellContent({
   return (
     <div className="operator-shell">
       <aside className="sidebar" aria-label="Operator navigation">
-        <Link className="sidebar-brand" href="/dashboard">
+        <Link className="sidebar-brand" href="/products/new">
           <span className="sidebar-brand__mark" aria-hidden="true">
             <Workflow size={18} />
           </span>
@@ -140,46 +103,15 @@ function OperatorShellContent({
             </div>
           </div>
           <div className="topbar-tools">
-            <form className="workspace-selector" action={setCurrentWorkspaceFromShell}>
-              <input type="hidden" name="return_to" value={pathname} />
-              <RelationalPicker
-                allowClear
-                className="workspace-selector__picker"
-                compact
-                defaultValue={workspaceState.currentWorkspaceId ?? ""}
-                disabled={!workspaceState.schemaReady || workspaceState.workspaces.length === 0}
-                emptyLabel="Belum ada workspace"
-                helperText={workspaceState.errorMessage ?? undefined}
-                label="Workspace"
-                name="current_workspace_id"
-                options={workspaceState.workspaces.map((workspace) => ({
-                  value: workspace.id,
-                  label: workspace.workspace_name,
-                  description: workspace.is_default ? "default" : "",
-                }))}
-                placeholder="Pilih workspace"
-                searchPlaceholder="Cari workspace"
-                submitOnSelect
-              />
-            </form>
+            {showSettingsGear ? (
+              <Link className="topbar-action topbar-settings-link" href="/settings" aria-label="Pengaturan">
+                <Settings size={18} aria-hidden="true" />
+                <span>Pengaturan</span>
+              </Link>
+            ) : null}
           </div>
         </header>
-        <main className={isControllerRoute ? "shell-main shell-main--controller" : "shell-main"}>
-          {isControllerRoute ? (
-            <section className="mobile-desktop-required" aria-labelledby="mobile-controller-title">
-              <div className="icon-frame" aria-hidden="true">
-                <Workflow size={18} />
-              </div>
-              <div className="stack-tight">
-                <h2 id="mobile-controller-title">Flow Control tersedia di desktop.</h2>
-                <Link className="button compact" href="/dashboard">
-                  Dashboard
-                </Link>
-              </div>
-            </section>
-          ) : null}
-          <div className={isControllerRoute ? "controller-desktop-content" : undefined}>{children}</div>
-        </main>
+        <main className="shell-main">{children}</main>
       </div>
 
       <nav className="bottom-nav" aria-label="Mobile operator navigation">

@@ -1,67 +1,71 @@
 # PRD v1 Final - Affiliate AI Content OS MVP
 
 **Status:** LOCKED FOR MVP IMPLEMENTATION
-**Version:** 1.1 Phase Awal Lock
-**Date:** 2026-05-02
+**Version:** 1.3 Phase 1 Visual PWA Override Lock
+**Date:** 2026-05-04
 **Primary Operator:** Single owner/operator
 **Implementation Target:** Next.js PWA + Supabase + Google Drive + Gemini API + Google Flow workflow + Windows Helper
 **Implementation Mode:** Codex CLI with strict source-of-truth docs and Git checkpoints
+**Visual Override:** The Visual PWA Mobile-First references approved on 2026-05-04 override older shell and UI baseline decisions when they conflict.
 
 ## 0. Executive Summary
 
-Affiliate AI Content OS is a private operator tool for AI affiliate content production. It manages product intake, prompt personalization, Google Flow manual execution, Drive-based asset metadata, output packages, and dashboard usage status from one control plane.
+Affiliate AI Content OS is a private operator tool for AI affiliate content production. Phase 1 prioritizes a mobile-first PWA loop for product screenshot intake, Gemini Vision metadata extraction, affiliate-profile prompt personalization, and visual Google Drive asset management.
 
 This MVP is an AI production control center. It is not a video editor, not an auto-uploader to TikTok/Shopee, and not a browser automation system.
+
+Phase 1 freezes Controller and Flow orchestration as primary UI surfaces. Existing backend logic may remain for later reuse, but the operator-facing Phase 1 experience must focus on Intake, Produk, Prompt, and Drive.
 
 ## 1. Locked App Flow and UX
 
 ### 1.1 Main Navigation
 
-Desktop sidebar labels are exactly:
+Primary Phase 1 navigation labels are exactly:
 
 ```text
-Dashboard
+Intake
 Produk
 Prompt
-Flow Control
-Pengaturan
+Drive
 ```
 
 Mobile bottom navigation labels are exactly:
 
 ```text
-Dashboard
+Intake
 Produk
 Prompt
-Pengaturan
+Drive
 ```
 
-`Flow Control` is desktop-only and must not appear in mobile bottom navigation.
+`Dashboard` remains available only as a secondary analytics route. `Flow Control` and `Controller` are dormant/frozen for Phase 1 and must not appear in primary navigation.
 
 ### 1.2 Route Lock
 
 ```text
+/               -> /products/new
 /products       -> Produk list
 /products/new   -> mobile-first intake workflow
 /products/[id]  -> product detail with Metadata, Output, History
 /prompts        -> Paket Prompt editor surface
-/controller     -> desktop-only Flow Control board
+/drive          -> visual Drive manager
+/dashboard      -> secondary analytics route
 /settings       -> Pengaturan hub
+/controller     -> frozen route redirect to /products/new
+/flow           -> frozen route redirect to /products/new
 ```
 
-The topbar must not duplicate a Settings button or any second settings entry point. Topbar may show the route title and contextual actions only.
+The topbar right action is the approved Settings gear entry point on every non-Settings route. `/settings` must not render a right-side topbar action. Settings is not a bottom navigation item in Phase 1, and the shell must not show a workspace picker.
 
 Compatibility routes remain available, but are not primary surfaces:
 
 ```text
 /intake   -> /products/new
-/flow     -> /controller
 /outputs  -> compatibility/archive view only
 /gemini   -> primarily accessed from Pengaturan
-/drive    -> primarily accessed from Pengaturan
 ```
 
-When `/controller` is opened on mobile, the app should show a minimal desktop-required state instead of a mobile queue surface.
+When `/controller` or `/flow` is opened during Phase 1, the app redirects the operator to `/products/new`. The Flow/Controller backend must not be deleted as part of this freeze.
 
 `Sign out` must live only in `Pengaturan > Account`.
 
@@ -71,13 +75,10 @@ When `/controller` is opened on mobile, the app should show a minimal desktop-re
 Mobile intake upload
 -> Analisis Gemini
 -> Metadata review
+-> Affiliate Profile selection / binding
 -> Paket Prompt preview/edit/regenerate
--> Tandai Siap Flow
--> Desktop Flow Control
--> Windows Helper opens Chrome profile + Flow URL
--> User runs Google Flow manually
--> Helper renames/uploads outputs to Drive
--> Output package/history
+-> Drive visual asset review
+-> Output/history when available
 ```
 
 ### 1.4 Intake UX
@@ -94,6 +95,7 @@ Optional uploads:
 
 - additional product images.
 - additional marketplace screenshots.
+- direct mobile camera capture for supported browsers.
 
 Forbidden before Gemini analysis:
 
@@ -109,6 +111,8 @@ Analisis Gemini
 ```
 
 Live Gemini analysis is required for real E2E acceptance. Mock mode is allowed only as a clearly labeled development fallback.
+
+The upload UI must provide local image preview before submit. While Gemini is processing, loading state should use product-card or preview-card skeletons instead of only a small spinner.
 
 ### 1.5 Metadata Review
 
@@ -174,9 +178,13 @@ Prompt generation must always consume the active workspace, the workspace-linked
 
 Each workspace resolves its default-linked affiliate profile when one is configured.
 
+During Phase 1 intake, the operator may explicitly choose an Affiliate Profile using a horizontal mobile-friendly selector. The selected profile is passed into the prompt handoff; no database migration is required solely for this selector unless a later task explicitly approves persistence changes.
+
 ### 1.8 Flow Control UX
 
-`/controller` is the desktop-only Flow Control board.
+`/controller` and `/flow` are dormant/frozen in Phase 1. Backend Controller/Flow code and database structures may remain, but the primary UI is hidden and direct route access redirects to `/products/new`.
+
+Controller & Flow Orchestration move to Phase 2 / Backlog. The frozen Phase 2 target remains:
 
 Board columns are exactly:
 
@@ -197,6 +205,8 @@ Flow account assignment is recommendation-first:
 - `FLOW_FREE` default: 50 credits/day, 10 credits/generate, 1 active slot.
 - `FLOW_PLUS` default: reserve/manual priority.
 - user confirms the selected account.
+
+No complex visual flow builder, drag-and-drop node editor, or mobile queue manager belongs in Phase 1.
 
 ### 1.9 Output Package UX
 
@@ -225,7 +235,7 @@ The app must store Drive links and metadata. Phase awal does not create server-s
 
 ### 1.10 Dashboard
 
-Dashboard is the operator entrypoint. Phase awal analytics priority:
+Dashboard is a secondary analytics route in Phase 1. It is not the primary entrypoint and does not appear in primary mobile navigation. Phase 1 analytics priority:
 
 - Gemini task count and status.
 - Gemini estimated token/cost if available.
@@ -248,6 +258,8 @@ Pengaturan is the configuration hub for:
 
 `/settings` is overview-only. The hub must surface compact cards for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link. It must not become the edit form itself and must not create a second global navigation system.
 
+The Settings overview is opened through the global topbar gear on non-Settings routes. This single gear is the approved visual entry point and is not considered a duplicate Settings affordance.
+
 Settings section routes are locked:
 
 ```text
@@ -258,7 +270,7 @@ Settings section routes are locked:
 /settings/account
 ```
 
-The Flow card links to `/controller`; Flow Accounts remain controller-owned execution tools, not a separate settings CRUD surface.
+The Flow card may show frozen/dormant status during Phase 1. Flow Accounts remain controller-owned execution tools for Phase 2, not a separate settings CRUD surface.
 
 Desktop settings sections use list + right side drawer for mutable master data. Mobile settings sections use list cards + full-screen drawer or bottom sheet. The drawer is the only edit surface for Workspace, Affiliate Profiles, and Drive folder records.
 
@@ -302,6 +314,15 @@ Settings > Drive:
 - actions: Save, Open Folder, Archive.
 - drive code stays internal/hidden.
 
+Primary `/drive` Phase 1 surface:
+
+- visual grid/gallery for all Drive items.
+- folder items and file items both render as touch-friendly tiles.
+- image-like items prefer thumbnail/preview when available.
+- tap opens a bottom sheet with preview, metadata, status, path, and Open link action.
+- long-press enters client-side multi-select for select/preview state only.
+- no batch archive/delete mutation is required in the initial visual manager.
+
 `Pengaturan > Account` owns Chrome profile pairing, App API Token, and sign out. Chrome pairing actions are `Buat`, `Salin`, `Unduh JSON`, and `Lepas Pairing`.
 
 `/controller` helper actions are `Buka Profil`, `Buka Flow`, and `Ekspor Manifest`. Pairing controls do not live there.
@@ -341,14 +362,16 @@ The final UI must stay minimal, dense, and responsive on mobile and desktop.
 
 Locked baseline:
 
-- neutral dark workbench styling.
-- Graphite Gold visual direction is allowed for the workbench: graphite surfaces, restrained champagne-gold accents, emerald operational status accents, and subtle depth.
+- Visual PWA Mobile-First references from 2026-05-04 are the active UI baseline.
+- Inter is the base typography.
+- light native mobile surfaces are the default visual treatment.
+- primary action color is `#007AFF`.
+- status, topbar, navbar, surface, border, and inactive component colors come from the visual design tokens.
 - compact operational spacing.
 - no oversized hero blocks on functional pages.
 - 8px radius or less for cards and framed surfaces unless a component already has a stronger local rule.
-- Geist Sans as the base typography.
 - clear type hierarchy with page title above section title above card title above label/body.
-- no duplicate settings affordances in topbar, header, and sidebar at the same time.
+- the only global Settings affordance is the topbar gear on non-Settings routes.
 - shared custom picker for choice fields instead of raw browser dropdowns.
 - static suggestions with free fallback for non-relational text fields that still need loose input.
 - loading, empty, and error states on every active surface.
@@ -357,15 +380,20 @@ Locked baseline:
 - CRUD create entrypoints appear only in page header and empty state CTA.
 - row actions are `Open` plus edit/archive/delete in overflow.
 - archive-first lifecycle is required; hard delete is rare and never the default.
+- primary mobile navigation is fixed bottom navigation with safe-area padding.
+- bottom sheets must account for `env(safe-area-inset-bottom)` and sit above the bottom nav.
+- Phase 1 native-feel gestures are limited to pull-to-refresh indicator, bottom-sheet dismiss, and Drive long-press select.
+- every gesture must have a tap/click fallback.
 
 Recommended hierarchy:
 
 ```text
-Page title: 28/34
-Section title: 20/28
-Card title: 16/24
-Label: 12/16
-Body: 14/20
+Global heading L: Inter 20/24, 600
+Sub-heading M: Inter 16/18.4, 600
+Component heading S: Inter 14/15.4, 600
+Body M: Inter 12/12.6, 400
+Label/Button: Inter 12/12.6, 600
+Meta/Status: Inter 10/10, 400
 ```
 
 ## 2. Product Vision
@@ -384,18 +412,24 @@ MVP means the system can:
 - Log in through Supabase Auth.
 - Create a workspace and store its Drive root folder metadata.
 - Create an affiliate profile and link it to one or more workspaces.
-- Upload real product images and marketplace screenshots to Google Drive.
+- Open the app at `/products/new` as the Phase 1 entrypoint.
+- Install or launch as a basic PWA through `manifest.json` and mobile meta tags.
+- Upload or capture real product images and marketplace screenshots.
 - Run live Gemini analysis from uploaded image bytes.
 - Review and edit generated product metadata.
+- Select an Affiliate Profile for prompt handoff.
 - Generate, edit, regenerate, persist, and version prompt packs.
-- Mark prompt packs ready for Flow.
+- Browse Google Drive metadata through a touch-friendly visual grid.
+- Review output package links and history in the app.
+- Show dashboard counts for Gemini, Drive, prompts, and outputs as a secondary route.
+
+Phase 2 / Backlog capabilities:
+
 - Assign ready prompt packs to global Flow accounts based on status, credit, and availability.
 - Export/download a batch manifest for Windows Helper.
 - Use Windows Helper to open the correct Chrome profile and Google Flow URL.
 - Let the operator run Google Flow manually.
 - Let Windows Helper rename/upload generated clips to Google Drive and post metadata back to the app.
-- Review output package links and history in the app.
-- Show dashboard counts for Gemini, Drive, prompts, and outputs.
 
 ## 4. Locked Architecture
 
@@ -404,7 +438,9 @@ MVP means the system can:
 ```text
 Framework: Next.js PWA
 Language: TypeScript strict
-UI: mobile-first for intake/prompt, desktop-first for Flow Control
+UI: mobile-first PWA shell for intake, prompt, and Drive visual management
+Primary nav: Intake, Produk, Prompt, Drive
+Phase 1 entrypoint: /products/new
 ```
 
 ### 4.2 Auth
@@ -449,6 +485,7 @@ Flow accounts are global tools and never workspace-bound
 Flow account management belongs to /controller support panels, not Settings CRUD
 Windows Helper opens Chrome profile + Flow URL and imports outputs
 Google Flow generation remains manual
+Phase 1 state: Dormant/Frozen
 ```
 
 ### 4.7 Windows Helper
@@ -473,9 +510,11 @@ Helper boundaries:
 - no Chrome profile path stored in Supabase.
 - no Drive OAuth refresh token stored in Supabase for helper upload.
 
-### 4.8 Mobile Control
+### 4.8 Mobile PWA Control
 
-Mobile is for upload, review, prompt, and monitoring. Desktop is required for Flow Control and Google Flow execution.
+Mobile is for upload, review, prompt preparation, and Drive visual management. Phase 1 PWA scope is manifest/meta installability only; no service worker, offline cache strategy, background sync, or IndexedDB/localStorage data persistence is required.
+
+The shell must support safe-area layout for bottom navigation and bottom sheets. Pull-to-refresh may show a lightweight gesture indicator and call `router.refresh()`.
 
 ## 5. Source of Truth Hierarchy
 
@@ -488,7 +527,7 @@ Mobile is for upload, review, prompt, and monitoring. Desktop is required for Fl
 | File metadata | `drive_items` in Supabase |
 | Gemini keys and tasks | Supabase server-only metadata/secrets |
 | Prompt rules | Affiliate Profile + prompt pack JSON |
-| Flow execution | Google Flow manual execution + Flow Control manifest |
+| Flow execution | Phase 2 Google Flow manual execution + Flow Control manifest |
 | Chrome profile mapping | Windows Helper local config |
 | Helper Drive OAuth | Windows Helper local token store |
 | Output history | Supabase + Drive metadata |
@@ -511,13 +550,17 @@ Mobile is for upload, review, prompt, and monitoring. Desktop is required for Fl
 - Supabase Storage for large video/image assets.
 - Server-side ZIP generation for output packages.
 - Bypassing provider quotas or rate limits.
+- Complex visual flow builders.
+- Drag-and-drop node editors.
+- Dense data tables for mobile views.
+- Service worker or offline cache engine in Phase 1.
 
 ## 7. Final MVP Lock Statement
 
 ```text
 Affiliate AI Content OS MVP is a private AI production control center.
 
-It manages mobile product intake, Gemini metadata extraction, affiliate-profile prompt personalization, prompt pack versioning, desktop Flow Control, Windows Helper-assisted Google Flow handoff/output import, Drive-based asset metadata, output packages, and dashboard counts.
+It manages mobile product intake, Gemini metadata extraction, affiliate-profile prompt personalization, prompt pack versioning, Drive-based visual asset metadata, output packages, and secondary dashboard counts.
 
-It does not generate videos internally, edit videos, auto-click Google Flow, auto-upload to TikTok/Shopee, or build a custom remote desktop engine.
+It does not generate videos internally, edit videos, auto-click Google Flow, auto-upload to TikTok/Shopee, build a custom remote desktop engine, or expose Controller/Flow as a primary Phase 1 UI.
 ```

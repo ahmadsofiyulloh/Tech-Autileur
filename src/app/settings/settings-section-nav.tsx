@@ -9,7 +9,6 @@ const SETTINGS_SECTIONS = [
   { href: "/settings/affiliate-profiles", label: "Akun Affiliate" },
   { href: "/settings/gemini", label: "Gemini" },
   { href: "/settings/drive", label: "Drive" },
-  { href: "/settings/flow", label: "Flow" },
   { href: "/settings/account", label: "Account" },
 ] as const;
 

@@ -81,12 +81,11 @@ function revalidateSettingsSurface() {
   revalidatePath("/settings/gemini");
   revalidatePath("/settings/drive");
   revalidatePath("/settings/account");
-  revalidatePath("/settings/flow");
 }
 
 function safeReturnPath(value: string) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/dashboard";
+    return "/products/new";
   }
 
   return value;

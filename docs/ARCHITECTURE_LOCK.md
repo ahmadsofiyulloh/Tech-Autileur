@@ -1,7 +1,9 @@
 # Architecture Lock - MVP
 
 ## Status
-LOCKED for Phase awal MVP implementation.
+LOCKED for Phase 1 Mobile PWA Pivot implementation.
+
+Visual override: the Visual PWA Mobile-First references approved on 2026-05-04 override older shell and UI baseline decisions when they conflict.
 
 ## Frontend
 
@@ -9,37 +11,46 @@ LOCKED for Phase awal MVP implementation.
 Framework: Next.js PWA
 Language: TypeScript strict
 UI language: Indonesian operational copy
-Mobile priority: upload, review, prompt
-Desktop priority: Flow Control and Google Flow handoff
-Desktop sidebar: Dashboard, Produk, Prompt, Flow Control, Pengaturan
-Mobile bottom nav: Dashboard, Produk, Prompt, Pengaturan
+Mobile priority: intake, review, prompt, Drive visual management
+Primary nav: Intake, Produk, Prompt, Drive
+Phase 1 entrypoint: /products/new
+Dashboard: secondary analytics route
+Controller/Flow: Dormant/Frozen, backend retained
 ```
 
 Shell rules:
 
-- topbar may show route title and contextual actions only.
-- topbar must not duplicate a Settings button.
+- topbar right action is a Settings gear on every non-Settings route.
+- `/settings` must render no right-side topbar action.
+- the Settings gear is the only global Settings entry point and is not a duplicate navigation stack.
+- workspace picker must not be shown in the global shell.
 - `Sign out` lives only in `Pengaturan > Account`.
-- `/controller` is desktop-first; mobile direct access shows a minimal desktop-required state.
+- mobile app shell uses fixed bottom navigation for Intake, Produk, Prompt, and Drive.
+- bottom navigation must use safe-area padding and stay above page content.
+- bottom sheets must use safe-area padding and render above bottom navigation.
+- `/controller` and `/flow` direct access redirect to `/products/new` during Phase 1.
 - no second navigation stack for settings.
+- Phase 1 PWA scope is manifest and meta tags only; no service worker or offline cache engine.
 
 ## Route Policy
 
 ```text
+/               -> /products/new
 /products       -> Produk list
 /products/new   -> mobile-first intake workflow
 /products/[id]  -> Metadata, Output, History
 /prompts        -> Paket Prompt editor surface
-/controller     -> desktop-only Flow Control board
+/drive          -> visual Drive manager
+/dashboard      -> secondary analytics route
 /settings       -> Pengaturan hub
 /intake         -> compatibility redirect to /products/new
-/flow           -> compatibility redirect to /controller
+/controller     -> frozen route redirect to /products/new
+/flow           -> frozen route redirect to /products/new
 /outputs        -> compatibility/archive view only
 /gemini         -> primarily accessed from /settings
-/drive          -> primarily accessed from /settings
 ```
 
-`/controller` must not be exposed in mobile bottom nav. Direct mobile access should show a minimal desktop-required state.
+`/controller` must not be exposed in primary navigation during Phase 1. Existing backend Controller/Flow logic must not be deleted by the freeze unless a future task explicitly approves removal.
 
 `/settings` is the configuration hub and overview-only surface. Section work must live in locked nested settings routes, not in one long flat settings page. The app must not create a second global settings navigation.
 
@@ -72,19 +83,22 @@ Forbidden:
 - repeated explanatory paragraphs.
 - marketing language.
 - hardcoded prompt guidance in UI copy.
-- duplicate settings affordances in header, topbar, and sidebar.
+- multiple simultaneous Settings affordances in header, topbar, sidebar, or bottom nav. The approved topbar gear on non-Settings routes is allowed.
 
 ## UI Baseline
 
-The app should read as a neutral dark workbench, not a marketing site.
+The app should read as a light native mobile workbench, not a marketing site.
 
 Locked presentation:
 
+- Visual PWA Mobile-First references from 2026-05-04 are the active UI baseline.
 - compact spacing and dense information hierarchy.
-- Graphite Gold workbench treatment is allowed: graphite surfaces, restrained champagne-gold accents, emerald operational status accents, and subtle depth.
+- Inter is the default type family.
+- primary action color is `#007AFF`.
+- surface tokens cover topbar, bottom nav, base page, borders, and inactive components.
+- semantic tokens cover success, warning, error, and info states.
 - no oversized hero blocks on operational pages.
 - 8px radius or less for cards and framed surfaces unless a local component rule requires otherwise.
-- Geist Sans as the default type family.
 - page title > section title > card title > label/body hierarchy.
 - shared custom picker for choice fields, not raw dropdowns.
 - static suggestions with free fallback only when the field is intentionally loose.
@@ -92,6 +106,11 @@ Locked presentation:
 - mobile and desktop layouts must stay responsive without text overlap.
 - desktop mutable master lists use searchable table + right side drawer.
 - mobile mutable master lists use compact cards + full-screen drawer or bottom sheet.
+- mobile primary surfaces must avoid dense data tables.
+- Drive visual manager uses a touch-friendly grid/gallery, not a table.
+- Drive preview opens in a bottom sheet with preview, metadata, status, path, and Open link action.
+- Phase 1 gestures are limited to pull-to-refresh indicator, bottom-sheet dismiss, and Drive long-press select.
+- every gesture must have a tap/click fallback.
 - cards are for individual repeated items, modals, and framed tools only; do not put UI cards inside other UI cards.
 - create entrypoints appear only in page header and empty state CTA.
 - row actions are `Open` plus edit/archive/delete in overflow.
@@ -121,6 +140,7 @@ Asset/file source of truth: Google Drive
 Supabase Storage: not used for large video/image assets in MVP
 Intake image UX: upload cards with local preview, not link-only parsing
 Supabase stores: Drive item metadata, URL, path, MIME type, status, relationships
+Drive Phase 1 UI: visual grid over all Drive item metadata
 ```
 
 Google Drive stores real uploaded product images, marketplace screenshots, prompt references, raw clips, final clips, batch manifests, and upload package assets.
@@ -153,9 +173,12 @@ Flow Control manages global Flow account pool
 Flow accounts are global tools and never workspace-bound
 Controller route: /controller
 UI label: Flow Control
+Phase 1 state: Dormant/Frozen
 ```
 
-Account recommendation uses status, observed credit, and available slot. User confirms before execution.
+Account recommendation uses status, observed credit, and available slot. User confirms before execution when Flow returns in Phase 2.
+
+During Phase 1, Controller and Flow orchestration are hidden from primary UI and direct route access redirects to `/products/new`. Do not build a complex visual flow builder, drag-and-drop node editor, or mobile Flow queue manager.
 
 ## Windows Helper
 
@@ -197,9 +220,10 @@ Settings detail grammar:
 - Workspace: list + drawer CRUD, hidden auto-generated code, name, niche picker, Drive root picker, default switch, archive.
 - Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, and explicit workspace links/default selection.
 - Gemini: single minimal form surface; no list/history UI.
-- Drive: folder-centric list + drawer, workspace-scoped, folders only.
+- Drive settings: folder-centric list + drawer, workspace-scoped, folders only.
+- Drive primary route: visual all-items grid/gallery with bottom-sheet preview.
 - Account: Chrome pairing, App API Token, and sign out.
-- Flow Accounts are controller-owned execution tools and must not become a separate Settings CRUD surface.
+- Flow Accounts are controller-owned execution tools for Phase 2 and must not become a separate Settings CRUD surface.
 
 ## Deployment
 

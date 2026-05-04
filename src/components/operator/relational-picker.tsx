@@ -316,7 +316,15 @@ export function RelationalPicker({
       className={`stack auth-field relational-picker${compact ? " relational-picker--compact" : ""}${className ? ` ${className}` : ""}`.trim()}
     >
       <span id={labelId}>{label}</span>
-      <input ref={hiddenInputRef} aria-hidden="true" name={name} readOnly type="hidden" value={selectedValue} />
+      <input
+        ref={hiddenInputRef}
+        aria-hidden="true"
+        name={name}
+        readOnly
+        suppressHydrationWarning
+        type="hidden"
+        value={selectedValue}
+      />
       <div className="relational-picker__control">
         <button
           aria-controls={panelId}
