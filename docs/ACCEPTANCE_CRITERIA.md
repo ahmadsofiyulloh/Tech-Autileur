@@ -131,6 +131,7 @@
 - The UI uses Inter as the base type family.
 - The UI follows the Visual PWA Mobile-First light native design tokens from 2026-05-04.
 - Primary color is `#007AFF`.
+- New or edited UI uses shared semantic tokens for typography and color; component code does not introduce hardcoded font, color, or palette literals.
 - Status chips and loading states use semantic status tokens.
 - Choice fields use shared custom picker behavior rather than raw browser dropdowns.
 - The compact type hierarchy is documented and followed on mobile and desktop.

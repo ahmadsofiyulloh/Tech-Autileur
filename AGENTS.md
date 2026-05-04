@@ -36,6 +36,8 @@ If a task conflicts with these docs, stop and ask the user before coding.
 - Do not change locked architecture without explicit approval.
 - Do not modify unrelated modules.
 - Do not add dependencies unless necessary and justified.
+- New or edited UI must use shared semantic design tokens for typography and color; do not introduce hardcoded font sizes, weights, line-heights, hex values, RGB values, or ad hoc palette literals in component code.
+- If a new visual need does not have a token yet, add or extend the token layer first, then consume the token in UI code.
 - Use server-only code for secrets and external API calls.
 - Never expose Gemini keys, Supabase service role key, Google OAuth secrets, refresh tokens, or encryption secrets to client components.
 - Never commit `.env`, `.env.local`, or real secrets.

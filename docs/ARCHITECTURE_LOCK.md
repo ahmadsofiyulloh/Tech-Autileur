@@ -97,6 +97,8 @@ Locked presentation:
 - primary action color is `#007AFF`.
 - surface tokens cover topbar, bottom nav, base page, borders, and inactive components.
 - semantic tokens cover success, warning, error, and info states.
+- typography and color for any new or edited UI must come from shared semantic tokens, not hardcoded literals in component code.
+- if a component needs a new visual value, extend the token layer first and keep the raw value only in the token source-of-truth block.
 - no oversized hero blocks on operational pages.
 - 8px radius or less for cards and framed surfaces unless a local component rule requires otherwise.
 - page title > section title > card title > label/body hierarchy.
