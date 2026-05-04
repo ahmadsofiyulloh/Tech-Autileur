@@ -81,16 +81,16 @@ export function HelperApiTokenPanel({
       {payload ? (
         <div className="stack-tight">
           <pre className="json-block">{payloadJson}</pre>
-          <FormActions>
-            <CopyButton text={payloadJson} label="Salin" />
-            <button className="button compact" type="button" onClick={handleDownload}>
+          <FormActions layout="pair">
+            <CopyButton className="tertiary" text={payloadJson} label="Salin" />
+            <button className="button compact tertiary" type="button" onClick={handleDownload}>
               Unduh JSON
             </button>
           </FormActions>
         </div>
       ) : null}
 
-      <FormActions>
+      <FormActions layout={payload ? "triple" : "pair"}>
         <button className="button compact primary" type="button" onClick={handleCreate}>
           Buat token
         </button>
@@ -99,7 +99,7 @@ export function HelperApiTokenPanel({
             <input type="hidden" name="intent" value="save_helper_api_token" />
             <input type="hidden" name="return_to" value="/settings/account" />
             <input type="hidden" name="raw_token" value={payload.raw_token} />
-            <button className="button compact" type="submit">
+            <button className="button compact tertiary" type="submit">
               Simpan hash
             </button>
           </form>
@@ -108,7 +108,7 @@ export function HelperApiTokenPanel({
           <input type="hidden" name="intent" value="disable_helper_api_token" />
           <input type="hidden" name="return_to" value="/settings/account" />
           <input type="hidden" name="id" value={currentToken?.id ?? ""} />
-          <button className="button compact" type="submit" disabled={!currentToken || currentToken.status === "DISABLED"}>
+          <button className="button compact destructive" type="submit" disabled={!currentToken || currentToken.status === "DISABLED"}>
             Cabut token
           </button>
         </form>

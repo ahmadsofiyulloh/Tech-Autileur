@@ -12,7 +12,7 @@ export default function ProductsError({
 }) {
   return (
     <SectionCard title="Unable to load products." description={error.message}>
-      <FormActions>
+      <FormActions layout="single">
         <button className="button primary" type="button" onClick={reset}>
           Retry
         </button>

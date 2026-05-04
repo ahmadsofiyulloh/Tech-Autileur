@@ -12,7 +12,7 @@ export default function GeminiError({
 }) {
   return (
     <SectionCard title="Unable to load Gemini." description={error.message}>
-      <FormActions>
+      <FormActions layout="single">
         <button className="button primary" type="button" onClick={reset}>
           Retry
         </button>

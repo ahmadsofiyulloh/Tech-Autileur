@@ -1,7 +1,8 @@
 "use client";
 
+import { HardDrive } from "lucide-react";
 import { FormActions } from "@/components/operator/form-actions";
-import { SectionCard } from "@/components/operator/section-card";
+import { EmptyState } from "@/components/operator/empty-state";
 
 export default function DriveError({
   error,
@@ -11,12 +12,13 @@ export default function DriveError({
   reset: () => void;
 }) {
   return (
-    <SectionCard title="Unable to load Drive." description={error.message}>
-      <FormActions>
+    <div className="stack">
+      <EmptyState icon={HardDrive} title="Unable to load Drive." description={error.message} />
+      <FormActions layout="single">
         <button className="button primary" type="button" onClick={reset}>
           Retry
         </button>
       </FormActions>
-    </SectionCard>
+    </div>
   );
 }

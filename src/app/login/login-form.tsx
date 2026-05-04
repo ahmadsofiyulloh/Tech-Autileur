@@ -47,11 +47,11 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
         </label>
       </div>
 
-      <div className="auth-actions">
+      <div className="auth-actions action-rail action-rail--pair">
         <button className="button primary" type="submit" name="intent" value="login" disabled={isPending}>
           {isPending ? "Working..." : "Sign in"}
         </button>
-        <button className="button auth-secondary-action" type="submit" name="intent" value="signup" disabled={isPending}>
+        <button className="button tertiary auth-secondary-action" type="submit" name="intent" value="signup" disabled={isPending}>
           {isPending ? "Working..." : "Create account"}
         </button>
       </div>

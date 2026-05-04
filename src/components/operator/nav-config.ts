@@ -48,7 +48,6 @@ export const routeTitles = [
   { href: "/products", label: "Produk", subtitle: "List per workspace.", icon: Package },
   { href: "/prompts", label: "Paket Prompt", subtitle: "Editor prompt.", icon: FileText },
   { href: "/settings", label: "Pengaturan", subtitle: "Hub konfigurasi.", icon: Settings },
-  { href: "/gemini", label: "Gemini", subtitle: "Form kunci API.", icon: KeyRound },
   { href: "/drive", label: "Drive", subtitle: "Folder aset.", icon: HardDrive },
   { href: "/intake", label: "Intake", subtitle: "Upload dan analisis.", icon: Inbox },
   { href: "/outputs", label: "Output", subtitle: "Arsip.", icon: Archive },

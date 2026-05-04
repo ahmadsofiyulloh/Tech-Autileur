@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { SectionCard } from "@/components/operator/section-card";
-import { StatusBadge } from "@/components/operator/status-badge";
-import { SettingsSectionNav } from "../settings-section-nav";
 import { AffiliateProfilesBoard } from "./affiliate-profiles-board";
 import {
   isAffiliateProfileSchemaMissingError,
@@ -63,45 +60,28 @@ export default async function AffiliateProfilesSettingsPage() {
 
   const workspaces = workspaceState?.workspaces ?? [];
   const currentWorkspace = workspaceState?.currentWorkspace ?? null;
-  const activeAffiliateProfiles = affiliateProfiles.filter((profile) => profile.status === "ACTIVE");
 
   return (
-    <div className="stack">
-      <SettingsSectionNav />
-
-      <SectionCard
-        icon={Users}
-        title="Akun Affiliate"
-        actions={
-          affiliateProfileSchemaMissing ? (
-            <StatusBadge status="Schema pending" tone="warning" />
-          ) : affiliateProfileLoadError ? (
-            <StatusBadge status="Load error" tone="danger" />
-          ) : (
-            <StatusBadge status={`${activeAffiliateProfiles.length} active`} tone="info" />
-          )
-        }
-      >
-        {affiliateProfileSchemaMissing ? (
-          <EmptyState icon={Users} title="Affiliate profile schema pending." description={affiliateProfileLoadError ?? "Apply the Sprint 13 migration first."} />
-        ) : affiliateProfileLoadError ? (
-          <EmptyState icon={Users} title="Affiliate profiles unavailable." description={affiliateProfileLoadError} />
-        ) : workspaceError ? (
-          <EmptyState icon={Users} title="Workspace schema pending." description={workspaceError} />
-        ) : !workspaces.length ? (
-          <EmptyState icon={Users} title="Buat workspace dulu." description="Workspace diperlukan." />
-        ) : driveItemsError ? (
-          <EmptyState icon={Users} title="Drive references unavailable." description={driveItemsError} />
-        ) : (
-          <AffiliateProfilesBoard
-            currentWorkspaceId={currentWorkspace?.id ?? null}
-            driveItems={driveItems}
-            profileLinks={affiliateProfileLinks}
-            profiles={affiliateProfiles}
-            workspaces={workspaces}
-          />
-        )}
-      </SectionCard>
+    <div className="stack settings-page-body">
+      {affiliateProfileSchemaMissing ? (
+        <EmptyState icon={Users} title="Affiliate profile schema pending." description={affiliateProfileLoadError ?? "Apply the Sprint 13 migration first."} />
+      ) : affiliateProfileLoadError ? (
+        <EmptyState icon={Users} title="Affiliate profiles unavailable." description={affiliateProfileLoadError} />
+      ) : workspaceError ? (
+        <EmptyState icon={Users} title="Workspace schema pending." description={workspaceError} />
+      ) : !workspaces.length ? (
+        <EmptyState icon={Users} title="Buat workspace dulu." description="Workspace diperlukan." />
+      ) : driveItemsError ? (
+        <EmptyState icon={Users} title="Drive references unavailable." description={driveItemsError} />
+      ) : (
+        <AffiliateProfilesBoard
+          currentWorkspaceId={currentWorkspace?.id ?? null}
+          driveItems={driveItems}
+          profileLinks={affiliateProfileLinks}
+          profiles={affiliateProfiles}
+          workspaces={workspaces}
+        />
+      )}
     </div>
   );
 }

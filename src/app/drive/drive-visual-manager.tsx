@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, ExternalLink, File, FileText, Folder, Image as ImageIcon, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { Check, ExternalLink, File, FileText, Folder, Image as ImageIcon, Search, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { EmptyState } from "@/components/operator/empty-state";
+import { OperatorBottomSheet } from "@/components/operator/bottom-sheet";
 import { StatusBadge } from "@/components/operator/status-badge";
 
 export type DriveVisualItem = {
@@ -34,6 +36,19 @@ function formatSize(sizeBytes: number | null) {
   }
 
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function matchesQuery(item: DriveVisualItem, query: string) {
+  const value = query.trim().toLowerCase();
+
+  if (!value) {
+    return true;
+  }
+
+  return [item.name, item.drive_path, item.item_type, item.purpose, item.status, item.mime_type ?? ""]
+    .join(" ")
+    .toLowerCase()
+    .includes(value);
 }
 
 function DriveIcon({ item }: { item: DriveVisualItem }) {
@@ -114,12 +129,14 @@ function DriveTile({
       <span className="drive-tile__thumb">
         {isImageLike(item) ? <img alt="" src={item.drive_url} /> : <DriveIcon item={item} />}
       </span>
-      <span className="stack-tight">
-        <strong>{item.name}</strong>
-        <span className="text-caption">{formatSize(item.size_bytes)}</span>
-      </span>
-      <span className="visual-chip-row">
-        <StatusBadge status={item.status} />
+      <span className="drive-tile__header">
+        <span className="drive-tile__copy">
+          <strong title={item.name}>{item.name}</strong>
+          <span className="text-caption">{formatSize(item.size_bytes)}</span>
+        </span>
+        <span className="drive-tile__status">
+          <StatusBadge status={item.status} />
+        </span>
       </span>
     </button>
   );
@@ -127,55 +144,51 @@ function DriveTile({
 
 function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: () => void }) {
   return (
-    <>
-      <button className="drive-sheet-backdrop" type="button" aria-label="Tutup preview" onClick={onClose} />
-      <aside className="drive-bottom-sheet" aria-label="Preview Drive">
-        <span className="drive-bottom-sheet__handle" aria-hidden="true" />
-        <div className="section-card__actions">
-          <div className="stack-tight">
-            <strong>{item.name}</strong>
-            <span className="subtle">{item.drive_path}</span>
-          </div>
-          <button className="button compact" type="button" aria-label="Tutup" onClick={onClose}>
-            <X size={16} aria-hidden="true" />
-          </button>
+    <OperatorBottomSheet
+      ariaLabel="Preview Drive"
+      open={Boolean(item)}
+      subtitle={item.drive_path}
+      title={item.name}
+      onClose={onClose}
+    >
+      <div className="drive-tile__thumb">
+        {isImageLike(item) ? <img alt={item.name} src={item.drive_url} /> : <DriveIcon item={item} />}
+      </div>
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Status</span>
+          <strong>
+            <StatusBadge status={item.status} />
+          </strong>
         </div>
-        <div className="drive-tile__thumb">
-          {isImageLike(item) ? <img alt={item.name} src={item.drive_url} /> : <DriveIcon item={item} />}
+        <div className="metric">
+          <span>Purpose</span>
+          <strong>{item.purpose}</strong>
         </div>
-        <div className="metric-grid">
-          <div className="metric">
-            <span>Status</span>
-            <strong>
-              <StatusBadge status={item.status} />
-            </strong>
-          </div>
-          <div className="metric">
-            <span>Purpose</span>
-            <strong>{item.purpose}</strong>
-          </div>
-          <div className="metric">
-            <span>Type</span>
-            <strong>{item.item_type}</strong>
-          </div>
-          <div className="metric">
-            <span>Size</span>
-            <strong>{formatSize(item.size_bytes)}</strong>
-          </div>
+        <div className="metric">
+          <span>Type</span>
+          <strong>{item.item_type}</strong>
         </div>
-        <a className="button primary" href={item.drive_url} target="_blank" rel="noreferrer">
-          <ExternalLink size={16} aria-hidden="true" />
-          Open link
-        </a>
-      </aside>
-    </>
+        <div className="metric">
+          <span>Size</span>
+          <strong>{formatSize(item.size_bytes)}</strong>
+        </div>
+      </div>
+      <a className="button primary" href={item.drive_url} target="_blank" rel="noreferrer">
+        <ExternalLink size={16} aria-hidden="true" />
+        Open link
+      </a>
+    </OperatorBottomSheet>
   );
 }
 
 export function DriveVisualManager({ items }: DriveVisualManagerProps) {
+  const [query, setQuery] = useState("");
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const filteredItems = useMemo(() => items.filter((item) => matchesQuery(item, query)), [items, query]);
   const previewItem = items.find((item) => item.id === previewItemId) ?? null;
+  const resultsLabel = query.trim() ? `${filteredItems.length} dari ${items.length} item` : `${items.length} item`;
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => {
@@ -193,6 +206,29 @@ export function DriveVisualManager({ items }: DriveVisualManagerProps) {
 
   return (
     <section className="stack">
+      <div className="settings-list-toolbar">
+        <label className="product-search" htmlFor="drive-search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            id="drive-search"
+            name="drive-search"
+            placeholder="Cari Drive"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="settings-inline-summary">
+        <span>{resultsLabel}</span>
+        {query ? (
+          <button className="button compact" type="button" onClick={() => setQuery("")}>
+            <X size={15} aria-hidden="true" />
+            Reset
+          </button>
+        ) : null}
+      </div>
+
       {selectedIds.size ? (
         <div className="muted-box section-card__actions">
           <strong>{selectedIds.size} dipilih</strong>
@@ -201,17 +237,34 @@ export function DriveVisualManager({ items }: DriveVisualManagerProps) {
           </button>
         </div>
       ) : null}
-      <div className="drive-visual-grid">
-        {items.map((item) => (
-          <DriveTile
-            item={item}
-            key={item.id}
-            selected={selectedIds.has(item.id)}
-            onOpen={() => setPreviewItemId(item.id)}
-            onToggleSelected={() => toggleSelected(item.id)}
-          />
-        ))}
-      </div>
+
+      {filteredItems.length ? (
+        <div className="drive-visual-grid">
+          {filteredItems.map((item) => (
+            <DriveTile
+              item={item}
+              key={item.id}
+              selected={selectedIds.has(item.id)}
+              onOpen={() => setPreviewItemId(item.id)}
+              onToggleSelected={() => toggleSelected(item.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Folder}
+          title={items.length ? "Tidak ada item yang cocok." : "Belum ada item Drive."}
+          description={items.length ? "Coba kata kunci lain." : "Sinkronkan folder Drive dulu."}
+          action={
+            query ? (
+              <button className="button compact primary" type="button" onClick={() => setQuery("")}>
+                Reset pencarian
+              </button>
+            ) : null
+          }
+        />
+      )}
+
       {previewItem ? <DrivePreviewSheet item={previewItem} onClose={() => setPreviewItemId(null)} /> : null}
     </section>
   );

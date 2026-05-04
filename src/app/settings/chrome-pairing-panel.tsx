@@ -52,15 +52,15 @@ export function ChromePairingPanel({ ownerEmail }: { ownerEmail: string | null }
         <strong>Chrome pairing</strong>
         {payload ? <pre className="json-block">{payloadJson}</pre> : <div className="muted-box">Belum paired.</div>}
       </div>
-      <FormActions>
-        <button className="button compact" type="button" onClick={handleCreate}>
+      <FormActions layout={payload ? "quad" : "triple"}>
+        <button className="button compact primary" type="button" onClick={handleCreate}>
           Buat
         </button>
-        {payload ? <CopyButton text={payloadJson} label="Salin" /> : null}
-        <button className="button compact" type="button" onClick={handleDownload} disabled={!payload}>
+        {payload ? <CopyButton className="tertiary" text={payloadJson} label="Salin" /> : null}
+        <button className="button compact tertiary" type="button" onClick={handleDownload} disabled={!payload}>
           Unduh JSON
         </button>
-        <button className="button compact" type="button" onClick={handleRelease} disabled={!payload}>
+        <button className="button compact destructive" type="button" onClick={handleRelease} disabled={!payload}>
           Lepas Pairing
         </button>
       </FormActions>

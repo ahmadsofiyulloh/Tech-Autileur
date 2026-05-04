@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { ChevronRight, FolderKanban, HardDrive, KeyRound, Settings, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
+import { ChevronRight, FolderKanban, HardDrive, KeyRound, Settings, UserRound, Users, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { StatusBadge } from "@/components/operator/status-badge";
 import {
@@ -116,21 +116,22 @@ export default async function SettingsPage() {
   const cards: SettingsCard[] = [
     { href: "/settings/account", title: "Account", icon: UserRound, status: accountStatus, detail: user.email ?? "Signed in." },
     { href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
-    { href: "/settings/affiliate-profiles", title: "Manage Profiles", icon: Users, status: affiliateCount, detail: affiliateDetail },
+    { href: "/settings/affiliate-profiles", title: "Akun Affiliate", icon: Users, status: affiliateCount, detail: affiliateDetail },
     { href: "/settings/drive", title: "Google Drive", icon: HardDrive, status: driveCount, detail: driveDetail },
     { href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
-    { href: "/settings", title: "Supabase", icon: Zap, status: <StatusBadge status="Connected" tone="success" />, detail: "Auth aktif." },
   ];
-  const accountCards = cards.filter((card) => card.href === "/settings/account" || card.href === "/settings/workspace");
+  const accountCards = cards.filter((card) => card.href === "/settings/account");
+  const workspaceCards = cards.filter((card) => card.href === "/settings/workspace");
   const profileCards = cards.filter((card) => card.href === "/settings/affiliate-profiles");
-  const serviceCards = cards.filter((card) => card.href === "/settings/drive" || card.href === "/settings/gemini" || card.title === "Supabase");
+  const serviceCards = cards.filter((card) => card.href === "/settings/drive" || card.href === "/settings/gemini");
 
   return (
     <div className="stack">
       {cards.length ? (
         <section className="settings-native-list">
           <SettingsGroup title="Account" cards={accountCards} />
-          <SettingsGroup title="Affiliate Profiles" cards={profileCards} />
+          <SettingsGroup title="Workspace" cards={workspaceCards} />
+          <SettingsGroup title="Akun Affiliate" cards={profileCards} />
           <SettingsGroup title="Connected Services" cards={serviceCards} />
         </section>
       ) : (

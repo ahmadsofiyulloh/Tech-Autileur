@@ -13,7 +13,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type ProductsPageProps = {
-  searchParams: Promise<{ workspace?: string | string[] }>;
+  searchParams: Promise<{ affiliate_profile_id?: string | string[]; workspace?: string | string[] }>;
 };
 
 function fieldValue(value: string | number | null | undefined) {
@@ -56,6 +56,27 @@ function metadataText(record: unknown, key: string, fallbackKey?: string) {
   return readJsonText(record[key]) || (fallbackKey ? readJsonText(record[fallbackKey]) : "");
 }
 
+function hasGeminiReviewMetadata(session: { parsed_metadata_json: unknown; reviewed_metadata_json: unknown }) {
+  return Boolean(session.reviewed_metadata_json || session.parsed_metadata_json);
+}
+
+function productReviewHref(params: { affiliateProfileId: string | null; intakeId: string; showAllWorkspaces: boolean }) {
+  const searchParams = new URLSearchParams({
+    intake_id: params.intakeId,
+    step: "prompt",
+  });
+
+  if (params.showAllWorkspaces) {
+    searchParams.set("workspace", "all");
+  }
+
+  if (params.affiliateProfileId) {
+    searchParams.set("affiliate_profile_id", params.affiliateProfileId);
+  }
+
+  return `/products/new?${searchParams.toString()}`;
+}
+
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -67,6 +88,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   }
 
   const query = await searchParams;
+  const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id) ?? null;
   const showAllWorkspaces = firstParam(query.workspace) === "all";
   let products;
   let currentWorkspace;
@@ -103,20 +125,32 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
-  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
   const latestIntakeByProductId = new Map<string, (typeof intakeSessions)[number]>();
+  const latestReviewIntakeByProductId = new Map<string, (typeof intakeSessions)[number]>();
 
   for (const session of intakeSessions) {
-    if (!session.product_id || latestIntakeByProductId.has(session.product_id)) {
+    if (!session.product_id) {
       continue;
     }
 
-    latestIntakeByProductId.set(session.product_id, session);
+    if (!latestIntakeByProductId.has(session.product_id)) {
+      latestIntakeByProductId.set(session.product_id, session);
+    }
+
+    if (hasGeminiReviewMetadata(session) && !latestReviewIntakeByProductId.has(session.product_id)) {
+      latestReviewIntakeByProductId.set(session.product_id, session);
+    }
   }
 
   const productRows: ProductListRow[] = products.map((product) => {
     const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
-    const metadata = latestIntake?.reviewed_metadata_json ?? latestIntake?.parsed_metadata_json ?? null;
+    const latestReviewIntake = latestReviewIntakeByProductId.get(product.id) ?? null;
+    const metadata =
+      latestReviewIntake?.reviewed_metadata_json ??
+      latestReviewIntake?.parsed_metadata_json ??
+      latestIntake?.reviewed_metadata_json ??
+      latestIntake?.parsed_metadata_json ??
+      null;
     const keyword = metadataText(metadata, "keyword_cari_etalase", "category") || fieldValue(product.niche);
     const primaryImage =
       productImages.find((image) => image.product_id === product.id && image.is_primary) ??
@@ -135,44 +169,30 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       created_at_label: formatDate(product.created_at),
       thumbnail_url: primaryDriveItem?.mime_type?.startsWith("image/") ? primaryDriveItem.drive_url : null,
       href: `/products/${product.id}`,
+      review_href: latestReviewIntake
+        ? productReviewHref({
+            affiliateProfileId: requestedAffiliateProfileId,
+            intakeId: latestReviewIntake.id,
+            showAllWorkspaces,
+          })
+        : null,
     };
   });
 
   return (
     <div className="stack">
-      <div className="surface-toolbar">
-        <span className="surface-context">Lingkup: {scopeLabel}</span>
-        <div className="surface-toolbar__actions">
-          {currentWorkspace ? (
-            <Link className="button compact" href={showAllWorkspaces ? "/products" : "/products?workspace=all"}>
-              {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
-            </Link>
-          ) : null}
-          <Link className="button compact primary" href="/products/new">
-            <Plus size={16} aria-hidden="true" />
-            Intake baru
-          </Link>
-        </div>
-      </div>
-
       {products.length ? (
         <ProductList products={productRows} />
       ) : (
         <EmptyState
           icon={Package}
           title={currentWorkspace && !showAllWorkspaces ? "Belum ada produk di workspace ini." : "Belum ada produk."}
-          description={currentWorkspace && !showAllWorkspaces ? "Cek semua workspace." : "Mulai dari intake."}
+          description="Mulai dari intake."
           action={
-            currentWorkspace && !showAllWorkspaces ? (
-              <Link className="button" href="/products?workspace=all">
-                Semua workspace
-              </Link>
-            ) : (
-              <Link className="button primary" href="/products/new">
-                <Plus size={16} aria-hidden="true" />
-                Intake baru
-              </Link>
-            )
+            <Link className="button primary" href="/products/new">
+              <Plus size={16} aria-hidden="true" />
+              Intake baru
+            </Link>
           }
         />
       )}

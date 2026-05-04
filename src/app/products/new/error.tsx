@@ -12,7 +12,7 @@ export default function NewProductError({
 }) {
   return (
     <SectionCard title="Intake produk tidak bisa dimuat." description={error.message}>
-      <FormActions>
+      <FormActions layout="single">
         <button className="button primary" type="button" onClick={reset}>
           Coba lagi
         </button>

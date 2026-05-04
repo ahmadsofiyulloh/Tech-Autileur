@@ -20,7 +20,7 @@ function readText(formData: FormData, key: string) {
 }
 
 function fail(message: string): never {
-  redirect(`/gemini?error=${encodeURIComponent(message)}`);
+  redirect(`/settings/gemini?error=${encodeURIComponent(message)}`);
 }
 
 async function requireUser() {
@@ -144,8 +144,8 @@ export async function saveGeminiKey(formData: FormData) {
       fail(error.message);
     }
 
-    revalidatePath("/gemini");
-    redirect("/gemini?message=Gemini key disabled");
+    revalidatePath("/settings/gemini");
+    redirect("/settings/gemini?message=Gemini key disabled");
   }
 
   if (intent !== "create" && intent !== "update") {
@@ -213,8 +213,8 @@ export async function saveGeminiKey(formData: FormData) {
       fail(secretError.message);
     }
 
-    revalidatePath("/gemini");
-    redirect("/gemini?message=Gemini key created");
+    revalidatePath("/settings/gemini");
+    redirect("/settings/gemini?message=Gemini key created");
   }
 
   if (!id) {
@@ -288,6 +288,6 @@ export async function saveGeminiKey(formData: FormData) {
     fail(updateError.message);
   }
 
-  revalidatePath("/gemini");
-  redirect("/gemini?message=Gemini key updated");
+  revalidatePath("/settings/gemini");
+  redirect("/settings/gemini?message=Gemini key updated");
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Package, PanelRightOpen, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowRight, Edit3, Package, Plus, Search } from "lucide-react";
 import { StatusBadge } from "@/components/operator/status-badge";
 
 export type ProductListRow = {
@@ -17,6 +16,7 @@ export type ProductListRow = {
   created_at_label: string;
   thumbnail_url: string | null;
   href: string;
+  review_href: string | null;
 };
 
 type ProductListProps = {
@@ -47,60 +47,75 @@ function matchesQuery(product: ProductListRow, query: string) {
     .includes(value);
 }
 
-function statusProgress(status: string) {
-  const value = status.toUpperCase();
+type ProductFilter = "all" | "active" | "draft";
 
-  if (value.includes("READY") || value.includes("UPLOADED")) {
-    return "92%";
+const productFilters: Array<{ key: ProductFilter; label: string }> = [
+  { key: "all", label: "Semua" },
+  { key: "active", label: "Aktif" },
+  { key: "draft", label: "Draft" },
+];
+
+function matchesFilter(product: ProductListRow, filter: ProductFilter) {
+  const status = product.product_status.toUpperCase();
+
+  if (filter === "draft") {
+    return status === "DRAFT";
   }
 
-  if (value.includes("PROMPT")) {
-    return "72%";
+  if (filter === "active") {
+    return status !== "DRAFT" && status !== "ARCHIVED";
   }
 
-  if (value.includes("ANALYZED") || value.includes("REVIEW")) {
-    return "58%";
-  }
-
-  if (value.includes("IMAGE")) {
-    return "38%";
-  }
-
-  return "18%";
+  return true;
 }
 
 export function ProductList({ products }: ProductListProps) {
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(products[0]?.id ?? "");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const filteredProducts = useMemo(() => products.filter((product) => matchesQuery(product, query)), [products, query]);
-  const selectedProduct =
-    filteredProducts.find((product) => product.id === selectedId) ?? filteredProducts[0] ?? products.find((product) => product.id === selectedId) ?? null;
-
-  useEffect(() => {
-    if (!selectedProduct) {
-      setSelectedId(filteredProducts[0]?.id ?? products[0]?.id ?? "");
-    }
-  }, [filteredProducts, products, selectedProduct]);
-
-  function openDrawer(productId: string) {
-    setSelectedId(productId);
-    setDrawerOpen(true);
-  }
+  const [activeFilter, setActiveFilter] = useState<ProductFilter>("all");
+  const filteredProducts = useMemo(
+    () => products.filter((product) => matchesQuery(product, query) && matchesFilter(product, activeFilter)),
+    [activeFilter, products, query],
+  );
 
   return (
     <section className="product-master" aria-label="Daftar produk">
       <div className="product-master__list stack">
-        <label className="product-search" htmlFor="product-search">
-          <Search size={16} aria-hidden="true" />
-          <input
-            id="product-search"
-            name="product-search"
-            placeholder="Cari produk"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+        <div className="settings-list-toolbar product-list-toolbar">
+          <label className="product-search" htmlFor="product-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              id="product-search"
+              name="product-search"
+              placeholder="Cari produk"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="settings-inline-summary">
+          <span>{filteredProducts.length} produk</span>
+          <Link className="button compact primary" href="/products/new">
+            <Plus size={15} aria-hidden="true" />
+            Intake baru
+          </Link>
+        </div>
+
+        <div className="content-filter-tabs" role="tablist" aria-label="Filter produk">
+          {productFilters.map((filter) => (
+            <button
+              aria-selected={activeFilter === filter.key}
+              className="content-filter-tab"
+              data-active={activeFilter === filter.key ? "true" : undefined}
+              key={filter.key}
+              onClick={() => setActiveFilter(filter.key)}
+              role="tab"
+              type="button"
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
 
         <div className="table-wrap products-table-desktop">
           <table className="data-table product-table">
@@ -116,7 +131,7 @@ export function ProductList({ products }: ProductListProps) {
             </thead>
             <tbody>
               {filteredProducts.map((product) => (
-                <tr data-active={selectedProduct?.id === product.id ? "true" : undefined} key={product.id}>
+                <tr key={product.id}>
                   <td>
                     <div className="stack-tight">
                       <strong>{product.product_name}</strong>
@@ -133,14 +148,16 @@ export function ProductList({ products }: ProductListProps) {
                   <td>{product.created_at_label}</td>
                   <td>
                     <div className="product-row-actions">
-                      <button className="button compact" type="button" onClick={() => openDrawer(product.id)}>
-                        <PanelRightOpen size={15} aria-hidden="true" />
-                        Detail
-                      </button>
-                      <Link className="button compact primary" href={product.href}>
+                      <Link className="button compact" href={product.href}>
                         <ArrowRight size={15} aria-hidden="true" />
-                        Buka
+                        Detail
                       </Link>
+                      {product.review_href ? (
+                        <Link className="button compact primary" href={product.review_href}>
+                          <Edit3 size={15} aria-hidden="true" />
+                          Edit
+                        </Link>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -155,81 +172,42 @@ export function ProductList({ products }: ProductListProps) {
               <div className="visual-list-card__thumb" aria-hidden="true">
                 {product.thumbnail_url ? <img alt="" src={product.thumbnail_url} /> : <Package size={28} />}
               </div>
-              <div className="stack-tight">
-                <div className="stack-tight">
-                  <strong>{product.product_name}</strong>
-                  <span className="subtle">{fieldValue(product.keyword)}</span>
+              <div className="visual-list-card__body">
+                <div className="visual-list-card__header">
+                  <div className="visual-list-card__copy">
+                    <strong title={product.product_name}>{product.product_name}</strong>
+                    <span>{fieldValue(product.keyword)}</span>
+                    <small>{product.workspace_label}</small>
+                  </div>
+                  <div className="visual-list-card__status" aria-label="Status produk">
+                    <StatusBadge status={product.product_status} />
+                    {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
+                  </div>
                 </div>
-                <div className="visual-chip-row">
-                  <StatusBadge status={product.product_status} />
-                  {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
+                <div className="visual-list-card__footer">
+                  <span>{product.created_at_label}</span>
+                  {product.marketplace ? <span>{product.marketplace}</span> : null}
                 </div>
-                <span className="dashboard-status-row__bar" style={{ "--status-fill": statusProgress(product.product_status) } as CSSProperties} />
-                <div className="product-row-actions">
-                  <button className="button compact" type="button" onClick={() => openDrawer(product.id)}>
-                    <PanelRightOpen size={15} aria-hidden="true" />
-                    Detail
-                  </button>
-                  <Link className="button compact primary" href={product.href}>
+                <div
+                  className={`product-row-actions visual-list-card__actions action-rail action-rail--${product.review_href ? "pair" : "single"}`.trim()}
+                >
+                  <Link className="button compact tertiary" href={product.href}>
                     <ArrowRight size={15} aria-hidden="true" />
-                    Buka
+                    Detail
                   </Link>
+                  {product.review_href ? (
+                    <Link className="button compact primary" href={product.review_href}>
+                      <Edit3 size={15} aria-hidden="true" />
+                      Edit
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </article>
           ))}
+          {!filteredProducts.length ? <section className="muted-box">Tidak ada produk.</section> : null}
         </div>
       </div>
-
-      <div className="product-drawer-backdrop" data-open={drawerOpen ? "true" : "false"} onClick={() => setDrawerOpen(false)} />
-      <aside className="product-drawer stack" data-open={drawerOpen ? "true" : "false"} aria-label="Detail produk">
-        <div className="section-card__actions product-drawer__header">
-          <div className="stack-tight">
-            <span className="subtle">Detail</span>
-            <strong>{selectedProduct?.product_name ?? "Pilih produk"}</strong>
-          </div>
-          <button className="button compact product-drawer__close" type="button" onClick={() => setDrawerOpen(false)} aria-label="Tutup detail">
-            <X size={16} aria-hidden="true" />
-          </button>
-        </div>
-
-        {selectedProduct ? (
-          <>
-            <dl className="product-drawer__meta">
-              <div>
-                <dt>Workspace</dt>
-                <dd>{selectedProduct.workspace_label}</dd>
-              </div>
-              <div>
-                <dt>Marketplace</dt>
-                <dd>{fieldValue(selectedProduct.marketplace)}</dd>
-              </div>
-              <div>
-                <dt>Keyword</dt>
-                <dd>{fieldValue(selectedProduct.keyword)}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>
-                  <StatusBadge status={selectedProduct.product_status} />
-                </dd>
-              </div>
-              <div>
-                <dt>Intake</dt>
-                <dd>{selectedProduct.intake_status ? <StatusBadge status={selectedProduct.intake_status} tone="info" /> : "Belum ada"}</dd>
-              </div>
-              <div>
-                <dt>Dibuat</dt>
-                <dd>{selectedProduct.created_at_label}</dd>
-              </div>
-            </dl>
-            <Link className="button primary" href={selectedProduct.href}>
-              <ArrowRight size={16} aria-hidden="true" />
-              Buka detail
-            </Link>
-          </>
-        ) : null}
-      </aside>
     </section>
   );
 }

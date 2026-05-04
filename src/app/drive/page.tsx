@@ -2,8 +2,6 @@ import { redirect } from "next/navigation";
 import { HardDrive } from "lucide-react";
 import { DriveVisualManager } from "./drive-visual-manager";
 import { EmptyState } from "@/components/operator/empty-state";
-import { SectionCard } from "@/components/operator/section-card";
-import { StatusBadge } from "@/components/operator/status-badge";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -26,33 +24,29 @@ export default async function DrivePage() {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Drive tidak tersedia.";
     return (
-      <SectionCard icon={HardDrive} title="Drive tidak tersedia." description={message}>
-        <EmptyState icon={HardDrive} title="Drive tidak tersedia." description="Coba lagi." />
-      </SectionCard>
+      <div className="stack">
+        <EmptyState icon={HardDrive} title="Drive tidak tersedia." description={message} />
+      </div>
     );
   }
 
-  return (
+  return driveItems.length ? (
+    <DriveVisualManager
+      items={driveItems.map((item) => ({
+        id: item.id,
+        item_type: item.item_type,
+        name: item.name,
+        drive_url: item.drive_url,
+        drive_path: item.drive_path,
+        mime_type: item.mime_type,
+        purpose: item.purpose,
+        status: item.status,
+        size_bytes: item.size_bytes,
+      }))}
+    />
+  ) : (
     <div className="stack">
-      <SectionCard icon={HardDrive} title="Drive" actions={<StatusBadge status={`${driveItems.length} item`} tone="info" />}>
-        {driveItems.length ? (
-          <DriveVisualManager
-            items={driveItems.map((item) => ({
-              id: item.id,
-              item_type: item.item_type,
-              name: item.name,
-              drive_url: item.drive_url,
-              drive_path: item.drive_path,
-              mime_type: item.mime_type,
-              purpose: item.purpose,
-              status: item.status,
-              size_bytes: item.size_bytes,
-            }))}
-          />
-        ) : (
-          <EmptyState icon={HardDrive} title="Belum ada item Drive." description="Sinkronkan folder Drive dulu." />
-        )}
-      </SectionCard>
+      <EmptyState icon={HardDrive} title="Belum ada item Drive." description="Sinkronkan folder Drive dulu." />
     </div>
   );
 }

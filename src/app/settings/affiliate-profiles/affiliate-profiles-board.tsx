@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Plus, PanelRightOpen, Search, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
 import { FormActions } from "@/components/operator/form-actions";
+import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { saveAffiliateProfile } from "../actions";
@@ -74,26 +75,6 @@ function choiceOptions(values: readonly string[]) {
   }));
 }
 
-function driveItemSummary(item: DriveItemRecord | undefined) {
-  if (!item) {
-    return "Belum ada file.";
-  }
-
-  return [item.name, item.drive_path, item.status].filter(Boolean).join(" - ");
-}
-
-function assetRequirementText(locked: boolean, item: DriveItemRecord | undefined) {
-  if (locked && !item) {
-    return "Lock aktif. Upload file dulu agar prompt generation tidak diblok.";
-  }
-
-  if (item) {
-    return "Siap dipakai sebagai referensi prompt.";
-  }
-
-  return "Opsional untuk profile ini.";
-}
-
 export function AffiliateProfilesBoard({
   profiles,
   workspaces,
@@ -108,6 +89,7 @@ export function AffiliateProfilesBoard({
 
   const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE"), [workspaces]);
   const filteredProfiles = useMemo(() => profiles.filter((profile) => profileMatchesQuery(profile, query)), [profiles, query]);
+  const activeProfileCount = useMemo(() => profiles.filter((profile) => profile.status === "ACTIVE").length, [profiles]);
   const selectedProfile =
     isCreating
       ? null
@@ -185,6 +167,10 @@ export function AffiliateProfilesBoard({
     () => driveItems.find((item) => item.id === selectedProfile?.environment_drive_item_ref_id) ?? null,
     [driveItems, selectedProfile?.environment_drive_item_ref_id],
   );
+  const selectedSeedCharacterPreviewUrl =
+    selectedSeedCharacterDriveItem?.mime_type?.startsWith("image/") ? selectedSeedCharacterDriveItem.drive_url : null;
+  const selectedEnvironmentPreviewUrl =
+    selectedEnvironmentDriveItem?.mime_type?.startsWith("image/") ? selectedEnvironmentDriveItem.drive_url : null;
 
   const formKey = isCreating ? "create-profile" : selectedProfile?.id ?? "edit-profile";
   const initialProfile = selectedProfile ?? null;
@@ -192,9 +178,9 @@ export function AffiliateProfilesBoard({
   const environmentMissing = (initialProfile?.lock_environment ?? true) && !selectedEnvironmentDriveItem;
 
   return (
-    <section className="product-master" aria-label="Akun Affiliate">
+    <section className="product-master settings-manager settings-manager--affiliate" aria-label="Akun Affiliate">
       <div className="product-master__list stack">
-        <div className="section-card__actions">
+        <div className="settings-list-toolbar">
           <label className="product-search" htmlFor="affiliate-profile-search">
             <Search size={16} aria-hidden="true" />
             <input
@@ -205,6 +191,10 @@ export function AffiliateProfilesBoard({
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
+        </div>
+
+        <div className="settings-inline-summary">
+          <span>{activeProfileCount} profile aktif</span>
           <button className="button compact primary" type="button" onClick={openCreateDrawer}>
             <Plus size={15} aria-hidden="true" />
             Profile baru
@@ -234,8 +224,8 @@ export function AffiliateProfilesBoard({
                   </td>
                   <td>
                     <div className="product-status-stack">
-                      {profile.lock_seed_character ? <StatusBadge status="Character locked" tone="success" /> : <StatusBadge status="Character open" tone="neutral" />}
-                      {profile.lock_environment ? <StatusBadge status="Environment locked" tone="success" /> : <StatusBadge status="Environment open" tone="neutral" />}
+                      {profile.lock_seed_character ? <StatusBadge status="Character" tone="success" /> : <StatusBadge status="Character open" tone="neutral" />}
+                      {profile.lock_environment ? <StatusBadge status="Environment" tone="success" /> : <StatusBadge status="Environment open" tone="neutral" />}
                     </div>
                   </td>
                   <td>
@@ -258,30 +248,39 @@ export function AffiliateProfilesBoard({
 
         <div className="products-cards-mobile">
           {filteredProfiles.map((profile) => (
-            <article className="product-card" key={profile.id}>
-              <div className="section-card__actions">
-                <div className="stack-tight">
-                  <strong>{profile.profile_name}</strong>
+            <article className="product-card settings-list-card affiliate-profile-card" key={profile.id}>
+              <div className="affiliate-profile-card__main">
+                <span className="affiliate-profile-card__avatar" aria-hidden="true">
+                  <User size={20} />
+                </span>
+                <div className="affiliate-profile-card__copy">
+                  <div className="affiliate-profile-card__title-row">
+                    <strong>{profile.profile_name}</strong>
+                    <StatusBadge status={profile.status} />
+                  </div>
+                  <span className="subtle">{profile.workspace_ids.length ? `Workspace: ${profile.workspace_ids.length}` : "Workspace: belum ada"}</span>
+                  <div className="settings-check-row" aria-label="Asset lock">
+                    {profile.lock_seed_character ? (
+                      <span className="settings-check-badge">
+                        <CheckCircle2 size={13} aria-hidden="true" />
+                        Character
+                      </span>
+                    ) : (
+                      <span className="settings-check-badge settings-check-badge--muted">Character open</span>
+                    )}
+                    {profile.lock_environment ? (
+                      <span className="settings-check-badge">
+                        <CheckCircle2 size={13} aria-hidden="true" />
+                        Environment
+                      </span>
+                    ) : (
+                      <span className="settings-check-badge settings-check-badge--muted">Environment open</span>
+                    )}
+                  </div>
                 </div>
-                <StatusBadge status={profile.status} />
               </div>
-              <dl className="product-card__meta">
-                <div>
-                  <dt>Locks</dt>
-                  <dd>
-                    <div className="product-status-stack">
-                      {profile.lock_seed_character ? <StatusBadge status="Character locked" tone="success" /> : <StatusBadge status="Character open" tone="neutral" />}
-                      {profile.lock_environment ? <StatusBadge status="Environment locked" tone="success" /> : <StatusBadge status="Environment open" tone="neutral" />}
-                    </div>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Workspace</dt>
-                  <dd>{profile.workspace_ids.length ? profile.workspace_ids.length : "Belum ada"}</dd>
-                </div>
-              </dl>
-              <div className="product-row-actions">
-                <button className="button compact" type="button" onClick={() => openEditDrawer(profile.id)}>
+              <div className="product-row-actions settings-card-actions action-rail action-rail--pair">
+                <button className="button compact tertiary" type="button" onClick={() => openEditDrawer(profile.id)}>
                   <PanelRightOpen size={15} aria-hidden="true" />
                   Detail
                 </button>
@@ -308,6 +307,7 @@ export function AffiliateProfilesBoard({
 
       <div className="product-drawer-backdrop" data-open={drawerOpen ? "true" : "false"} onClick={closeDrawer} />
       <aside className="product-drawer stack" data-open={drawerOpen ? "true" : "false"} aria-label="Detail akun affiliate">
+        <div className="settings-bottom-sheet__handle" aria-hidden="true" />
         <div className="section-card__actions product-drawer__header">
           <div className="stack-tight">
             <span className="subtle">{isCreating ? "Profile baru" : "Detail"}</span>
@@ -418,50 +418,22 @@ export function AffiliateProfilesBoard({
                   />
                 </div>
                 <div className="grid two-up">
-                  <section className="asset-upload-card stack-tight">
-                    <div className="section-card__actions">
-                      <div className="stack-tight">
-                        <strong>Character</strong>
-                        <span className="subtle">Dipakai sebagai seed persona untuk i2i dan i2v.</span>
-                      </div>
-                      <StatusBadge status={initialProfile?.lock_seed_character ? "Locked" : "Open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
-                    </div>
-                    <div className="asset-upload-card__preview">
-                      <div className="asset-upload-card__empty">
-                        <strong>{selectedSeedCharacterDriveItem ? selectedSeedCharacterDriveItem.name : "Belum ada karakter"}</strong>
-                        <span>{driveItemSummary(selectedSeedCharacterDriveItem ?? undefined)}</span>
-                      </div>
-                    </div>
-                    {seedCharacterMissing ? (
-                      <div className="error-box status-box" role="alert">
-                        <span>{assetRequirementText(initialProfile?.lock_seed_character ?? true, selectedSeedCharacterDriveItem ?? undefined)}</span>
-                      </div>
-                    ) : (
-                      <p className="field-note">
-                        {assetRequirementText(initialProfile?.lock_seed_character ?? true, selectedSeedCharacterDriveItem ?? undefined)}
-                      </p>
-                    )}
-                    <label className="stack auth-field" htmlFor="seed-character-file">
-                      <span>Upload / replace character image</span>
-                      <input id="seed-character-file" name="seed_character_file" type="file" accept="image/*" />
-                    </label>
-                    <div className="auth-actions">
-                      {selectedSeedCharacterDriveItem?.drive_url ? (
-                        <a className="button compact" href={selectedSeedCharacterDriveItem.drive_url} rel="noreferrer" target="_blank">
-                          Buka file
-                        </a>
-                      ) : null}
-                      <label className="checkbox-row">
-                        <input id="clear-seed-character-ref" name="clear_seed_character_drive_item_ref_id" type="checkbox" value="true" />
-                        <span>Hapus referensi</span>
-                      </label>
-                    </div>
+                  <section className="stack-tight">
+                    <ImagePreviewUploadCard
+                      clearName="clear_seed_character_drive_item_ref_id"
+                      emptyTitle="Belum ada karakter"
+                      removedTitle="Referensi dihapus"
+                      label="Character"
+                      name="seed_character_file"
+                      previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
+                      previewUrl={selectedSeedCharacterPreviewUrl}
+                    />
                     <details className="stack-tight">
-                      <summary>Attach existing Drive item</summary>
+                      <summary>Referensi Drive</summary>
                       <RelationalPicker
                         allowClear
                         defaultValue={initialProfile?.seed_character_drive_item_ref_id}
-                        label="Character Drive reference"
+                        label="Referensi Character"
                         name="seed_character_drive_item_ref_id"
                         options={driveItemOptions}
                         placeholder="Gunakan karakter kosong."
@@ -470,50 +442,22 @@ export function AffiliateProfilesBoard({
                     </details>
                   </section>
 
-                  <section className="asset-upload-card stack-tight">
-                    <div className="section-card__actions">
-                      <div className="stack-tight">
-                        <strong>Environment</strong>
-                        <span className="subtle">Background-lock asset untuk i2i dan i2v.</span>
-                      </div>
-                      <StatusBadge status={initialProfile?.lock_environment ? "Locked" : "Open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
-                    </div>
-                    <div className="asset-upload-card__preview">
-                      <div className="asset-upload-card__empty">
-                        <strong>{selectedEnvironmentDriveItem ? selectedEnvironmentDriveItem.name : "Belum ada environment"}</strong>
-                        <span>{driveItemSummary(selectedEnvironmentDriveItem ?? undefined)}</span>
-                      </div>
-                    </div>
-                    {environmentMissing ? (
-                      <div className="error-box status-box" role="alert">
-                        <span>{assetRequirementText(initialProfile?.lock_environment ?? true, selectedEnvironmentDriveItem ?? undefined)}</span>
-                      </div>
-                    ) : (
-                      <p className="field-note">
-                        {assetRequirementText(initialProfile?.lock_environment ?? true, selectedEnvironmentDriveItem ?? undefined)}
-                      </p>
-                    )}
-                    <label className="stack auth-field" htmlFor="environment-file">
-                      <span>Upload / replace environment image</span>
-                      <input id="environment-file" name="environment_file" type="file" accept="image/*" />
-                    </label>
-                    <div className="auth-actions">
-                      {selectedEnvironmentDriveItem?.drive_url ? (
-                        <a className="button compact" href={selectedEnvironmentDriveItem.drive_url} rel="noreferrer" target="_blank">
-                          Buka file
-                        </a>
-                      ) : null}
-                      <label className="checkbox-row">
-                        <input id="clear-environment-ref" name="clear_environment_drive_item_ref_id" type="checkbox" value="true" />
-                        <span>Hapus referensi</span>
-                      </label>
-                    </div>
+                  <section className="stack-tight">
+                    <ImagePreviewUploadCard
+                      clearName="clear_environment_drive_item_ref_id"
+                      emptyTitle="Belum ada environment"
+                      removedTitle="Referensi dihapus"
+                      label="Environment"
+                      name="environment_file"
+                      previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
+                      previewUrl={selectedEnvironmentPreviewUrl}
+                    />
                     <details className="stack-tight">
-                      <summary>Attach existing Drive item</summary>
+                      <summary>Referensi Drive</summary>
                       <RelationalPicker
                         allowClear
                         defaultValue={initialProfile?.environment_drive_item_ref_id}
-                        label="Environment Drive reference"
+                        label="Referensi Environment"
                         name="environment_drive_item_ref_id"
                         options={driveItemOptions}
                         placeholder="Gunakan environment otomatis."
@@ -590,21 +534,23 @@ export function AffiliateProfilesBoard({
                 </div>
               </details>
 
-            <FormActions>
+            <FormActions layout="single">
               <button className="button primary" type="submit">
-                {isCreating ? "Create profile" : "Save profile"}
+                {isCreating ? "Buat profile" : "Simpan profile"}
               </button>
             </FormActions>
             </form>
             {!isCreating && initialProfile ? (
-              <form action={saveAffiliateProfile}>
-                <input type="hidden" name="intent" value="archive_affiliate_profile" />
-                <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
-                <input type="hidden" name="id" value={initialProfile.id} />
-                <button className="button compact" type="submit" disabled={initialProfile.status === "ARCHIVED"}>
-                  Archive
-                </button>
-              </form>
+              <FormActions layout="single">
+                <form action={saveAffiliateProfile}>
+                  <input type="hidden" name="intent" value="archive_affiliate_profile" />
+                  <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
+                  <input type="hidden" name="id" value={initialProfile.id} />
+                  <button className="button destructive" type="submit" disabled={initialProfile.status === "ARCHIVED"}>
+                    Arsipkan
+                  </button>
+                </form>
+              </FormActions>
             ) : null}
           </>
         ) : null}

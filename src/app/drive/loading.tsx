@@ -1,25 +1,23 @@
-import { SectionCard } from "@/components/operator/section-card";
-
 export default function DriveLoading() {
   return (
-    <SectionCard title="Drive">
-      <div className="stack" aria-busy="true">
-        <div className="skeleton short" />
+    <div className="stack" aria-busy="true">
+      <div className="settings-list-toolbar">
         <div className="skeleton long" />
-        <div className="skeleton medium" />
-        <div className="grid two-up">
-          <div className="muted-box stack">
-            <div className="skeleton long" />
-            <div className="skeleton medium" />
-            <div className="skeleton medium" />
-          </div>
-          <div className="muted-box stack">
-            <div className="skeleton long" />
-            <div className="skeleton medium" />
-            <div className="skeleton medium" />
-          </div>
-        </div>
       </div>
-    </SectionCard>
+      <div className="settings-inline-summary">
+        <div className="skeleton short" />
+      </div>
+      <div className="drive-visual-grid">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div className="drive-tile" key={index}>
+            <div className="skeleton" style={{ aspectRatio: "1 / 0.78", borderRadius: "8px" }} />
+            <div className="stack-tight">
+              <div className="skeleton medium" />
+              <div className="skeleton short" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

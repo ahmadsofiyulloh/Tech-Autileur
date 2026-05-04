@@ -12,8 +12,12 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(desktopSidebar).toContainText("Pengaturan");
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toBeVisible();
 
+    await page.goto("/settings");
+    await expect(page.locator('a.settings-native-row[href="/settings"]')).toHaveCount(0);
+
     await page.goto("/settings/account");
     await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
 
     const helperApiTokenSchemaWarning = page.getByText("App API Token unavailable.");
     if (await helperApiTokenSchemaWarning.isVisible()) {
@@ -40,6 +44,42 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(page.getByText("ACTIVE")).toBeVisible();
     await page.getByRole("button", { name: "Cabut token" }).click();
     await expect(page.getByText("DISABLED", { exact: true })).toBeVisible();
+
+    await page.goto("/settings/workspace");
+    await expect(page.getByRole("heading", { name: "Workspace", level: 1 })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
+    const workspaceSchemaWarning = page.getByText("Workspace schema pending.");
+    if (!(await workspaceSchemaWarning.isVisible())) {
+      await page.getByRole("button", { name: "Workspace baru" }).click();
+      await expect(page.getByRole("complementary", { name: "Detail workspace" })).toBeVisible();
+      await expect(page.locator('input[name="workspace_name"]')).toBeVisible();
+      await page.keyboard.press("Escape");
+    }
+
+    await page.goto("/settings/affiliate-profiles");
+    await expect(page.getByRole("heading", { name: "Akun Affiliate", level: 1 })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
+    const affiliateDetailButton = page.getByRole("button", { name: "Detail" });
+    if (await affiliateDetailButton.count()) {
+      await affiliateDetailButton.first().click();
+      await expect(page.locator(".image-preview-upload-card__frame")).toHaveCount(2);
+      await expect(page.getByText("Upload / replace character image")).toHaveCount(0);
+      await expect(page.getByText("Upload / replace environment image")).toHaveCount(0);
+      await expect(page.getByText("Hapus referensi")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+    }
+
+    await page.goto("/settings/gemini");
+    await expect(page.getByRole("heading", { name: /Gemini/i })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
+
+    await page.goto("/gemini");
+    await expect(page).toHaveURL(/\/settings\/gemini$/);
+
+    await page.goto("/settings/drive");
+    await expect(page.getByRole("heading", { name: "Drive", level: 1 })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Buka Drive" })).toBeVisible();
   } catch (error) {
     throw classifySmokeError("shell and settings", error);
   }

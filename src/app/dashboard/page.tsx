@@ -282,8 +282,10 @@ function ActionRailItem({
           <Icon size={22} />
         </span>
         <div className="dashboard-action-card__copy">
-          <strong>{title}</strong>
-          <ActionCountBadge metric={count} suffix={countSuffix} />
+          <div className="dashboard-action-card__title-row">
+            <strong>{title}</strong>
+            <ActionCountBadge metric={count} suffix={countSuffix} />
+          </div>
           <span>{description}</span>
         </div>
       </div>

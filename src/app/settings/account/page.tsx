@@ -5,7 +5,6 @@ import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { ChromePairingPanel } from "../chrome-pairing-panel";
 import { HelperApiTokenPanel } from "../helper-api-token-panel";
-import { SettingsSectionNav } from "../settings-section-nav";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError, type HelperApiTokenRecord } from "@/lib/server/helper-api-tokens";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -38,8 +37,6 @@ export default async function AccountSettingsPage() {
 
   return (
     <div className="stack">
-      <SettingsSectionNav />
-
       <SectionCard icon={UserRound} title="Account">
         <div className="stack">
           <ChromePairingPanel ownerEmail={user.email ?? null} />
@@ -51,9 +48,9 @@ export default async function AccountSettingsPage() {
             <HelperApiTokenPanel ownerEmail={user.email ?? null} currentToken={helperApiToken} />
           )}
         </div>
-        <FormActions>
+        <FormActions layout="single">
           <form action="/auth/signout" method="post">
-            <button className="button" type="submit">
+            <button className="button destructive" type="submit">
               <LogOut size={16} aria-hidden="true" />
               Sign out
             </button>
