@@ -40,6 +40,8 @@ type IntakeWorkflowFormProps = {
     id: string;
     profile_name: string;
     account_label: string | null;
+    avatarUrl: string | null;
+    niche: string | null;
     platform: string;
     status: string;
   }>;
@@ -121,6 +123,10 @@ function affiliateInitials(profileName: string) {
   return parts.map((part) => part[0]?.toUpperCase()).join("") || "A";
 }
 
+function affiliateNicheLabel(profile: IntakeWorkflowFormProps["affiliateProfiles"][number]) {
+  return profile.niche?.trim() || "Niche belum diisi";
+}
+
 function AffiliateProfileCarousel({
   profiles,
   selectedId,
@@ -151,13 +157,15 @@ function AffiliateProfileCarousel({
               onClick={() => onSelect(profile.id)}
             >
               <span className="profile-card__avatar" aria-hidden="true">
-                {affiliateInitials(profile.profile_name)}
+                {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <span>{affiliateInitials(profile.profile_name)}</span>}
               </span>
-              <span className="stack-tight">
+              <span className="profile-card__copy">
                 <strong>{profile.profile_name}</strong>
-                <span className="subtle">{profile.account_label || profile.platform}</span>
+                <span className="subtle">{affiliateNicheLabel(profile)}</span>
               </span>
-              <span className={`button compact ${selected ? "primary" : ""}`}>Pilih</span>
+              <span className={`button compact ${selected ? "primary" : ""}`}>
+                {selected ? "Aktif" : "Pilih"}
+              </span>
             </button>
           );
         })}
@@ -274,21 +282,6 @@ function AnalysisReadyPanel({
             <h3>Review metadata</h3>
           </div>
           <StatusBadge status={savedSession.status} tone={savedSession.status === "REVIEWED" ? "success" : "info"} />
-        </div>
-
-        <div className="metric-grid">
-          <div className="metric">
-            <span>Nama Produk</span>
-            <strong>{defaultNamaProduk || "Sudah dianalisis"}</strong>
-          </div>
-          <div className="metric">
-            <span>Keyword Cari Etalase</span>
-            <strong>{defaultKeyword || "Tersedia"}</strong>
-          </div>
-          <div className="metric">
-            <span>Workspace</span>
-            <strong>{workspaceName}</strong>
-          </div>
         </div>
 
         <div className="grid two-up">

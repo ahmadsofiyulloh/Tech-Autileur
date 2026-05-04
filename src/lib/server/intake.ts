@@ -932,6 +932,8 @@ async function uploadIntakeEvidenceToDrive(input: {
       drive_path: drivePath,
       mime_type: uploaded.mimeType,
       size_bytes: uploaded.sizeBytes,
+      checksum: uploaded.checksum,
+      drive_modified_at: uploaded.driveModifiedAt,
       purpose: upload.purpose,
       status: "ACTIVE",
       notes: upload.notes,

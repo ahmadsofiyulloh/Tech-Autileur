@@ -1105,6 +1105,10 @@ details {
   gap: var(--space-2);
 }
 
+.product-detail-collection {
+  margin-top: var(--space-3);
+}
+
 .metric {
   position: relative;
   overflow: hidden;
@@ -1566,10 +1570,20 @@ summary::marker {
 .timeline-item__body {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
 .timeline-item__body p {
   margin: 0;
+}
+
+.timeline-item__date {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-wrap {
@@ -3029,7 +3043,7 @@ details,
 
 .profile-carousel {
   display: grid;
-  grid-auto-columns: minmax(132px, 154px);
+  grid-auto-columns: minmax(228px, 252px);
   grid-auto-flow: column;
   gap: 12px;
   overflow-x: auto;
@@ -3040,15 +3054,16 @@ details,
 .profile-card {
   scroll-snap-align: start;
   display: grid;
-  justify-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
-  min-height: 172px;
+  align-items: center;
+  min-height: 74px;
   border: 1px solid var(--color-border-standard);
   border-radius: 8px;
   background: var(--color-surface-base);
-  padding: 14px 12px;
+  padding: 10px 12px;
   box-shadow: var(--shadow-soft);
-  text-align: center;
+  text-align: left;
 }
 
 .profile-card[data-active="true"] {
@@ -3058,14 +3073,34 @@ details,
 
 .profile-card__avatar {
   display: grid;
-  width: 64px;
-  height: 64px;
+  width: 46px;
+  height: 46px;
   place-items: center;
   border-radius: 999px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, var(--color-text-on-accent)), color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-base)) 48%, var(--color-surface-muted-strong));
   color: var(--color-primary);
   font-size: var(--type-card-size);
   font-weight: var(--type-card-weight);
+}
+
+.profile-card__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-card__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.profile-card__copy strong,
+.profile-card__copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .analysis-skeleton-card {
@@ -3331,6 +3366,63 @@ details,
   margin-top: 10px;
 }
 
+.prompt-history-list {
+  gap: 8px;
+}
+
+.list li.prompt-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.prompt-history-row__body {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.prompt-history-row__meta {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-history-row__note {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-weight);
+  line-height: var(--type-control-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-history-row__date {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-history-row__action {
+  min-width: 76px;
+  justify-self: end;
+}
+
+.prompt-history-row .error-box {
+  padding: 10px 12px;
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+
 .prompt-output-grid {
   display: grid;
   gap: 12px;
@@ -3340,6 +3432,7 @@ details,
   border: 1px solid var(--color-border-standard);
   border-radius: 8px;
   background: var(--color-surface-base);
+  padding: 0;
 }
 
 .prompt-output-section summary {
@@ -3486,6 +3579,50 @@ details,
   color: var(--color-text-on-accent);
 }
 
+.drive-summary-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drive-summary-actions .button {
+  min-width: 0;
+}
+
+.operator-bottom-sheet.operator-bottom-sheet--drive-file {
+  top: 80px;
+  right: 16px;
+  bottom: 16px;
+  left: auto;
+  width: min(430px, calc(100vw - 32px));
+  max-height: none;
+  align-content: start;
+}
+
+.operator-bottom-sheet--drive-file .operator-bottom-sheet__handle {
+  display: none;
+}
+
+.operator-bottom-sheet--drive-file .operator-bottom-sheet__body {
+  align-content: start;
+}
+
+.drive-file-mode-tabs {
+  margin: 0;
+}
+
+.drive-file-form {
+  gap: 12px;
+}
+
+.drive-file-form .button {
+  width: 100%;
+  justify-content: center;
+}
+
 .operator-bottom-sheet__backdrop {
   position: fixed;
   inset: 0;
@@ -3613,6 +3750,18 @@ details,
   color: var(--color-primary);
 }
 
+.settings-native-row__icon--asset {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+}
+
+.settings-native-row__icon--asset img,
+.settings-drive-connect-button img {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
 .settings-native-row__copy {
   display: grid;
   min-width: 0;
@@ -3624,6 +3773,88 @@ details,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.settings-affiliate-overview {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.settings-affiliate-overview__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-affiliate-overview__list {
+  display: grid;
+  gap: 0;
+}
+
+.settings-affiliate-profile-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border-standard);
+}
+
+.settings-affiliate-profile-card:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.settings-affiliate-profile-card:last-child {
+  padding-bottom: 0;
+}
+
+.settings-affiliate-profile-card__avatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-muted-strong);
+  color: var(--color-text-secondary);
+}
+
+.settings-affiliate-profile-card__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-affiliate-profile-card__avatar span {
+  font-size: var(--type-card-size);
+  font-weight: var(--type-card-weight);
+  line-height: var(--type-card-line);
+}
+
+.settings-affiliate-profile-card__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.settings-affiliate-profile-card__copy strong,
+.settings-affiliate-profile-card__copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-affiliate-profile-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  justify-self: end;
 }
 
 @media (max-width: 860px) {
@@ -3737,6 +3968,10 @@ details,
     max-width: 96px;
   }
 
+  .drive-summary-actions {
+    gap: 6px;
+  }
+
   .operator-bottom-sheet__backdrop {
     z-index: 100;
     background: var(--color-overlay-backdrop-strong);
@@ -3779,6 +4014,68 @@ details,
 
   .operator-bottom-sheet__body {
     gap: 10px;
+  }
+
+  .operator-bottom-sheet--drive-preview {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-surface-base);
+    padding: 0 14px calc(18px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+  }
+
+  .operator-bottom-sheet--drive-preview .operator-bottom-sheet__handle {
+    display: none;
+  }
+
+  .operator-bottom-sheet--drive-preview .operator-bottom-sheet__header {
+    margin: 0;
+    padding: max(12px, env(safe-area-inset-top)) 0 10px;
+  }
+
+  .operator-bottom-sheet--drive-preview .operator-bottom-sheet__body {
+    padding-top: 12px;
+  }
+
+  .operator-bottom-sheet--drive-preview .drive-tile__thumb {
+    min-height: min(52svh, 420px);
+  }
+
+  .operator-bottom-sheet--drive-preview .drive-tile__thumb img {
+    object-fit: contain;
+  }
+
+  .operator-bottom-sheet.operator-bottom-sheet--drive-file {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-surface-base);
+    padding: 0 14px calc(18px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+  }
+
+  .operator-bottom-sheet--drive-file .operator-bottom-sheet__header {
+    margin: 0;
+    padding: max(12px, env(safe-area-inset-top)) 0 10px;
+  }
+
+  .operator-bottom-sheet--drive-file .operator-bottom-sheet__body {
+    padding-top: 12px;
   }
 }
 
@@ -3979,39 +4276,41 @@ body {
   display: grid;
 }
 
-.profile-carousel {
-  grid-auto-columns: minmax(94px, 110px);
-  gap: 8px;
-  padding-bottom: 4px;
-}
+  .profile-carousel {
+    grid-auto-columns: minmax(220px, 248px);
+    gap: 8px;
+    padding-bottom: 4px;
+  }
 
-.profile-card {
-  min-height: 116px;
-  gap: 7px;
-  padding: 8px;
-}
+  .profile-card {
+    gap: 8px;
+    padding: 8px 10px;
+  }
 
-.profile-card__avatar {
-  width: 46px;
-  height: 46px;
-  font-size: var(--type-card-size);
-}
+  .profile-card__avatar {
+    width: 46px;
+    height: 46px;
+    font-size: var(--type-card-size);
+  }
 
-.profile-card strong {
-  font-size: var(--type-control-size);
-  line-height: var(--type-control-line);
-}
+  .profile-card__copy {
+    gap: 1px;
+  }
 
-.profile-card .subtle {
-  font-size: var(--type-control-sm-size);
-}
+  .profile-card strong {
+    font-size: var(--type-control-size);
+    line-height: var(--type-control-line);
+  }
 
-.profile-card .button {
-  width: 100%;
-  min-height: 28px;
-  justify-content: center;
-  padding: 0 8px;
-}
+  .profile-card .subtle {
+    font-size: var(--type-control-sm-size);
+  }
+
+  .profile-card .button {
+    min-height: 30px;
+    justify-content: center;
+    padding: 0 8px;
+  }
 
 .intake-workflow .form-actions {
   display: grid;
@@ -4156,6 +4455,21 @@ body {
   color: var(--color-text-secondary);
 }
 
+.affiliate-profile-card__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.affiliate-profile-list__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .affiliate-profile-card__copy {
   display: grid;
   min-width: 0;
@@ -4209,6 +4523,23 @@ body {
 @media (max-width: 860px) {
   .settings-page-body {
     gap: 0;
+  }
+
+  .settings-affiliate-overview {
+    padding: 10px;
+  }
+
+  .settings-affiliate-overview__header {
+    align-items: center;
+  }
+
+  .settings-affiliate-profile-card__actions {
+    gap: 6px;
+  }
+
+  .settings-affiliate-profile-card .button {
+    min-height: 30px;
+    padding: 0.38rem 0.55rem;
   }
 
   .settings-list-toolbar {
@@ -4329,6 +4660,42 @@ body {
     padding: 0;
     background: var(--color-overlay-close-background);
     color: var(--color-overlay-close-foreground);
+  }
+
+  .settings-manager--workspace .product-drawer,
+  .settings-manager--affiliate .product-drawer {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-surface-base);
+    padding: 0 12px calc(18px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+    transform: translateX(100%);
+  }
+
+  .settings-manager--workspace .product-drawer[data-open="true"],
+  .settings-manager--workspace .product-drawer.stack[data-open="true"],
+  .settings-manager--affiliate .product-drawer[data-open="true"],
+  .settings-manager--affiliate .product-drawer.stack[data-open="true"] {
+    transform: translateX(0) !important;
+  }
+
+  .settings-manager--workspace .settings-bottom-sheet__handle,
+  .settings-manager--affiliate .settings-bottom-sheet__handle {
+    display: none;
+  }
+
+  .settings-manager--workspace .product-drawer__header,
+  .settings-manager--affiliate .product-drawer__header {
+    margin: 0 0 12px;
+    padding: max(12px, env(safe-area-inset-top)) 0 10px;
   }
 
   .settings-card-actions {

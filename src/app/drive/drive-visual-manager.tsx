@@ -1,13 +1,27 @@
 "use client";
 
-import { Check, ExternalLink, File, FileText, Folder, Image as ImageIcon, Search, X } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  File,
+  FileText,
+  Folder,
+  Image as ImageIcon,
+  Link2,
+  Plus,
+  Search,
+  Upload,
+  X,
+} from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { saveDriveItem } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { OperatorBottomSheet } from "@/components/operator/bottom-sheet";
 import { StatusBadge } from "@/components/operator/status-badge";
 
 export type DriveVisualItem = {
   id: string;
+  drive_item_id: string | null;
   item_type: string;
   name: string;
   drive_url: string;
@@ -16,11 +30,20 @@ export type DriveVisualItem = {
   purpose: string;
   status: string;
   size_bytes: number | null;
+  checksum: string | null;
+  drive_modified_at: string | null;
 };
 
 type DriveVisualManagerProps = {
   items: DriveVisualItem[];
+  uploadTarget: {
+    id: string;
+    name: string;
+    drive_path: string;
+  } | null;
 };
+
+type DriveFileFormMode = "upload" | "attach";
 
 function isImageLike(item: DriveVisualItem) {
   return item.mime_type?.startsWith("image/") || item.purpose === "SOURCE_IMAGE";
@@ -36,6 +59,23 @@ function formatSize(sizeBytes: number | null) {
   }
 
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "Belum tersinkron";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Belum tersinkron";
+  }
+
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function matchesQuery(item: DriveVisualItem, query: string) {
@@ -146,6 +186,7 @@ function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: 
   return (
     <OperatorBottomSheet
       ariaLabel="Preview Drive"
+      className="operator-bottom-sheet--drive-preview"
       open={Boolean(item)}
       subtitle={item.drive_path}
       title={item.name}
@@ -173,17 +214,117 @@ function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: 
           <span>Size</span>
           <strong>{formatSize(item.size_bytes)}</strong>
         </div>
+        <div className="metric">
+          <span>Modified</span>
+          <strong>{formatDate(item.drive_modified_at)}</strong>
+        </div>
       </div>
-      <a className="button primary" href={item.drive_url} target="_blank" rel="noreferrer">
-        <ExternalLink size={16} aria-hidden="true" />
-        Open link
-      </a>
+      {item.checksum ? <p className="text-caption">Checksum: {item.checksum}</p> : null}
+      <div className="form-actions form-actions--single">
+        <a className="button primary" href={item.drive_url} target="_blank" rel="noreferrer">
+          <ExternalLink size={16} aria-hidden="true" />
+          Buka link
+        </a>
+      </div>
     </OperatorBottomSheet>
   );
 }
 
-export function DriveVisualManager({ items }: DriveVisualManagerProps) {
+function DriveFileDrawer({
+  mode,
+  onClose,
+  onModeChange,
+  open,
+  uploadTarget,
+}: {
+  mode: DriveFileFormMode;
+  onClose: () => void;
+  onModeChange: (mode: DriveFileFormMode) => void;
+  open: boolean;
+  uploadTarget: DriveVisualManagerProps["uploadTarget"];
+}) {
+  const targetLabel = uploadTarget ? `${uploadTarget.name} - ${uploadTarget.drive_path}` : "Sinkronkan folder target dulu.";
+
+  return (
+    <OperatorBottomSheet
+      ariaLabel="Tambah file Drive"
+      className="operator-bottom-sheet--drive-file"
+      open={open}
+      subtitle={targetLabel}
+      title="Tambah file"
+      onClose={onClose}
+    >
+      <div className="content-filter-tabs drive-file-mode-tabs" role="tablist" aria-label="Mode tambah file">
+        <button
+          aria-selected={mode === "upload"}
+          className="content-filter-tab"
+          data-active={mode === "upload" ? "true" : undefined}
+          onClick={() => onModeChange("upload")}
+          role="tab"
+          type="button"
+        >
+          Unggah
+        </button>
+        <button
+          aria-selected={mode === "attach"}
+          className="content-filter-tab"
+          data-active={mode === "attach" ? "true" : undefined}
+          onClick={() => onModeChange("attach")}
+          role="tab"
+          type="button"
+        >
+          Tautkan
+        </button>
+      </div>
+
+      {mode === "upload" ? (
+        <form action={saveDriveItem} className="drive-file-form stack">
+          <input type="hidden" name="intent" value="upload_file" />
+          <input type="hidden" name="parent_id" value={uploadTarget?.id ?? ""} />
+          <input type="hidden" name="purpose" value="OTHER" />
+          <label className="stack auth-field" htmlFor="drive-upload-file">
+            <span>File</span>
+            <input id="drive-upload-file" name="upload_file" type="file" required disabled={!uploadTarget} />
+          </label>
+          <label className="stack auth-field" htmlFor="drive-upload-name">
+            <span>Nama opsional</span>
+            <input id="drive-upload-name" name="name" type="text" placeholder="Nama file" disabled={!uploadTarget} />
+          </label>
+          <button className="button primary" type="submit" disabled={!uploadTarget}>
+            <Upload size={16} aria-hidden="true" />
+            Unggah
+          </button>
+        </form>
+      ) : (
+        <form action={saveDriveItem} className="drive-file-form stack">
+          <input type="hidden" name="intent" value="attach_file" />
+          <input type="hidden" name="parent_id" value={uploadTarget?.id ?? ""} />
+          <input type="hidden" name="purpose" value="OTHER" />
+          <label className="stack auth-field" htmlFor="drive-attach-url">
+            <span>Tautan file</span>
+            <input
+              id="drive-attach-url"
+              name="drive_item_url"
+              type="text"
+              placeholder="https://drive.google.com/file/d/..."
+              required
+              disabled={!uploadTarget}
+            />
+          </label>
+          <button className="button primary" type="submit" disabled={!uploadTarget}>
+            <Link2 size={16} aria-hidden="true" />
+            Tautkan
+          </button>
+        </form>
+      )}
+    </OperatorBottomSheet>
+  );
+}
+
+export function DriveVisualManager({ items, uploadTarget }: DriveVisualManagerProps) {
   const [query, setQuery] = useState("");
+  const [fileDrawerOpen, setFileDrawerOpen] = useState(false);
+  const [fileFormMode, setFileFormMode] = useState<DriveFileFormMode>("upload");
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const filteredItems = useMemo(() => items.filter((item) => matchesQuery(item, query)), [items, query]);
@@ -204,6 +345,11 @@ export function DriveVisualManager({ items }: DriveVisualManagerProps) {
     });
   }
 
+  function openFileDrawer(mode: DriveFileFormMode = "upload") {
+    setFileFormMode(mode);
+    setFileDrawerOpen(true);
+  }
+
   return (
     <section className="stack">
       <div className="settings-list-toolbar">
@@ -221,19 +367,25 @@ export function DriveVisualManager({ items }: DriveVisualManagerProps) {
 
       <div className="settings-inline-summary">
         <span>{resultsLabel}</span>
-        {query ? (
-          <button className="button compact" type="button" onClick={() => setQuery("")}>
-            <X size={15} aria-hidden="true" />
-            Reset
+        <div className="drive-summary-actions">
+          {query ? (
+            <button className="button compact" type="button" onClick={() => setQuery("")}>
+              <X size={15} aria-hidden="true" />
+              Reset
+            </button>
+          ) : null}
+          <button className="button compact primary" type="button" onClick={() => openFileDrawer()} disabled={!uploadTarget}>
+            <Plus size={15} aria-hidden="true" />
+            Tambah file
           </button>
-        ) : null}
+        </div>
       </div>
 
       {selectedIds.size ? (
         <div className="muted-box section-card__actions">
           <strong>{selectedIds.size} dipilih</strong>
           <button className="button compact" type="button" onClick={() => setSelectedIds(new Set())}>
-            Clear
+            Bersihkan
           </button>
         </div>
       ) : null}
@@ -265,6 +417,13 @@ export function DriveVisualManager({ items }: DriveVisualManagerProps) {
         />
       )}
 
+      <DriveFileDrawer
+        mode={fileFormMode}
+        open={fileDrawerOpen}
+        uploadTarget={uploadTarget}
+        onClose={() => setFileDrawerOpen(false)}
+        onModeChange={setFileFormMode}
+      />
       {previewItem ? <DrivePreviewSheet item={previewItem} onClose={() => setPreviewItemId(null)} /> : null}
     </section>
   );

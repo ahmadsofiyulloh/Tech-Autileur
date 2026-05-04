@@ -11,6 +11,10 @@ import { AFFILIATE_PLATFORMS, AFFILIATE_PROFILE_STATUSES } from "@/lib/affiliate
 import { type AffiliateProfileRecord, type AffiliateProfileWorkspaceLinkRecord } from "@/lib/server/affiliate-profiles";
 import { type DriveItemRecord } from "@/lib/server/drive-items";
 
+type AffiliateProfileListRecord = AffiliateProfileRecord & {
+  avatarUrl: string | null;
+};
+
 type WorkspaceRecord = {
   id: string;
   workspace_code: string;
@@ -20,7 +24,7 @@ type WorkspaceRecord = {
 };
 
 type AffiliateProfilesBoardProps = {
-  profiles: AffiliateProfileRecord[];
+  profiles: AffiliateProfileListRecord[];
   workspaces: WorkspaceRecord[];
   driveItems: DriveItemRecord[];
   profileLinks: AffiliateProfileWorkspaceLinkRecord[];
@@ -215,8 +219,14 @@ export function AffiliateProfilesBoard({
               {filteredProfiles.map((profile) => (
                 <tr data-active={selectedProfile?.id === profile.id && !isCreating ? "true" : undefined} key={profile.id}>
                   <td>
-                    <div className="stack-tight">
-                      <strong>{profile.profile_name}</strong>
+                    <div className="affiliate-profile-list__identity">
+                      <span className="affiliate-profile-card__avatar" aria-hidden="true">
+                        {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <User size={20} />}
+                      </span>
+                      <div className="stack-tight">
+                        <strong>{profile.profile_name}</strong>
+                        <span className="subtle">{profile.niche?.trim() || "Niche belum diisi"}</span>
+                      </div>
                     </div>
                   </td>
                   <td>
@@ -251,14 +261,14 @@ export function AffiliateProfilesBoard({
             <article className="product-card settings-list-card affiliate-profile-card" key={profile.id}>
               <div className="affiliate-profile-card__main">
                 <span className="affiliate-profile-card__avatar" aria-hidden="true">
-                  <User size={20} />
+                  {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <User size={20} />}
                 </span>
                 <div className="affiliate-profile-card__copy">
                   <div className="affiliate-profile-card__title-row">
                     <strong>{profile.profile_name}</strong>
                     <StatusBadge status={profile.status} />
                   </div>
-                  <span className="subtle">{profile.workspace_ids.length ? `Workspace: ${profile.workspace_ids.length}` : "Workspace: belum ada"}</span>
+                  <span className="subtle">{profile.niche?.trim() || "Niche belum diisi"}</span>
                   <div className="settings-check-row" aria-label="Asset lock">
                     {profile.lock_seed_character ? (
                       <span className="settings-check-badge">

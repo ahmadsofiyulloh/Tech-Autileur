@@ -34,7 +34,7 @@ Core flow:
 4. Live Gemini analysis from uploaded image bytes.
 5. Metadata review.
 6. Produk list review.
-7. Paket Prompt preview/edit/regenerate and `Tandai Siap Flow`.
+7. Paket Prompt generated output, copy-ready fields, regenerate, and history.
 8. Drive visual grid/gallery review with bottom-sheet preview.
 9. Output package and history when available.
 10. Pengaturan hub through the topbar Settings gear, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.

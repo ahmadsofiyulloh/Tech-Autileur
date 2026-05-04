@@ -41,7 +41,6 @@ export const routeTitles = [
   { href: "/settings/affiliate-profiles", label: "Akun Affiliate", subtitle: "Persona dan aset workspace.", icon: Users },
   { href: "/settings/workspace", label: "Workspace", subtitle: "Ruang kerja aktif.", icon: FolderKanban },
   { href: "/settings/gemini", label: "Gemini", subtitle: "Kunci server.", icon: KeyRound },
-  { href: "/settings/drive", label: "Google Drive", subtitle: "Folder aset.", icon: HardDrive },
   { href: "/settings/account", label: "Account", subtitle: "Pairing dan token.", icon: UserRound },
   { href: "/products/new", label: "Intake", subtitle: "Upload dan analisis.", icon: Inbox },
   { href: "/dashboard", label: "Dashboard", subtitle: "Metrik operasional.", icon: LayoutDashboard },

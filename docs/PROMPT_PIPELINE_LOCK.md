@@ -1,7 +1,7 @@
-# Prompt Pipeline Lock - Intake -> Paket Prompt -> Flow Control
+# Prompt Pipeline Lock - Intake -> Paket Prompt -> Output
 
 ## Purpose
-This lock defines how uploaded product evidence becomes editable prompt packs. Prompt generation must follow user-owned Affiliate Profile rules and must not invent hardcoded prompt rules in UI/code.
+This lock defines how uploaded product evidence becomes generated prompt packs. Prompt generation must follow user-owned Affiliate Profile rules and must not invent hardcoded prompt rules in UI/code.
 
 ## Locked Flow
 
@@ -10,10 +10,8 @@ This lock defines how uploaded product evidence becomes editable prompt packs. P
 -> Analisis Gemini
 -> Metadata review
 -> Buat Prompt
--> Paket Prompt preview/edit
+-> Paket Prompt generated output
 -> Buat Ulang bila perlu
--> Tandai Siap Flow
--> Flow Control
 -> Output/history
 ```
 
@@ -80,7 +78,7 @@ Surface label:
 Paket Prompt
 ```
 
-Editable fields:
+Read-only generated output fields:
 
 ```text
 Prompt Clip 1
@@ -88,6 +86,11 @@ Prompt Clip 2
 Caption
 Tags
 Target Marketplace
+```
+
+Editable regeneration field:
+
+```text
 Instruksi Revisi
 ```
 
@@ -96,22 +99,23 @@ Actions:
 ```text
 Buat Prompt
 Buat Ulang
-Tandai Siap Flow
 ```
 
 Prompt set structure:
 
-- Desktop `/prompts` uses a left library and right editor layout.
-- Mobile `/prompts` shows the editor first and keeps the library collapsible.
-- Prompt Clip 1 and Prompt Clip 2 are separate clip panels.
-- Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as editable fields.
+- `/prompts` is a list/launcher surface.
+- `/prompts/[id]` is the prompt detail/editor surface.
+- `/prompts/[id]/history` is the prompt-only generation history surface, grouped by `prompt_code`.
+- Prompt Clip 1 and Prompt Clip 2 are separate collapsed clip panels that can expand.
+- Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready fields.
 - `I2I First Frame` and `I2I Last Frame` are the two frame anchors for the clip-specific image-to-image prompt path.
 - `I2V Prompt` is the motion-oriented text for the clip-specific image-to-video path.
-- Caption is shared across the prompt set.
-- Tags are stored and rendered as a hashtag string.
+- Caption is shared across the prompt set and is read-only copy-ready after generation.
+- Tags are stored and rendered as a hashtag string and are read-only copy-ready after generation.
 - Target Marketplace is a fixed read-only chip for `Shopee + TikTok`.
 - Instruksi Revisi is explicit input for regeneration only.
-- The selected version is what gets frozen for Flow readiness.
+- `GENERATED` is the Phase 1 final operator-facing prompt status.
+- `APPROVED`/controller readiness is retained for dormant Flow compatibility only and is not exposed as a Phase 1 prompt action.
 
 ## Required Prompt Persistence
 
@@ -168,12 +172,13 @@ Prompt generation must persist structured JSON with at least:
 - Prompt packs must be versioned.
 - Regeneration must preserve previous versions or history.
 - Review status must stay explicit.
-- `Tandai Siap Flow` moves the selected version into Flow Control readiness.
+- Generated prompt versions are final copy-ready outputs for Phase 1.
+- History must preserve the generate/regenerate notes for prompt versions with the same `prompt_code`.
 
 ## Flow Control Handoff
 
-- Flow Control is the execution workspace.
-- Ready prompt packs move into the global Flow account pool.
+- Flow Control is frozen in Phase 1.
+- Ready prompt packs moving into the global Flow account pool is retained backend compatibility, not a Phase 1 UI action.
 - Flow accounts are not owned by workspace.
 - Flow account management belongs to the retained `/controller` support panels, not Settings CRUD.
 - Account recommendation is based on availability, observed credit, and status.

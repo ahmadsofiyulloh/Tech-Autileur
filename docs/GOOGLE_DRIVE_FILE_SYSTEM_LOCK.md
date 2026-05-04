@@ -94,13 +94,12 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 
 ## Drive Settings UI Lock
 
-Settings > Drive is folder-centric and workspace-scoped.
+Google Drive connect/status lives in the `/settings` Connected Services row.
 
-- Desktop uses folder list/table + right side drawer.
-- Mobile uses folder cards + full-screen drawer or bottom sheet.
-- MVP management is folders only.
-- Visible fields are `name`, `path`, `URL`, and `status`.
-- Actions are Save, Open Folder, and Archive.
+- The row uses a local Drive asset icon and a `Connect` action when disconnected.
+- `/settings/drive` is a compatibility redirect only.
+- Drive folder provisioning remains under Settings > Workspace.
+- The primary Drive manager stays `/drive`.
 - Drive codes are internal and hidden from the primary UI.
 
 ## Windows Helper Upload Path

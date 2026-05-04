@@ -4,7 +4,7 @@ import { PROMPT_CLIP_KEYS } from "@/lib/prompts/validation";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import { listClipJobs, type ClipJobRecord } from "@/lib/server/clip-jobs";
 import { listContents, type ContentRecord } from "@/lib/server/contents";
-import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
+import { listDriveItems, writeGeneratedDriveFile, type DriveItemRecord } from "@/lib/server/drive-items";
 import { getFlowAccountById } from "@/lib/server/flow-accounts";
 import { getFlowBatchById, updateFlowBatch, type FlowBatchRecord } from "@/lib/server/flow-batches";
 import { getProductById } from "@/lib/server/products";
@@ -149,6 +149,19 @@ function outputFileName(input: { contentCode: string; batchCode: string; clipCod
   ].join("_") + ".mp4";
 }
 
+function manifestFileName() {
+  return "manifest.json";
+}
+
+function joinDrivePath(...segments: Array<string | null | undefined>) {
+  return `/${segments
+    .map((segment) => readText(segment))
+    .filter(Boolean)
+    .map((segment) => segment.replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/")}`;
+}
+
 function sortClipJobs(left: ClipJobRecord, right: ClipJobRecord) {
   return clipNumber(left.clip_code, 99) - clipNumber(right.clip_code, 99) || left.created_at.localeCompare(right.created_at);
 }
@@ -286,6 +299,38 @@ async function buildManifest(input: {
   } satisfies FlowBatchManifest;
 }
 
+async function persistManifestFileToDrive(input: {
+  batch: FlowBatchRecord;
+  manifest: FlowBatchManifest;
+  driveOutputFolderId: string;
+}) {
+  if (!input.driveOutputFolderId) {
+    return null;
+  }
+
+  const name = manifestFileName();
+  const drivePath = joinDrivePath(
+    "AffiliateAI",
+    "03_BATCHES",
+    input.batch.target_date,
+    input.batch.batch_code,
+    input.manifest.flow_account_code,
+    name,
+  );
+  const bytes = Buffer.from(JSON.stringify(input.manifest, null, 2), "utf8");
+
+  return await writeGeneratedDriveFile({
+    bytes,
+    description: `Flow manifest ${input.batch.batch_code}`,
+    drivePath,
+    mimeType: "application/json",
+    name,
+    notes: `Flow manifest ${input.batch.batch_code}`,
+    parentDriveFolderId: input.driveOutputFolderId,
+    purpose: "EXPORT_FILE",
+  });
+}
+
 export async function exportFlowBatchManifest(batchId: string, input: ExportFlowBatchManifestInput) {
   const batch = await getFlowBatchById(batchId);
 
@@ -310,6 +355,12 @@ export async function exportFlowBatchManifest(batchId: string, input: ExportFlow
     driveOutputFolderId,
     driveOutputFolderUrl,
     helperOutputFolderKey,
+  });
+
+  await persistManifestFileToDrive({
+    batch,
+    driveOutputFolderId,
+    manifest,
   });
 
   await updateFlowBatch(batch.id, {

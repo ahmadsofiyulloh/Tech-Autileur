@@ -31,7 +31,7 @@ In scope on mobile:
 - `/products/new` Intake as the primary entrypoint.
 - Produk list.
 - Gemini analysis trigger and metadata review.
-- Paket Prompt preview/edit/regenerate.
+- Paket Prompt generated output/regenerate/history.
 - Drive visual grid/gallery and bottom-sheet preview.
 - Output package review through product detail when available.
 - Pengaturan access through the topbar gear for workspace, affiliate profile, Gemini, Drive, and account basics.
@@ -69,18 +69,17 @@ Mobile intake must support:
 Mobile prompt must support:
 
 - prompt preview.
-- edit prompt fields.
-- clip-level `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` fields.
+- read-only copy-ready prompt fields.
+- collapsible clip-level `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` fields.
 - `Instruksi Revisi`.
 - `Buat Prompt`.
 - `Buat Ulang`.
-- `Tandai Siap Flow`.
 
-The user may prepare prompts on mobile, then continue Flow execution on desktop.
+The user may prepare and copy generated prompts on mobile. Flow execution remains a frozen desktop/backend compatibility concern in Phase 1.
 
 ## Mobile Settings Contract
 
-Mobile settings must keep `/settings` as the overview entrypoint, then open section routes or equivalent section screens for Workspace, Affiliate Profiles, Gemini, Drive, and Account.
+Mobile settings must keep `/settings` as the overview entrypoint, then open section routes or equivalent section screens for Workspace, Affiliate Profiles, Gemini, and Account. Google Drive connect/status lives in the Connected Services row on the overview, with `/settings/drive` retained only as a redirect.
 
 Mutable master lists use compact cards. Edit/create forms open as a full-screen drawer or bottom sheet. Mobile must not expose large desktop tables as the primary interaction.
 

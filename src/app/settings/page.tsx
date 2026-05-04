@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { ChevronRight, FolderKanban, HardDrive, KeyRound, Settings, UserRound, Users, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, ChevronRight, FolderKanban, KeyRound, Settings, UserRound, Users, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { setDefaultAffiliateProfile } from "./actions";
 import {
-  isAffiliateProfileSchemaMissingError,
+  getDefaultAffiliateProfileForWorkspace,
   listAffiliateProfiles,
+  type AffiliateProfileRecord,
 } from "@/lib/server/affiliate-profiles";
-import { listDriveItems } from "@/lib/server/drive-items";
+import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
+import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
+import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -20,30 +24,49 @@ function errorMessage(error: unknown) {
 }
 
 type SettingsCard = {
-  href: string;
+  key: string;
+  href?: string;
   title: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  iconSrc?: string;
   status: ReactNode;
   detail: string;
+  action?: ReactNode;
 };
 
 function SettingsRow({ card }: { card: SettingsCard }) {
   const Icon = card.icon;
+  const status = typeof card.status === "number" ? <StatusBadge status={`${card.status}`} tone="info" /> : card.status;
+  const icon = card.iconSrc ? (
+    <span className="settings-native-row__icon settings-native-row__icon--asset" aria-hidden="true">
+      <img alt="" src={card.iconSrc} />
+    </span>
+  ) : (
+    <span className="settings-native-row__icon" aria-hidden="true">
+      {Icon ? <Icon size={18} /> : null}
+    </span>
+  );
 
-  return (
-    <Link className="settings-native-row" href={card.href}>
-      <span className="settings-native-row__icon" aria-hidden="true">
-        <Icon size={18} />
-      </span>
+  const content = (
+    <>
+      {icon}
       <span className="settings-native-row__copy">
         <strong>{card.title}</strong>
         <span>{card.detail}</span>
       </span>
       <span className="section-card__actions">
-        {typeof card.status === "number" ? <StatusBadge status={`${card.status}`} tone="info" /> : card.status}
-        <ChevronRight size={18} aria-hidden="true" />
+        {status}
+        {card.action ?? (card.href ? <ChevronRight size={18} aria-hidden="true" /> : null)}
       </span>
+    </>
+  );
+
+  return card.href ? (
+    <Link className="settings-native-row" href={card.href}>
+      {content}
     </Link>
+  ) : (
+    <div className="settings-native-row settings-native-row--static">{content}</div>
   );
 }
 
@@ -53,8 +76,113 @@ function SettingsGroup({ title, cards }: { title: string; cards: SettingsCard[] 
       <h2>{title}</h2>
       <div className="settings-native-card">
         {cards.map((card) => (
-          <SettingsRow card={card} key={card.href} />
+          <SettingsRow card={card} key={card.key} />
         ))}
+      </div>
+    </section>
+  );
+}
+
+function affiliateInitials(profileName: string) {
+  const parts = profileName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "A";
+}
+
+function affiliateNicheLabel(profile: AffiliateProfileRecord) {
+  return profile.niche?.trim() || "Niche belum diisi";
+}
+
+function AffiliateProfileSwitchCard({
+  currentWorkspaceId,
+  currentProfileId,
+  profile,
+  avatarUrl,
+}: {
+  currentWorkspaceId: string;
+  currentProfileId: string | null;
+  profile: AffiliateProfileRecord;
+  avatarUrl: string | null;
+}) {
+  const isCurrent = currentProfileId === profile.id;
+
+  return (
+    <article className="settings-affiliate-profile-card" data-active={isCurrent ? "true" : undefined}>
+      <span className="settings-affiliate-profile-card__avatar" aria-hidden="true">
+        {avatarUrl ? <img alt="" src={avatarUrl} /> : <span>{affiliateInitials(profile.profile_name)}</span>}
+      </span>
+      <div className="settings-affiliate-profile-card__copy">
+        <strong>{profile.profile_name}</strong>
+        <span className="subtle">{affiliateNicheLabel(profile)}</span>
+      </div>
+      <div className="settings-affiliate-profile-card__actions">
+        <form action={setDefaultAffiliateProfile} className="settings-affiliate-profile-card__action">
+          <input type="hidden" name="return_to" value="/settings" />
+          <input type="hidden" name="workspace_id" value={currentWorkspaceId} />
+          <input type="hidden" name="affiliate_profile_id" value={profile.id} />
+          <button className="button compact tertiary" type="submit" disabled={isCurrent}>
+            <ArrowRightLeft size={15} aria-hidden="true" />
+            {isCurrent ? "Aktif" : "Pilih"}
+          </button>
+        </form>
+        <Link className="button compact tertiary" href="/settings/affiliate-profiles">
+          <ChevronRight size={15} aria-hidden="true" />
+          Kelola
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+async function AffiliateProfilesQuickSwitchSection({
+  currentAffiliateProfile,
+  currentWorkspaceId,
+  driveItemMap,
+  profiles,
+}: {
+  currentAffiliateProfile: AffiliateProfileRecord | null;
+  currentWorkspaceId: string | null;
+  driveItemMap: Map<string, DriveItemRecord>;
+  profiles: AffiliateProfileRecord[];
+}) {
+  const profileCards = await Promise.all(
+    profiles.map(async (profile) => ({
+      profile,
+      avatarUrl: await resolveAffiliateProfileAvatar(profile, driveItemMap),
+    })),
+  );
+
+  return (
+    <section className="settings-native-group">
+      <h2>Akun Affiliate</h2>
+      <div className="settings-native-card settings-affiliate-overview">
+        {currentWorkspaceId ? (
+          profileCards.length ? (
+            <div className="settings-affiliate-overview__list">
+              {profileCards.map(({ profile, avatarUrl }) => (
+                <AffiliateProfileSwitchCard
+                  currentProfileId={currentAffiliateProfile?.id ?? null}
+                  currentWorkspaceId={currentWorkspaceId}
+                  key={profile.id}
+                  profile={profile}
+                  avatarUrl={avatarUrl}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Users}
+              title="Belum ada profile aktif."
+              description="Profile yang terhubung ke workspace ini akan muncul di sini."
+            />
+          )
+        ) : (
+            <EmptyState icon={Users} title="Workspace aktif belum ada." description="Pilih workspace aktif dulu." />
+          )}
       </div>
     </section>
   );
@@ -72,15 +200,19 @@ export default async function SettingsPage() {
 
   let workspaceCount: number | ReactNode = 0;
   let workspaceDetail = "Belum ada workspace.";
-  let affiliateCount: number | ReactNode = 0;
-  let affiliateDetail = "Belum ada profil.";
-  let driveCount: number | ReactNode = 0;
+  let currentAffiliateProfile: AffiliateProfileRecord | null = null;
+  let affiliateProfiles: AffiliateProfileRecord[] = [];
   let driveDetail = "Belum ada folder.";
+  let driveItems: DriveItemRecord[] = [];
+  let driveStatus: ReactNode = <StatusBadge status="Belum terhubung" tone="warning" />;
+  let driveIsConnected = false;
   let accountStatus: ReactNode = <StatusBadge status="Ready" tone="success" />;
+  let workspaceId: string | null = null;
 
   try {
     const workspaceState = await getWorkspaceSelectionState();
     const workspaces = workspaceState.workspaces;
+    workspaceId = workspaceState.currentWorkspace?.id ?? null;
     workspaceCount = workspaces.length;
     workspaceDetail = workspaceState.currentWorkspace ? `Aktif: ${workspaceState.currentWorkspace.workspace_name}` : "Pilih workspace aktif.";
   } catch (error) {
@@ -89,22 +221,37 @@ export default async function SettingsPage() {
   }
 
   try {
-    const profiles = await listAffiliateProfiles({ limit: 200 });
-    affiliateCount = profiles.length;
-    affiliateDetail = `${profiles.filter((profile) => profile.status === "ACTIVE").length} aktif.`;
+    if (workspaceId) {
+      [affiliateProfiles, currentAffiliateProfile] = await Promise.all([
+        listAffiliateProfiles({ workspaceId, status: "ACTIVE", limit: 200 }),
+        getDefaultAffiliateProfileForWorkspace(workspaceId),
+      ]);
+    }
   } catch (error) {
-    affiliateCount = <StatusBadge status={isAffiliateProfileSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />;
-    affiliateDetail = errorMessage(error);
+    affiliateProfiles = [];
   }
 
   try {
-    const driveItems = await listDriveItems({ limit: 200 });
+    driveItems = await listDriveItems({ limit: 200 });
     const folders = driveItems.filter((item) => item.item_type === "FOLDER");
-    driveCount = folders.length;
-    driveDetail = `${driveItems.length} item Drive.`;
+    driveDetail = `${folders.length} folder, ${driveItems.length} item.`;
   } catch (error) {
-    driveCount = <StatusBadge status="Error" tone="danger" />;
     driveDetail = errorMessage(error);
+  }
+
+  try {
+    const driveConnection = await getGoogleDriveConnection();
+    driveIsConnected = driveConnection?.status === "CONNECTED";
+    driveStatus =
+      driveIsConnected ? (
+        <StatusBadge status="Connected" tone="success" />
+      ) : (
+        <StatusBadge status={driveConnection?.status ?? "Belum terhubung"} tone="warning" />
+      );
+  } catch (error) {
+    driveStatus = (
+      <StatusBadge status={isGoogleDriveConnectionSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />
+    );
   }
 
   try {
@@ -114,16 +261,27 @@ export default async function SettingsPage() {
   }
 
   const cards: SettingsCard[] = [
-    { href: "/settings/account", title: "Account", icon: UserRound, status: accountStatus, detail: user.email ?? "Signed in." },
-    { href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
-    { href: "/settings/affiliate-profiles", title: "Akun Affiliate", icon: Users, status: affiliateCount, detail: affiliateDetail },
-    { href: "/settings/drive", title: "Google Drive", icon: HardDrive, status: driveCount, detail: driveDetail },
-    { href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
+    { key: "account", href: "/settings/account", title: "Account", icon: UserRound, status: accountStatus, detail: user.email ?? "Signed in." },
+    { key: "workspace", href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
+    {
+      key: "google-drive",
+      title: "Google Drive",
+      iconSrc: "/google-drive.svg",
+      status: driveStatus,
+      detail: driveDetail,
+      action: driveIsConnected ? null : (
+        <a className="button compact primary settings-drive-connect-button" href="/api/google-drive/oauth/start">
+          <img alt="" src="/google-drive.svg" />
+          Connect
+        </a>
+      ),
+    },
+    { key: "gemini", href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
   ];
-  const accountCards = cards.filter((card) => card.href === "/settings/account");
-  const workspaceCards = cards.filter((card) => card.href === "/settings/workspace");
-  const profileCards = cards.filter((card) => card.href === "/settings/affiliate-profiles");
-  const serviceCards = cards.filter((card) => card.href === "/settings/drive" || card.href === "/settings/gemini");
+  const accountCards = cards.filter((card) => card.key === "account");
+  const workspaceCards = cards.filter((card) => card.key === "workspace");
+  const serviceCards = cards.filter((card) => card.key === "google-drive" || card.key === "gemini");
+  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
 
   return (
     <div className="stack">
@@ -131,7 +289,12 @@ export default async function SettingsPage() {
         <section className="settings-native-list">
           <SettingsGroup title="Account" cards={accountCards} />
           <SettingsGroup title="Workspace" cards={workspaceCards} />
-          <SettingsGroup title="Akun Affiliate" cards={profileCards} />
+          <AffiliateProfilesQuickSwitchSection
+            currentAffiliateProfile={currentAffiliateProfile}
+            currentWorkspaceId={workspaceId}
+            driveItemMap={driveItemMap}
+            profiles={affiliateProfiles}
+          />
           <SettingsGroup title="Connected Services" cards={serviceCards} />
         </section>
       ) : (

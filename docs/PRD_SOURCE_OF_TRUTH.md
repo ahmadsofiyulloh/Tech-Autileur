@@ -274,8 +274,8 @@ Settings section routes are locked:
 /settings/workspace
 /settings/affiliate-profiles
 /settings/gemini
-/settings/drive
 /settings/account
+/settings/drive -> compatibility redirect to /settings
 ```
 
 The Flow card may show frozen/dormant status during Phase 1. Flow Accounts remain controller-owned execution tools for Phase 2, not a separate settings CRUD surface.
@@ -294,6 +294,7 @@ Settings > Workspace:
 Settings > Affiliate Profiles:
 
 - list + drawer CRUD.
+- overview may show linked profile avatar thumbnails and a quick default switch for the active workspace.
 - visible base fields: profile name, platform/mode label, account label, affiliate URL, status.
 - workspace links are managed in the drawer and one link per workspace can be marked default.
 - `notes` is internal metadata only and must not be shown in forms.
@@ -314,14 +315,13 @@ Settings > Gemini:
 - Test, Copy Key, and Regenerate are out of scope for the MVP UI.
 - key code stays internal/hidden.
 
-Settings > Drive:
+Connected Services > Google Drive:
 
-- folder-centric list + drawer.
-- workspace-scoped.
-- folders only for Phase awal management.
-- visible fields: `name`, `path`, `URL`, `status`.
-- actions: Save, Open Folder, Archive.
-- drive code stays internal/hidden.
+- Google Drive connect/status lives in the `/settings` overview row.
+- `Connect` is shown only when disconnected.
+- the row uses a local Drive asset icon and stays non-navigating.
+- `/settings/drive` is a compatibility redirect only and does not expose a dedicated UI.
+- workspace Drive folder provisioning remains in Settings > Workspace.
 
 Primary `/drive` Phase 1 surface:
 

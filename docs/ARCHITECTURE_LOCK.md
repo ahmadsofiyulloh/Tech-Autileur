@@ -60,8 +60,8 @@ Locked settings routes:
 /settings/workspace
 /settings/affiliate-profiles
 /settings/gemini
-/settings/drive
 /settings/account
+/settings/drive -> compatibility redirect to /settings
 ```
 
 ## UI Copy Policy
@@ -220,9 +220,9 @@ Pengaturan is the configuration hub for:
 Settings detail grammar:
 
 - Workspace: list + drawer CRUD, hidden auto-generated code, name, niche picker, Drive root picker, default switch, archive.
-- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, and explicit workspace links/default selection.
+- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, explicit workspace links/default selection, and quick avatar-based default switching from the overview for the active workspace.
 - Gemini: multi-key list + drawer CRUD; no list/history UI.
-- Drive settings: folder-centric list + drawer, workspace-scoped, folders only.
+- Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.
 - Drive primary route: visual all-items grid/gallery with bottom-sheet preview.
 - Account: Chrome pairing, App API Token, and sign out.
 - Flow Accounts are controller-owned execution tools for Phase 2 and must not become a separate Settings CRUD surface.

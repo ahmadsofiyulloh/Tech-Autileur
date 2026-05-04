@@ -1,8 +1,15 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ensureGoogleDriveFolder } from "@/lib/server/google-drive";
-import { createDriveItem, getDriveItemByDriveItemId, updateDriveItem, type DriveItemRecord } from "@/lib/server/drive-items";
+import { ensureGoogleDriveFolder, getGoogleDriveFolderMetadata } from "@/lib/server/google-drive";
+import {
+  createDriveItem,
+  getDriveItemByDriveItemId,
+  getDriveItemByDrivePath,
+  getDriveItemById,
+  updateDriveItem,
+  type DriveItemRecord,
+} from "@/lib/server/drive-items";
 import {
   WORKSPACE_STATUSES,
   assertWorkspaceStatus,
@@ -62,6 +69,7 @@ export type WorkspaceShellState = {
 };
 
 type WorkspaceUpdateInput = Partial<WorkspaceInput>;
+type WorkspacePayload = Record<string, string | boolean | null>;
 
 function errorCode(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
@@ -219,6 +227,35 @@ function joinDrivePath(...segments: Array<string | null | undefined>) {
     .join("/")}`;
 }
 
+function standardWorkspaceRootPath(workspaceCode: string) {
+  return joinDrivePath("AffiliateAI", "02_WORKSPACES", workspaceCode, "ROOT_FOLDER");
+}
+
+function extractGoogleDriveFolderId(value: string | null | undefined) {
+  const text = readWorkspaceText(value);
+
+  if (!text) {
+    return null;
+  }
+
+  if (/^[A-Za-z0-9_-]{10,}$/.test(text) && !text.includes("/")) {
+    return text;
+  }
+
+  try {
+    const url = new URL(text);
+    const folderMatch = url.pathname.match(/\/folders\/([^/?#]+)/);
+
+    if (folderMatch?.[1]) {
+      return decodeURIComponent(folderMatch[1]).trim() || null;
+    }
+
+    return readWorkspaceText(url.searchParams.get("id"));
+  } catch {
+    return null;
+  }
+}
+
 async function ensureWorkspaceDriveItemRecord(input: {
   driveFolder: { id: string; name: string; webViewLink: string };
   drivePath: string;
@@ -226,7 +263,7 @@ async function ensureWorkspaceDriveItemRecord(input: {
   parent: DriveItemRecord | null;
   notes?: string | null;
 }) {
-  const existing = await getDriveItemByDriveItemId(input.driveFolder.id);
+  const existing = (await getDriveItemByDriveItemId(input.driveFolder.id)) ?? (await getDriveItemByDrivePath(input.drivePath));
 
   if (existing) {
     return await updateDriveItem(existing.id, {
@@ -254,6 +291,37 @@ async function ensureWorkspaceDriveItemRecord(input: {
     notes: input.notes ?? null,
     parent_id: input.parent?.id ?? null,
     parent_drive_item_id: input.parent?.drive_item_id ?? null,
+  });
+}
+
+async function ensureWorkspaceRootChildFolders(input: { workspace: WorkspaceRecord; rootFolderRecord: DriveItemRecord }) {
+  if (!input.rootFolderRecord.drive_item_id) {
+    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+  }
+
+  const productsFolder = await ensureGoogleDriveFolder({
+    name: "PRODUCTS",
+    parentFolderId: input.rootFolderRecord.drive_item_id,
+  });
+  const promptsFolder = await ensureGoogleDriveFolder({
+    name: "PROMPTS",
+    parentFolderId: input.rootFolderRecord.drive_item_id,
+  });
+
+  await ensureWorkspaceDriveItemRecord({
+    driveFolder: productsFolder,
+    drivePath: joinDrivePath(input.rootFolderRecord.drive_path, "PRODUCTS"),
+    purpose: "PRODUCT_FOLDER",
+    parent: input.rootFolderRecord,
+    notes: "Workspace products folder.",
+  });
+
+  await ensureWorkspaceDriveItemRecord({
+    driveFolder: promptsFolder,
+    drivePath: joinDrivePath(input.rootFolderRecord.drive_path, "PROMPTS"),
+    purpose: "OTHER",
+    parent: input.rootFolderRecord,
+    notes: "Workspace prompts folder.",
   });
 }
 
@@ -306,27 +374,28 @@ async function ensureWorkspaceDriveTree(workspace: WorkspaceRecord) {
 
   const rootFolderRecord = await ensureWorkspaceDriveItemRecord({
     driveFolder: rootFolder,
-    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code, "ROOT_FOLDER"),
+    drivePath: standardWorkspaceRootPath(workspace.workspace_code),
     purpose: "ROOT_FOLDER",
     parent: workspaceFolderRecord,
     notes: "Workspace root folder.",
   });
 
-  await ensureWorkspaceDriveItemRecord({
-    driveFolder: productsFolder,
-    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code, "ROOT_FOLDER", "PRODUCTS"),
-    purpose: "PRODUCT_FOLDER",
-    parent: rootFolderRecord,
-    notes: "Workspace products folder.",
-  });
-
-  await ensureWorkspaceDriveItemRecord({
-    driveFolder: promptsFolder,
-    drivePath: joinDrivePath("AffiliateAI", "02_WORKSPACES", workspace.workspace_code, "ROOT_FOLDER", "PROMPTS"),
-    purpose: "OTHER",
-    parent: rootFolderRecord,
-    notes: "Workspace prompts folder.",
-  });
+  await Promise.all([
+    ensureWorkspaceDriveItemRecord({
+      driveFolder: productsFolder,
+      drivePath: joinDrivePath(rootFolderRecord.drive_path, "PRODUCTS"),
+      purpose: "PRODUCT_FOLDER",
+      parent: rootFolderRecord,
+      notes: "Workspace products folder.",
+    }),
+    ensureWorkspaceDriveItemRecord({
+      driveFolder: promptsFolder,
+      drivePath: joinDrivePath(rootFolderRecord.drive_path, "PROMPTS"),
+      purpose: "OTHER",
+      parent: rootFolderRecord,
+      notes: "Workspace prompts folder.",
+    }),
+  ]);
 
   return {
     affiliateRootRecord,
@@ -334,6 +403,64 @@ async function ensureWorkspaceDriveTree(workspace: WorkspaceRecord) {
     workspaceFolderRecord,
     rootFolderRecord,
   };
+}
+
+async function syncWorkspaceDriveTarget(workspace: WorkspaceRecord) {
+  if (workspace.drive_root_folder_ref_id) {
+    const existingRootRecord = await getDriveItemById(workspace.drive_root_folder_ref_id);
+
+    if (!existingRootRecord) {
+      throw new Error("Folder Drive Utama tidak ditemukan.");
+    }
+
+    if (existingRootRecord.item_type !== "FOLDER") {
+      throw new Error("Folder Drive Utama harus berupa folder.");
+    }
+
+    if (!existingRootRecord.drive_item_id) {
+      throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+    }
+
+    const driveFolder = await getGoogleDriveFolderMetadata(existingRootRecord.drive_item_id);
+    const rootFolderRecord = await ensureWorkspaceDriveItemRecord({
+      driveFolder,
+      drivePath: existingRootRecord.drive_path || workspace.drive_root_folder_path || standardWorkspaceRootPath(workspace.workspace_code),
+      purpose: "ROOT_FOLDER",
+      parent: null,
+      notes: existingRootRecord.notes ?? "Workspace root folder.",
+    });
+
+    await ensureWorkspaceRootChildFolders({ workspace, rootFolderRecord });
+
+    return {
+      rootFolderRecord,
+    };
+  }
+
+  const targetFolderId = extractGoogleDriveFolderId(workspace.drive_root_folder_url);
+
+  if (targetFolderId) {
+    const driveFolder = await getGoogleDriveFolderMetadata(targetFolderId);
+    const rootFolderRecord = await ensureWorkspaceDriveItemRecord({
+      driveFolder,
+      drivePath: workspace.drive_root_folder_path || standardWorkspaceRootPath(workspace.workspace_code),
+      purpose: "ROOT_FOLDER",
+      parent: null,
+      notes: "Workspace root folder.",
+    });
+
+    await ensureWorkspaceRootChildFolders({ workspace, rootFolderRecord });
+
+    return {
+      rootFolderRecord,
+    };
+  }
+
+  if (workspace.drive_root_folder_url) {
+    throw new Error("Folder Drive URL harus berisi folder ID Google Drive.");
+  }
+
+  return await ensureWorkspaceDriveTree(workspace);
 }
 
 async function resolveCurrentWorkspaceForContext(
@@ -380,7 +507,7 @@ async function getWorkspaceSelectionStateForContext(context: WorkspaceContext): 
 }
 
 function buildWorkspaceUpdatePayload(input: WorkspaceUpdateInput) {
-  const payload: Record<string, string | boolean | null> = {};
+  const payload: WorkspacePayload = {};
 
   if (input.workspace_code !== undefined && input.workspace_code !== null) {
     const workspaceCode = normalizeWorkspaceCode(input.workspace_code);
@@ -432,9 +559,33 @@ function buildWorkspaceUpdatePayload(input: WorkspaceUpdateInput) {
   return payload;
 }
 
+async function hydrateWorkspaceDriveRootPayload(payload: WorkspacePayload) {
+  const driveRootFolderRefId = typeof payload.drive_root_folder_ref_id === "string" ? payload.drive_root_folder_ref_id : "";
+
+  if (!driveRootFolderRefId) {
+    return payload;
+  }
+
+  const driveItem = await getDriveItemById(driveRootFolderRefId);
+
+  if (!driveItem) {
+    throw new Error("Folder Drive Utama tidak ditemukan.");
+  }
+
+  if (driveItem.item_type !== "FOLDER") {
+    throw new Error("Folder Drive Utama harus berupa folder.");
+  }
+
+  return {
+    ...payload,
+    drive_root_folder_url: driveItem.drive_url,
+    drive_root_folder_path: driveItem.drive_path,
+  };
+}
+
 export async function createWorkspace(input: WorkspaceInput) {
   const context = await requireUser();
-  const payload = validateWorkspaceInput(input);
+  const payload = await hydrateWorkspaceDriveRootPayload(validateWorkspaceInput(input));
   const existingWorkspaces = await listWorkspacesForContext(context);
   const shouldSetDefault = payload.is_default || !existingWorkspaces.length;
 
@@ -497,7 +648,7 @@ export async function getWorkspaceById(id: string) {
 
 export async function updateWorkspace(id: string, input: WorkspaceUpdateInput) {
   const context = await requireUser();
-  const payload = buildWorkspaceUpdatePayload(input);
+  const payload = await hydrateWorkspaceDriveRootPayload(buildWorkspaceUpdatePayload(input));
 
   if (!Object.keys(payload).length) {
     throw new Error("No workspace changes provided.");
@@ -550,7 +701,7 @@ export async function provisionWorkspaceDriveStructure(id: string) {
   }
 
   const workspace = data as WorkspaceRecord;
-  const driveTree = await ensureWorkspaceDriveTree(workspace);
+  const driveTree = await syncWorkspaceDriveTarget(workspace);
   const { data: updated, error: updateError } = await context.supabase
     .from("workspaces")
     .update({

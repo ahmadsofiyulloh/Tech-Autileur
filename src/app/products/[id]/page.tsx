@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Archive, Clock3, FileText, Image, Link2, Package, Plus, Workflow } from "lucide-react";
+import { ArrowLeft, Archive, Clock3, FileText, Image, Link2, Package, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { TopbarOverride } from "@/components/operator/topbar-context";
@@ -17,8 +16,6 @@ import { getProductById, listProductImages } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
-import { PROMPT_CLIP_KEYS, PROMPT_CLIP_LABELS, PROMPT_TARGET_MARKETPLACE } from "@/lib/prompts/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +34,6 @@ type WorkspaceRecord = Awaited<ReturnType<typeof listWorkspaces>>[number];
 
 const detailTabs = [
   { key: "metadata", label: "Metadata" },
-  { key: "prompt_pack", label: "Paket Prompt" },
   { key: "output", label: "Output" },
   { key: "history", label: "History" },
 ] as const;
@@ -76,16 +72,6 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
 
   const workspace = workspaceMap.get(workspaceId);
   return workspace ? workspace.workspace_name : "Workspace unavailable";
-}
-
-function promptHref(productId: string, intakeId?: string | null) {
-  const searchParams = new URLSearchParams({ product_id: productId });
-
-  if (intakeId) {
-    searchParams.set("intake_id", intakeId);
-  }
-
-  return `/prompts?${searchParams.toString()}`;
 }
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
@@ -225,52 +211,6 @@ function toneForFileStatus(status: string) {
   return "info" as const;
 }
 
-function PromptPackContractPreview({ pack }: { pack: PromptPackRecord }) {
-  const promptSet = readPromptPackEditorPromptSet(pack);
-
-  return (
-    <div className="stack">
-      <section className="grid two-up">
-        {PROMPT_CLIP_KEYS.map((clipKey) => {
-          const clip = promptSet.clips[clipKey];
-
-          return (
-            <div className="muted-box stack-tight" key={clipKey}>
-              <strong>{PROMPT_CLIP_LABELS[clipKey]}</strong>
-              <div className="stack-tight">
-                <span className="subtle">I2I First Frame</span>
-                <p>{clip.i2i_first_frame || "Belum ada."}</p>
-              </div>
-              <div className="stack-tight">
-                <span className="subtle">I2I Last Frame</span>
-                <p>{clip.i2i_last_frame || "Belum ada."}</p>
-              </div>
-              <div className="stack-tight">
-                <span className="subtle">I2V Prompt</span>
-                <p>{clip.i2v_prompt || "Belum ada."}</p>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-      <div className="stack-tight">
-        <div className="stack-tight">
-          <span className="subtle">Caption</span>
-          <strong>{promptSet.caption || "Belum ada"}</strong>
-        </div>
-        <div className="stack-tight">
-          <span className="subtle">Tags</span>
-          <strong>{promptSet.tags || "Belum ada"}</strong>
-        </div>
-        <div className="section-card__actions">
-          <span className="subtle">Target Marketplace</span>
-          <StatusBadge status={PROMPT_TARGET_MARKETPLACE} tone="info" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default async function ProductDetailPage({ params, searchParams }: ProductDetailPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -282,7 +222,8 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   }
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const activeTab = resolveTab(query.tab);
+  const requestedTab = Array.isArray(query.tab) ? query.tab[0] : query.tab;
+  const activeTab = resolveTab(requestedTab);
 
   let product: ProductRecord | null = null;
   let productImages: ProductImageRecord[] = [];
@@ -361,13 +302,17 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
   const latestPromptPack = promptPacks[0] ?? null;
+
+  if (requestedTab === "prompt_pack") {
+    redirect(latestPromptPack ? `/prompts/${latestPromptPack.id}/history` : `/products/${product.id}?tab=metadata`);
+  }
+
   const latestIntakeSession = intakeSessions.find((session) => session.reviewed_metadata_json || session.parsed_metadata_json) ?? null;
   const reviewedMetadata = (latestIntakeSession?.reviewed_metadata_json ?? latestIntakeSession?.parsed_metadata_json ?? null) as
     | Record<string, unknown>
     | null;
   const orderedContents = [...contents].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
   const outputContents = orderedContents.slice(0, 2);
-  const contentMap = new Map(contents.map((content) => [content.id, content]));
   const relevantContentIds = new Set(contents.map((content) => content.id));
   const relevantClipJobs = clipJobs.filter((clipJob) => relevantContentIds.has(clipJob.content_id));
   const clipJobsByContentId = new Map<string, ClipJobRecord[]>();
@@ -434,9 +379,8 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     readJsonFieldText(reviewedMetadata, "keyword_cari_etalase") ||
     readJsonFieldText(reviewedMetadata, "category") ||
     readJsonFieldText(reviewedMetadata, "selling_angle");
-  const latestPromptPackPromptContextJson = prettyJson((latestPromptPack?.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
-  const promptCreateHref = promptHref(product.id, latestIntakeSession?.id);
-  const promptEditorHref = promptHref(product.id, latestPromptPack?.intake_session_id ?? latestIntakeSession?.id);
+  const hasReferenceDetails = Boolean(productImages.length || intakeSessions.length || marketplaceSources.length || anchors.length);
+  const hasTechnicalHistoryDetails = Boolean(relevantClipJobs.length || relevantGeneratedFiles.length);
 
   const timelineItems = [
     {
@@ -549,144 +493,98 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
             ) : null}
           </SectionCard>
 
-          <SectionCard icon={Image} title="Source images">
-            {productImages.length ? (
-              <ul className="list">
-                {productImages.map((image) => {
-                  const driveItem = driveItemMap.get(image.drive_item_ref_id);
+          {hasReferenceDetails ? (
+            <details>
+              <summary>Referensi audit</summary>
+              <div className="stack product-detail-collection">
+                {productImages.length ? (
+                  <SectionCard icon={Image} title="Source images">
+                    <ul className="list">
+                      {productImages.map((image) => {
+                        const driveItem = driveItemMap.get(image.drive_item_ref_id);
 
-                  return (
-                    <li key={image.id}>
-                      <div className="stack-tight">
-                        <strong>{driveItem?.name ?? image.drive_item_ref_id}</strong>
-                        <span className="subtle">
-                          {[driveItem?.drive_path, image.is_primary ? "Primary" : null].filter(Boolean).join(" - ")}
-                        </span>
-                      </div>
-                      <StatusBadge status={image.status} />
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <EmptyState icon={Image} title="No source images." description="Belum ada gambar." />
-            )}
-          </SectionCard>
+                        return (
+                          <li key={image.id}>
+                            <div className="stack-tight">
+                              <strong>{driveItem?.name ?? image.drive_item_ref_id}</strong>
+                              <span className="subtle">
+                                {[driveItem?.drive_path, image.is_primary ? "Primary" : null].filter(Boolean).join(" - ")}
+                              </span>
+                            </div>
+                            <StatusBadge status={image.status} />
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </SectionCard>
+                ) : null}
 
-          <SectionCard icon={Archive} title="Intake">
-            {intakeSessions.length ? (
-              <ul className="list">
-                {intakeSessions.map((session) => (
-                  <li key={session.id}>
-                    <div className="stack-tight">
-                      <strong>{fieldValue(session.product_title)}</strong>
-                      <span className="subtle">
-                        {[session.shopee_url ? "Shopee" : null, session.tiktok_url ? "TikTok" : null]
-                          .filter(Boolean)
-                          .join(" - ")}
-                      </span>
-                    </div>
-                    <StatusBadge status={session.status} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState icon={Archive} title="No linked intake." description="Belum ada intake." />
-            )}
-          </SectionCard>
+                {intakeSessions.length ? (
+                  <SectionCard icon={Archive} title="Intake">
+                    <ul className="list">
+                      {intakeSessions.map((session) => (
+                        <li key={session.id}>
+                          <div className="stack-tight">
+                            <strong>{fieldValue(session.product_title)}</strong>
+                            <span className="subtle">
+                              {[session.shopee_url ? "Shopee" : null, session.tiktok_url ? "TikTok" : null]
+                                .filter(Boolean)
+                                .join(" - ")}
+                            </span>
+                          </div>
+                          <StatusBadge status={session.status} />
+                        </li>
+                      ))}
+                    </ul>
+                  </SectionCard>
+                ) : null}
 
-          <SectionCard icon={Link2} title="Marketplace sources">
-            {marketplaceSources.length ? (
-              <section className="grid two-up">
-                {marketplaceSources.map((source) => (
-                  <div className="muted-box stack-tight" key={source.id}>
-                    <div className="section-card__actions">
-                      <strong>{source.platform}</strong>
-                      <StatusBadge status={source.status} />
-                    </div>
-                    <p>{fieldValue(source.title)}</p>
-                    <p className="subtle">
-                      {[source.category, source.price_text, source.shop_name].filter(Boolean).join(" - ") || "No source details."}
-                    </p>
-                    {source.product_url ? (
-                      <a href={source.product_url} target="_blank" rel="noreferrer">
-                        Product URL
-                      </a>
-                    ) : null}
-                  </div>
-                ))}
-              </section>
-            ) : (
-              <EmptyState icon={Link2} title="No marketplace sources." description="Belum ada source." />
-            )}
-          </SectionCard>
+                {marketplaceSources.length ? (
+                  <SectionCard icon={Link2} title="Marketplace sources">
+                    <section className="grid two-up">
+                      {marketplaceSources.map((source) => (
+                        <div className="muted-box stack-tight" key={source.id}>
+                          <div className="section-card__actions">
+                            <strong>{source.platform}</strong>
+                            <StatusBadge status={source.status} />
+                          </div>
+                          <p>{fieldValue(source.title)}</p>
+                          <p className="subtle">
+                            {[source.category, source.price_text, source.shop_name].filter(Boolean).join(" - ") || "No source details."}
+                          </p>
+                          {source.product_url ? (
+                            <a href={source.product_url} target="_blank" rel="noreferrer">
+                              Product URL
+                            </a>
+                          ) : null}
+                        </div>
+                      ))}
+                    </section>
+                  </SectionCard>
+                ) : null}
 
-          <SectionCard icon={Workflow} title="Anchor summary">
-            {anchors.length ? (
-              <section className="stack">
-                {anchors.map((anchor) => (
-                  <div className="muted-box stack-tight" key={anchor.id}>
-                    <div className="section-card__actions">
-                      <strong>Anchor</strong>
-                      <StatusBadge status={anchor.status} />
-                    </div>
-                    <p>Version {anchor.version}</p>
-                    <details>
-                      <summary>Anchor JSON</summary>
-                      <pre className="json-block">{prettyJson(anchor.anchor_json)}</pre>
-                    </details>
-                  </div>
-                ))}
-              </section>
-            ) : (
-              <EmptyState icon={Workflow} title="No anchor yet." description="Belum ada anchor." />
-            )}
-          </SectionCard>
-        </section>
-      ) : null}
-
-      {activeTab === "prompt_pack" ? (
-        <section className="stack">
-          <SectionCard
-            icon={FileText}
-            title="Paket Prompt"
-            actions={latestPromptPack ? <StatusBadge status={latestPromptPack.status} /> : null}
-          >
-            {latestPromptPack ? (
-              <div className="muted-box stack">
-                <div className="section-card__actions">
-                  <strong>Paket Prompt</strong>
-                  <div className="section-card__actions">
-                    <StatusBadge status={latestPromptPack.status} />
-                    <StatusBadge status={`Versi ${latestPromptPack.version}`} tone="info" />
-                  </div>
-                </div>
-                <PromptPackContractPreview pack={latestPromptPack} />
-                {latestPromptPack.error_message ? <section className="error-box">{latestPromptPack.error_message}</section> : null}
-                <FormActions layout="single">
-                  <Link className="button primary" href={promptEditorHref}>
-                    Buka editor
-                  </Link>
-                </FormActions>
-                <details>
-                  <summary>Prompt context</summary>
-                  <pre className="json-block">{latestPromptPackPromptContextJson}</pre>
-                </details>
+                {anchors.length ? (
+                  <SectionCard icon={Workflow} title="Anchor summary">
+                    <section className="stack">
+                      {anchors.map((anchor) => (
+                        <div className="muted-box stack-tight" key={anchor.id}>
+                          <div className="section-card__actions">
+                            <strong>Anchor</strong>
+                            <StatusBadge status={anchor.status} />
+                          </div>
+                          <p>Version {anchor.version}</p>
+                          <details>
+                            <summary>Anchor JSON</summary>
+                            <pre className="json-block">{prettyJson(anchor.anchor_json)}</pre>
+                          </details>
+                        </div>
+                      ))}
+                    </section>
+                  </SectionCard>
+                ) : null}
               </div>
-            ) : (
-              <EmptyState
-                icon={FileText}
-                title="Belum ada prompt pack."
-                description="Buat prompt dari produk ini."
-                action={
-                  <Link className="button primary" href={promptCreateHref}>
-                    <Plus size={16} aria-hidden="true" />
-                    Buat Prompt
-                  </Link>
-                }
-              />
-            )}
-          </SectionCard>
+            </details>
+          ) : null}
         </section>
       ) : null}
 
@@ -714,10 +612,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                   <div className="metric">
                     <span>Tags</span>
                     <strong>{outputTags || "Belum ada"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Folder Drive</span>
-                    <strong>Belum ada</strong>
                   </div>
                   <div className="metric">
                     <span>Status</span>
@@ -772,18 +666,19 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
               {timelineItems.map((item, index) => (
                 <li className="timeline-item" key={`${item.title}-${item.at}-${index}`}>
                   <div className="timeline-item__body">
-                    <span className="subtle">{formatDate(item.at)}</span>
                     <strong>{item.title}</strong>
                     <p>{item.description}</p>
+                    <span className="timeline-item__date">{formatDate(item.at)}</span>
                   </div>
                   <StatusBadge status={item.status} />
                 </li>
               ))}
             </ol>
           </SectionCard>
+
           <SectionCard icon={FileText} title="Prompt pack versions">
             {promptPacks.length ? (
-              <section className="stack">
+              <ul className="list">
                 {promptPacks.map((pack) => {
                   const intakeSession = pack.intake_session_id
                     ? intakeSessions.find((session) => session.id === pack.intake_session_id) ?? null
@@ -795,119 +690,105 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                     ? productImages.find((image) => image.id === pack.source_product_image_id) ?? null
                     : null;
                   const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
-                  const negativeRulesJson = prettyJson(pack.negative_rules_json);
-                  const personalizationJson = prettyJson(pack.personalization_json);
-                  const promptContextJson = prettyJson((pack.personalization_json as { prompt_context?: unknown } | null)?.prompt_context ?? null);
+                  const description =
+                    [
+                      intakeSession ? "Intake reviewed" : null,
+                      affiliateProfile ? affiliateProfile.profile_name : null,
+                      sourceDriveItem?.name ?? null,
+                    ]
+                      .filter(Boolean)
+                      .join(" - ") || "No source image selected.";
 
                   return (
-                    <SectionCard
-                      actions={<StatusBadge status={pack.status} />}
-                      icon={FileText}
-                      key={pack.id}
-                      title={`Version ${pack.version}`}
-                      description={[
-                        intakeSession ? "Intake reviewed" : null,
-                        affiliateProfile ? affiliateProfile.profile_name : null,
-                        sourceDriveItem?.name ?? null,
-                      ]
-                        .filter(Boolean)
-                        .join(" - ") || "No source image selected."}
-                    >
-                      {pack.error_message ? <section className="error-box">{pack.error_message}</section> : null}
-                      <PromptPackContractPreview pack={pack} />
-                      <details open>
-                        <summary>Product analysis</summary>
-                        <pre className="json-block">{prettyJson(pack.product_analysis_json)}</pre>
-                      </details>
-                      <details>
-                        <summary>Consistency rules</summary>
-                        <pre className="json-block">{prettyJson(pack.consistency_rules_json)}</pre>
-                      </details>
-                      <details>
-                        <summary>Negative rules</summary>
-                        <pre className="json-block">{negativeRulesJson}</pre>
-                      </details>
-                      <details>
-                        <summary>Personalization</summary>
-                        <pre className="json-block">{personalizationJson}</pre>
-                      </details>
-                      <details>
-                        <summary>Prompt context</summary>
-                        <pre className="json-block">{promptContextJson}</pre>
-                      </details>
-                    </SectionCard>
+                    <li key={pack.id}>
+                      <div className="stack-tight">
+                        <strong>{`Version ${pack.version}`}</strong>
+                        <span className="subtle">{description}</span>
+                        {pack.error_message ? <span className="error-box">{pack.error_message}</span> : null}
+                      </div>
+                      <div className="section-card__actions">
+                        <StatusBadge status={pack.status} />
+                        <Link className="button compact primary" href={`/prompts/${pack.id}`}>
+                          Buka
+                        </Link>
+                        <Link className="button compact tertiary" href={`/prompts/${pack.id}/history`}>
+                          History
+                        </Link>
+                      </div>
+                    </li>
                   );
                 })}
-              </section>
+              </ul>
             ) : (
               <EmptyState icon={FileText} title="No prompt packs yet." description="Belum ada prompt pack." />
             )}
           </SectionCard>
-          <SectionCard icon={FileText} title="Clip jobs">
-            {relevantClipJobs.length ? (
-              <ul className="list">
-                {[...relevantClipJobs]
-                  .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-                  .map((clipJob) => {
-                    const content = contentMap.get(clipJob.content_id) ?? null;
-                    const generatedFile = generatedFilesByClipJobId.get(clipJob.id)?.[0] ?? null;
-                    const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
+          {hasTechnicalHistoryDetails ? (
+            <details>
+              <summary>Detail teknis</summary>
+              <div className="stack product-detail-collection">
+                {relevantClipJobs.length ? (
+                  <SectionCard icon={FileText} title="Clip jobs">
+                    <ul className="list">
+                      {[...relevantClipJobs]
+                        .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+                        .map((clipJob) => {
+                          const generatedFile = generatedFilesByClipJobId.get(clipJob.id)?.[0] ?? null;
+                          const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
 
-                    return (
-                      <li key={clipJob.id}>
-                        <div className="stack-tight">
-                          <strong>Clip job</strong>
-                          <span className="subtle">
-                            {`Version ${clipJob.version}`}
-                          </span>
-                          <span className="subtle">{clipJob.prompt_prefix}</span>
-                          {generatedDriveItem ? (
-                            <a href={generatedDriveItem.drive_url} target="_blank" rel="noreferrer">
-                              {generatedDriveItem.name}
-                            </a>
-                          ) : null}
-                        </div>
-                        <StatusBadge status={clipJob.status} />
-                      </li>
-                    );
-                  })}
-              </ul>
-            ) : (
-              <EmptyState icon={FileText} title="No clip jobs yet." description="Belum ada clip job." />
-            )}
-          </SectionCard>
-          <SectionCard icon={Archive} title="Generated files">
-            {relevantGeneratedFiles.length ? (
-              <ul className="list">
-                {[...relevantGeneratedFiles]
-                  .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-                  .map((generatedFile) => {
-                    const clipJob = generatedFile.clip_job_id ? clipJobMap.get(generatedFile.clip_job_id) ?? null : null;
-                    const driveItem = driveItemMap.get(generatedFile.drive_item_id) ?? null;
+                          return (
+                            <li key={clipJob.id}>
+                              <div className="stack-tight">
+                                <strong>Clip job</strong>
+                                <span className="subtle">{`Version ${clipJob.version}`}</span>
+                                <span className="subtle">{clipJob.prompt_prefix}</span>
+                                {generatedDriveItem ? (
+                                  <a href={generatedDriveItem.drive_url} target="_blank" rel="noreferrer">
+                                    {generatedDriveItem.name}
+                                  </a>
+                                ) : null}
+                              </div>
+                              <StatusBadge status={clipJob.status} />
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  </SectionCard>
+                ) : null}
 
-                    return (
-                      <li key={generatedFile.id}>
-                        <div className="stack-tight">
-                          <strong>{generatedFile.file_name}</strong>
-                          <span className="subtle">
-                            {[clipJob ? "Clip job" : null, driveItem?.drive_path].filter(Boolean).join(" - ")}
-                          </span>
-                          {generatedFile.imported_at ? <span className="subtle">Imported {formatDate(generatedFile.imported_at)}</span> : null}
-                          {driveItem ? (
-                            <a href={driveItem.drive_url} target="_blank" rel="noreferrer">
-                              {driveItem.name}
-                            </a>
-                          ) : null}
-                        </div>
-                        <StatusBadge status={generatedFile.match_status} tone={toneForFileStatus(generatedFile.match_status)} />
-                      </li>
-                    );
-                  })}
-              </ul>
-            ) : (
-              <EmptyState icon={Archive} title="No generated files yet." description="Belum ada file." />
-            )}
-          </SectionCard>
+                {relevantGeneratedFiles.length ? (
+                  <SectionCard icon={Archive} title="Generated files">
+                    <ul className="list">
+                      {[...relevantGeneratedFiles]
+                        .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+                        .map((generatedFile) => {
+                          const clipJob = generatedFile.clip_job_id ? clipJobMap.get(generatedFile.clip_job_id) ?? null : null;
+                          const driveItem = driveItemMap.get(generatedFile.drive_item_id) ?? null;
+
+                          return (
+                            <li key={generatedFile.id}>
+                              <div className="stack-tight">
+                                <strong>{generatedFile.file_name}</strong>
+                                <span className="subtle">
+                                  {[clipJob ? "Clip job" : null, driveItem?.drive_path].filter(Boolean).join(" - ")}
+                                </span>
+                                {generatedFile.imported_at ? <span className="subtle">Imported {formatDate(generatedFile.imported_at)}</span> : null}
+                                {driveItem ? (
+                                  <a href={driveItem.drive_url} target="_blank" rel="noreferrer">
+                                    {driveItem.name}
+                                  </a>
+                                ) : null}
+                              </div>
+                              <StatusBadge status={generatedFile.match_status} tone={toneForFileStatus(generatedFile.match_status)} />
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  </SectionCard>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
         </section>
       ) : null}
     </div>

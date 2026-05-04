@@ -4,6 +4,8 @@ import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
+import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
+import { listDriveItems } from "@/lib/server/drive-items";
 import { getIntakeSessionById } from "@/lib/server/intake";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -53,6 +55,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   let currentWorkspace: Awaited<ReturnType<typeof getCurrentWorkspace>>;
   let workspaces: Awaited<ReturnType<typeof listWorkspaces>>;
   let affiliateProfiles: Awaited<ReturnType<typeof listAffiliateProfiles>> = [];
+  let driveItems: Awaited<ReturnType<typeof listDriveItems>> = [];
 
   try {
     [currentWorkspace, selectedSession, workspaces] = await Promise.all([
@@ -66,6 +69,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
       status: "ACTIVE",
       limit: 50,
     });
+    driveItems = await listDriveItems({ limit: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load intake.";
 
@@ -77,6 +81,18 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const affiliateProfilesWithAvatars = await Promise.all(
+    affiliateProfiles.map(async (profile) => ({
+      id: profile.id,
+      profile_name: profile.profile_name,
+      account_label: profile.account_label,
+      avatarUrl: await resolveAffiliateProfileAvatar(profile, driveItemMap),
+      niche: profile.niche,
+      platform: profile.platform,
+      status: profile.status,
+    })),
+  );
   const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
   const message = firstParam(query.message) ?? null;
   const errorMessage = firstParam(query.error) ?? null;
@@ -90,13 +106,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     <div className="stack intake-native-page">
       <section className="intake-native-surface" aria-label="Workflow intake produk">
         <IntakeWorkflowForm
-          affiliateProfiles={affiliateProfiles.map((profile) => ({
-            id: profile.id,
-            profile_name: profile.profile_name,
-            account_label: profile.account_label,
-            platform: profile.platform,
-            status: profile.status,
-          }))}
+          affiliateProfiles={affiliateProfilesWithAvatars}
           currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
           errorMessage={errorMessage}
           initialStep={initialStep}

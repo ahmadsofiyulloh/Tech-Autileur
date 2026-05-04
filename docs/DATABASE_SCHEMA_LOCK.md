@@ -24,7 +24,7 @@ create type ai_task_type as enum ('VISION_ANALYSIS', 'I2I_PROMPT_PACK', 'I2V_PRO
 create type workspace_status as enum ('ACTIVE', 'ARCHIVED');
 create type product_status as enum ('DRAFT', 'IMAGE_ATTACHED', 'IMAGE_ANALYZED', 'PROMPT_READY', 'IN_PRODUCTION', 'READY_FOR_UPLOAD', 'UPLOADED', 'ARCHIVED');
 create type intake_status as enum ('DRAFT', 'SUBMITTED', 'NEEDS_REVIEW', 'REVIEWED', 'ANCHOR_READY');
-create type prompt_pack_status as enum ('DRAFT', 'READY_FOR_CONTROLLER', 'SENT_TO_CONTROLLER', 'NEEDS_REVIEW', 'REVIEWED', 'REGENERATE_REQUESTED', 'ARCHIVED');
+create type prompt_pack_status as enum ('DRAFT', 'QUEUED', 'GENERATING', 'GENERATED', 'NEEDS_REVIEW', 'APPROVED', 'ARCHIVED', 'ERROR');
 create type flow_batch_status as enum ('DRAFT', 'READY_TO_EXPORT', 'EXPORTED', 'RUNNING', 'IMPORTING', 'PARTIALLY_IMPORTED', 'IMPORTED', 'NEED_MANUAL_MATCH', 'CLOSED');
 create type drive_item_kind as enum ('SOURCE_IMAGE', 'SCREENSHOT', 'ANALYSIS', 'PROMPT_REFERENCE', 'I2I_RESULT', 'RAW_CLIP', 'FINAL_VIDEO', 'BATCH_EXPORT', 'MANIFEST', 'UPLOAD_PACKAGE', 'OTHER');
 create type affiliate_platform as enum ('TIKTOK', 'SHOPEE', 'OTHER');
@@ -333,7 +333,7 @@ Each workspace can link to multiple affiliate profiles, but only one link should
 
 ### `prompt_packs`
 
-Structured prompt output from the editor/generator step.
+Structured prompt output from the generator/detail-editor step.
 
 ```text
 id uuid pk
@@ -356,6 +356,8 @@ updated_at timestamptz
 `personalization_json` must include `prompt_context` for the generated version. Prompt pack versions must be preserved.
 
 `prompt_context` must retain the active workspace context, active affiliate profile snapshot, and the character/environment Drive references that were used for generation.
+
+`GENERATED` is the Phase 1 final operator-facing prompt status. `APPROVED` is retained only as dormant controller readiness compatibility while `/controller` and `/flow` stay frozen.
 
 ### `flow_accounts`
 

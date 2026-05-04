@@ -13,6 +13,7 @@ import {
   runRealPromptPackTask,
   updatePromptPack,
 } from "@/lib/server/prompt-packs";
+import { exportPromptPackTextFile } from "@/lib/server/prompt-pack-generated-files";
 import { getProductById } from "@/lib/server/products";
 import { buildPromptPackEditorStoragePayload } from "@/lib/prompts/prompt-pack-contract";
 import { PROMPT_CLIP_KEYS, isPromptPackStatus, type PromptClipKey } from "@/lib/prompts/validation";
@@ -33,7 +34,35 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Prompt pack operation failed.";
 }
 
+function readSafeReturnTo(formData: FormData) {
+  const value = readText(formData, "return_to");
+
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "";
+  }
+
+  return value;
+}
+
+function appendRedirectMessage(path: string, key: "message" | "error", message: string) {
+  const [pathname, query = ""] = path.split("?");
+  const searchParams = new URLSearchParams(query);
+  searchParams.set(key, message);
+
+  return `${pathname}?${searchParams.toString()}`;
+}
+
+function promptDetailRedirect(promptPackId: string, key: "message" | "error", message: string) {
+  return appendRedirectMessage(`/prompts/${promptPackId}`, key, message);
+}
+
 function buildPromptRedirectFromForm(formData: FormData, key: "message" | "error", message: string, productId?: string | null) {
+  const returnTo = readSafeReturnTo(formData);
+
+  if (returnTo) {
+    return appendRedirectMessage(returnTo, key, message);
+  }
+
   const searchParams = new URLSearchParams({ [key]: message });
   const nextProductId = productId ?? readText(formData, "product_id");
   const intakeSessionId = readText(formData, "intake_session_id");
@@ -60,6 +89,16 @@ function failFromForm(formData: FormData, message: string): never {
 
 function doneFromForm(formData: FormData, message: string, productId?: string | null): never {
   redirect(buildPromptRedirectFromForm(formData, "message", message, productId));
+}
+
+function revalidatePromptRoutes(promptPackId: string, productId?: string | null) {
+  revalidatePath("/prompts");
+  revalidatePath(`/prompts/${promptPackId}`);
+  revalidatePath(`/prompts/${promptPackId}/history`);
+
+  if (productId) {
+    revalidatePath(`/products/${productId}`);
+  }
 }
 
 function readGenerationMode(formData: FormData): GenerationMode {
@@ -174,7 +213,7 @@ export async function savePromptPack(formData: FormData) {
       failFromForm(formData, errorMessage(error));
     }
 
-    revalidatePath("/prompts");
+    revalidatePromptRoutes(id, readText(formData, "product_id") || null);
     doneFromForm(formData, "Prompt pack diarsipkan", readText(formData, "product_id") || null);
   }
 
@@ -182,6 +221,7 @@ export async function savePromptPack(formData: FormData) {
     const productId = readText(formData, "product_id");
     const status = readText(formData, "status") || "DRAFT";
     let message = "Prompt pack disimpan";
+    let createdPromptPackId = "";
 
     if (!productId) {
       failFromForm(formData, "Produk wajib dipilih.");
@@ -209,16 +249,28 @@ export async function savePromptPack(formData: FormData) {
         i2v_prompts_json: storagePayload.i2v_prompts_json,
         personalization_json: storagePayload.personalization_json,
       });
+      createdPromptPackId = promptPack.id;
 
       if (intent === "create_generate") {
         const result = await generatePromptPack(promptPack.id, generationMode);
+        createdPromptPackId = result.promptPack.id;
         message = result.message;
       }
     } catch (error) {
+      if (createdPromptPackId) {
+        const messageText = errorMessage(error);
+        revalidatePromptRoutes(createdPromptPackId, productId);
+        redirect(promptDetailRedirect(createdPromptPackId, "error", messageText));
+      }
+
       failFromForm(formData, errorMessage(error));
     }
 
-    revalidatePath("/prompts");
+    if (createdPromptPackId) {
+      revalidatePromptRoutes(createdPromptPackId, productId);
+      redirect(promptDetailRedirect(createdPromptPackId, "message", message));
+    }
+
     doneFromForm(formData, message, productId);
   }
 
@@ -233,13 +285,28 @@ export async function savePromptPack(formData: FormData) {
       failFromForm(formData, errorMessage(error));
     }
 
-    revalidatePath("/prompts");
+    revalidatePromptRoutes(id, readText(formData, "product_id") || null);
     doneFromForm(formData, "Prompt pack disimpan", readText(formData, "product_id") || null);
+  }
+
+  if (intent === "export_prompt_txt") {
+    let exportedFileName = "";
+
+    try {
+      const driveItem = await exportPromptPackTextFile(id);
+      exportedFileName = driveItem.name;
+    } catch (error) {
+      failFromForm(formData, errorMessage(error));
+    }
+
+    revalidatePromptRoutes(id, readText(formData, "product_id") || null);
+    redirect(promptDetailRedirect(id, "message", `TXT Drive disimpan: ${exportedFileName}`));
   }
 
   if (intent === "regenerate") {
     const productId = readText(formData, "product_id");
     let message = "Prompt pack regenerated.";
+    let nextPromptPackId = id;
 
     if (!productId) {
       failFromForm(formData, "Produk wajib dipilih.");
@@ -256,14 +323,24 @@ export async function savePromptPack(formData: FormData) {
         affiliateProfileId: readNullableText(formData, "affiliate_profile_id"),
         sourceProductImageId: readNullableText(formData, "source_product_image_id"),
       });
+      nextPromptPackId = nextVersion.id;
       const result = await generatePromptPack(nextVersion.id, generationMode);
+      nextPromptPackId = result.promptPack.id;
       message = result.message;
     } catch (error) {
+      if (nextPromptPackId !== id) {
+        const messageText = errorMessage(error);
+        revalidatePromptRoutes(id, productId);
+        revalidatePromptRoutes(nextPromptPackId, productId);
+        redirect(promptDetailRedirect(nextPromptPackId, "error", messageText));
+      }
+
       failFromForm(formData, errorMessage(error));
     }
 
-    revalidatePath("/prompts");
-    doneFromForm(formData, message, productId);
+    revalidatePromptRoutes(id, productId);
+    revalidatePromptRoutes(nextPromptPackId, productId);
+    redirect(promptDetailRedirect(nextPromptPackId, "message", message));
   }
 
   if (intent === "mark_ready") {
@@ -274,7 +351,7 @@ export async function savePromptPack(formData: FormData) {
       failFromForm(formData, errorMessage(error));
     }
 
-    revalidatePath("/prompts");
+    revalidatePromptRoutes(id, readText(formData, "product_id") || null);
     doneFromForm(formData, "Versi dipilih siap Flow", readText(formData, "product_id") || null);
   }
 

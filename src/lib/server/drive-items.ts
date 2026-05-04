@@ -3,6 +3,16 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
+  getGoogleDriveFileMetadata,
+  replaceGoogleDriveBufferContent,
+  replaceGoogleDriveFileContent,
+  trashGoogleDriveItem,
+  updateGoogleDriveFileMetadata,
+  uploadBufferToGoogleDrive,
+  uploadFileToGoogleDrive,
+  type GoogleDriveFileMetadata,
+} from "@/lib/server/google-drive";
+import {
   DRIVE_ITEM_PURPOSES,
   DRIVE_ITEM_STATUSES,
   DRIVE_ITEM_TYPES,
@@ -26,6 +36,8 @@ export type DriveItemRecord = {
   drive_path: string;
   mime_type: string | null;
   size_bytes: number | null;
+  checksum: string | null;
+  drive_modified_at: string | null;
   purpose: DriveItemPurpose;
   status: DriveItemStatus;
   notes: string | null;
@@ -44,10 +56,42 @@ type DriveItemInput = {
   drive_path: string;
   mime_type?: string | null;
   size_bytes?: number | null;
+  checksum?: string | null;
+  drive_modified_at?: string | null;
   purpose?: string;
   status?: string;
   notes?: string | null;
 };
+
+type DriveFileMutationInput = {
+  file: File;
+  parentId: string;
+  name?: string | null;
+  purpose?: string | null;
+  notes?: string | null;
+};
+
+type AttachDriveFileInput = {
+  driveItemIdOrUrl: string;
+  parentId?: string | null;
+  purpose?: string | null;
+  drivePath?: string | null;
+  notes?: string | null;
+};
+
+type GeneratedDriveFileInput = {
+  bytes: Buffer | string;
+  name: string;
+  mimeType: string;
+  parentId?: string | null;
+  parentDriveFolderId?: string | null;
+  drivePath?: string | null;
+  purpose?: string | null;
+  notes?: string | null;
+  description?: string | null;
+};
+
+const GOOGLE_DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
 function readUserFacingText(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -90,6 +134,22 @@ function normalizeNullableNumber(value: number | string | null | undefined) {
   return Math.trunc(parsed);
 }
 
+function normalizeNullableTimestamp(value: string | null | undefined) {
+  const trimmed = readUserFacingText(value);
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Date.parse(trimmed);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error("drive_modified_at must be a valid ISO timestamp.");
+  }
+
+  return new Date(parsed).toISOString();
+}
+
 async function requireUser() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -101,6 +161,13 @@ async function requireUser() {
   }
 
   return { supabase, user };
+}
+
+function revalidateDriveSurfaces() {
+  revalidatePath("/drive");
+  revalidatePath("/settings");
+  revalidatePath("/settings/drive");
+  revalidatePath("/dashboard");
 }
 
 export function buildStandardDrivePath(input: {
@@ -141,6 +208,8 @@ export async function createDriveItem(input: DriveItemInput) {
     drive_path: readUserFacingText(input.drive_path),
     mime_type: normalizeNullableText(input.mime_type),
     size_bytes: normalizeNullableNumber(input.size_bytes),
+    checksum: normalizeNullableText(input.checksum),
+    drive_modified_at: normalizeNullableTimestamp(input.drive_modified_at),
     purpose,
     status,
     notes: normalizeNullableText(input.notes),
@@ -152,7 +221,7 @@ export async function createDriveItem(input: DriveItemInput) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/drive");
+  revalidateDriveSurfaces();
   return data as DriveItemRecord;
 }
 
@@ -265,6 +334,8 @@ export async function updateDriveItem(
       ...(input.drive_path !== undefined ? { drive_path: readUserFacingText(input.drive_path) } : {}),
       ...(input.mime_type !== undefined ? { mime_type: normalizeNullableText(input.mime_type) } : {}),
       ...(input.size_bytes !== undefined ? { size_bytes: normalizeNullableNumber(input.size_bytes) } : {}),
+      ...(input.checksum !== undefined ? { checksum: normalizeNullableText(input.checksum) } : {}),
+      ...(input.drive_modified_at !== undefined ? { drive_modified_at: normalizeNullableTimestamp(input.drive_modified_at) } : {}),
       ...(input.purpose ? { purpose: input.purpose } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(input.notes !== undefined ? { notes: normalizeNullableText(input.notes) } : {}),
@@ -278,10 +349,319 @@ export async function updateDriveItem(
     throw new Error(error.message);
   }
 
-  revalidatePath("/drive");
+  revalidateDriveSurfaces();
   return data as DriveItemRecord;
 }
 
 export async function archiveDriveItem(id: string) {
   return await updateDriveItem(id, { status: "ARCHIVED" });
+}
+
+function replaceDrivePathLeaf(drivePath: string, nextName: string) {
+  const normalizedPath = readUserFacingText(drivePath);
+  const normalizedName = readUserFacingText(nextName);
+
+  if (!normalizedPath || !normalizedName) {
+    return normalizedPath || normalizedName;
+  }
+
+  const hasLeadingSlash = normalizedPath.startsWith("/");
+  const segments = normalizedPath.split("/").filter(Boolean);
+
+  if (!segments.length) {
+    return hasLeadingSlash ? `/${normalizedName}` : normalizedName;
+  }
+
+  segments[segments.length - 1] = normalizedName;
+  return `${hasLeadingSlash ? "/" : ""}${segments.join("/")}`;
+}
+
+function driveMetadataPatch(metadata: GoogleDriveFileMetadata, options?: { drivePath?: string | null }) {
+  return {
+    drive_item_id: metadata.driveItemId,
+    name: metadata.name,
+    drive_url: metadata.driveUrl,
+    ...(options?.drivePath !== undefined ? { drive_path: options.drivePath ?? "" } : {}),
+    mime_type: metadata.mimeType,
+    size_bytes: metadata.sizeBytes,
+    checksum: metadata.checksum,
+    drive_modified_at: metadata.driveModifiedAt,
+  };
+}
+
+function normalizeDrivePurpose(value: string | null | undefined) {
+  const purpose = readUserFacingText(value) || "OTHER";
+
+  assertDriveItemPurpose(purpose);
+  return purpose;
+}
+
+function extractGoogleDriveFileId(value: string) {
+  const text = readUserFacingText(value);
+
+  if (!text) {
+    return "";
+  }
+
+  if (/^[A-Za-z0-9_-]{10,}$/.test(text) && !text.includes("/")) {
+    return text;
+  }
+
+  try {
+    const url = new URL(text);
+    const fileMatch = url.pathname.match(/\/file\/d\/([^/?#]+)/);
+
+    if (fileMatch?.[1]) {
+      return decodeURIComponent(fileMatch[1]).trim();
+    }
+
+    return readUserFacingText(url.searchParams.get("id"));
+  } catch {
+    return "";
+  }
+}
+
+async function requireWritableParentFolder(parentId: string) {
+  const parent = await getDriveItemById(parentId);
+
+  if (!parent) {
+    throw new Error("Target folder Drive tidak ditemukan.");
+  }
+
+  if (parent.item_type !== "FOLDER") {
+    throw new Error("Target Drive harus berupa folder.");
+  }
+
+  if (!parent.drive_item_id) {
+    throw new Error("Target folder belum tersinkron ke Google Drive.");
+  }
+
+  return parent;
+}
+
+function assertFileMetadata(metadata: GoogleDriveFileMetadata) {
+  if (metadata.mimeType === GOOGLE_DRIVE_FOLDER_MIME_TYPE) {
+    throw new Error("Gunakan folder sync untuk folder Drive.");
+  }
+}
+
+function buildChildDrivePath(parent: DriveItemRecord | null, name: string, fallbackSegments?: string[]) {
+  const parentPath = readUserFacingText(parent?.drive_path);
+  const leafName = readUserFacingText(name) || "drive-file";
+
+  if (parentPath) {
+    return `${parentPath.replace(/\/+$/g, "")}/${leafName}`;
+  }
+
+  return buildStandardDrivePath({
+    itemType: "FILE",
+    purpose: "OTHER",
+    segments: fallbackSegments,
+    name: leafName,
+  });
+}
+
+function normalizeGeneratedFileBytes(value: Buffer | string) {
+  return typeof value === "string" ? Buffer.from(value, "utf8") : value;
+}
+
+async function upsertDriveFileMetadata(input: {
+  metadata: GoogleDriveFileMetadata;
+  parent: DriveItemRecord | null;
+  drivePath?: string | null;
+  purpose?: string | null;
+  notes?: string | null;
+}) {
+  assertFileMetadata(input.metadata);
+
+  const drivePath = readUserFacingText(input.drivePath) || buildChildDrivePath(input.parent, input.metadata.name);
+  const existing = (await getDriveItemByDriveItemId(input.metadata.driveItemId)) ?? (await getDriveItemByDrivePath(drivePath));
+  const purpose = normalizeDrivePurpose(input.purpose);
+  const payload = {
+    item_type: "FILE",
+    ...driveMetadataPatch(input.metadata, { drivePath }),
+    drive_path: drivePath,
+    parent_id: input.parent?.id ?? null,
+    parent_drive_item_id: input.parent?.drive_item_id ?? null,
+    purpose,
+    status: "ACTIVE",
+    notes: input.notes ?? null,
+  };
+
+  if (existing) {
+    return await updateDriveItem(existing.id, payload);
+  }
+
+  return await createDriveItem(payload);
+}
+
+export async function writeGeneratedDriveFile(input: GeneratedDriveFileInput) {
+  const fileName = readUserFacingText(input.name);
+  const mimeType = readUserFacingText(input.mimeType) || "application/octet-stream";
+  const bytes = normalizeGeneratedFileBytes(input.bytes);
+  const parent = input.parentId ? await requireWritableParentFolder(input.parentId) : null;
+  const parentDriveFolderId = parent?.drive_item_id ?? readUserFacingText(input.parentDriveFolderId);
+
+  if (!fileName) {
+    throw new Error("Nama file wajib diisi.");
+  }
+
+  if (!parentDriveFolderId) {
+    throw new Error("Target folder Drive wajib diisi.");
+  }
+
+  const drivePath = readUserFacingText(input.drivePath) || buildChildDrivePath(parent, fileName, ["generated"]);
+  const existing = await getDriveItemByDrivePath(drivePath);
+
+  if (existing && existing.item_type !== "FILE") {
+    throw new Error("Path Drive target sudah dipakai folder.");
+  }
+
+  const uploaded = existing?.drive_item_id
+    ? await replaceGoogleDriveBufferContent({
+        bytes,
+        fileId: existing.drive_item_id,
+        mimeType,
+        name: fileName,
+      })
+    : await uploadBufferToGoogleDrive({
+        bytes,
+        description: input.description ?? input.notes,
+        mimeType,
+        name: fileName,
+        parentFolderId: parentDriveFolderId,
+      });
+
+  return await upsertDriveFileMetadata({
+    metadata: uploaded,
+    parent,
+    drivePath,
+    purpose: input.purpose ?? "EXPORT_FILE",
+    notes: input.notes,
+  });
+}
+
+export async function uploadDriveItemFile(input: DriveFileMutationInput) {
+  const parent = await requireWritableParentFolder(input.parentId);
+  const fileName = readUserFacingText(input.name) || readUserFacingText(input.file.name) || "upload.bin";
+  const uploaded = await uploadFileToGoogleDrive({
+    file: input.file,
+    name: fileName,
+    description: input.notes,
+    parentFolderId: parent.drive_item_id ?? "",
+  });
+
+  return await upsertDriveFileMetadata({
+    metadata: uploaded,
+    parent,
+    drivePath: buildChildDrivePath(parent, uploaded.name),
+    purpose: input.purpose,
+    notes: input.notes,
+  });
+}
+
+export async function attachGoogleDriveFile(input: AttachDriveFileInput) {
+  const driveItemId = extractGoogleDriveFileId(input.driveItemIdOrUrl);
+
+  if (!driveItemId) {
+    throw new Error("Drive file URL atau ID tidak valid.");
+  }
+
+  const parent = input.parentId ? await requireWritableParentFolder(input.parentId) : null;
+  const metadata = await getGoogleDriveFileMetadata(driveItemId);
+
+  return await upsertDriveFileMetadata({
+    metadata,
+    parent,
+    drivePath: input.drivePath,
+    purpose: input.purpose,
+    notes: input.notes,
+  });
+}
+
+export async function refreshDriveItemFromGoogleDrive(id: string) {
+  const existing = await getDriveItemById(id);
+
+  if (!existing) {
+    throw new Error("Drive item not found.");
+  }
+
+  if (!existing.drive_item_id) {
+    throw new Error("Drive item has no Google Drive id.");
+  }
+
+  const metadata = await getGoogleDriveFileMetadata(existing.drive_item_id);
+  return await updateDriveItem(existing.id, driveMetadataPatch(metadata));
+}
+
+export async function renameDriveItemInGoogleDrive(id: string, name: string) {
+  const existing = await getDriveItemById(id);
+  const nextName = readUserFacingText(name);
+
+  if (!existing) {
+    throw new Error("Drive item not found.");
+  }
+
+  if (existing.item_type !== "FILE") {
+    throw new Error("Only file items can be renamed.");
+  }
+
+  if (!existing.drive_item_id) {
+    throw new Error("Drive item has no Google Drive id.");
+  }
+
+  if (!nextName) {
+    throw new Error("Nama file wajib diisi.");
+  }
+
+  const metadata = await updateGoogleDriveFileMetadata({
+    fileId: existing.drive_item_id,
+    name: nextName,
+  });
+  const drivePath = replaceDrivePathLeaf(existing.drive_path, metadata.name);
+
+  return await updateDriveItem(existing.id, driveMetadataPatch(metadata, { drivePath }));
+}
+
+export async function replaceDriveItemFile(id: string, file: File) {
+  const existing = await getDriveItemById(id);
+
+  if (!existing) {
+    throw new Error("Drive item not found.");
+  }
+
+  if (existing.item_type !== "FILE") {
+    throw new Error("Only file items can be replaced.");
+  }
+
+  if (!existing.drive_item_id) {
+    throw new Error("Drive item has no Google Drive id.");
+  }
+
+  const metadata = await replaceGoogleDriveFileContent({
+    file,
+    fileId: existing.drive_item_id,
+  });
+  const drivePath = replaceDrivePathLeaf(existing.drive_path, metadata.name);
+
+  return await updateDriveItem(existing.id, driveMetadataPatch(metadata, { drivePath }));
+}
+
+export async function trashDriveItemInGoogleDrive(id: string) {
+  const existing = await getDriveItemById(id);
+
+  if (!existing) {
+    throw new Error("Drive item not found.");
+  }
+
+  if (!existing.drive_item_id) {
+    return await archiveDriveItem(existing.id);
+  }
+
+  const metadata = await trashGoogleDriveItem(existing.drive_item_id);
+
+  return await updateDriveItem(existing.id, {
+    ...driveMetadataPatch(metadata),
+    status: "ARCHIVED",
+  });
 }

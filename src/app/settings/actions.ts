@@ -6,6 +6,7 @@ import {
   archiveAffiliateProfile,
   createAffiliateProfile,
   getAffiliateProfileById,
+  setDefaultAffiliateProfileForWorkspace,
   updateAffiliateProfile,
 } from "@/lib/server/affiliate-profiles";
 import { buildAffiliateProfileCode } from "@/lib/affiliate-profiles/validation";
@@ -14,6 +15,7 @@ import {
   disableHelperApiToken as disableStoredHelperApiToken,
   upsertHelperApiToken,
 } from "@/lib/server/helper-api-tokens";
+import { disconnectGoogleDriveConnection } from "@/lib/server/google-drive-connections";
 import {
   archiveWorkspace,
   createWorkspace,
@@ -139,7 +141,7 @@ export async function saveWorkspace(formData: FormData) {
       }
 
       await provisionWorkspaceDriveStructure(id);
-      message = "Drive folder created";
+      message = "Folder Drive disinkronkan";
     } else if (intent === "archive_workspace") {
       if (!id) {
         throw new Error("Missing workspace id.");
@@ -303,6 +305,29 @@ export async function saveAffiliateProfile(formData: FormData) {
   done(message, returnTo);
 }
 
+export async function setDefaultAffiliateProfile(formData: FormData) {
+  const profileId = readText(formData, "affiliate_profile_id");
+  const workspaceId = readText(formData, "workspace_id");
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings");
+
+  try {
+    if (!profileId) {
+      throw new Error("Missing affiliate profile id.");
+    }
+
+    if (!workspaceId) {
+      throw new Error("Missing workspace id.");
+    }
+
+    await setDefaultAffiliateProfileForWorkspace(profileId, workspaceId);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Affiliate profile operation failed.";
+    fail(errorMessage, returnTo);
+  }
+
+  done("Default affiliate profile updated", returnTo);
+}
+
 export async function saveHelperApiToken(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
@@ -337,6 +362,20 @@ export async function saveHelperApiToken(formData: FormData) {
 
   revalidateSettingsSurface();
   done(message, returnTo);
+}
+
+export async function disconnectGoogleDrive(formData: FormData) {
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings");
+
+  try {
+    await disconnectGoogleDriveConnection();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Drive disconnect failed.";
+    fail(errorMessage, returnTo);
+  }
+
+  revalidateSettingsSurface();
+  done("Google Drive disconnected", returnTo);
 }
 
 export async function setCurrentWorkspaceFromShell(formData: FormData) {

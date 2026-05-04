@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { AffiliateProfilesBoard } from "./affiliate-profiles-board";
+import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
 import {
   isAffiliateProfileSchemaMissingError,
   listAffiliateProfileWorkspaceLinks,
@@ -60,6 +61,13 @@ export default async function AffiliateProfilesSettingsPage() {
 
   const workspaces = workspaceState?.workspaces ?? [];
   const currentWorkspace = workspaceState?.currentWorkspace ?? null;
+  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const affiliateProfilesWithAvatars = await Promise.all(
+    affiliateProfiles.map(async (profile) => ({
+      ...profile,
+      avatarUrl: await resolveAffiliateProfileAvatar(profile, driveItemMap),
+    })),
+  );
 
   return (
     <div className="stack settings-page-body">
@@ -78,7 +86,7 @@ export default async function AffiliateProfilesSettingsPage() {
           currentWorkspaceId={currentWorkspace?.id ?? null}
           driveItems={driveItems}
           profileLinks={affiliateProfileLinks}
-          profiles={affiliateProfiles}
+          profiles={affiliateProfilesWithAvatars}
           workspaces={workspaces}
         />
       )}

@@ -12,7 +12,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S3-001, S3-002, S3-003
 - S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002
-- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007
+- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009
 - S7-001
 - S8-001, S8-002, S8-003, S8-004
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
@@ -194,6 +194,16 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Convert `/settings/gemini` into a workspace-style list-card surface with create/edit drawer and disable action.
 **Owner:** Codex
 **Acceptance:** multiple Gemini keys can be created, listed, edited, and disabled from `/settings/gemini`; the add button matches the workspace pattern without search; and Test, Copy Key, Regenerate, and history UI remain out of scope.
+
+### S6-008 - Affiliate overview avatar quick switch _(DONE)_
+**Goal:** Show real affiliate profile avatars in `/settings` overview and allow switching the default profile for the active workspace without opening the detail route.
+**Owner:** Codex
+**Acceptance:** the overview shows character-image avatars when available, falls back to the environment image or initials, and the quick switch button updates the active workspace default affiliate profile from the list view.
+
+### S6-009 - Google Drive connect row polish _(DONE)_
+**Goal:** Move Google Drive connect into the `/settings` overview and retire `/settings/drive` as a visible UI surface while keeping OAuth callback and workspace sync intact.
+**Owner:** Codex
+**Acceptance:** Google Drive uses a local asset icon, shows `Connect` only when disconnected, `/settings/drive` redirects to `/settings`, OAuth callback returns to `/settings`, and workspace Drive folder provisioning remains available from Workspace settings.
 
 ## S7 - Dashboard Analytics
 

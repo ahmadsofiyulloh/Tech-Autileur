@@ -635,6 +635,52 @@ export async function getDefaultAffiliateProfileForWorkspace(workspaceId: string
   return profile.status === "ACTIVE" ? profile : null;
 }
 
+export async function setDefaultAffiliateProfileForWorkspace(profileId: string, workspaceId: string) {
+  const context = await requireUser();
+  const profile = await requireOwnedAffiliateProfile(context, profileId);
+
+  await requireOwnedActiveWorkspace(context, workspaceId);
+
+  if (!profile.workspace_ids.includes(workspaceId)) {
+    throw new Error("Affiliate profile must be linked to the selected workspace.");
+  }
+
+  const { error: clearDefaultError } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .update({ is_default: false })
+    .eq("user_id", context.user.id)
+    .eq("workspace_id", workspaceId)
+    .eq("is_default", true);
+
+  if (clearDefaultError) {
+    throwAffiliateProfileError(clearDefaultError);
+  }
+
+  const { data: updatedLink, error: updateDefaultError } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .update({ is_default: true })
+    .eq("user_id", context.user.id)
+    .eq("workspace_id", workspaceId)
+    .eq("affiliate_profile_id", profileId)
+    .select("id")
+    .maybeSingle();
+
+  if (updateDefaultError) {
+    throwAffiliateProfileError(updateDefaultError);
+  }
+
+  if (!updatedLink) {
+    throw new Error("Affiliate profile must be linked to the selected workspace.");
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/settings/affiliate-profiles");
+  revalidatePath("/prompts");
+  revalidatePath("/products/new");
+
+  return profile;
+}
+
 export async function resolvePromptAffiliateProfile(input: { workspaceId: string | null; affiliateProfileId?: string | null }) {
   const context = await requireUser();
 

@@ -1,25 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, ArrowRight, Edit3, FileText, Package, Plus, Play, RefreshCcw, Save } from "lucide-react";
+import { Clock3, Edit3, FileText, Package, Plus, Play } from "lucide-react";
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
-import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
-import { listIntakeSessions } from "@/lib/server/intake";
 import { listDriveItems } from "@/lib/server/drive-items";
+import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductImages, listProducts } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
-import {
-  PROMPT_CLIP_KEYS,
-  PROMPT_CLIP_LABELS,
-  PROMPT_TARGET_MARKETPLACE,
-  type PromptClipKey,
-} from "@/lib/prompts/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -46,176 +38,6 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function promptEditorHref(params: { affiliateProfileId?: string | null; intakeId?: string | null; productId: string }) {
-  const searchParams = new URLSearchParams({ product_id: params.productId });
-
-  if (params.intakeId) {
-    searchParams.set("intake_id", params.intakeId);
-  }
-
-  if (params.affiliateProfileId) {
-    searchParams.set("affiliate_profile_id", params.affiliateProfileId);
-  }
-
-  return `/prompts?${searchParams.toString()}`;
-}
-
-function clipFieldName(clipKey: PromptClipKey, field: "i2i_first_frame" | "i2i_last_frame" | "i2v_prompt") {
-  return `${clipKey}_${field}`;
-}
-
-function PromptClipFields({
-  clipKey,
-  idPrefix,
-  values,
-}: {
-  clipKey: PromptClipKey;
-  idPrefix: string;
-  values: {
-    i2i_first_frame: string;
-    i2i_last_frame: string;
-    i2v_prompt: string;
-  };
-}) {
-  return (
-    <div className="muted-box stack">
-      <div className="section-card__actions">
-        <strong>{PROMPT_CLIP_LABELS[clipKey]}</strong>
-      </div>
-      <label className="stack auth-field" htmlFor={`${idPrefix}-${clipKey}-first-frame`}>
-        <span>I2I First Frame</span>
-        <textarea
-          id={`${idPrefix}-${clipKey}-first-frame`}
-          name={clipFieldName(clipKey, "i2i_first_frame")}
-          rows={4}
-          defaultValue={values.i2i_first_frame}
-        />
-      </label>
-      <label className="stack auth-field" htmlFor={`${idPrefix}-${clipKey}-last-frame`}>
-        <span>I2I Last Frame</span>
-        <textarea
-          id={`${idPrefix}-${clipKey}-last-frame`}
-          name={clipFieldName(clipKey, "i2i_last_frame")}
-          rows={4}
-          defaultValue={values.i2i_last_frame}
-        />
-      </label>
-      <label className="stack auth-field" htmlFor={`${idPrefix}-${clipKey}-i2v`}>
-        <span>I2V Prompt</span>
-        <textarea
-          id={`${idPrefix}-${clipKey}-i2v`}
-          name={clipFieldName(clipKey, "i2v_prompt")}
-          rows={5}
-          defaultValue={values.i2v_prompt}
-        />
-      </label>
-    </div>
-  );
-}
-
-function SharedPromptFields({
-  idPrefix,
-  caption,
-  tags,
-}: {
-  idPrefix: string;
-  caption: string;
-  tags: string;
-}) {
-  return (
-    <div className="stack">
-      <div className="grid two-up">
-        <label className="stack auth-field" htmlFor={`${idPrefix}-caption`}>
-          <span>Caption</span>
-          <textarea id={`${idPrefix}-caption`} name="caption" rows={4} defaultValue={caption} />
-        </label>
-        <div className="stack">
-          <label className="stack auth-field" htmlFor={`${idPrefix}-tags`}>
-            <span>Tags</span>
-            <textarea id={`${idPrefix}-tags`} name="tags" rows={3} defaultValue={tags} />
-          </label>
-        </div>
-      </div>
-      <div className="section-card__actions">
-        <span className="subtle">Target Marketplace</span>
-        <StatusBadge status={PROMPT_TARGET_MARKETPLACE} tone="info" />
-      </div>
-    </div>
-  );
-}
-
-function promptSetFromPack(pack: PromptPackRecord) {
-  return readPromptPackEditorPromptSet(pack);
-}
-
-function PromptPackEditorForm({
-  pack,
-  intakeSession,
-  affiliateProfile,
-  sourceImage,
-  generationTask,
-}: {
-  pack: PromptPackRecord;
-  intakeSession: IntakeSessionRecord | null;
-  affiliateProfile: { id: string; profile_name: string } | null;
-  sourceImage: ProductImageRecord | null;
-  generationTask: PromptTaskRecord | null;
-}) {
-  const promptSet = promptSetFromPack(pack);
-
-  return (
-    <form className="stack" action={savePromptPack}>
-      <input type="hidden" name="id" value={pack.id} />
-      <input type="hidden" name="product_id" value={pack.product_id} />
-      <input type="hidden" name="version" value={pack.version} />
-      <input type="hidden" name="intake_session_id" value={pack.intake_session_id ?? intakeSession?.id ?? ""} />
-      <input type="hidden" name="affiliate_profile_id" value={pack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
-      <input type="hidden" name="source_product_image_id" value={pack.source_product_image_id ?? sourceImage?.id ?? ""} />
-
-      {generationTask?.error_message ? <section className="error-box">{generationTask.error_message}</section> : null}
-      {pack.error_message ? <section className="error-box">{pack.error_message}</section> : null}
-
-      <div className="grid two-up">
-        {PROMPT_CLIP_KEYS.map((clipKey) => (
-          <PromptClipFields clipKey={clipKey} idPrefix={pack.id} key={clipKey} values={promptSet.clips[clipKey]} />
-        ))}
-      </div>
-
-      <SharedPromptFields idPrefix={pack.id} caption={promptSet.caption} tags={promptSet.tags} />
-
-      <label className="stack auth-field" htmlFor={`revision-${pack.id}`}>
-        <span>Instruksi Revisi</span>
-        <textarea id={`revision-${pack.id}`} name="revision_instruction" rows={3} />
-      </label>
-
-      <div className="section-card__actions">
-        <Link className="button compact tertiary" href={`/products/${pack.product_id}?tab=prompt_pack`}>
-          Detail
-        </Link>
-      </div>
-
-      <FormActions layout="quad">
-        <button className="button tertiary" name="intent" type="submit" value="update">
-          <Save size={16} aria-hidden="true" />
-          Simpan
-        </button>
-        <button className="button primary" name="intent" type="submit" value="regenerate">
-          <RefreshCcw size={16} aria-hidden="true" />
-          Buat Ulang
-        </button>
-        <button className="button destructive" name="intent" type="submit" value="archive">
-          <Archive size={16} aria-hidden="true" />
-          Arsipkan
-        </button>
-        <button className="button primary" name="intent" type="submit" value="mark_ready">
-          <Play size={16} aria-hidden="true" />
-          Tandai Siap Flow
-        </button>
-      </FormActions>
-    </form>
-  );
-}
-
 function PromptPackCreateForm({
   product,
   intakeSession,
@@ -230,7 +52,7 @@ function PromptPackCreateForm({
   const canCreate = Boolean(intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED");
 
   return (
-    <form className="stack" action={savePromptPack}>
+    <form className="prompt-list-card__action-form" action={savePromptPack}>
       <input type="hidden" name="intent" value="create_generate" />
       <input type="hidden" name="status" value="DRAFT" />
       <input type="hidden" name="version" value={1} />
@@ -238,18 +60,10 @@ function PromptPackCreateForm({
       <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
       <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
       <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
-
-      {canCreate ? null : <section className="error-box">Review Gemini dulu.</section>}
-
-      <FormActions layout="pair">
-        <button className="button primary" type="submit" disabled={!canCreate}>
-          <Play size={16} aria-hidden="true" />
-          Buat Prompt
-        </button>
-        <Link className="button tertiary" href={`/products/${product.id}?tab=metadata`}>
-          Detail
-        </Link>
-      </FormActions>
+      <button className="button compact primary" type="submit" disabled={!canCreate}>
+        <Play size={15} aria-hidden="true" />
+        Buat Prompt
+      </button>
     </form>
   );
 }
@@ -264,7 +78,7 @@ function PromptRowCard({
   sourceImageDriveItem,
   generationTask,
   defaultAffiliateProfileName,
-  isOpen,
+  isSelected,
 }: {
   product: ProductRecord;
   workspaceName: string;
@@ -275,20 +89,15 @@ function PromptRowCard({
   sourceImageDriveItem: DriveItemRecord | null;
   generationTask: PromptTaskRecord | null;
   defaultAffiliateProfileName: string;
-  isOpen: boolean;
+  isSelected: boolean;
 }) {
   const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
-  const productDetailHref = `/products/${product.id}?tab=${promptPack ? "prompt_pack" : "metadata"}`;
-  const editorHref = promptEditorHref({
-    affiliateProfileId: promptPack?.affiliate_profile_id ?? affiliateProfile?.id ?? null,
-    intakeId: promptPack?.intake_session_id ?? intakeSession?.id ?? null,
-    productId: product.id,
-  });
   const affiliateProfileName = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
   const actionLayout = promptPack || intakeSession ? "pair" : "single";
+  const sourceImageLabel = sourceImageDriveItem?.name ?? sourceImage?.id ?? "Foto belum ada";
 
   return (
-    <article className="prompt-list-card stack" data-open={isOpen ? "true" : undefined}>
+    <article className="prompt-list-card stack" data-open={isSelected ? "true" : undefined}>
       <div className="prompt-list-card__header">
         <div className="prompt-list-card__copy">
           <span>{promptPack ? `Paket Prompt v${promptPack.version}` : "Paket Prompt"}</span>
@@ -300,50 +109,41 @@ function PromptRowCard({
 
       <div className="prompt-list-card__meta-row">
         <span>{workspaceName}</span>
-        <span>{sourceImageDriveItem?.name ?? sourceImage?.id ?? "Foto belum ada"}</span>
+        <span>{sourceImageLabel}</span>
         {generationTask ? <StatusBadge status={generationTask.status} /> : null}
+        {!promptPack && !intakeSession ? <StatusBadge status="Review Gemini dulu" tone="warning" /> : null}
       </div>
 
       <div className="prompt-list-card__divider" aria-hidden="true" />
 
       <div className={`prompt-list-card__actions action-rail action-rail--${actionLayout}`.trim()}>
-        <Link className="button compact tertiary" href={productDetailHref}>
-          <ArrowRight size={15} aria-hidden="true" />
-          Detail
-        </Link>
         {promptPack ? (
-          <Link className="button compact primary" href={editorHref}>
-            <Edit3 size={15} aria-hidden="true" />
-            Edit
-          </Link>
-        ) : intakeSession ? (
-          <Link className="button compact primary" href={editorHref}>
-            <Play size={15} aria-hidden="true" />
-            Buat Prompt
-          </Link>
-        ) : null}
+          <>
+            <Link className="button compact primary" href={`/prompts/${promptPack.id}`}>
+              <Edit3 size={15} aria-hidden="true" />
+              Buka
+            </Link>
+            <Link className="button compact tertiary" href={`/prompts/${promptPack.id}/history`}>
+              <Clock3 size={15} aria-hidden="true" />
+              History
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link className="button compact tertiary" href={`/products/${product.id}?tab=metadata`}>
+              Produk
+            </Link>
+            {intakeSession ? (
+              <PromptPackCreateForm
+                affiliateProfile={affiliateProfile}
+                intakeSession={intakeSession}
+                product={product}
+                sourceImage={sourceImage}
+              />
+            ) : null}
+          </>
+        )}
       </div>
-
-      {isOpen ? (
-        <div className="stack prompt-list-card__editor">
-          {promptPack ? (
-            <PromptPackEditorForm
-              affiliateProfile={affiliateProfile}
-              generationTask={generationTask}
-              intakeSession={intakeSession}
-              pack={promptPack}
-              sourceImage={sourceImage}
-            />
-          ) : (
-            <PromptPackCreateForm
-              affiliateProfile={affiliateProfile}
-              intakeSession={intakeSession}
-              product={product}
-              sourceImage={sourceImage}
-            />
-          )}
-        </div>
-      ) : null}
     </article>
   );
 }
@@ -442,6 +242,19 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   }
 
   const promptTaskMap = new Map((promptTaskResult.data ?? []).map((task) => [task.id, task as PromptTaskRecord]));
+  const orderedProducts = [...products].sort((left, right) => {
+    if (selectedProductId) {
+      if (left.id === selectedProductId) {
+        return -1;
+      }
+
+      if (right.id === selectedProductId) {
+        return 1;
+      }
+    }
+
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
 
   return (
     <div className="stack prompt-page-stack">
@@ -451,9 +264,9 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       </div>
 
       <section className="stack" aria-label="Paket Prompt">
-        {products.length ? (
+        {orderedProducts.length ? (
           <section className="stack prompt-list-stack">
-            {products.map((product) => {
+            {orderedProducts.map((product) => {
               const promptPack = latestPromptPackByProductId.get(product.id) ?? null;
               const intakeSession = latestReviewedIntakeByProductId.get(product.id) ?? null;
               const affiliateProfile = promptPack?.affiliate_profile_id
@@ -467,13 +280,14 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     null;
               const sourceImageDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
               const generationTask = promptPack?.ai_task_id ? promptTaskMap.get(promptPack.ai_task_id) ?? null : null;
+
               return (
                 <PromptRowCard
                   affiliateProfile={affiliateProfile}
                   defaultAffiliateProfileName={currentAffiliateProfileLabel}
                   generationTask={generationTask}
                   intakeSession={intakeSession}
-                  isOpen={selectedProductId === product.id}
+                  isSelected={selectedProductId === product.id}
                   key={product.id}
                   promptPack={promptPack}
                   product={product}
@@ -495,32 +309,9 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                 Produk Baru
               </Link>
             }
-            />
-          )}
+          />
+        )}
       </section>
-
-      {promptPacks.length ? (
-        <details className="prompt-history-compact">
-          <summary>Riwayat prompt</summary>
-          <ul className="list">
-            {promptPacks.map((pack) => {
-              const product = productMap.get(pack.product_id);
-              return (
-                <li key={pack.id}>
-                  <div className="stack-tight">
-                    <strong>{product?.product_name ?? "Produk tidak tersedia"}</strong>
-                    <span className="subtle">{`v${pack.version}`}</span>
-                    <StatusBadge status={pack.status} />
-                  </div>
-                  <Link className="button compact" href={`/products/${pack.product_id}?tab=prompt_pack`}>
-                    Detail
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      ) : null}
     </div>
   );
 }

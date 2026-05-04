@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { HardDrive } from "lucide-react";
 import { DriveVisualManager } from "./drive-visual-manager";
 import { EmptyState } from "@/components/operator/empty-state";
-import { listDriveItems } from "@/lib/server/drive-items";
+import { getDriveItemById, listDriveItems } from "@/lib/server/drive-items";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default async function DrivePage() {
   }
 
   let driveItems;
+  let uploadTarget: { id: string; name: string; drive_path: string } | null = null;
 
   try {
     driveItems = await listDriveItems({ limit: 200 });
@@ -30,10 +32,30 @@ export default async function DrivePage() {
     );
   }
 
-  return driveItems.length ? (
+  try {
+    const workspace = await getCurrentWorkspace();
+
+    if (workspace?.drive_root_folder_ref_id) {
+      const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
+
+      if (rootFolder?.item_type === "FOLDER" && rootFolder.drive_item_id) {
+        uploadTarget = {
+          id: rootFolder.id,
+          name: rootFolder.name,
+          drive_path: rootFolder.drive_path,
+        };
+      }
+    }
+  } catch {
+    uploadTarget = null;
+  }
+
+  return (
     <DriveVisualManager
+      uploadTarget={uploadTarget}
       items={driveItems.map((item) => ({
         id: item.id,
+        drive_item_id: item.drive_item_id,
         item_type: item.item_type,
         name: item.name,
         drive_url: item.drive_url,
@@ -42,11 +64,9 @@ export default async function DrivePage() {
         purpose: item.purpose,
         status: item.status,
         size_bytes: item.size_bytes,
+        checksum: item.checksum,
+        drive_modified_at: item.drive_modified_at,
       }))}
     />
-  ) : (
-    <div className="stack">
-      <EmptyState icon={HardDrive} title="Belum ada item Drive." description="Sinkronkan folder Drive dulu." />
-    </div>
   );
 }
