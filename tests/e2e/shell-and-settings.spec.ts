@@ -40,6 +40,14 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(page.getByText("ACTIVE")).toBeVisible();
     await page.getByRole("button", { name: "Cabut token" }).click();
     await expect(page.getByText("DISABLED", { exact: true })).toBeVisible();
+
+    await page.goto("/settings/affiliate-profiles");
+    await expect(page.getByRole("heading", { name: "Akun Affiliate", level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "Detail" }).first().click();
+    await expect(page.locator(".image-preview-upload-card__frame")).toHaveCount(2);
+    await expect(page.getByText("Upload / replace character image")).toHaveCount(0);
+    await expect(page.getByText("Upload / replace environment image")).toHaveCount(0);
+    await expect(page.getByText("Hapus referensi")).toHaveCount(0);
   } catch (error) {
     throw classifySmokeError("shell and settings", error);
   }

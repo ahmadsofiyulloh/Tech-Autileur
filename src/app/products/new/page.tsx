@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
@@ -78,7 +77,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   }
 
   const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const scopeLabel = currentWorkspace && !showAllWorkspaces ? currentWorkspace.workspace_name : "Semua workspace";
   const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
   const message = firstParam(query.message) ?? null;
   const errorMessage = firstParam(query.error) ?? null;
@@ -90,25 +88,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   return (
     <div className="stack intake-native-page">
-      <div className="intake-native-header">
-        <div className="stack-tight">
-          <h2>Intake Workflow</h2>
-          <p>Upload dan analisis</p>
-        </div>
-        <div className="intake-scope-row">
-          <span className="intake-scope-chip">Lingkup: {scopeLabel}</span>
-          {currentWorkspace ? (
-            <Link className="button compact intake-secondary-link" href={showAllWorkspaces ? "/products/new" : "/products/new?workspace=all"}>
-              {showAllWorkspaces ? "Workspace aktif" : "Semua workspace"}
-            </Link>
-          ) : null}
-          <Link className="button compact intake-secondary-link" href="/products">
-            <ArrowLeft size={15} aria-hidden="true" />
-            Produk
-          </Link>
-        </div>
-      </div>
-
       <section className="intake-native-surface" aria-label="Workflow intake produk">
         <IntakeWorkflowForm
           affiliateProfiles={affiliateProfiles.map((profile) => ({
