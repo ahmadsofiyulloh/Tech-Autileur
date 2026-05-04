@@ -14,7 +14,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S5-001, S5-002
 - S6-001, S6-002, S6-003, S6-004, S6-005, S6-006
 - S7-001
-- S8-001, S8-002, S8-003
+- S8-001, S8-002, S8-003, S8-004
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 
 ## S0 - Docs and Source of Truth Sync
@@ -213,3 +213,8 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Make all operator-facing code fields internal/auto-generated and remove notes/catatan fields from forms.
 **Owner:** Codex
 **Acceptance:** no primary UI form asks for codes or notes, codes are still generated for database/helper artifacts, and technical manifest/helper identifiers keep working.
+
+### S8-004 - Prompt surface KPI cleanup _(DONE)_
+**Goal:** Remove duplicated KPI tiles from prompt editor and product detail prompt surfaces.
+**Owner:** Codex
+**Acceptance:** prompt editor and prompt detail keep compact context lines and contract preview, but do not repeat header-level KPI tiles for the same product or prompt pack.

@@ -52,6 +52,7 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-04 | 26c26f8 | VIS-001..VIS-006 | Shipped the bundled mobile-first visual PWA sync. See `docs/VISUAL_PWA_PROGRESS_2026_05_04.md` for the visual snapshot. |
 | 2026-05-04 | 11efa04 | VIS-003, S6-006 | Reused the shared image preview upload card across intake and affiliate profile drawers; refreshed smoke assertions. |
 | 2026-05-04 | d7e86bc | S2-002, S2-003 | Hardened intake upload parsing and raised the server action upload limit for real file bodies. |
+| 2026-05-05 | ec8e735 | S8-004 | Removed duplicated KPI tiles from prompt editor and prompt detail surfaces. |
 
 ## Legacy Foundation Checkpoints
 
@@ -69,6 +70,7 @@ These commits predate the task-tagged commit convention but still document actua
 ## Support Notes
 
 - `48ff168` is a dirty checkpoint artifact and is not used as backlog evidence.
-- `S8-004` appears in the `b5a7d65` docs checkpoint but is not tracked as an active micro-task in the current backlog snapshot.
+- `c7ac450` syncs the lock docs and operator guidance after the current worktree cleanup.
+- `93eb5bf` restores the visual PWA shell and operational surfaces after the revert checkpoint.
 - `11efa04` and `d7e86bc` are follow-up commits on already-completed tasks; they do not change the current backlog completion snapshot.
 - `2ca104d` and `66c09ee` are docs and baseline sync checkpoints, not feature completion by themselves.
