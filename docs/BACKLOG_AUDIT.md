@@ -53,6 +53,7 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-04 | 11efa04 | VIS-003, S6-006 | Reused the shared image preview upload card across intake and affiliate profile drawers; refreshed smoke assertions. |
 | 2026-05-04 | d7e86bc | S2-002, S2-003 | Hardened intake upload parsing and raised the server action upload limit for real file bodies. |
 | 2026-05-05 | ec8e735 | S8-004 | Removed duplicated KPI tiles from prompt editor and prompt detail surfaces. |
+| 2026-05-05 | 6698a6e | S6-007 | Converted Gemini settings into a multi-key list-card surface with drawer CRUD and disable action. |
 
 ## Legacy Foundation Checkpoints
 
