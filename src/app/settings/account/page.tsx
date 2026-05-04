@@ -5,6 +5,7 @@ import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { ChromePairingPanel } from "../chrome-pairing-panel";
 import { HelperApiTokenPanel } from "../helper-api-token-panel";
+import { SettingsSectionNav } from "../settings-section-nav";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError, type HelperApiTokenRecord } from "@/lib/server/helper-api-tokens";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -37,6 +38,8 @@ export default async function AccountSettingsPage() {
 
   return (
     <div className="stack">
+      <SettingsSectionNav />
+
       <SectionCard icon={UserRound} title="Account">
         <div className="stack">
           <ChromePairingPanel ownerEmail={user.email ?? null} />
