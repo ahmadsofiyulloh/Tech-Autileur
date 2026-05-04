@@ -47,15 +47,11 @@ Out of scope on mobile:
 
 ## Direct `/controller` Mobile Access
 
-If `/controller` is opened on mobile, show a minimal state:
-
-```text
-Flow Control tersedia di desktop.
-```
+During Phase 1, `/controller` follows the frozen redirect to `/products/new` on mobile.
 
 No mobile queue management UI should be added in Phase awal.
 
-The minimal state can offer a single return path to `/products/new` or `/settings`, but it must not surface helper actions, queue columns, or Chrome profile controls.
+The redirect path must not surface helper actions, queue columns, or Chrome profile controls.
 
 ## Mobile Intake Contract
 

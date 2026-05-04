@@ -50,8 +50,8 @@
 
 ## Flow Control and Flow Accounts
 
-- `/controller` is the desktop-only Flow Control board.
-- Board columns are `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
+- `/controller` is frozen in Phase 1 and redirects to `/products/new`.
+- The retained Flow Control board columns are `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
 - Flow accounts remain global execution tools.
 - Flow accounts do not have `workspace_id`.
 - Flow accounts do not store Chrome profile paths.

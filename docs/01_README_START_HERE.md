@@ -16,10 +16,12 @@ Read these docs in order:
 8. `docs/FLOW_BATCH_BRIDGE_LOCK.md`
 9. `docs/FLOW_HELPER_DESKTOP_WORKFLOW.md`
 10. `docs/GOOGLE_DRIVE_FILE_SYSTEM_LOCK.md`
-11. `docs/MICRO_TASK_BACKLOG.md`
-12. `docs/SUPABASE_MCP_RUNBOOK.md`
-13. `docs/SMOKE_E2E_RUNBOOK.md`
-14. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
+11. `docs/BACKLOG_STREAMS.md`
+12. `docs/BACKLOG_AUDIT.md`
+13. `docs/MICRO_TASK_BACKLOG.md`
+14. `docs/SUPABASE_MCP_RUNBOOK.md`
+15. `docs/SMOKE_E2E_RUNBOOK.md`
+16. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
 
 ## MVP Core
 The MVP is not a generic affiliate planner. It is an AI production control center for one operator.

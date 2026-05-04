@@ -15,7 +15,7 @@ Run a hybrid smoke harness that exercises the operator app end-to-end and classi
 ## What the harness covers
 
 - Auth bootstrap and protected shell
-- Desktop nav and mobile controller guard
+- Desktop nav and mobile controller redirect guard
 - Settings account surface, Chrome pairing, App API Token
 - Live intake upload path with real image files
 - Prompt generation from seeded intake data
@@ -55,4 +55,3 @@ Optional:
 - Google Flow remains a manual boundary and is not auto-submitted by the app.
 - The harness creates a local auth state file under `.playwright/.auth/`.
 - The harness seeds a dedicated smoke workspace, affiliate profile, product, intake session, and Drive references before the browser tests start.
-

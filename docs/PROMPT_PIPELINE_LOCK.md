@@ -175,7 +175,7 @@ Prompt generation must persist structured JSON with at least:
 - Flow Control is the execution workspace.
 - Ready prompt packs move into the global Flow account pool.
 - Flow accounts are not owned by workspace.
-- Flow account management belongs to `/controller` support panels, not Settings CRUD.
+- Flow account management belongs to the retained `/controller` support panels, not Settings CRUD.
 - Account recommendation is based on availability, observed credit, and status.
 - User confirms the account before running Flow.
 - Desktop execution details, including helper staging and Chrome profile reuse, live in [FLOW_HELPER_DESKTOP_WORKFLOW.md](FLOW_HELPER_DESKTOP_WORKFLOW.md).

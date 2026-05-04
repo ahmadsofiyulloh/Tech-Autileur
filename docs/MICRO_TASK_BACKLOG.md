@@ -4,16 +4,17 @@ This backlog replaces older sprint assumptions. Implement one micro-task at a ti
 
 ## Progress Snapshot
 
-Completed on this branch:
+Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 
 - S0-001
 - S1-001, S1-002, S1-003
-- S2-001, S2-003
-- S3-001, S3-002
-- S4-001, S4-002, S4-003
+- S2-001, S2-002, S2-003
+- S3-001, S3-002, S3-003
+- S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002
-- S6-001, S6-002, S6-004, S6-005
+- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006
 - S7-001
+- S8-001, S8-002, S8-003
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 
 ## S0 - Docs and Source of Truth Sync
@@ -89,7 +90,7 @@ Known visual/backend gaps:
 **Owner:** Codex
 **Acceptance:** no title/account/metadata fields are shown before `Analisis Gemini`.
 
-### S2-002 - Real Drive upload
+### S2-002 - Real Drive upload _(DONE)_
 **Goal:** Store uploaded image/screenshot bytes in Google Drive and metadata in Supabase.
 **Owner:** Codex
 **Acceptance:** real sample files can be uploaded in dev E2E without mock-only storage.
@@ -113,7 +114,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Acceptance:** prompt pack JSON persists, includes `prompt_context`, versions are preserved, clip-level first-frame/last-frame/I2V inputs are represented, and the selected Flow-ready version is explicit.
 
-### S3-003 - Top-level Affiliate Profile relation and strict lock semantics
+### S3-003 - Top-level Affiliate Profile relation and strict lock semantics _(DONE)_
 **Goal:** Move Affiliate Profile to a top-level persona model with explicit workspace links, default selection, and strict character/environment lock behavior.
 **Owner:** Codex
 **Acceptance:** one profile can link to multiple workspaces, each workspace can mark one default profile link, new profiles default asset locks to ON, save may happen before asset refs exist, and prompt generation blocks when a locked Character or Environment reference is missing.
@@ -135,12 +136,12 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Acceptance:** board is desktop-first and uses real statuses, not fake Google Flow progress claims.
 
-### S4-004 - Manifest export
+### S4-004 - Manifest export _(DONE)_
 **Goal:** Generate batch manifest JSON for Windows Helper.
 **Owner:** Codex
 **Acceptance:** manifest includes batch, account code, Drive folder, helper output key, rename pattern, and jobs.
 
-### S4-005 - Helper metadata callback
+### S4-005 - Helper metadata callback _(DONE)_
 **Goal:** Accept metadata callback from Windows Helper after Drive upload.
 **Owner:** Codex
 **Acceptance:** callback uses App API Token, writes owner-scoped metadata, and never receives large video bytes.
@@ -169,7 +170,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Acceptance:** Gemini is a single form surface, Drive is folder-centric list + drawer, Account contains Chrome pairing plus token controls, and Flow Accounts remain controller-owned rather than Settings CRUD.
 
-### S6-003 - Picker grammar lock
+### S6-003 - Picker grammar lock _(DONE)_
 **Goal:** Apply the shared picker grammar across all choice fields.
 **Owner:** Codex
 **Acceptance:** choice fields use the shared custom picker, searchable mode is used only when the option set needs search, desktop panels anchor to the field, and mobile panels become bottom sheets.
@@ -184,7 +185,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Acceptance:** desktop mutable lists use searchable tables plus right side drawers, mobile mutable lists use compact cards plus full-screen drawers or bottom sheets, create entrypoints exist only in header and empty state CTA, row actions are Open plus edit/archive/delete in overflow, and archive-first lifecycle is the default.
 
-### S6-006 - Affiliate Profile drawer rewrite
+### S6-006 - Affiliate Profile drawer rewrite _(DONE)_
 **Goal:** Replace the current form-heavy Akun Affiliate surface with the locked list + drawer model and two first-class asset cards.
 **Owner:** Codex
 **Acceptance:** row summaries stay minimal, the drawer is the only edit surface, Character and Environment each have upload/replace/remove plus preview/status, explicit workspace links and default selection live in the drawer, and notes are not shown in forms.
@@ -198,17 +199,17 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 
 ## S8 - Hardening
 
-### S8-001 - Minimal UI copy pass
+### S8-001 - Minimal UI copy pass _(DONE)_
 **Goal:** Remove verbose descriptions from primary surfaces.
 **Owner:** Codex
 **Acceptance:** only titles, labels, action labels, status labels, one-sentence empty states, and one-sentence error states remain.
 
-### S8-002 - E2E real-data smoke
+### S8-002 - E2E real-data smoke _(DONE)_
 **Goal:** Run dev E2E with real sample images, live Gemini, Drive upload, prompt persistence, Flow manifest, and output metadata callback when helper is available.
 **Owner:** Codex + User setup
 **Acceptance:** failures are classified as product blocker, helper limitation, auth limitation, or missing external setup.
 
-### S8-003 - Hide codes and remove form notes
+### S8-003 - Hide codes and remove form notes _(DONE)_
 **Goal:** Make all operator-facing code fields internal/auto-generated and remove notes/catatan fields from forms.
 **Owner:** Codex
 **Acceptance:** no primary UI form asks for codes or notes, codes are still generated for database/helper artifacts, and technical manifest/helper identifiers keep working.

@@ -3,6 +3,7 @@
 ## Purpose
 
 This note records the actual repo progress after the Visual PWA Mobile-First implementation. It is a status snapshot for the team, not a new backend scope request.
+The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a snapshot summary only.
 
 ## Current Visual Decisions
 
@@ -24,6 +25,11 @@ This note records the actual repo progress after the Visual PWA Mobile-First imp
 - Products and Prompts visual cards were updated in `src/app/products/page.tsx`, `src/app/products/product-list.tsx`, and `src/app/prompts/page.tsx`.
 - Drive visual manager was added through `src/app/drive/page.tsx` and `src/app/drive/drive-visual-manager.tsx`.
 - Settings grouped overview was updated in `src/app/settings/page.tsx`.
+
+## Current Follow-Up
+
+- `11efa04` reused the shared image preview upload card across intake and affiliate profile drawers.
+- `d7e86bc` hardened intake upload parsing and raised the server action upload limit for real file bodies.
 
 ## Verification Snapshot
 

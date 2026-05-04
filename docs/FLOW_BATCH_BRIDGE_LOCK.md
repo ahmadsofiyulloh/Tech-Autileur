@@ -3,11 +3,15 @@
 ## Purpose
 The app prepares prompt batches for Google Flow. Google Flow remains the external executor. Windows Helper bridges local Chrome profile opening and output import without browser automation.
 
+## Phase Scope
+
+Phase 1 freezes `/controller` and redirects it to `/products/new`. The board and helper contract below describe the retained desktop Flow Control surface for the phase when it is enabled.
+
 ## Locked Rules
 
 - UI label: `Flow Control`.
 - Route: `/controller`.
-- Surface: desktop-only primary board.
+- Surface: desktop-only retained board.
 - Flow accounts are global execution tools and are not workspace-bound.
 - `flow_accounts` must not have `workspace_id`.
 - The account pool is dynamic; do not hardcode `22` or any fixed pool size.
@@ -42,7 +46,7 @@ status
 
 `Pengaturan > Account` owns Chrome profile pairing and App API Token controls. `/controller` must not duplicate pairing actions.
 
-Flow Accounts are controller-owned execution tools. They may appear in `/controller` support panels for recommendation, status, credit, cooldown, and slot management. They must not become a separate Settings CRUD surface. Settings may only link to Flow Control or show a minimal Flow status card.
+Flow Accounts are controller-owned execution tools. They may appear in `/controller` support panels when the retained desktop surface is enabled for recommendation, status, credit, cooldown, and slot management. They must not become a separate Settings CRUD surface. Settings may only link to Flow Control or show a minimal Flow status card.
 
 ## Account Recommendation
 
@@ -81,7 +85,7 @@ Progress source:
 
 Do not claim real-time Google Flow progress unless helper or extension data explicitly reports it.
 
-Support panels on `/controller` should be collapsed by default so the board remains queue-first.
+Support panels on `/controller` should be collapsed by default so the board remains queue-first when that surface is enabled.
 
 ## Batch Outputs
 

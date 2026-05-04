@@ -394,7 +394,7 @@ Tipe Akun
 
 `account_code` is generated internally and hidden from operator UI.
 
-UI surface lock: Flow Accounts are controller-owned execution tools. They can be managed from `/controller` support panels, but they must not become a separate Settings CRUD surface.
+UI surface lock: Flow Accounts are controller-owned execution tools. They can appear in retained `/controller` support panels when that surface is enabled, but they must not become a separate Settings CRUD surface. Phase 1 keeps `/controller` frozen and redirects it to `/products/new`.
 
 ### `flow_batches`
 

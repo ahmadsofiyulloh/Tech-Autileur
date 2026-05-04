@@ -5,6 +5,8 @@ Dokumen ini menjelaskan alur operator desktop untuk Flow execution, termasuk hub
 
 Ini adalah SOP operasional, bukan spesifikasi kode.
 
+Phase 1 keeps `/controller` frozen and redirected to `/products/new`; this SOP describes the retained desktop workflow when the controller surface is available.
+
 ## Dibaca Setelah
 
 Urutan baca yang disarankan:
@@ -49,7 +51,7 @@ Urutan baca yang disarankan:
 
 ### 1. Batch manifest
 
-Export dari `/controller` dan minimal memuat:
+Export dari controller surface dan minimal memuat:
 
 - `batch_code`
 - `flow_account_code`
@@ -93,7 +95,7 @@ Catatan:
 
 1. Operator menyelesaikan intake dan prompt pack di app.
 2. Operator menekan `Tandai Siap Flow`.
-3. Di `/controller`, operator memilih rekomendasi akun Flow jika sesuai.
+3. Di controller surface, operator memilih rekomendasi akun Flow jika sesuai.
 4. Operator mengekspor manifest batch.
 
 ### B. Helper menyiapkan local working set
@@ -222,4 +224,3 @@ Sesudah run:
 - Helper tidak menyimpan Chrome profile path di Supabase.
 - Helper tidak menyimpan OAuth token Drive di Supabase.
 - Desktop tetap diperlukan untuk Flow Control dan eksekusi Flow.
-

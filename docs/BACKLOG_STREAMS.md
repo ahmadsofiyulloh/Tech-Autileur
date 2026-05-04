@@ -36,3 +36,8 @@ Login
 -> Pengaturan > Account pairing/token
 -> Output package/history
 ```
+
+## Audit Rule
+
+Use `docs/BACKLOG_AUDIT.md` as the commit-backed evidence layer for stream progress.
+`docs/MICRO_TASK_BACKLOG.md` is the summary index; do not mark a stream complete there unless the audit has a matching commit row.
