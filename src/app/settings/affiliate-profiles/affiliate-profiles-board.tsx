@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus, PanelRightOpen, Search, X } from "lucide-react";
 import { FormActions } from "@/components/operator/form-actions";
-import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { saveAffiliateProfile } from "../actions";
@@ -73,6 +72,26 @@ function choiceOptions(values: readonly string[]) {
     value,
     label: value,
   }));
+}
+
+function driveItemSummary(item: DriveItemRecord | undefined) {
+  if (!item) {
+    return "Belum ada file.";
+  }
+
+  return [item.name, item.drive_path, item.status].filter(Boolean).join(" - ");
+}
+
+function assetRequirementText(locked: boolean, item: DriveItemRecord | undefined) {
+  if (locked && !item) {
+    return "Lock aktif. Upload file dulu agar prompt generation tidak diblok.";
+  }
+
+  if (item) {
+    return "Siap dipakai sebagai referensi prompt.";
+  }
+
+  return "Opsional untuk profile ini.";
 }
 
 export function AffiliateProfilesBoard({
@@ -166,10 +185,6 @@ export function AffiliateProfilesBoard({
     () => driveItems.find((item) => item.id === selectedProfile?.environment_drive_item_ref_id) ?? null,
     [driveItems, selectedProfile?.environment_drive_item_ref_id],
   );
-  const selectedSeedCharacterPreviewUrl =
-    selectedSeedCharacterDriveItem?.mime_type?.startsWith("image/") ? selectedSeedCharacterDriveItem.drive_url : null;
-  const selectedEnvironmentPreviewUrl =
-    selectedEnvironmentDriveItem?.mime_type?.startsWith("image/") ? selectedEnvironmentDriveItem.drive_url : null;
 
   const formKey = isCreating ? "create-profile" : selectedProfile?.id ?? "edit-profile";
   const initialProfile = selectedProfile ?? null;
@@ -403,22 +418,50 @@ export function AffiliateProfilesBoard({
                   />
                 </div>
                 <div className="grid two-up">
-                  <section className="stack-tight">
-                    <ImagePreviewUploadCard
-                      clearName="clear_seed_character_drive_item_ref_id"
-                      emptyTitle="Belum ada karakter"
-                      removedTitle="Referensi dihapus"
-                      label="Character"
-                      name="seed_character_file"
-                      previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
-                      previewUrl={selectedSeedCharacterPreviewUrl}
-                    />
+                  <section className="asset-upload-card stack-tight">
+                    <div className="section-card__actions">
+                      <div className="stack-tight">
+                        <strong>Character</strong>
+                        <span className="subtle">Dipakai sebagai seed persona untuk i2i dan i2v.</span>
+                      </div>
+                      <StatusBadge status={initialProfile?.lock_seed_character ? "Locked" : "Open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
+                    </div>
+                    <div className="asset-upload-card__preview">
+                      <div className="asset-upload-card__empty">
+                        <strong>{selectedSeedCharacterDriveItem ? selectedSeedCharacterDriveItem.name : "Belum ada karakter"}</strong>
+                        <span>{driveItemSummary(selectedSeedCharacterDriveItem ?? undefined)}</span>
+                      </div>
+                    </div>
+                    {seedCharacterMissing ? (
+                      <div className="error-box status-box" role="alert">
+                        <span>{assetRequirementText(initialProfile?.lock_seed_character ?? true, selectedSeedCharacterDriveItem ?? undefined)}</span>
+                      </div>
+                    ) : (
+                      <p className="field-note">
+                        {assetRequirementText(initialProfile?.lock_seed_character ?? true, selectedSeedCharacterDriveItem ?? undefined)}
+                      </p>
+                    )}
+                    <label className="stack auth-field" htmlFor="seed-character-file">
+                      <span>Upload / replace character image</span>
+                      <input id="seed-character-file" name="seed_character_file" type="file" accept="image/*" />
+                    </label>
+                    <div className="auth-actions">
+                      {selectedSeedCharacterDriveItem?.drive_url ? (
+                        <a className="button compact" href={selectedSeedCharacterDriveItem.drive_url} rel="noreferrer" target="_blank">
+                          Buka file
+                        </a>
+                      ) : null}
+                      <label className="checkbox-row">
+                        <input id="clear-seed-character-ref" name="clear_seed_character_drive_item_ref_id" type="checkbox" value="true" />
+                        <span>Hapus referensi</span>
+                      </label>
+                    </div>
                     <details className="stack-tight">
-                      <summary>Referensi Drive</summary>
+                      <summary>Attach existing Drive item</summary>
                       <RelationalPicker
                         allowClear
                         defaultValue={initialProfile?.seed_character_drive_item_ref_id}
-                        label="Referensi Character"
+                        label="Character Drive reference"
                         name="seed_character_drive_item_ref_id"
                         options={driveItemOptions}
                         placeholder="Gunakan karakter kosong."
@@ -427,22 +470,50 @@ export function AffiliateProfilesBoard({
                     </details>
                   </section>
 
-                  <section className="stack-tight">
-                    <ImagePreviewUploadCard
-                      clearName="clear_environment_drive_item_ref_id"
-                      emptyTitle="Belum ada environment"
-                      removedTitle="Referensi dihapus"
-                      label="Environment"
-                      name="environment_file"
-                      previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
-                      previewUrl={selectedEnvironmentPreviewUrl}
-                    />
+                  <section className="asset-upload-card stack-tight">
+                    <div className="section-card__actions">
+                      <div className="stack-tight">
+                        <strong>Environment</strong>
+                        <span className="subtle">Background-lock asset untuk i2i dan i2v.</span>
+                      </div>
+                      <StatusBadge status={initialProfile?.lock_environment ? "Locked" : "Open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
+                    </div>
+                    <div className="asset-upload-card__preview">
+                      <div className="asset-upload-card__empty">
+                        <strong>{selectedEnvironmentDriveItem ? selectedEnvironmentDriveItem.name : "Belum ada environment"}</strong>
+                        <span>{driveItemSummary(selectedEnvironmentDriveItem ?? undefined)}</span>
+                      </div>
+                    </div>
+                    {environmentMissing ? (
+                      <div className="error-box status-box" role="alert">
+                        <span>{assetRequirementText(initialProfile?.lock_environment ?? true, selectedEnvironmentDriveItem ?? undefined)}</span>
+                      </div>
+                    ) : (
+                      <p className="field-note">
+                        {assetRequirementText(initialProfile?.lock_environment ?? true, selectedEnvironmentDriveItem ?? undefined)}
+                      </p>
+                    )}
+                    <label className="stack auth-field" htmlFor="environment-file">
+                      <span>Upload / replace environment image</span>
+                      <input id="environment-file" name="environment_file" type="file" accept="image/*" />
+                    </label>
+                    <div className="auth-actions">
+                      {selectedEnvironmentDriveItem?.drive_url ? (
+                        <a className="button compact" href={selectedEnvironmentDriveItem.drive_url} rel="noreferrer" target="_blank">
+                          Buka file
+                        </a>
+                      ) : null}
+                      <label className="checkbox-row">
+                        <input id="clear-environment-ref" name="clear_environment_drive_item_ref_id" type="checkbox" value="true" />
+                        <span>Hapus referensi</span>
+                      </label>
+                    </div>
                     <details className="stack-tight">
-                      <summary>Referensi Drive</summary>
+                      <summary>Attach existing Drive item</summary>
                       <RelationalPicker
                         allowClear
                         defaultValue={initialProfile?.environment_drive_item_ref_id}
-                        label="Referensi Environment"
+                        label="Environment Drive reference"
                         name="environment_drive_item_ref_id"
                         options={driveItemOptions}
                         placeholder="Gunakan environment otomatis."

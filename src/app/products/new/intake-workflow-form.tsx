@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import {
@@ -10,13 +10,13 @@ import {
   Link2,
   Loader2,
   Plus,
+  Upload,
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
-import { ImagePreviewUploadCard, type ImagePreviewSelectionState } from "@/components/operator/image-preview-upload-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import type { JsonRecord } from "@/lib/intake/validation";
 
@@ -51,6 +51,19 @@ type IntakeWorkflowFormProps = {
   savedSessionWorkspaceName: string | null;
   selectedAffiliateProfileId: string | null;
   showAllWorkspaces: boolean;
+};
+
+type AssetSelectionState = {
+  selected: boolean;
+  fileName: string | null;
+  previewUrl: string | null;
+};
+
+type AssetUploadCardProps = {
+  description: string;
+  label: string;
+  name: string;
+  onSelectionChange: (state: AssetSelectionState) => void;
 };
 
 function readReviewValue(metadata: JsonRecord | null, key: string, fallbackKey?: string) {
@@ -108,6 +121,118 @@ function SubmitButton({
       {pending ? <Loader2 className="spin" size={16} aria-hidden="true" /> : <Icon size={16} aria-hidden="true" />}
       {pending ? pendingLabel : children}
     </button>
+  );
+}
+
+function AssetUploadCard({ description, label, name, onSelectionChange }: AssetUploadCardProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+
+    if (!file) {
+      setError(null);
+      setFileName(null);
+      setIsPreparing(false);
+      setPreviewUrl(null);
+      onSelectionChange({ selected: false, fileName: null, previewUrl: null });
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Pilih file gambar.");
+      setFileName(null);
+      setIsPreparing(false);
+      setPreviewUrl(null);
+      onSelectionChange({ selected: false, fileName: null, previewUrl: null });
+      event.target.value = "";
+      return;
+    }
+
+    setError(null);
+    setFileName(file.name);
+    setIsPreparing(true);
+    setPreviewUrl(null);
+    onSelectionChange({ selected: true, fileName: file.name, previewUrl: null });
+
+    const reader = new FileReader();
+
+    reader.addEventListener("load", () => {
+      const nextPreviewUrl = typeof reader.result === "string" ? reader.result : null;
+      setPreviewUrl(nextPreviewUrl);
+      setIsPreparing(false);
+      onSelectionChange({ selected: true, fileName: file.name, previewUrl: nextPreviewUrl });
+    });
+    reader.addEventListener("error", () => {
+      setError("Tidak bisa menyiapkan pratinjau lokal.");
+      setFileName(null);
+      setIsPreparing(false);
+      setPreviewUrl(null);
+      onSelectionChange({ selected: false, fileName: null, previewUrl: null });
+      event.target.value = "";
+    });
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <section className="asset-upload-card intake-upload-card stack-tight" data-has-preview={previewUrl ? "true" : "false"}>
+      <div className="intake-upload-card__header">
+        <div className="stack-tight">
+          <strong>{label}</strong>
+          <span className="subtle">{description}</span>
+        </div>
+        {isPreparing ? (
+          <StatusBadge status="Menyiapkan" tone="warning" />
+        ) : previewUrl ? (
+          <StatusBadge status="Preview" />
+        ) : (
+          <StatusBadge status="Kosong" tone="neutral" />
+        )}
+      </div>
+      <div className="asset-upload-card__preview">
+        {isPreparing ? (
+          <div className="asset-upload-card__empty" role="status">
+            <Loader2 className="spin" size={34} aria-hidden="true" />
+            <span>Menyiapkan pratinjau</span>
+          </div>
+        ) : previewUrl ? (
+          <img alt={`${label} local preview`} src={previewUrl} />
+        ) : (
+          <div className="asset-upload-card__empty">
+            <Plus size={28} aria-hidden="true" />
+            <span>Tambah gambar</span>
+          </div>
+        )}
+        <button
+          className="asset-upload-card__overlay button compact intake-upload-card__button"
+          disabled={isPreparing}
+          type="button"
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload size={15} aria-hidden="true" />
+          {isPreparing ? "Menyiapkan" : previewUrl ? "Ganti" : "Pilih"}
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        accept="image/*"
+        className="asset-upload-card__input"
+        name={name}
+        required
+        type="file"
+        onChange={handleFileChange}
+      />
+      {fileName ? <p className="subtle">{fileName}</p> : null}
+      {error ? (
+        <p className="error-box asset-upload-card__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -356,9 +481,9 @@ export function IntakeWorkflowForm({
 }: IntakeWorkflowFormProps) {
   const [step, setStep] = useState<IntakeWorkflowStep>(initialStep);
   const [activeSegment, setActiveSegment] = useState<IntakeEvidenceSegment>("produk");
-  const [productImage, setProductImage] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
-  const [shopeeScreenshot, setShopeeScreenshot] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
-  const [tiktokScreenshot, setTiktokScreenshot] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
+  const [productImage, setProductImage] = useState<AssetSelectionState>({ selected: false, fileName: null, previewUrl: null });
+  const [shopeeScreenshot, setShopeeScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null, previewUrl: null });
+  const [tiktokScreenshot, setTiktokScreenshot] = useState<AssetSelectionState>({ selected: false, fileName: null, previewUrl: null });
   const [affiliateProfileId, setAffiliateProfileId] = useState(selectedAffiliateProfileId ?? affiliateProfiles[0]?.id ?? "");
 
   useEffect(() => {
@@ -420,12 +545,10 @@ export function IntakeWorkflowForm({
               className="intake-segment-panel"
               data-active={activeSegment === "produk" ? "true" : undefined}
             >
-              <ImagePreviewUploadCard
+              <AssetUploadCard
                 label="Foto Produk Utama"
+                description="Foto utama sebagai konteks produk."
                 name="product_image"
-                emptyTitle="Tambah gambar"
-                previewAlt="Foto Produk Utama preview"
-                required
                 onSelectionChange={setProductImage}
               />
               <AffiliateProfileCarousel profiles={affiliateProfiles} selectedId={affiliateProfileId} onSelect={setAffiliateProfileId} />
@@ -436,20 +559,20 @@ export function IntakeWorkflowForm({
               className="intake-segment-panel"
               data-active={activeSegment === "metadata" ? "true" : undefined}
             >
-              <ImagePreviewUploadCard
+              <div className="intake-metadata-note stack-tight">
+                <h3>Metadata Marketplace</h3>
+                <p>Screenshot marketplace dipakai untuk memperkaya analisis Gemini.</p>
+              </div>
+              <AssetUploadCard
                 label="Screenshot Shopee"
+                description="Bukti marketplace Shopee."
                 name="shopee_screenshot"
-                emptyTitle="Tambah gambar"
-                previewAlt="Screenshot Shopee preview"
-                required
                 onSelectionChange={setShopeeScreenshot}
               />
-              <ImagePreviewUploadCard
+              <AssetUploadCard
                 label="Screenshot TikTok"
+                description="Bukti marketplace TikTok."
                 name="tiktok_screenshot"
-                emptyTitle="Tambah gambar"
-                previewAlt="Screenshot TikTok preview"
-                required
                 onSelectionChange={setTiktokScreenshot}
               />
             </section>

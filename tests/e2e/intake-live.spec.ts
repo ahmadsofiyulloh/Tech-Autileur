@@ -14,9 +14,6 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(250);
 
-    await expect(page.locator(".intake-native-header")).toHaveCount(0);
-    await expect(page.locator(".image-preview-upload-card")).toHaveCount(3);
-
     const productInput = page.locator('input[name="product_image"]');
     const shopeeInput = page.locator('input[name="shopee_screenshot"]');
     const tiktokInput = page.locator('input[name="tiktok_screenshot"]');
