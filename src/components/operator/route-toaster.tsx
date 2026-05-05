@@ -24,11 +24,16 @@ export function RouteToaster() {
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const lastToastKey = useRef("");
+  const suppressToasts = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
   useEffect(() => {
-    const error = searchParams.get("error");
-    const message = searchParams.get("message");
-    const value = error ?? message;
+    if (suppressToasts) {
+      return;
+    }
+
+    const error = searchParams.get("error")?.trim();
+    const message = searchParams.get("message")?.trim();
+    const value = error || message;
 
     if (!value) {
       return;
@@ -50,23 +55,31 @@ export function RouteToaster() {
     }, 4200);
 
     return () => window.clearTimeout(timeout);
-  }, [pathname, searchParams]);
+  }, [pathname, searchParams, suppressToasts]);
 
-  if (!toasts.length) {
+  if (suppressToasts || !toasts.length) {
     return null;
   }
 
   return (
-    <div className="toast-viewport" role="status" aria-live="polite" aria-relevant="additions text">
+    <div className="toast-viewport">
       {toasts.map((toast) => {
         const Icon = toastIcons[toast.tone];
+        const role = toast.tone === "error" ? "alert" : "status";
 
         return (
-          <div className="toast" data-tone={toast.tone} key={toast.id}>
+          <div
+            className="toast"
+            data-tone={toast.tone}
+            key={toast.id}
+            aria-atomic="true"
+            aria-live={toast.tone === "error" ? "assertive" : "polite"}
+            role={role}
+          >
             <Icon aria-hidden="true" size={18} />
             <span>{toast.message}</span>
             <button
-              aria-label="Dismiss notification"
+              aria-label="Tutup notifikasi"
               className="toast__close"
               type="button"
               onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}

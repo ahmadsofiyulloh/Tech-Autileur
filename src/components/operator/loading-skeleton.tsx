@@ -1,5 +1,6 @@
 type SkeletonCountProps = {
   count?: number;
+  className?: string;
 };
 
 type SkeletonLineProps = {
@@ -47,9 +48,9 @@ export function SkeletonInlineSummary({ action = true }: { action?: boolean }) {
   );
 }
 
-export function SkeletonFilterTabs({ count = 3 }: SkeletonCountProps) {
+export function SkeletonFilterTabs({ count = 3, className }: SkeletonCountProps) {
   return (
-    <div className="content-filter-tabs loading-skeleton-static" aria-hidden="true">
+    <div className={`content-filter-tabs loading-skeleton-static${className ? ` ${className}` : ""}`.trim()} aria-hidden="true">
       {Array.from({ length: count }).map((_, index) => (
         <span className="content-filter-tab skeleton-tab" key={index} />
       ))}
@@ -106,7 +107,10 @@ export function SkeletonVisualListCards({ count = 2 }: SkeletonCountProps) {
                 <SkeletonLine size="medium" />
                 <SkeletonLine size="short" />
               </div>
-              <span className="skeleton-pill" />
+              <div className="visual-list-card__status">
+                <span className="skeleton-pill" />
+                <SkeletonLine size="short" />
+              </div>
             </div>
             <div className="visual-list-card__footer">
               <SkeletonLine size="short" />
@@ -114,7 +118,7 @@ export function SkeletonVisualListCards({ count = 2 }: SkeletonCountProps) {
             </div>
             <div className="mobile-card-actions">
               <SkeletonButton />
-              <SkeletonButton />
+              <span className="skeleton-icon skeleton-icon--small" />
             </div>
           </div>
         </article>

@@ -3,9 +3,10 @@
 import { Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { ActivityFeedbackProvider } from "@/components/operator/activity-feedback-context";
+import { FeedbackDock } from "@/components/operator/feedback-dock";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
-import { RouteToaster } from "@/components/operator/route-toaster";
 import { TopbarProvider, useTopbar } from "@/components/operator/topbar-context";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -14,18 +15,20 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (isPublicRoute) {
     return (
-      <div className="public-shell">
-        <Suspense fallback={null}>
-          <RouteToaster />
-        </Suspense>
-        <main className="public-main">{children}</main>
-      </div>
+      <ActivityFeedbackProvider>
+        <div className="public-shell">
+          <FeedbackDock />
+          <main className="public-main">{children}</main>
+        </div>
+      </ActivityFeedbackProvider>
     );
   }
 
   return (
     <TopbarProvider>
-      <OperatorShellContent>{children}</OperatorShellContent>
+      <ActivityFeedbackProvider>
+        <OperatorShellContent>{children}</OperatorShellContent>
+      </ActivityFeedbackProvider>
     </TopbarProvider>
   );
 }
@@ -132,9 +135,7 @@ function OperatorShellContent({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
-      <Suspense fallback={null}>
-        <RouteToaster />
-      </Suspense>
+      <FeedbackDock />
     </div>
   );
 }
