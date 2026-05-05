@@ -63,20 +63,8 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await page.getByRole("button", { name: "Buat token" }).click();
     await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
     await expect(page.getByRole("button", { name: "Simpan hash" })).toBeVisible();
-    await expect
-      .poll(
-        async () => {
-          const saveButton = page.getByRole("button", { name: "Simpan hash" });
-
-          if ((await saveButton.count()) > 0) {
-            await saveButton.click();
-          }
-
-          return page.getByText("Token aktif", { exact: true }).count();
-        },
-        { timeout: 60_000 },
-      )
-      .toBe(1);
+    await page.getByRole("button", { name: "Simpan hash" }).click();
+    await expect(page.getByRole("button", { name: "Cabut token" })).toBeEnabled();
     await expect(page.getByText("ACTIVE")).toBeVisible();
     await page.getByRole("button", { name: "Cabut token" }).click();
     await expect(page.getByText("Belum ada token aktif.")).toBeVisible();

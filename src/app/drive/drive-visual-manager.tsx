@@ -52,6 +52,18 @@ type DriveVisualManagerProps = {
 
 type DriveFileFormMode = "upload" | "attach";
 
+type DrivePressGestureState = {
+  clickSuppressed: boolean;
+  longPressCommitted: boolean;
+  pointerId: number;
+  pointerType: string;
+  startX: number;
+  startY: number;
+};
+
+const LONG_PRESS_DELAY_MS = 420;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
+
 function isImageLike(item: DriveVisualItem) {
   return item.mime_type?.startsWith("image/") || item.purpose === "SOURCE_IMAGE";
 }
@@ -116,35 +128,21 @@ function DriveIcon({ item }: { item: DriveVisualItem }) {
 
 function DriveTile({
   item,
+  selectionMode,
   selected,
   onOpen,
   onToggleSelected,
 }: {
   item: DriveVisualItem;
+  selectionMode: boolean;
   selected: boolean;
   onOpen: () => void;
   onToggleSelected: () => void;
 }) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressed = useRef(false);
+  const pressGesture = useRef<DrivePressGestureState | null>(null);
 
-  function startLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (event.button !== 0) {
-      return;
-    }
-
-    cancelLongPress();
-    longPressed.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    longPressTimer.current = setTimeout(() => {
-      longPressed.current = true;
-      navigator.vibrate?.(8);
-      onToggleSelected();
-      longPressTimer.current = null;
-    }, 420);
-  }
-
-  function cancelLongPress() {
+  function clearLongPressTimer() {
     if (!longPressTimer.current) {
       return;
     }
@@ -153,14 +151,94 @@ function DriveTile({
     longPressTimer.current = null;
   }
 
+  function resetLongPressGesture() {
+    clearLongPressTimer();
+    pressGesture.current = null;
+  }
+
+  function commitLongPressSelection() {
+    const gesture = pressGesture.current;
+
+    if (!gesture || gesture.longPressCommitted) {
+      return;
+    }
+
+    gesture.longPressCommitted = true;
+    gesture.clickSuppressed = true;
+    clearLongPressTimer();
+    onToggleSelected();
+    navigator.vibrate?.(8);
+  }
+
+  function startLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0 || event.pointerType === "mouse") {
+      return;
+    }
+
+    resetLongPressGesture();
+    pressGesture.current = {
+      clickSuppressed: false,
+      longPressCommitted: false,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    longPressTimer.current = setTimeout(commitLongPressSelection, LONG_PRESS_DELAY_MS);
+  }
+
+  function cancelLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    const gesture = pressGesture.current;
+
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (!gesture.longPressCommitted) {
+      resetLongPressGesture();
+      return;
+    }
+
+    clearLongPressTimer();
+    window.setTimeout(() => {
+      if (pressGesture.current?.clickSuppressed) {
+        resetLongPressGesture();
+      }
+    }, 0);
+  }
+
+  function moveLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    const gesture = pressGesture.current;
+
+    if (!gesture || gesture.pointerId !== event.pointerId || gesture.longPressCommitted) {
+      return;
+    }
+
+    const distance = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+
+    if (distance > LONG_PRESS_MOVE_TOLERANCE_PX) {
+      resetLongPressGesture();
+    }
+  }
+
   return (
     <button
       className="drive-tile"
       data-selected={selected ? "true" : undefined}
       type="button"
       onClick={() => {
-        if (longPressed.current) {
-          longPressed.current = false;
+        const gesture = pressGesture.current;
+
+        if (gesture?.clickSuppressed) {
+          resetLongPressGesture();
+          return;
+        }
+
+        resetLongPressGesture();
+
+        if (selectionMode) {
+          onToggleSelected();
           return;
         }
 
@@ -168,12 +246,18 @@ function DriveTile({
       }}
       onContextMenu={(event) => {
         event.preventDefault();
-        onToggleSelected();
+        const gesture = pressGesture.current;
+
+        if (!gesture || gesture.pointerType === "mouse") {
+          return;
+        }
+
+        commitLongPressSelection();
       }}
       onDragStart={(event) => event.preventDefault()}
       onPointerCancel={cancelLongPress}
       onPointerDown={startLongPress}
-      onPointerLeave={cancelLongPress}
+      onPointerMove={moveLongPress}
       onPointerUp={cancelLongPress}
     >
       {selected ? (
@@ -391,6 +475,7 @@ export function DriveVisualManager({ items, uploadTarget }: DriveVisualManagerPr
   const filteredItems = useMemo(() => items.filter((item) => matchesQuery(item, query)), [items, query]);
   const previewItem = items.find((item) => item.id === previewItemId) ?? null;
   const resultsLabel = query.trim() ? `${filteredItems.length} dari ${items.length} item` : `${items.length} item`;
+  const selectionMode = selectedIds.size > 0;
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => {
@@ -457,6 +542,7 @@ export function DriveVisualManager({ items, uploadTarget }: DriveVisualManagerPr
             <DriveTile
               item={item}
               key={item.id}
+              selectionMode={selectionMode}
               selected={selectedIds.has(item.id)}
               onOpen={() => setPreviewItemId(item.id)}
               onToggleSelected={() => toggleSelected(item.id)}
