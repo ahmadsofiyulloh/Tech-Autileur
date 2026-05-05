@@ -12,7 +12,10 @@ export default function LoadingProductsPage() {
         <div className="product-master__list stack">
           <SkeletonSearchToolbar />
           <SkeletonInlineSummary />
-          <SkeletonFilterTabs />
+          <div className="product-filter-stack">
+            <SkeletonFilterTabs count={6} />
+            <SkeletonFilterTabs count={3} className="content-filter-tabs--sub" />
+          </div>
           <SkeletonVisualListCards count={3} />
         </div>
       </section>

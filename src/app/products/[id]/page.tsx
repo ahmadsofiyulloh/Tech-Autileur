@@ -5,15 +5,18 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { TopbarOverride } from "@/components/operator/topbar-context";
+import { ProductOutputFields } from "../product-output-fields";
 import { listContents } from "@/lib/server/contents";
 import { listClipJobs, listGeneratedFiles } from "@/lib/server/clip-jobs";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
+import { listFlowBatches } from "@/lib/server/flow-batches";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductAnchors } from "@/lib/server/product-anchors";
 import { listProductMarketplaceSources } from "@/lib/server/product-marketplace-sources";
 import { getProductById, listProductImages } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
+import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import { listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
@@ -22,6 +25,7 @@ type ProductRecord = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
 type ProductImageRecord = Awaited<ReturnType<typeof listProductImages>>[number];
 type IntakeSessionRecord = Awaited<ReturnType<typeof listIntakeSessions>>[number];
 type PromptPackRecord = Awaited<ReturnType<typeof listPromptPacks>>[number];
+type FlowBatchRecord = Awaited<ReturnType<typeof listFlowBatches>>[number];
 type ContentRecord = Awaited<ReturnType<typeof listContents>>[number];
 type ClipJobRecord = Awaited<ReturnType<typeof listClipJobs>>[number];
 type GeneratedFileRecord = Awaited<ReturnType<typeof listGeneratedFiles>>[number];
@@ -32,8 +36,8 @@ type ProductAnchorRecord = Awaited<ReturnType<typeof listProductAnchors>>[number
 type WorkspaceRecord = Awaited<ReturnType<typeof listWorkspaces>>[number];
 
 const detailTabs = [
-  { key: "metadata", label: "Metadata" },
   { key: "output", label: "Output" },
+  { key: "metadata", label: "Metadata" },
   { key: "history", label: "History" },
 ] as const;
 
@@ -61,7 +65,7 @@ function prettyJson(value: unknown) {
 
 function resolveTab(value: string | string[] | undefined): DetailTab {
   const tab = Array.isArray(value) ? value[0] : value;
-  return detailTabs.some((item) => item.key === tab) ? (tab as DetailTab) : "metadata";
+  return detailTabs.some((item) => item.key === tab) ? (tab as DetailTab) : "output";
 }
 
 function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
@@ -101,54 +105,6 @@ function readJsonFieldText(record: unknown, key: string) {
   return readJsonText(readJsonField(record, key));
 }
 
-function formatTagText(value: unknown) {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
-  if (Array.isArray(value)) {
-    const tags = value
-      .map((item) => readJsonText(item))
-      .filter(Boolean)
-      .map((tag) => tag.replace(/^#+/, ""))
-      .map((tag) => `#${tag}`);
-
-    return tags.length ? tags.join(" ") : "";
-  }
-
-  if (isJsonRecord(value)) {
-    const arrayCandidate = value.tags ?? value.tag_list ?? value.items;
-
-    if (Array.isArray(arrayCandidate)) {
-      return formatTagText(arrayCandidate);
-    }
-  }
-
-  return "";
-}
-
-function resolveCaption(content: ContentRecord | null | undefined) {
-  if (!content) {
-    return "";
-  }
-
-  return (
-    content.caption_shopee?.trim() ||
-    content.caption_tiktok?.trim() ||
-    content.angle?.trim() ||
-    content.hook_type?.trim() ||
-    ""
-  );
-}
-
-function resolveTags(content: ContentRecord | null | undefined) {
-  if (!content) {
-    return "";
-  }
-
-  return formatTagText(content.tags_shopee) || formatTagText(content.tags_tiktok);
-}
-
 function resolveOutputClipStatus(
   clipJob: ClipJobRecord | null | undefined,
   generatedFile: GeneratedFileRecord | null | undefined,
@@ -170,28 +126,24 @@ function resolveOutputClipStatus(
   return "Belum Ada";
 }
 
-function resolveOutputPackageStatus(clipStatuses: string[]) {
-  if (!clipStatuses.length || clipStatuses.every((status) => status === "Belum Ada")) {
+function resolveOutputSummaryStatus(input: {
+  hasMetadata: boolean;
+  hasPromptOutput: boolean;
+  hasFolderDrive: boolean;
+}) {
+  if (!input.hasMetadata && !input.hasPromptOutput && !input.hasFolderDrive) {
     return "Belum Ada";
   }
 
-  if (clipStatuses.every((status) => status === "Approved")) {
-    return "Approved";
+  if (input.hasMetadata && !input.hasPromptOutput && !input.hasFolderDrive) {
+    return "Metadata Ready";
   }
 
-  return "Imported";
-}
-
-function toneForClipStatus(status: string) {
-  if (status === "Approved") {
-    return "success" as const;
+  if (input.hasMetadata && input.hasPromptOutput && input.hasFolderDrive) {
+    return "Output Siap";
   }
 
-  if (status === "Imported") {
-    return "info" as const;
-  }
-
-  return "neutral" as const;
+  return "Output Parsial";
 }
 
 function toneForFileStatus(status: string) {
@@ -231,6 +183,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   let marketplaceSources: MarketplaceSourceRecord[] = [];
   let anchors: ProductAnchorRecord[] = [];
   let promptPacks: PromptPackRecord[] = [];
+  let flowBatches: FlowBatchRecord[] = [];
   let workspaces: WorkspaceRecord[] = [];
   let affiliateProfiles: AffiliateProfileRecord[] = [];
   let contents: ContentRecord[] = [];
@@ -246,6 +199,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       marketplaceSources,
       anchors,
       promptPacks,
+      flowBatches,
       workspaces,
       affiliateProfiles,
       contents,
@@ -259,6 +213,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       listProductMarketplaceSources({ productId: id, limit: 200 }),
       listProductAnchors({ productId: id, limit: 200 }),
       listPromptPacks({ productId: id, limit: 200 }),
+      listFlowBatches({ productId: id, limit: 200 }),
       listWorkspaces({ limit: 200 }),
       listAffiliateProfiles({ limit: 200 }),
       listContents({ productId: id, limit: 200 }),
@@ -308,9 +263,14 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
   const latestPromptPack = visiblePromptPacks[0] ?? null;
+  const orderedFlowBatches = [...flowBatches].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  const latestFlowBatch =
+    orderedFlowBatches.find((batch) => Boolean(batch.drive_output_folder_url?.trim() || batch.drive_output_folder_id?.trim())) ??
+    orderedFlowBatches[0] ??
+    null;
 
   if (requestedTab === "prompt_pack") {
-    redirect(latestPromptPack ? `/prompts/${latestPromptPack.id}/history` : `/products/${product.id}?tab=metadata`);
+    redirect(latestPromptPack ? `/prompts/${latestPromptPack.id}/history` : `/products/${product.id}?tab=output`);
   }
 
   const latestIntakeSession = intakeSessions.find((session) => session.reviewed_metadata_json || session.parsed_metadata_json) ?? null;
@@ -319,6 +279,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     | null;
   const orderedContents = [...contents].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
   const outputContents = orderedContents.slice(0, 2);
+  const promptOutputSet = readPromptPackEditorPromptSet(latestPromptPack ?? {});
   const relevantContentIds = new Set(contents.map((content) => content.id));
   const relevantClipJobs = clipJobs.filter((clipJob) => relevantContentIds.has(clipJob.content_id));
   const clipJobsByContentId = new Map<string, ClipJobRecord[]>();
@@ -345,15 +306,15 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
 
   const relevantGeneratedFiles = generatedFiles.filter((generatedFile) => generatedFile.clip_job_id && clipJobMap.has(generatedFile.clip_job_id));
 
-  const outputClipRows = [0, 1].map((slotIndex) => {
+  const legacyClipRows = [0, 1].map((slotIndex) => {
     const content = outputContents[slotIndex] ?? null;
 
     if (!content) {
       return {
-        content: null,
-        clipJob: null,
-        generatedFile: null,
+        label: `Clip ${slotIndex + 1}`,
         status: "Belum Ada",
+        driveItemName: null,
+        driveItemUrl: null,
       } as const;
     }
 
@@ -367,24 +328,28 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
             (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
           )[0] ?? null
         : null;
+    const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
 
     return {
-      content,
-      clipJob: latestClipJob,
-      generatedFile,
+      label: `Clip ${slotIndex + 1}`,
       status: resolveOutputClipStatus(latestClipJob, generatedFile),
+      driveItemName: generatedDriveItem?.name ?? null,
+      driveItemUrl: generatedDriveItem?.drive_url ?? null,
     } as const;
   });
 
-  const outputPackageStatus = resolveOutputPackageStatus(outputClipRows.map((item) => item.status));
-  const outputCaption = outputClipRows[0] ? resolveCaption(outputClipRows[0].content) : "";
-  const outputTags = outputClipRows[0] ? resolveTags(outputClipRows[0].content) : "";
   const outputProductName =
     readJsonFieldText(reviewedMetadata, "nama_produk") || readJsonFieldText(reviewedMetadata, "product_title") || product.product_name;
-  const outputKeyword =
-    readJsonFieldText(reviewedMetadata, "keyword_cari_etalase") ||
-    readJsonFieldText(reviewedMetadata, "category") ||
-    readJsonFieldText(reviewedMetadata, "selling_angle");
+  const outputKeyword = readJsonFieldText(reviewedMetadata, "keyword_cari_etalase") || readJsonFieldText(reviewedMetadata, "category");
+  const outputCaption = promptOutputSet.caption.trim();
+  const outputTags = promptOutputSet.tags.trim();
+  const outputFolderDrive = latestFlowBatch?.drive_output_folder_url?.trim() || latestFlowBatch?.drive_output_folder_id?.trim() || "";
+  const outputSummaryStatus = resolveOutputSummaryStatus({
+    hasMetadata: Boolean(outputProductName || outputKeyword),
+    hasPromptOutput: Boolean(outputCaption || outputTags),
+    hasFolderDrive: Boolean(outputFolderDrive),
+  });
+  const hasLegacyClipData = outputContents.length > 0;
   const hasReferenceDetails = Boolean(productImages.length || intakeSessions.length || marketplaceSources.length || anchors.length);
   const hasTechnicalHistoryDetails = Boolean(relevantClipJobs.length || relevantGeneratedFiles.length);
 
@@ -462,6 +427,25 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
           </Link>
         ))}
       </nav>
+
+      {activeTab === "output" ? (
+        <section className="stack">
+          <SectionCard
+            icon={FileText}
+            title="Output Siap Copy"
+          >
+            <ProductOutputFields
+              caption={outputCaption}
+              folderDrive={outputFolderDrive}
+              keyword={outputKeyword}
+              legacyClipRows={hasLegacyClipData ? legacyClipRows : []}
+              productName={outputProductName}
+              status={outputSummaryStatus}
+              tags={outputTags}
+            />
+          </SectionCard>
+        </section>
+      ) : null}
 
       {activeTab === "metadata" ? (
         <section className="stack">
@@ -596,77 +580,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
               </div>
             </details>
           ) : null}
-        </section>
-      ) : null}
-
-      {activeTab === "output" ? (
-        <section className="stack">
-          <SectionCard
-            icon={Archive}
-            title="Output"
-          >
-            {outputContents.length ? (
-              <div className="stack">
-                <div className="metric-grid">
-                  <div className="metric">
-                    <span>Nama Produk</span>
-                    <strong>{outputProductName}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Keyword Etalase</span>
-                    <strong>{outputKeyword || "Belum ada"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Caption</span>
-                    <strong>{outputCaption || "Belum ada"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Tags</span>
-                    <strong>{outputTags || "Belum ada"}</strong>
-                  </div>
-                  <div className="metric">
-                    <span>Status</span>
-                    <strong>
-                      <StatusBadge status={outputPackageStatus} tone={toneForClipStatus(outputPackageStatus)} />
-                    </strong>
-                  </div>
-                </div>
-                <section className="grid two-up">
-                  {outputClipRows.map(({ generatedFile, status }, index) => {
-                    const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
-                    const clipLabel = `Clip ${index + 1}`;
-
-                    return (
-                      <div className="muted-box stack-tight" key={clipLabel}>
-                        <div className="section-card__actions">
-                          <strong>{clipLabel}</strong>
-                          <StatusBadge status={status} tone={toneForClipStatus(status)} />
-                        </div>
-                        {generatedDriveItem ? (
-                          <a href={generatedDriveItem.drive_url} target="_blank" rel="noreferrer">
-                            {generatedDriveItem.name}
-                          </a>
-                        ) : null}
-                        {!generatedDriveItem ? (
-                          <EmptyState
-                            icon={Archive}
-                            title={`${clipLabel} belum ada.`}
-                            description="Drive link belum tersedia."
-                          />
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </section>
-              </div>
-            ) : (
-              <EmptyState
-                icon={Archive}
-                title="No output package yet."
-                description="Belum ada output."
-              />
-            )}
-          </SectionCard>
         </section>
       ) : null}
 

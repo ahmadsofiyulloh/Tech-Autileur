@@ -81,6 +81,26 @@ export async function saveProduct(formData: FormData) {
   redirect("/products?message=Product updated");
 }
 
+export async function saveProductStatus(formData: FormData) {
+  const id = readText(formData, "id");
+
+  if (!id) {
+    fail("Missing product id.");
+  }
+
+  await updateProduct(id, {
+    workflow_status_json: {
+      video_generated: readBoolean(formData, "workflow_video_generated"),
+      uploaded_shopee: readBoolean(formData, "workflow_uploaded_shopee"),
+      uploaded_tiktok: readBoolean(formData, "workflow_uploaded_tiktok"),
+    },
+  });
+
+  revalidatePath("/products");
+  revalidatePath(`/products/${id}`);
+  redirect("/products?message=Status%20updated");
+}
+
 export async function saveProductImage(formData: FormData) {
   const productId = readText(formData, "product_id");
   const driveItemRefId = readText(formData, "drive_item_ref_id");

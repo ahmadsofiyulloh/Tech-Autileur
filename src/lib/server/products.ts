@@ -13,6 +13,12 @@ import {
 } from "@/lib/products/validation";
 import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
+type ProductWorkflowStatusJson = {
+  video_generated: boolean;
+  uploaded_shopee: boolean;
+  uploaded_tiktok: boolean;
+};
+
 type ProductRecord = {
   id: string;
   user_id: string;
@@ -23,6 +29,7 @@ type ProductRecord = {
   marketplace: string | null;
   marketplace_product_link: string | null;
   status: ProductStatus;
+  workflow_status_json: ProductWorkflowStatusJson;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -51,6 +58,7 @@ type ProductInput = {
   marketplace?: string | null;
   marketplace_product_link?: string | null;
   status?: string;
+  workflow_status_json?: unknown;
   notes?: string | null;
 };
 
@@ -82,6 +90,26 @@ function assertProductImageStatus(value: string): asserts value is ProductImageS
   if (!isProductImageStatus(value)) {
     throw new Error(`Invalid product image status. Expected one of: ${PRODUCT_IMAGE_STATUSES.join(", ")}.`);
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeWorkflowStatusJson(value: unknown): ProductWorkflowStatusJson {
+  if (!isRecord(value)) {
+    return {
+      video_generated: false,
+      uploaded_shopee: false,
+      uploaded_tiktok: false,
+    };
+  }
+
+  return {
+    video_generated: value.video_generated === true,
+    uploaded_shopee: value.uploaded_shopee === true,
+    uploaded_tiktok: value.uploaded_tiktok === true,
+  };
 }
 
 async function requireUser() {
@@ -147,6 +175,7 @@ export async function createProduct(input: ProductInput) {
       marketplace: normalizeNullableText(input.marketplace),
       marketplace_product_link: normalizeNullableText(input.marketplace_product_link),
       status,
+      workflow_status_json: normalizeWorkflowStatusJson(input.workflow_status_json),
       notes: normalizeNullableText(input.notes),
     })
     .select("*")
@@ -219,6 +248,7 @@ export async function updateProduct(id: string, input: Partial<ProductInput>) {
         ? { marketplace_product_link: normalizeNullableText(input.marketplace_product_link) }
         : {}),
       ...(input.status ? { status: input.status } : {}),
+      ...(input.workflow_status_json !== undefined ? { workflow_status_json: normalizeWorkflowStatusJson(input.workflow_status_json) } : {}),
       ...(input.notes !== undefined ? { notes: normalizeNullableText(input.notes) } : {}),
     })
     .eq("id", id)

@@ -1,34 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Edit3, Package, Plus, Search } from "lucide-react";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { MediaThumbnailFrame } from "@/components/operator/media-thumbnail-frame";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { saveProduct } from "./actions";
-
-export type ProductListRow = {
-  id: string;
-  product_name: string;
-  workspace_label: string;
-  marketplace: string;
-  keyword: string;
-  product_status: string;
-  intake_status: string;
-  created_at_label: string;
-  thumbnail_url: string | null;
-  href: string;
-  review_href: string | null;
-};
+import { ProductStatusSheet } from "./product-metadata-sheet";
+import type { ProductListRow, ProductUploadScope } from "./types";
 
 type ProductListProps = {
   products: ProductListRow[];
 };
 
-function fieldValue(value: string) {
-  return value || "Belum ada";
+function fieldValue(value: string | null | undefined) {
+  return value && value.length > 0 ? value : "Belum ada";
 }
 
 function matchesQuery(product: ProductListRow, query: string) {
@@ -38,43 +26,60 @@ function matchesQuery(product: ProductListRow, query: string) {
     return true;
   }
 
-  return [
-    product.product_name,
-    product.workspace_label,
-    product.marketplace,
-    product.keyword,
-    product.product_status,
-    product.intake_status,
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(value);
+  return product.search_text.includes(value);
 }
 
-type ProductFilter = "all" | "active" | "draft";
+type ProductFilter = "all" | "draft" | "analysis" | "prompt" | "video" | "upload";
 
 const productFilters: Array<{ key: ProductFilter; label: string }> = [
   { key: "all", label: "Semua" },
-  { key: "active", label: "Aktif" },
-  { key: "draft", label: "Draft" },
+  { key: "draft", label: "Draf" },
+  { key: "analysis", label: "Analisis" },
+  { key: "prompt", label: "Prompt" },
+  { key: "video", label: "Video" },
+  { key: "upload", label: "Upload" },
+];
+
+const uploadFilters: Array<{ key: ProductUploadScope; label: string }> = [
+  { key: "shopee", label: "Shopee" },
+  { key: "tiktok", label: "TikTok" },
+  { key: "both", label: "Keduanya" },
 ];
 
 function matchesFilter(product: ProductListRow, filter: ProductFilter) {
-  const status = product.product_status.toUpperCase();
-
-  if (status === "ARCHIVED") {
+  if (product.product_status.toUpperCase() === "ARCHIVED") {
     return false;
   }
 
-  if (filter === "draft") {
-    return status === "DRAFT";
+  if (filter === "analysis") {
+    return product.workflow_stage === "analysis";
   }
 
-  if (filter === "active") {
-    return status !== "DRAFT" && status !== "ARCHIVED";
+  if (filter === "draft") {
+    return product.workflow_stage === "draft";
+  }
+
+  if (filter === "prompt") {
+    return product.workflow_stage === "prompt";
+  }
+
+  if (filter === "video") {
+    return product.workflow_stage === "video";
+  }
+
+  if (filter === "upload") {
+    return product.workflow_stage === "upload";
   }
 
   return true;
+}
+
+function matchesUploadFilter(product: ProductListRow, filter: ProductUploadScope | null) {
+  if (filter === null) {
+    return true;
+  }
+
+  return product.workflow_stage === "upload" && product.upload_scope === filter;
 }
 
 function ProductThumbnail({
@@ -101,9 +106,29 @@ function ProductThumbnail({
 export function ProductList({ products }: ProductListProps) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ProductFilter>("all");
+  const [activeUploadFilter, setActiveUploadFilter] = useState<ProductUploadScope | null>(null);
+  const [activeStatusProductId, setActiveStatusProductId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeStatusProductId && !products.some((product) => product.id === activeStatusProductId)) {
+      setActiveStatusProductId(null);
+    }
+  }, [activeStatusProductId, products]);
+
+  const selectedStatusProduct = useMemo(
+    () => products.find((product) => product.id === activeStatusProductId) ?? null,
+    [activeStatusProductId, products],
+  );
+
   const filteredProducts = useMemo(
-    () => products.filter((product) => matchesQuery(product, query) && matchesFilter(product, activeFilter)),
-    [activeFilter, products, query],
+    () =>
+      products.filter(
+        (product) =>
+          matchesQuery(product, query) &&
+          matchesFilter(product, activeFilter) &&
+          (activeFilter !== "upload" || matchesUploadFilter(product, activeUploadFilter)),
+      ),
+    [activeFilter, activeUploadFilter, products, query],
   );
 
   return (
@@ -130,20 +155,40 @@ export function ProductList({ products }: ProductListProps) {
           </Link>
         </div>
 
-        <div className="content-filter-tabs" role="tablist" aria-label="Filter produk">
-          {productFilters.map((filter) => (
-            <button
-              aria-selected={activeFilter === filter.key}
-              className="content-filter-tab"
-              data-active={activeFilter === filter.key ? "true" : undefined}
-              key={filter.key}
-              onClick={() => setActiveFilter(filter.key)}
-              role="tab"
-              type="button"
-            >
-              {filter.label}
-            </button>
-          ))}
+        <div className="product-filter-stack">
+          <div className="content-filter-tabs" role="tablist" aria-label="Filter produk">
+            {productFilters.map((filter) => (
+              <button
+                aria-selected={activeFilter === filter.key}
+                className="content-filter-tab"
+                data-active={activeFilter === filter.key ? "true" : undefined}
+                key={filter.key}
+                onClick={() => setActiveFilter(filter.key)}
+                role="tab"
+                type="button"
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          {activeFilter === "upload" ? (
+            <div className="content-filter-tabs content-filter-tabs--sub" role="tablist" aria-label="Filter upload">
+              {uploadFilters.map((filter) => (
+                <button
+                  aria-selected={activeUploadFilter === filter.key}
+                  className="content-filter-tab"
+                  data-active={activeUploadFilter === filter.key ? "true" : undefined}
+                  key={filter.key}
+                  onClick={() => setActiveUploadFilter((current) => (current === filter.key ? null : filter.key))}
+                  role="tab"
+                  type="button"
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="table-wrap products-table-desktop">
@@ -169,9 +214,12 @@ export function ProductList({ products }: ProductListProps) {
                   <td>{product.workspace_label}</td>
                   <td>{fieldValue(product.keyword)}</td>
                   <td>
-                    <div className="product-status-stack">
-                      <StatusBadge status={product.product_status} />
-                      {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
+                    <div className="stack-tight">
+                      <div className="product-status-stack">
+                        <StatusBadge status={product.primary_status_label} />
+                        {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
+                      </div>
+                      {product.status_context_label ? <span className="settings-card-meta-line">{product.status_context_label}</span> : null}
                     </div>
                   </td>
                   <td>{product.created_at_label}</td>
@@ -182,10 +230,10 @@ export function ProductList({ products }: ProductListProps) {
                           <ArrowRight size={15} aria-hidden="true" />
                           Detail
                         </Link>
-                        {product.review_href ? (
-                          <Link className="button compact primary" href={product.review_href}>
-                            <Edit3 size={15} aria-hidden="true" />
-                            Edit
+                        {product.continue_href ? (
+                          <Link className="button compact primary" href={product.continue_href}>
+                            <ArrowRight size={15} aria-hidden="true" />
+                            Lanjutkan
                           </Link>
                         ) : null}
                         <form action={saveProduct}>
@@ -220,7 +268,8 @@ export function ProductList({ products }: ProductListProps) {
                     <small>{product.workspace_label}</small>
                   </div>
                   <div className="visual-list-card__status" aria-label="Status produk">
-                    <StatusBadge status={product.product_status} />
+                    <StatusBadge status={product.primary_status_label} />
+                    {product.status_context_label ? <span className="settings-card-meta-line">{product.status_context_label}</span> : null}
                   </div>
                 </div>
                 <div className="visual-list-card__footer">
@@ -228,17 +277,27 @@ export function ProductList({ products }: ProductListProps) {
                   {product.marketplace ? <span>{product.marketplace}</span> : null}
                 </div>
                 <div className="mobile-card-actions">
-                  <Link className="button compact primary" href={product.href}>
+                  <Link className="button compact primary" href={product.continue_href ?? product.href}>
                     <ArrowRight size={15} aria-hidden="true" />
-                    Detail
+                    {product.continue_href ? "Lanjutkan" : "Detail"}
                   </Link>
-                  <OverflowActionMenu>
-                    {product.review_href ? (
-                      <Link className="button compact" href={product.review_href}>
-                        <Edit3 size={15} aria-hidden="true" />
-                        Edit
+                  <OverflowActionMenu label="Aksi produk">
+                    {product.continue_href ? (
+                      <Link className="button compact" href={product.href}>
+                        <ArrowRight size={15} aria-hidden="true" />
+                        Detail
                       </Link>
                     ) : null}
+                    <button
+                      className="button compact"
+                      type="button"
+                      onClick={() => {
+                        setActiveStatusProductId(product.id);
+                      }}
+                    >
+                      <Edit3 size={15} aria-hidden="true" />
+                      Ubah status
+                    </button>
                     <form action={saveProduct}>
                       <input type="hidden" name="intent" value="archive" />
                       <input type="hidden" name="id" value={product.id} />
@@ -252,6 +311,12 @@ export function ProductList({ products }: ProductListProps) {
           {!filteredProducts.length ? <section className="muted-box">Tidak ada produk.</section> : null}
         </div>
       </div>
+
+      <ProductStatusSheet
+        open={Boolean(selectedStatusProduct)}
+        product={selectedStatusProduct}
+        onClose={() => setActiveStatusProductId(null)}
+      />
     </section>
   );
 }
