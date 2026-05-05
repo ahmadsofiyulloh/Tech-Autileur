@@ -914,7 +914,7 @@ async function repairIntakeVisionOutput(input: {
         const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
         const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
 
-        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
         await markGeminiQuotaGroupCooldown({
           serviceClient: createSupabaseServiceRoleClient(),
           userId: input.userId,
@@ -1662,13 +1662,13 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
 
     const completedTask = await markTaskSuccess(
       task.id,
-      buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeyForSuccess?.model_name),
+      buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeySelectionForSuccess?.key.model_name),
     );
-    if (selectedKeyForSuccess) {
+    if (selectedKeySelectionForSuccess) {
       await markGeminiKeySuccess({
         serviceClient: createSupabaseServiceRoleClient(),
         userId: user.id,
-        key: selectedKeyForSuccess,
+        key: selectedKeySelectionForSuccess.key,
       }).catch(() => undefined);
     }
 
