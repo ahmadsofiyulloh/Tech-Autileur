@@ -45,7 +45,7 @@ export default async function WorkspaceSettingsPage() {
     const driveItems = await listDriveItems({ limit: 200 });
     driveFolderPickerOptions.push(
       ...driveItems
-        .filter((item) => item.item_type === "FOLDER")
+        .filter((item) => item.item_type === "FOLDER" && item.status !== "ARCHIVED")
         .map((item) => pickerOption(item.id, item.name, [item.purpose, item.drive_path].filter(Boolean).join(" - "))),
     );
   } catch {

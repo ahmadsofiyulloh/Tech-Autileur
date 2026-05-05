@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CopyButton } from "@/components/operator/copy-button";
 import { FormActions } from "@/components/operator/form-actions";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 
 type ChromePairingPayload = {
   pairing_code: string;
@@ -52,7 +54,7 @@ export function ChromePairingPanel({ ownerEmail }: { ownerEmail: string | null }
         <strong>Chrome pairing</strong>
         {payload ? <pre className="json-block">{payloadJson}</pre> : <div className="muted-box">Belum paired.</div>}
       </div>
-      <FormActions layout={payload ? "quad" : "triple"}>
+      <FormActions className="desktop-action-set" layout={payload ? "quad" : "triple"}>
         <button className="button compact primary" type="button" onClick={handleCreate}>
           Buat
         </button>
@@ -60,10 +62,39 @@ export function ChromePairingPanel({ ownerEmail }: { ownerEmail: string | null }
         <button className="button compact tertiary" type="button" onClick={handleDownload} disabled={!payload}>
           Unduh JSON
         </button>
-        <button className="button compact destructive" type="button" onClick={handleRelease} disabled={!payload}>
-          Lepas Pairing
-        </button>
+        <DeleteActionButton
+          confirmMessage="Lepas pairing Chrome ini?"
+          disabled={!payload}
+          label="Lepas Pairing"
+          type="button"
+          onClick={handleRelease}
+        />
       </FormActions>
+      <div className="mobile-card-actions">
+        {payload ? (
+          <CopyButton className="primary" text={payloadJson} label="Salin" />
+        ) : (
+          <button className="button compact primary" type="button" onClick={handleCreate}>
+            Buat
+          </button>
+        )}
+        {payload ? (
+          <OverflowActionMenu>
+            <button className="button compact" type="button" onClick={handleCreate}>
+              Buat ulang
+            </button>
+            <button className="button compact" type="button" onClick={handleDownload}>
+              Unduh JSON
+            </button>
+            <DeleteActionButton
+              confirmMessage="Lepas pairing Chrome ini?"
+              label="Lepas Pairing"
+              type="button"
+              onClick={handleRelease}
+            />
+          </OverflowActionMenu>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
+import { ArrowRight, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveAffiliateProfile } from "../actions";
 import { AFFILIATE_PLATFORMS, AFFILIATE_PROFILE_STATUSES } from "@/lib/affiliate-profiles/validation";
 import { type AffiliateProfileRecord, type AffiliateProfileWorkspaceLinkRecord } from "@/lib/server/affiliate-profiles";
@@ -79,6 +81,17 @@ function choiceOptions(values: readonly string[]) {
   }));
 }
 
+function isVisibleProfile(profile: AffiliateProfileRecord) {
+  return profile.status !== "ARCHIVED";
+}
+
+function profileMobileMeta(profile: AffiliateProfileRecord) {
+  return [
+    profile.lock_seed_character ? "Character locked" : "Character open",
+    profile.lock_environment ? "Environment locked" : "Environment open",
+  ].join(" - ");
+}
+
 export function AffiliateProfilesBoard({
   profiles,
   workspaces,
@@ -87,19 +100,20 @@ export function AffiliateProfilesBoard({
   currentWorkspaceId,
 }: AffiliateProfilesBoardProps) {
   const [query, setQuery] = useState("");
-  const [selectedProfileId, setSelectedProfileId] = useState(profiles[0]?.id ?? "");
+  const [selectedProfileId, setSelectedProfileId] = useState(profiles.find(isVisibleProfile)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE"), [workspaces]);
-  const filteredProfiles = useMemo(() => profiles.filter((profile) => profileMatchesQuery(profile, query)), [profiles, query]);
-  const activeProfileCount = useMemo(() => profiles.filter((profile) => profile.status === "ACTIVE").length, [profiles]);
+  const visibleProfiles = useMemo(() => profiles.filter(isVisibleProfile), [profiles]);
+  const filteredProfiles = useMemo(() => visibleProfiles.filter((profile) => profileMatchesQuery(profile, query)), [query, visibleProfiles]);
+  const activeProfileCount = useMemo(() => visibleProfiles.filter((profile) => profile.status === "ACTIVE").length, [visibleProfiles]);
   const selectedProfile =
     isCreating
       ? null
       : filteredProfiles.find((profile) => profile.id === selectedProfileId) ??
         filteredProfiles[0] ??
-        profiles.find((profile) => profile.id === selectedProfileId) ??
+        visibleProfiles.find((profile) => profile.id === selectedProfileId) ??
         null;
 
   const profileLinksByProfileId = useMemo(() => {
@@ -116,11 +130,13 @@ export function AffiliateProfilesBoard({
 
   const driveItemOptions = useMemo<DriveItemOption[]>(
     () =>
-      driveItems.map((item) => ({
-        value: item.id,
-        label: item.name,
-        description: [item.item_type, item.purpose, item.drive_path].filter(Boolean).join(" - "),
-      })),
+      driveItems
+        .filter((item) => item.status !== "ARCHIVED")
+        .map((item) => ({
+          value: item.id,
+          label: item.name,
+          description: [item.item_type, item.purpose, item.drive_path].filter(Boolean).join(" - "),
+        })),
     [driveItems],
   );
   const workspaceOptions = useMemo<WorkspaceOption[]>(
@@ -248,6 +264,12 @@ export function AffiliateProfilesBoard({
                         <ArrowRight size={15} aria-hidden="true" />
                         Edit
                       </button>
+                      <form action={saveAffiliateProfile}>
+                        <input type="hidden" name="intent" value="archive_affiliate_profile" />
+                        <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
+                        <input type="hidden" name="id" value={profile.id} />
+                        <DeleteActionButton confirmMessage={`Hapus profile "${profile.profile_name}"?`} />
+                      </form>
                     </div>
                   </td>
                 </tr>
@@ -269,35 +291,22 @@ export function AffiliateProfilesBoard({
                     <StatusBadge status={profile.status} />
                   </div>
                   <span className="subtle">{profile.niche?.trim() || "Niche belum diisi"}</span>
-                  <div className="settings-check-row" aria-label="Asset lock">
-                    {profile.lock_seed_character ? (
-                      <span className="settings-check-badge">
-                        <CheckCircle2 size={13} aria-hidden="true" />
-                        Character
-                      </span>
-                    ) : (
-                      <span className="settings-check-badge settings-check-badge--muted">Character open</span>
-                    )}
-                    {profile.lock_environment ? (
-                      <span className="settings-check-badge">
-                        <CheckCircle2 size={13} aria-hidden="true" />
-                        Environment
-                      </span>
-                    ) : (
-                      <span className="settings-check-badge settings-check-badge--muted">Environment open</span>
-                    )}
-                  </div>
+                  <span className="settings-card-meta-line">{profileMobileMeta(profile)}</span>
                 </div>
               </div>
-              <div className="product-row-actions settings-card-actions action-rail action-rail--pair">
-                <button className="button compact tertiary" type="button" onClick={() => openEditDrawer(profile.id)}>
-                  <PanelRightOpen size={15} aria-hidden="true" />
-                  Detail
-                </button>
+              <div className="mobile-card-actions">
                 <button className="button compact primary" type="button" onClick={() => openEditDrawer(profile.id)}>
-                  <ArrowRight size={15} aria-hidden="true" />
-                  Edit
+                  <PanelRightOpen size={15} aria-hidden="true" />
+                  Kelola
                 </button>
+                <OverflowActionMenu>
+                  <form action={saveAffiliateProfile}>
+                    <input type="hidden" name="intent" value="archive_affiliate_profile" />
+                    <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
+                    <input type="hidden" name="id" value={profile.id} />
+                    <DeleteActionButton confirmMessage={`Hapus profile "${profile.profile_name}"?`} />
+                  </form>
+                </OverflowActionMenu>
               </div>
             </article>
           ))}
@@ -556,9 +565,10 @@ export function AffiliateProfilesBoard({
                   <input type="hidden" name="intent" value="archive_affiliate_profile" />
                   <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
                   <input type="hidden" name="id" value={initialProfile.id} />
-                  <button className="button destructive" type="submit" disabled={initialProfile.status === "ARCHIVED"}>
-                    Arsipkan
-                  </button>
+                  <DeleteActionButton
+                    confirmMessage={`Hapus profile "${initialProfile.profile_name}"?`}
+                    disabled={initialProfile.status === "ARCHIVED"}
+                  />
                 </form>
               </FormActions>
             ) : null}

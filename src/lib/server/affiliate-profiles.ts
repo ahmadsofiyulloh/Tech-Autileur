@@ -735,7 +735,22 @@ export async function updateAffiliateProfile(id: string, input: AffiliateProfile
 }
 
 export async function archiveAffiliateProfile(id: string) {
-  return await updateAffiliateProfile(id, { status: "ARCHIVED" });
+  await updateAffiliateProfile(id, { status: "ARCHIVED" });
+
+  const context = await requireUser();
+  const { error } = await context.supabase
+    .from("affiliate_profile_workspace_links")
+    .update({ is_default: false })
+    .eq("affiliate_profile_id", id)
+    .eq("user_id", context.user.id)
+    .eq("is_default", true);
+
+  if (error) {
+    throwAffiliateProfileError(error);
+  }
+
+  revalidatePath("/settings");
+  return await requireOwnedAffiliateProfile(context, id);
 }
 
 export { AFFILIATE_PLATFORMS, AFFILIATE_PROFILE_STATUSES };

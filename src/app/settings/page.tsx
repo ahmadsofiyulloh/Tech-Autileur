@@ -3,8 +3,11 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ArrowRightLeft, ChevronRight, FolderKanban, KeyRound, Settings, UserRound, Users, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
+import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { setDefaultAffiliateProfile } from "./actions";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { disconnectGoogleDrive, setDefaultAffiliateProfile } from "./actions";
 import {
   getDefaultAffiliateProfileForWorkspace,
   listAffiliateProfiles,
@@ -13,9 +16,12 @@ import {
 import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
 import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
+import type { GeminiUsageOverview } from "@/lib/gemini/usage-types";
+import { getGeminiUsageOverview } from "@/lib/server/gemini-usage-overview";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { GeminiUsageOverviewPanel } from "./gemini-usage-overview";
 
 export const dynamic = "force-dynamic";
 
@@ -120,7 +126,7 @@ function AffiliateProfileSwitchCard({
         <span className="subtle">{affiliateNicheLabel(profile)}</span>
       </div>
       <div className="settings-affiliate-profile-card__actions">
-        <form action={setDefaultAffiliateProfile} className="settings-affiliate-profile-card__action">
+        <form action={setDefaultAffiliateProfile} className="settings-affiliate-profile-card__action desktop-action-set">
           <input type="hidden" name="return_to" value="/settings" />
           <input type="hidden" name="workspace_id" value={currentWorkspaceId} />
           <input type="hidden" name="affiliate_profile_id" value={profile.id} />
@@ -129,10 +135,27 @@ function AffiliateProfileSwitchCard({
             {isCurrent ? "Aktif" : "Pilih"}
           </button>
         </form>
-        <Link className="button compact tertiary" href="/settings/affiliate-profiles">
+        <Link className="button compact tertiary desktop-action-set" href="/settings/affiliate-profiles">
           <ChevronRight size={15} aria-hidden="true" />
           Kelola
         </Link>
+        <div className="mobile-card-actions">
+          <form action={setDefaultAffiliateProfile} className="settings-affiliate-profile-card__action">
+            <input type="hidden" name="return_to" value="/settings" />
+            <input type="hidden" name="workspace_id" value={currentWorkspaceId} />
+            <input type="hidden" name="affiliate_profile_id" value={profile.id} />
+            <button className="button compact primary" type="submit" disabled={isCurrent}>
+              <ArrowRightLeft size={15} aria-hidden="true" />
+              {isCurrent ? "Aktif" : "Pilih"}
+            </button>
+          </form>
+          <OverflowActionMenu>
+            <Link className="button compact" href="/settings/affiliate-profiles">
+              <ChevronRight size={15} aria-hidden="true" />
+              Kelola
+            </Link>
+          </OverflowActionMenu>
+        </div>
       </div>
     </article>
   );
@@ -152,7 +175,7 @@ async function AffiliateProfilesQuickSwitchSection({
   const profileCards = await Promise.all(
     profiles.map(async (profile) => ({
       profile,
-      avatarUrl: await resolveAffiliateProfileAvatar(profile, driveItemMap),
+      avatarUrl: resolveAffiliateProfileAvatar(profile, driveItemMap),
     })),
   );
 
@@ -208,10 +231,15 @@ export default async function SettingsPage() {
   let driveIsConnected = false;
   let accountStatus: ReactNode = <StatusBadge status="Ready" tone="success" />;
   let workspaceId: string | null = null;
+  let geminiUsageOverview: GeminiUsageOverview = {
+    cards: [],
+    generatedAt: new Date().toISOString(),
+    unavailableMessage: null,
+  };
 
   try {
     const workspaceState = await getWorkspaceSelectionState();
-    const workspaces = workspaceState.workspaces;
+    const workspaces = workspaceState.workspaces.filter((workspace) => workspace.status !== "ARCHIVED");
     workspaceId = workspaceState.currentWorkspace?.id ?? null;
     workspaceCount = workspaces.length;
     workspaceDetail = workspaceState.currentWorkspace ? `Aktif: ${workspaceState.currentWorkspace.workspace_name}` : "Pilih workspace aktif.";
@@ -232,7 +260,7 @@ export default async function SettingsPage() {
   }
 
   try {
-    driveItems = await listDriveItems({ limit: 200 });
+    driveItems = (await listDriveItems({ limit: 200 })).filter((item) => item.status !== "ARCHIVED");
     const folders = driveItems.filter((item) => item.item_type === "FOLDER");
     driveDetail = `${folders.length} folder, ${driveItems.length} item.`;
   } catch (error) {
@@ -260,6 +288,16 @@ export default async function SettingsPage() {
     accountStatus = <StatusBadge status={isHelperApiTokenSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />;
   }
 
+  try {
+    geminiUsageOverview = await getGeminiUsageOverview(user.id);
+  } catch (error) {
+    geminiUsageOverview = {
+      cards: [],
+      generatedAt: new Date().toISOString(),
+      unavailableMessage: errorMessage(error),
+    };
+  }
+
   const cards: SettingsCard[] = [
     { key: "account", href: "/settings/account", title: "Account", icon: UserRound, status: accountStatus, detail: user.email ?? "Signed in." },
     { key: "workspace", href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
@@ -269,7 +307,29 @@ export default async function SettingsPage() {
       iconSrc: "/google-drive.svg",
       status: driveStatus,
       detail: driveDetail,
-      action: driveIsConnected ? null : (
+      action: driveIsConnected ? (
+        <>
+          <form action={disconnectGoogleDrive} className="desktop-action-set">
+            <input type="hidden" name="return_to" value="/settings" />
+            <DeleteActionButton
+              confirmMessage="Putuskan koneksi Google Drive?"
+              label="Putuskan"
+              variant="iconOnly"
+            />
+          </form>
+          <span className="settings-native-row__mobile-action settings-native-row__action">
+            <OverflowActionMenu>
+              <form action={disconnectGoogleDrive}>
+                <input type="hidden" name="return_to" value="/settings" />
+                <DeleteActionButton
+                  confirmMessage="Putuskan koneksi Google Drive?"
+                  label="Putuskan"
+                />
+              </form>
+            </OverflowActionMenu>
+          </span>
+        </>
+      ) : (
         <a className="button compact primary settings-drive-connect-button" href="/api/google-drive/oauth/start">
           <img alt="" src="/google-drive.svg" />
           Connect
@@ -285,6 +345,8 @@ export default async function SettingsPage() {
 
   return (
     <div className="stack">
+      <GeminiUsageOverviewPanel overview={{ cards: geminiUsageOverview.cards }} />
+      <PwaInstallCard />
       {cards.length ? (
         <section className="settings-native-list">
           <SettingsGroup title="Account" cards={accountCards} />

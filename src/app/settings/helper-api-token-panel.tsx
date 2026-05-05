@@ -4,6 +4,8 @@ import { useState } from "react";
 import { CopyButton } from "@/components/operator/copy-button";
 import { FormActions } from "@/components/operator/form-actions";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveHelperApiToken } from "./actions";
 
 type HelperApiTokenPayload = {
@@ -81,16 +83,24 @@ export function HelperApiTokenPanel({
       {payload ? (
         <div className="stack-tight">
           <pre className="json-block">{payloadJson}</pre>
-          <FormActions layout="pair">
+          <FormActions className="desktop-action-set" layout="pair">
             <CopyButton className="tertiary" text={payloadJson} label="Salin" />
             <button className="button compact tertiary" type="button" onClick={handleDownload}>
               Unduh JSON
             </button>
           </FormActions>
+          <div className="mobile-card-actions">
+            <CopyButton className="primary" text={payloadJson} label="Salin" />
+            <OverflowActionMenu>
+              <button className="button compact" type="button" onClick={handleDownload}>
+                Unduh JSON
+              </button>
+            </OverflowActionMenu>
+          </div>
         </div>
       ) : null}
 
-      <FormActions layout={payload ? "triple" : "pair"}>
+      <FormActions className="desktop-action-set" layout={payload ? "triple" : "pair"}>
         <button className="button compact primary" type="button" onClick={handleCreate}>
           Buat token
         </button>
@@ -108,11 +118,54 @@ export function HelperApiTokenPanel({
           <input type="hidden" name="intent" value="disable_helper_api_token" />
           <input type="hidden" name="return_to" value="/settings/account" />
           <input type="hidden" name="id" value={currentToken?.id ?? ""} />
-          <button className="button compact destructive" type="submit" disabled={!currentToken || currentToken.status === "DISABLED"}>
-            Cabut token
-          </button>
+          <DeleteActionButton
+            confirmMessage="Cabut token ini?"
+            disabled={!currentToken || currentToken.status === "DISABLED"}
+            label="Cabut token"
+          />
         </form>
       </FormActions>
+      <div className="mobile-card-actions">
+        {payload ? (
+          <form action={saveHelperApiToken}>
+            <input type="hidden" name="intent" value="save_helper_api_token" />
+            <input type="hidden" name="return_to" value="/settings/account" />
+            <input type="hidden" name="raw_token" value={payload.raw_token} />
+            <button className="button compact primary" type="submit">
+              Simpan hash
+            </button>
+          </form>
+        ) : (
+          <button className="button compact primary" type="button" onClick={handleCreate}>
+            Buat token
+          </button>
+        )}
+        {payload || currentToken ? (
+          <OverflowActionMenu>
+            {payload ? <CopyButton text={payloadJson} label="Salin" /> : null}
+            {payload ? (
+              <button className="button compact" type="button" onClick={handleDownload}>
+                Unduh JSON
+              </button>
+            ) : null}
+            {payload ? (
+              <button className="button compact" type="button" onClick={handleCreate}>
+                Buat ulang
+              </button>
+            ) : null}
+            <form action={saveHelperApiToken}>
+              <input type="hidden" name="intent" value="disable_helper_api_token" />
+              <input type="hidden" name="return_to" value="/settings/account" />
+              <input type="hidden" name="id" value={currentToken?.id ?? ""} />
+              <DeleteActionButton
+                confirmMessage="Cabut token ini?"
+                disabled={!currentToken || currentToken.status === "DISABLED"}
+                label="Cabut token"
+              />
+            </form>
+          </OverflowActionMenu>
+        ) : null}
+      </div>
     </div>
   );
 }

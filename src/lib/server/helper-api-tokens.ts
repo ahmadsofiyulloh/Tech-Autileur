@@ -80,6 +80,7 @@ export async function getHelperApiToken() {
     .select(PUBLIC_HELPER_API_TOKEN_SELECT)
     .eq("user_id", user.id)
     .eq("token_code", HELPER_API_TOKEN_CODE)
+    .neq("status", "DISABLED")
     .maybeSingle();
 
   if (error) {

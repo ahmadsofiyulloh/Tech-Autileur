@@ -23,6 +23,7 @@ export default async function GeminiSettingsPage() {
       "id, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, status, requests_today, last_used_at, cooldown_until, created_at, updated_at",
     )
     .eq("user_id", user.id)
+    .neq("status", "DISABLED")
     .order("updated_at", { ascending: false });
 
   if (error) {

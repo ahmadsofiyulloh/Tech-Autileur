@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Ban, KeyRound, PanelRightOpen, Plus, Save, X } from "lucide-react";
+import { KeyRound, PanelRightOpen, Plus, Save, X } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveGeminiKey } from "../../gemini/actions";
 import { GEMINI_KEY_ROLES, GEMINI_MODELS } from "@/lib/gemini/validation";
 
@@ -46,27 +48,36 @@ function geminiKeyDetail(key: GeminiKeyRecord) {
   return [key.google_account_label, key.project_label].filter(Boolean).join(" - ") || "Detail akun belum diisi.";
 }
 
+function isVisibleGeminiKey(key: GeminiKeyRecord) {
+  return key.status !== "DISABLED";
+}
+
+function geminiMobileMeta(key: GeminiKeyRecord) {
+  return [key.model_name, key.role].filter(Boolean).join(" - ");
+}
+
 export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
-  const [selectedKeyId, setSelectedKeyId] = useState(geminiKeys[0]?.id ?? "");
+  const [selectedKeyId, setSelectedKeyId] = useState(geminiKeys.find(isVisibleGeminiKey)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const activeKeyCount = useMemo(() => geminiKeys.filter((key) => key.status === "ACTIVE").length, [geminiKeys]);
+  const visibleGeminiKeys = useMemo(() => geminiKeys.filter(isVisibleGeminiKey), [geminiKeys]);
+  const activeKeyCount = useMemo(() => visibleGeminiKeys.filter((key) => key.status === "ACTIVE").length, [visibleGeminiKeys]);
   const selectedKey =
     isCreating
       ? null
-      : geminiKeys.find((key) => key.id === selectedKeyId) ?? geminiKeys[0] ?? null;
+      : visibleGeminiKeys.find((key) => key.id === selectedKeyId) ?? visibleGeminiKeys[0] ?? null;
 
   useEffect(() => {
-    if (!geminiKeys.length) {
+    if (!visibleGeminiKeys.length) {
       setSelectedKeyId("");
       return;
     }
 
-    if (!geminiKeys.some((key) => key.id === selectedKeyId)) {
-      setSelectedKeyId(geminiKeys[0].id);
+    if (!visibleGeminiKeys.some((key) => key.id === selectedKeyId)) {
+      setSelectedKeyId(visibleGeminiKeys[0].id);
     }
-  }, [geminiKeys, selectedKeyId]);
+  }, [visibleGeminiKeys, selectedKeyId]);
 
   function openCreateDrawer() {
     setIsCreating(true);
@@ -99,7 +110,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
           </button>
         </div>
 
-        {geminiKeys.length ? (
+        {visibleGeminiKeys.length ? (
           <>
             <div className="table-wrap products-table-desktop">
               <table className="data-table product-table">
@@ -112,7 +123,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {geminiKeys.map((key) => (
+                  {visibleGeminiKeys.map((key) => (
                     <tr data-active={selectedKey?.id === key.id && !isCreating ? "true" : undefined} key={key.id}>
                       <td>
                         <div className="stack-tight">
@@ -138,10 +149,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                           <form action={saveGeminiKey}>
                             <input type="hidden" name="intent" value="disable" />
                             <input type="hidden" name="id" value={key.id} />
-                            <button className="button compact destructive" type="submit" disabled={key.status === "DISABLED"}>
-                              <Ban size={15} aria-hidden="true" />
-                              Disable
-                            </button>
+                            <DeleteActionButton confirmMessage={`Hapus Gemini key "${key.label}"?`} disabled={key.status === "DISABLED"} />
                           </form>
                         </div>
                       </td>
@@ -152,7 +160,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
             </div>
 
             <div className="products-cards-mobile">
-              {geminiKeys.map((key) => (
+              {visibleGeminiKeys.map((key) => (
                 <article className="product-card settings-list-card" key={key.id}>
                   <div className="settings-list-card__header">
                     <div className="stack-tight">
@@ -161,23 +169,22 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                     </div>
                     <StatusBadge status={key.status} />
                   </div>
-                  <div className="product-status-stack">
-                    <StatusBadge status={key.model_name} tone="neutral" />
-                    <StatusBadge status={key.role} tone="info" />
-                  </div>
-                  <div className="product-row-actions settings-card-actions action-rail action-rail--pair">
-                    <button className="button compact tertiary" type="button" onClick={() => openEditDrawer(key.id)}>
+                  <span className="settings-card-meta-line">{geminiMobileMeta(key)}</span>
+                  <div className="mobile-card-actions">
+                    <button className="button compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
                       <PanelRightOpen size={15} aria-hidden="true" />
                       Kelola
                     </button>
-                    <form action={saveGeminiKey}>
-                      <input type="hidden" name="intent" value="disable" />
-                      <input type="hidden" name="id" value={key.id} />
-                      <button className="button compact destructive" type="submit" disabled={key.status === "DISABLED"}>
-                        <Ban size={15} aria-hidden="true" />
-                        Disable
-                      </button>
-                    </form>
+                    <OverflowActionMenu>
+                      <form action={saveGeminiKey}>
+                        <input type="hidden" name="intent" value="disable" />
+                        <input type="hidden" name="id" value={key.id} />
+                        <DeleteActionButton
+                          confirmMessage={`Hapus Gemini key "${key.label}"?`}
+                          disabled={key.status === "DISABLED"}
+                        />
+                      </form>
+                    </OverflowActionMenu>
                   </div>
                 </article>
               ))}
@@ -222,10 +229,6 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
               {!isCreating && initialKey ? <input type="hidden" name="id" value={initialKey.id} /> : null}
               <input type="hidden" name="status" value={fieldValue(initialKey?.status ?? "ACTIVE")} />
               <input type="hidden" name="google_account_label" value={fieldValue(initialKey?.google_account_label)} />
-              <input type="hidden" name="project_label" value={fieldValue(initialKey?.project_label)} />
-              <input type="hidden" name="rpm_limit" value={fieldValue(initialKey?.rpm_limit)} />
-              <input type="hidden" name="rpd_limit" value={fieldValue(initialKey?.rpd_limit)} />
-              <input type="hidden" name="tpm_limit" value={fieldValue(initialKey?.tpm_limit)} />
 
               <label className="stack auth-field" htmlFor="gemini-key-name">
                 <span>Nama</span>
@@ -236,6 +239,17 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                   placeholder="Primary Vision Key"
                   defaultValue={fieldValue(initialKey?.label)}
                   required
+                />
+              </label>
+
+              <label className="stack auth-field" htmlFor="gemini-project-label">
+                <span>Project</span>
+                <input
+                  id="gemini-project-label"
+                  name="project_label"
+                  type="text"
+                  placeholder="AI Studio project"
+                  defaultValue={fieldValue(initialKey?.project_label)}
                 />
               </label>
 
@@ -288,10 +302,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                 <form action={saveGeminiKey}>
                   <input type="hidden" name="intent" value="disable" />
                   <input type="hidden" name="id" value={initialKey.id} />
-                  <button className="button destructive" type="submit" disabled={disableDisabled}>
-                    <Ban size={16} aria-hidden="true" />
-                    Disable key
-                  </button>
+                  <DeleteActionButton confirmMessage={`Hapus Gemini key "${initialKey.label}"?`} disabled={disableDisabled} />
                 </form>
               </FormActions>
             ) : null}

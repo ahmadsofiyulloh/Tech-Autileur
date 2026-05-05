@@ -54,18 +54,18 @@ export default async function AffiliateProfilesSettingsPage() {
   }
 
   try {
-    driveItems = await listDriveItems({ limit: 200 });
+    driveItems = (await listDriveItems({ limit: 200 })).filter((item) => item.status !== "ARCHIVED");
   } catch (error) {
     driveItemsError = errorMessage(error);
   }
 
-  const workspaces = workspaceState?.workspaces ?? [];
+  const workspaces = (workspaceState?.workspaces ?? []).filter((workspace) => workspace.status !== "ARCHIVED");
   const currentWorkspace = workspaceState?.currentWorkspace ?? null;
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const affiliateProfilesWithAvatars = await Promise.all(
-    affiliateProfiles.map(async (profile) => ({
+    affiliateProfiles.map((profile) => ({
       ...profile,
-      avatarUrl: await resolveAffiliateProfileAvatar(profile, driveItemMap),
+      avatarUrl: resolveAffiliateProfileAvatar(profile, driveItemMap),
     })),
   );
 

@@ -8,6 +8,7 @@ import { encryptGeminiApiKey } from "@/lib/server/gemini-crypto";
 import {
   ACCOUNT_STATUSES,
   GEMINI_KEY_ROLES,
+  GEMINI_MODEL_QUOTA_DEFAULTS,
   GEMINI_MODELS,
   isAccountStatus,
   isGeminiKeyRole,
@@ -87,20 +88,6 @@ function readStatus(value: string) {
   return value;
 }
 
-function parseOptionalInt(value: string, fieldName: string) {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    fail(`${fieldName} must be a non-negative integer.`);
-  }
-
-  return parsed;
-}
-
 function buildGeminiKeyCode(value: string) {
   const normalized = value
     .trim()
@@ -122,9 +109,6 @@ export async function saveGeminiKey(formData: FormData) {
   const role = readText(formData, "role") || readText(formData, "purpose");
   const status = readText(formData, "status");
   const rawApiKey = readText(formData, "raw_api_key");
-  const rpmLimit = parseOptionalInt(readText(formData, "rpm_limit"), "RPM limit");
-  const rpdLimit = parseOptionalInt(readText(formData, "rpd_limit"), "RPD limit");
-  const tpmLimit = parseOptionalInt(readText(formData, "tpm_limit"), "TPM limit");
 
   const { supabase, user } = await requireUser();
   const serviceClient = createSupabaseServiceRoleClient();
@@ -134,18 +118,24 @@ export async function saveGeminiKey(formData: FormData) {
       fail("Missing Gemini key id.");
     }
 
-    const { error } = await supabase
+    const { data: disabledKey, error } = await supabase
       .from("gemini_api_keys")
       .update({ status: "DISABLED" })
       .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       fail(error.message);
     }
 
+    if (!disabledKey) {
+      fail("Gemini key tidak ditemukan.");
+    }
+
     revalidatePath("/settings/gemini");
-    redirect("/settings/gemini?message=Gemini key disabled");
+    redirect("/settings/gemini?message=Data%20dihapus.");
   }
 
   if (intent !== "create" && intent !== "update") {
@@ -171,6 +161,7 @@ export async function saveGeminiKey(formData: FormData) {
   const normalizedModel = readModelName(modelName);
   const normalizedRole = readRole(role);
   const normalizedStatus = readStatus(status);
+  const quotaDefaults = GEMINI_MODEL_QUOTA_DEFAULTS[normalizedModel];
 
   if (intent === "create") {
     const normalizedKeyCode = buildGeminiKeyCode(label);
@@ -186,9 +177,9 @@ export async function saveGeminiKey(formData: FormData) {
         project_label: projectLabel || null,
         model_name: normalizedModel,
         role: normalizedRole,
-        rpm_limit: rpmLimit,
-        rpd_limit: rpdLimit,
-        tpm_limit: tpmLimit,
+        rpm_limit: quotaDefaults.rpmLimit,
+        rpd_limit: quotaDefaults.rpdLimit,
+        tpm_limit: quotaDefaults.tpmLimit,
         status: normalizedStatus,
       })
       .select("id")
@@ -272,9 +263,9 @@ export async function saveGeminiKey(formData: FormData) {
       project_label: projectLabel || null,
       model_name: normalizedModel,
       role: normalizedRole,
-      rpm_limit: rpmLimit,
-      rpd_limit: rpdLimit,
-      tpm_limit: tpmLimit,
+      rpm_limit: quotaDefaults.rpmLimit,
+      rpd_limit: quotaDefaults.rpdLimit,
+      tpm_limit: quotaDefaults.tpmLimit,
       status: normalizedStatus,
     })
     .eq("id", id)

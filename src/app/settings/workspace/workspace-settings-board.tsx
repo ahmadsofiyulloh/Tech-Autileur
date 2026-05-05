@@ -1,11 +1,13 @@
 "use client";
 
-import { Archive, FolderKanban, PanelRightOpen, Plus, Save, Search, X } from "lucide-react";
+import { FolderKanban, PanelRightOpen, Plus, Save, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveWorkspace } from "../actions";
 import { WORKSPACE_STATUSES } from "@/lib/workspaces/validation";
 
@@ -67,20 +69,36 @@ function matchesQuery(workspace: WorkspaceRecord, query: string) {
     .includes(value);
 }
 
+function isVisibleWorkspace(workspace: WorkspaceRecord) {
+  return workspace.status !== "ARCHIVED";
+}
+
+function workspaceMobileMeta(workspace: WorkspaceRecord, currentWorkspaceId: string | null) {
+  return [
+    workspace.drive_root_folder_ref_id || workspace.drive_root_folder_url || workspace.drive_root_folder_path ? "Drive siap" : "Drive kosong",
+    workspace.is_default ? "Default" : "",
+    currentWorkspaceId === workspace.id ? "Aktif" : "",
+    workspace.niche,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
+
 export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFolderOptions }: WorkspaceSettingsBoardProps) {
   const [query, setQuery] = useState("");
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaces[0]?.id ?? "");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaces.find(isVisibleWorkspace)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const filteredWorkspaces = useMemo(() => workspaces.filter((workspace) => matchesQuery(workspace, query)), [query, workspaces]);
-  const activeWorkspaceCount = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE").length, [workspaces]);
+  const visibleWorkspaces = useMemo(() => workspaces.filter(isVisibleWorkspace), [workspaces]);
+  const filteredWorkspaces = useMemo(() => visibleWorkspaces.filter((workspace) => matchesQuery(workspace, query)), [query, visibleWorkspaces]);
+  const activeWorkspaceCount = useMemo(() => visibleWorkspaces.filter((workspace) => workspace.status === "ACTIVE").length, [visibleWorkspaces]);
   const selectedWorkspace =
     isCreating
       ? null
       : filteredWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
         filteredWorkspaces[0] ??
-        workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
+        visibleWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
         null;
 
   useEffect(() => {
@@ -168,10 +186,21 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                       </td>
                       <td>{workspaceDetail(workspace)}</td>
                       <td>
-                        <button className="button compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
-                          <PanelRightOpen size={15} aria-hidden="true" />
-                          Kelola
-                        </button>
+                        <div className="product-row-actions">
+                          <button className="button compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
+                            <PanelRightOpen size={15} aria-hidden="true" />
+                            Kelola
+                          </button>
+                          <form action={saveWorkspace}>
+                            <input type="hidden" name="intent" value="archive_workspace" />
+                            <input type="hidden" name="return_to" value="/settings/workspace" />
+                            <input type="hidden" name="id" value={workspace.id} />
+                            <DeleteActionButton
+                              confirmMessage={`Hapus workspace "${workspace.workspace_name}"?`}
+                              disabled={workspace.status === "ARCHIVED"}
+                            />
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -189,29 +218,23 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                     </div>
                     <StatusBadge status={workspace.status} />
                   </div>
-                  <div className="settings-check-row" aria-label="Workspace status">
-                    {workspace.drive_root_folder_ref_id || workspace.drive_root_folder_url || workspace.drive_root_folder_path ? (
-                      <span className="settings-check-badge">Drive siap</span>
-                    ) : (
-                      <span className="settings-check-badge settings-check-badge--muted">Drive kosong</span>
-                    )}
-                    {workspace.is_default ? <span className="settings-check-badge">Default</span> : null}
-                    {currentWorkspaceId === workspace.id ? <span className="settings-check-badge">Aktif</span> : null}
-                    {workspace.niche ? <span className="settings-check-badge settings-check-badge--muted">{workspace.niche}</span> : null}
-                  </div>
-                  <div className="product-row-actions settings-card-actions action-rail action-rail--pair">
+                  <span className="settings-card-meta-line">{workspaceMobileMeta(workspace, currentWorkspaceId)}</span>
+                  <div className="mobile-card-actions">
                     <button className="button compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
                       <PanelRightOpen size={15} aria-hidden="true" />
                       Kelola
                     </button>
-                    <form action={saveWorkspace}>
-                      <input type="hidden" name="intent" value="archive_workspace" />
-                      <input type="hidden" name="return_to" value="/settings/workspace" />
-                      <input type="hidden" name="id" value={workspace.id} />
-                      <button className="button compact destructive" type="submit" disabled={workspace.status !== "ACTIVE"}>
-                        Arsipkan
-                      </button>
-                    </form>
+                    <OverflowActionMenu>
+                      <form action={saveWorkspace}>
+                        <input type="hidden" name="intent" value="archive_workspace" />
+                        <input type="hidden" name="return_to" value="/settings/workspace" />
+                        <input type="hidden" name="id" value={workspace.id} />
+                        <DeleteActionButton
+                          confirmMessage={`Hapus workspace "${workspace.workspace_name}"?`}
+                          disabled={workspace.status === "ARCHIVED"}
+                        />
+                      </form>
+                    </OverflowActionMenu>
                   </div>
                 </article>
               ))}
@@ -366,10 +389,10 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                     <input type="hidden" name="intent" value="archive_workspace" />
                     <input type="hidden" name="return_to" value="/settings/workspace" />
                     <input type="hidden" name="id" value={initialWorkspace.id} />
-                    <button className="button compact destructive" type="submit" disabled={!isActive}>
-                      <Archive size={15} aria-hidden="true" />
-                      Arsipkan
-                    </button>
+                    <DeleteActionButton
+                      confirmMessage={`Hapus workspace "${initialWorkspace.workspace_name}"?`}
+                      disabled={initialWorkspace.status === "ARCHIVED"}
+                    />
                   </form>
                 </FormActions>
               </div>

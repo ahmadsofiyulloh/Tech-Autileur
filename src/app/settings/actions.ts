@@ -148,7 +148,7 @@ export async function saveWorkspace(formData: FormData) {
       }
 
       await archiveWorkspace(id);
-      message = "Workspace archived";
+      message = "Data dihapus.";
     } else {
       throw new Error("Unsupported workspace action.");
     }
@@ -292,7 +292,7 @@ export async function saveAffiliateProfile(formData: FormData) {
       }
 
       await archiveAffiliateProfile(id);
-      message = "Affiliate profile archived";
+      message = "Data dihapus.";
     } else {
       throw new Error("Unsupported affiliate profile action.");
     }
@@ -351,7 +351,7 @@ export async function saveHelperApiToken(formData: FormData) {
       }
 
       await disableStoredHelperApiToken(id);
-      message = "App API Token disabled";
+      message = "Token dicabut.";
     } else {
       throw new Error("Unsupported helper token action.");
     }
@@ -375,7 +375,7 @@ export async function disconnectGoogleDrive(formData: FormData) {
   }
 
   revalidateSettingsSurface();
-  done("Google Drive disconnected", returnTo);
+  done("Google Drive diputuskan.", returnTo);
 }
 
 export async function setCurrentWorkspaceFromShell(formData: FormData) {
