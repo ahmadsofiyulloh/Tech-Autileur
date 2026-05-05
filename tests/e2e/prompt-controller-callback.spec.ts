@@ -64,7 +64,8 @@ async function findLatestBatchByPromptPackId(promptPackId: string) {
     | null;
 }
 
-test("prompt generation, flow handoff, manifest export, and helper callback stay connected", async ({ page }) => {
+// Controller/Flow UI is frozen in Phase 1, so this bridge smoke returns in Phase 2.
+test.skip("prompt generation, flow handoff, manifest export, and helper callback stay connected", async ({ page }) => {
   const state = await readSmokeBootstrapState();
   const runTag = state.run_tag;
   const client = createSmokeServiceClient();

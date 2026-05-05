@@ -8,14 +8,14 @@ test.use({
   },
 });
 
-test("mobile users see the desktop-required controller state", async ({ page }) => {
+test("mobile controller access redirects to the Phase 1 intake surface", async ({ page }) => {
   try {
     await page.goto("/controller");
-    await expect(page.getByText("Flow Control tersedia di desktop.")).toBeVisible();
+    await expect(page).toHaveURL(/\/products\/new$/);
+    await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toContainText("Flow Control");
   } catch (error) {
     throw classifySmokeError("APP_BLOCKER / mobile controller", error);
   }
 });
-

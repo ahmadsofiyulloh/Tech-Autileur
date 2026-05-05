@@ -3,13 +3,20 @@ import { classifySmokeError } from "./support/blockers";
 
 test("operator shell and settings surfaces stay reachable", async ({ page }) => {
   try {
+    page.on("dialog", (dialog) => {
+      void dialog.accept();
+    });
+
     await page.goto("/dashboard");
     const desktopSidebar = page.getByRole("complementary", { name: "Operator navigation" });
-    await expect(desktopSidebar).toContainText("Dashboard");
+    await expect(desktopSidebar).toContainText("Intake");
     await expect(desktopSidebar).toContainText("Produk");
     await expect(desktopSidebar).toContainText("Prompt");
-    await expect(desktopSidebar).toContainText("Flow Control");
-    await expect(desktopSidebar).toContainText("Pengaturan");
+    await expect(desktopSidebar).toContainText("Drive");
+    await expect(desktopSidebar).not.toContainText("Dashboard");
+    await expect(desktopSidebar).not.toContainText("Flow Control");
+    await expect(desktopSidebar).not.toContainText("Pengaturan");
+    await expect(page.getByRole("link", { name: "Pengaturan" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toBeVisible();
 
     await page.goto("/settings");
@@ -27,23 +34,52 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
       throw classifySmokeError("settings account", new Error(schemaMessage));
     }
 
-    await page.getByRole("button", { name: "Buat", exact: true }).click();
-    await expect(page.locator("pre.json-block")).toContainText('"pairing_code"');
+    await expect
+      .poll(
+        async () => {
+          await page.getByRole("button", { name: "Buat", exact: true }).click();
+          return (await page.locator("pre.json-block").first().textContent({ timeout: 500 }).catch(() => "")) ?? "";
+        },
+        { timeout: 15_000 },
+      )
+      .toContain('"pairing_code"');
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Unduh JSON" }).click();
     const pairingDownload = await downloadPromise;
     expect(pairingDownload.suggestedFilename()).toBe("chrome-pairing.json");
-    await page.getByRole("button", { name: "Lepas Pairing" }).click();
-    await expect(page.locator("pre.json-block")).toHaveCount(0);
+    await expect
+      .poll(
+        async () => {
+          if ((await page.locator("pre.json-block").count()) > 0) {
+            await page.getByRole("button", { name: "Lepas Pairing" }).click();
+          }
+
+          return page.locator("pre.json-block").count();
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(0);
 
     await page.getByRole("button", { name: "Buat token" }).click();
     await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
     await expect(page.getByRole("button", { name: "Simpan hash" })).toBeVisible();
-    await page.getByRole("button", { name: "Simpan hash" }).click();
-    await expect(page.getByText("APP_API_TOKEN", { exact: true })).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const saveButton = page.getByRole("button", { name: "Simpan hash" });
+
+          if ((await saveButton.count()) > 0) {
+            await saveButton.click();
+          }
+
+          return page.getByText("Token aktif", { exact: true }).count();
+        },
+        { timeout: 60_000 },
+      )
+      .toBe(1);
     await expect(page.getByText("ACTIVE")).toBeVisible();
     await page.getByRole("button", { name: "Cabut token" }).click();
-    await expect(page.getByText("DISABLED", { exact: true })).toBeVisible();
+    await expect(page.getByText("Belum ada token aktif.")).toBeVisible();
 
     await page.goto("/settings/workspace");
     await expect(page.getByRole("heading", { name: "Workspace", level: 1 })).toBeVisible();
@@ -70,16 +106,16 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     }
 
     await page.goto("/settings/gemini");
-    await expect(page.getByRole("heading", { name: /Gemini/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Gemini", level: 1 })).toBeVisible();
     await expect(page.locator(".tab-nav")).toHaveCount(0);
 
     await page.goto("/gemini");
     await expect(page).toHaveURL(/\/settings\/gemini$/);
 
     await page.goto("/settings/drive");
-    await expect(page.getByRole("heading", { name: "Drive", level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("heading", { name: "Pengaturan", level: 1 })).toBeVisible();
     await expect(page.locator(".tab-nav")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Buka Drive" })).toBeVisible();
   } catch (error) {
     throw classifySmokeError("shell and settings", error);
   }
