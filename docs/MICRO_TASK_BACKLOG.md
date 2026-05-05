@@ -13,8 +13,9 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002
 - S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009, S6-010
+- S6-011
 - S7-001
-- S8-001, S8-002, S8-003, S8-004
+- S8-001, S8-002, S8-003, S8-004, S8-005
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 
 ## S0 - Docs and Source of Truth Sync
@@ -211,6 +212,11 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Acceptance:** usage is derived from app-recorded Gemini calls, limits are saved from selected model defaults instead of operator quota fields, counts group by `project + model` when project metadata exists, the UI falls back to per-key grouping when project is empty, the panel keeps a one-line header with no warning/empty copy, each card uses a thick static half-width donut chart with quota numbers beside it, chart tap does not open tooltip/focus framing, and multiple keys render through a swipeable carousel.
 
+### S6-011 - Gemini usage event owner indexes _(DONE)_
+**Goal:** Add supporting owner FK indexes for Gemini usage events used by usage aggregation and key/task joins.
+**Owner:** Codex
+**Acceptance:** `gemini_api_usage_events (gemini_api_key_id, user_id)` and `gemini_api_usage_events (ai_task_id, user_id)` exist through migration-first changes, and the schema lock stays aligned with the actual database indexes.
+
 ## S7 - Dashboard Analytics
 
 ### S7-001 - Phase awal analytics _(DONE)_
@@ -239,3 +245,8 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Remove duplicated KPI tiles from prompt editor and product detail prompt surfaces.
 **Owner:** Codex
 **Acceptance:** prompt editor and prompt detail keep compact context lines and contract preview, but do not repeat header-level KPI tiles for the same product or prompt pack.
+
+### S8-005 - Mobile Drive selection hardening _(DONE)_
+**Goal:** Keep Drive grid long-press selection persistent on mobile and align the shell chrome color used by the PWA.
+**Owner:** Codex
+**Acceptance:** long-press on Drive commits client-side multi-select and survives release or small pointer movement, tap still opens preview when selection mode is off, the light mobile themeColor uses `#f6fbff`, and the associated smoke coverage remains stable.

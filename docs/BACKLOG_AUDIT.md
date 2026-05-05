@@ -62,6 +62,8 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-05 | 765eb87 | S8-002 | Refreshed mobile shell and PWA install smoke coverage. |
 | 2026-05-05 | 192db71 | S2-003 | Created marketplace sources from vision evidence. |
 | 2026-05-05 | 731a46d | S6-010, S2-003 | Added shared Gemini routing and quota-aware intake hardening. |
+| 2026-05-05 | 1d7f55a | S8-005 | Hardened mobile Drive long-press selection, synced the light mobile themeColor, and stabilized the smoke assertion path. |
+| 2026-05-05 | 0ae6a76 | S6-011 | Added owner FK indexes for Gemini usage event joins. |
 
 ## Legacy Foundation Checkpoints
 
@@ -81,5 +83,6 @@ These commits predate the task-tagged commit convention but still document actua
 - `48ff168` is a dirty checkpoint artifact and is not used as backlog evidence.
 - `c7ac450` syncs the lock docs and operator guidance after the current worktree cleanup.
 - `93eb5bf` restores the visual PWA shell and operational surfaces after the revert checkpoint.
+- `24d5a1b` refreshes the lock docs and backlog for the current repo state; it is a support checkpoint, not feature completion.
 - `11efa04` and `d7e86bc` are follow-up commits on already-completed tasks; they do not change the current backlog completion snapshot.
 - `2ca104d` and `66c09ee` are docs and baseline sync checkpoints, not feature completion by themselves.
