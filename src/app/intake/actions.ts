@@ -142,7 +142,7 @@ export async function saveIntake(formData: FormData) {
       });
       message = "Intake updated";
     } else if (intent === "parse_intake") {
-      const productImage = readUploadedFile(formData, "product_image");
+      const productImage = readUploadedFile(formData, "product_image") ?? readUploadedFile(formData, "product_image_camera");
       const shopeeScreenshot = readUploadedFile(formData, "shopee_screenshot") ?? readUploadedFile(formData, "marketplace_screenshot");
       const tiktokScreenshot = readUploadedFile(formData, "tiktok_screenshot");
 

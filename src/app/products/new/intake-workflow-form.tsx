@@ -416,6 +416,8 @@ export function IntakeWorkflowForm({
               <ImagePreviewUploadCard
                 label="Foto Produk Utama"
                 name="product_image"
+                cameraName="product_image_camera"
+                capture="environment"
                 emptyTitle="Tambah gambar"
                 previewAlt="Foto Produk Utama preview"
                 required

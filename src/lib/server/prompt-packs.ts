@@ -7,8 +7,6 @@ import {
   markTaskRunning,
   markTaskSuccess,
   markTaskWaitingForKey,
-  PROMPT_PACK_GEMINI_KEY_PRIORITY,
-  listAvailableGeminiKeysByRole,
 } from "@/lib/server/ai-task-queue";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -22,8 +20,17 @@ import {
   normalizePromptCode,
 } from "@/lib/prompts/validation";
 import type { GeminiModelName } from "@/lib/gemini/validation";
+import { GEMINI_PROMPT_PACK_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
 import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
-import { GeminiClientError, generateGeminiJsonText } from "@/lib/server/gemini-client";
+import { GeminiClientError } from "@/lib/server/gemini-client";
+import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
+import {
+  getGeminiQuotaGroupKey,
+  listQuotaAwareGeminiKeys,
+  markGeminiKeySuccess,
+  markGeminiQuotaGroupCooldown,
+  type GeminiRoutableKey,
+} from "@/lib/server/gemini-key-routing";
 import {
   buildPromptPackEditorStoragePayload,
   buildPromptPackStoragePayload,
@@ -915,18 +922,143 @@ function buildPromptPackTaskInput(context: PromptPackGenerationContext, generati
   };
 }
 
+function compactText(value: unknown, maxLength = 480) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const compacted = value.replace(/\s+/g, " ").trim();
+  return compacted.length > maxLength ? `${compacted.slice(0, Math.max(maxLength - 3, 0)).trimEnd()}...` : compacted;
+}
+
+function compactRuleLines(value: string | null | undefined, maxLines = 8, maxLength = 220) {
+  return splitRuleText(value)
+    .map((line) => compactText(line, maxLength))
+    .filter(Boolean)
+    .slice(0, maxLines);
+}
+
+function buildAffiliateRulePack(profile: AffiliateProfileRecord | null) {
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    i2i_prompt_rules: compactRuleLines(profile.i2i_prompt_rules),
+    i2v_prompt_rules: compactRuleLines(profile.i2v_prompt_rules),
+    caption_rules: compactRuleLines(profile.caption_rules, 6),
+    hashtag_rules: compactRuleLines(profile.hashtag_rules, 6, 120),
+    negative_prompt_rules: compactRuleLines(profile.negative_prompt_rules, 10),
+    product_positioning_notes: compactRuleLines(profile.product_positioning_notes, 6),
+  } satisfies JsonObject;
+}
+
+function buildReviewedPromptEssentials(context: PromptPackGenerationContext) {
+  const metadata = (context.intakeSession?.reviewed_metadata_json ?? {}) as JsonObject;
+
+  return {
+    nama_produk: readJsonString(metadata, "nama_produk") || context.product.product_name,
+    keyword_cari_etalase: readJsonString(metadata, "keyword_cari_etalase") || context.product.niche || "",
+    deskripsi_visual: compactText(readJsonString(metadata, "deskripsi_visual")),
+    use_case: compactText(readJsonString(metadata, "use_case")),
+    pain_point: compactText(readJsonString(metadata, "pain_point")),
+    selling_angle: compactText(readJsonString(metadata, "selling_angle")),
+    target_viewer: compactText(readJsonString(metadata, "target_viewer")),
+  } satisfies JsonObject;
+}
+
+function buildPromptContextForModel(context: PromptPackGenerationContext) {
+  const profile = context.affiliateProfile;
+
+  return {
+    product: {
+      id: context.product.id,
+      product_code: context.product.product_code,
+      product_name: context.product.product_name,
+      niche: context.product.niche,
+      marketplace: context.product.marketplace,
+    },
+    workspace: context.currentWorkspace
+      ? {
+          id: context.currentWorkspace.id,
+          workspace_code: context.currentWorkspace.workspace_code,
+          workspace_name: context.currentWorkspace.workspace_name,
+          niche: context.currentWorkspace.niche,
+        }
+      : null,
+    reviewed_prompt_essentials: buildReviewedPromptEssentials(context),
+    affiliate_profile: profile
+      ? {
+          id: profile.id,
+          profile_code: profile.profile_code,
+          profile_name: profile.profile_name,
+          platform: profile.platform,
+          account_label: profile.account_label,
+          niche: profile.niche,
+          affiliate_url: profile.affiliate_url,
+          rules: buildAffiliateRulePack(profile),
+          seed_character: {
+            locked: profile.lock_seed_character,
+            notes: compactText(profile.seed_character_notes),
+            drive_item_ref_id: profile.seed_character_drive_item_ref_id,
+          },
+          environment: {
+            locked: profile.lock_environment,
+            notes: compactText(profile.environment_notes),
+            drive_item_ref_id: profile.environment_drive_item_ref_id,
+          },
+        }
+      : null,
+    source_image: context.sourceProductImage
+      ? {
+          id: context.sourceProductImage.id,
+          drive_item_ref_id: context.sourceProductImage.drive_item_ref_id,
+          drive_path: context.sourceDriveItem?.drive_path ?? null,
+          mime_type: context.sourceDriveItem?.mime_type ?? null,
+        }
+      : null,
+    marketplace_sources: context.marketplaceSources.slice(0, 6).map((source) => ({
+      platform: source.platform,
+      title: compactText(source.title, 180),
+      category: compactText(source.category, 120),
+      rating_text: compactText(source.rating_text, 80),
+      sold_count_text: compactText(source.sold_count_text, 80),
+      price_text: compactText(source.price_text, 80),
+      shop_name: compactText(source.shop_name, 120),
+    })),
+    latest_anchor: context.latestAnchor
+      ? {
+          anchor_code: context.latestAnchor.anchor_code,
+          version: context.latestAnchor.version,
+          status: context.latestAnchor.status,
+        }
+      : null,
+    visual_parsing_mode: "TEXT_FALLBACK",
+    image_bytes_available: false,
+    source_fallback_reason: "Prompt generation uses reviewed metadata and Drive references only; do not claim fresh visual parsing from links.",
+  } satisfies JsonObject;
+}
+
 function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, selectedGeminiKey: { id: string; label: string; model_name: string; role: string }) {
   const { promptPack } = context;
   const promptSet = readPromptPackEditorPromptSet(promptPack);
   const revisionInstruction = readRegenerationInstruction(promptPack);
+  const promptContextForModel = buildPromptContextForModel(context);
 
   return [
     "You are generating a structured prompt pack for a single-owner affiliate content workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
     "The JSON object must contain exactly these top-level keys: product_analysis, prompt_context, i2i_prompts, i2v_prompts, caption, tags, target_marketplace, negative_prompt_rules, consistency_rules, seed_character, environment.",
     "Do not omit required keys. Do not add unrelated prose.",
-    "Use prompt_context exactly as provided in the context object. Do not invent new context fields.",
+    'Return prompt_context as exactly { "mode": "server_injected" }. The server persists the full prompt context after validation.',
     "If image_bytes_available is false, use text fallback only and do not claim visual parsing from links.",
+    "Apply affiliate rules explicitly:",
+    "- i2i_prompt_rules only shape i2i_prompts.first_frame and i2i_prompts.last_frame.",
+    "- i2v_prompt_rules only shape i2v_prompts.prompt motion text.",
+    "- caption_rules only shape caption.",
+    "- hashtag_rules only shape tags.",
+    "- negative_prompt_rules must be copied or compressed into negative_prompt_rules.",
+    "- product_positioning_notes must shape product_analysis.vision_analysis.hero_direction and selling angle.",
     "Required slots:",
     "- i2i_prompts: clip_1 and clip_2",
     "- i2v_prompts: clip_1 and clip_2",
@@ -934,9 +1066,10 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "Each i2v clip object must include slot and prompt.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
     "caption must be a shared caption string.",
-    `tags must be one hashtag string output and target_marketplace must equal ${PROMPT_TARGET_MARKETPLACE}.`,
+    `tags must be one compact hashtag string and target_marketplace must equal ${PROMPT_TARGET_MARKETPLACE}.`,
     "negative_prompt_rules and consistency_rules must each be arrays of strings.",
     "seed_character and environment must each include locked, notes, and drive_item_ref_id.",
+    "Keep output concise. Avoid repeating long context or Drive URLs.",
     "",
     "Context:",
     JSON.stringify(
@@ -947,7 +1080,7 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
           version: promptPack.version,
           status: promptPack.status,
         },
-        prompt_context: context.promptContext,
+        prompt_context_for_model: promptContextForModel,
         existing_prompt_set: promptSet,
         revision_instruction: revisionInstruction || null,
         generation_policy: {
@@ -973,7 +1106,7 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
               risks: "string[]",
             },
           },
-          prompt_context: "copy the supplied prompt_context object exactly",
+          prompt_context: { mode: "server_injected" },
           i2i_prompts: {
             clip_1: { slot: "clip_1", first_frame: "string", last_frame: "string" },
             clip_2: { slot: "clip_2", first_frame: "string", last_frame: "string" },
@@ -1041,7 +1174,7 @@ async function updatePromptPackGenerationResult(
   taskId: string,
   outputJson: PromptPackGenerationOutput,
 ) {
-  const storagePayload = buildPromptPackStoragePayload(outputJson);
+  const storagePayload = buildPromptPackStoragePayload(outputJson, context.promptContext);
   storagePayload.personalization_json = {
     ...storagePayload.personalization_json,
     prompt_context: context.promptContext,
@@ -1199,27 +1332,7 @@ export async function runMockPromptPackTask(promptPackId: string, taskId: string
   }
 }
 
-type GeminiSelectedKey = {
-  id: string;
-  user_id: string;
-  key_code: string;
-  label: string;
-  provider: string;
-  google_account_label: string | null;
-  project_label: string | null;
-  model_name: string;
-  role: string;
-  rpm_limit: number | null;
-  rpd_limit: number | null;
-  tpm_limit: number | null;
-  requests_today: number;
-  last_used_at: string | null;
-  cooldown_until: string | null;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
+type GeminiSelectedKey = GeminiRoutableKey;
 
 async function readGeminiSecretForKey(context: PromptPackGenerationContext, geminiKeyId: string) {
   const { data, error } = await context.serviceClient
@@ -1240,193 +1353,180 @@ async function readGeminiSecretForKey(context: PromptPackGenerationContext, gemi
   return decryptGeminiApiKey(data.encrypted_api_key);
 }
 
-async function updateGeminiKeyOperationalStatus(
+function buildGeminiKeySelectionLabel(key: GeminiSelectedKey) {
+  return `${key.label} (${key.model_name})`;
+}
+
+async function selectPromptPackGeminiKey(
   context: PromptPackGenerationContext,
-  geminiKeyId: string,
-  nextStatus: "RATE_LIMITED" | "COOLDOWN",
-  cooldownUntil: string | null,
+  excludedQuotaGroups: ReadonlySet<string>,
 ) {
-  const { error } = await context.serviceClient
-    .from("gemini_api_keys")
+  const keys = await listQuotaAwareGeminiKeys({
+    userId: context.user.id,
+    purpose: "PROMPT_PACK_GENERATION",
+    excludedQuotaGroups,
+    serviceClient: context.serviceClient,
+  });
+
+  for (const geminiKey of keys) {
+    const secret = await readGeminiSecretForKey(context, geminiKey.id);
+
+    if (!secret) {
+      continue;
+    }
+
+    return {
+      key: geminiKey,
+      secret,
+    };
+  }
+
+  return null;
+}
+
+async function markPromptPackWaitingForGeminiKey(
+  context: PromptPackGenerationContext,
+  promptPackId: string,
+  taskId: string,
+  message: string,
+) {
+  const waitingTask = await markTaskWaitingForKey(taskId, message);
+  const { error } = await context.supabase
+    .from("prompt_packs")
     .update({
-      status: nextStatus,
-      cooldown_until: cooldownUntil,
+      ai_task_id: taskId,
+      status: "QUEUED",
+      error_message: message,
     })
-    .eq("id", geminiKeyId)
+    .eq("id", promptPackId)
     .eq("user_id", context.user.id);
 
   if (error) {
     throw new Error(error.message);
   }
-}
 
-function buildGeminiKeySelectionLabel(key: GeminiSelectedKey) {
-  return `${key.label} (${key.model_name})`;
+  return {
+    task: waitingTask,
+    promptPack: context.promptPack,
+    message,
+  };
 }
 
 export async function runRealPromptPackTask(promptPackId: string, taskId: string) {
   const context = await loadPromptPackGenerationContext(promptPackId);
   await markTaskRunning(taskId);
+  const excludedQuotaGroups = new Set<string>();
 
-  let selectedKey: GeminiSelectedKey | null = null;
-  let selectedSecret: string | null = null;
-  let selectedRole: string | null = null;
+  while (true) {
+    const selected = await selectPromptPackGeminiKey(context, excludedQuotaGroups);
 
-  for (const role of PROMPT_PACK_GEMINI_KEY_PRIORITY) {
-    const geminiKeys = (await listAvailableGeminiKeysByRole(role)) as GeminiSelectedKey[];
+    if (!selected) {
+      return markPromptPackWaitingForGeminiKey(
+        context,
+        promptPackId,
+        taskId,
+        "No eligible Gemini key is available for prompt-pack generation.",
+      );
+    }
 
-    for (const geminiKey of geminiKeys) {
-      const secret = await readGeminiSecretForKey(context, geminiKey.id);
+    const selectedKey = selected.key;
+    const { error: taskKeyUpdateError } = await context.serviceClient
+      .from("ai_tasks")
+      .update({
+        gemini_api_key_id: selectedKey.id,
+      })
+      .eq("id", taskId)
+      .eq("user_id", context.user.id);
 
-      if (!secret) {
+    if (taskKeyUpdateError) {
+      const message = sanitizeGeminiFailureMessage(new Error(taskKeyUpdateError.message));
+      await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
+      throw new Error(message);
+    }
+
+    const { error: generatingUpdateError } = await context.supabase
+      .from("prompt_packs")
+      .update({
+        ai_task_id: taskId,
+        status: "GENERATING",
+        error_message: null,
+      })
+      .eq("id", promptPackId)
+      .eq("user_id", context.user.id);
+
+    if (generatingUpdateError) {
+      const message = sanitizeGeminiFailureMessage(new Error(generatingUpdateError.message));
+      await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
+      throw new Error(message);
+    }
+
+    try {
+      const response = await generateTrackedGeminiJsonText({
+        aiTaskId: taskId,
+        geminiApiKey: selectedKey,
+        taskType: "PROMPT_PACK_GENERATION",
+        userId: context.user.id,
+        request: {
+          modelName: selectedKey.model_name as GeminiModelName,
+          apiKey: selected.secret,
+          prompt: buildPromptPackGenerationPrompt(context, selectedKey),
+          temperature: 0.2,
+          maxOutputTokens: 4096,
+          timeoutMs: 120_000,
+          responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+        },
+      });
+
+      const outputJson = parsePromptPackGenerationOutput(response.text);
+      const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
+      const task = await markTaskSuccess(taskId, outputJson);
+
+      await markGeminiKeySuccess({
+        serviceClient: context.serviceClient,
+        userId: context.user.id,
+        key: selectedKey,
+      }).catch(() => undefined);
+
+      return {
+        task,
+        promptPack,
+        message: `Prompt pack generated with Gemini using ${buildGeminiKeySelectionLabel(selectedKey)}.`,
+      };
+    } catch (error) {
+      if (error instanceof GeminiClientError && error.status === 429) {
+        const retryAfterSeconds = error.retryAfterSeconds ?? 900;
+        const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
+        const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+        const quotaGroup = getGeminiQuotaGroupKey(selectedKey);
+
+        excludedQuotaGroups.add(quotaGroup);
+
+        await markGeminiQuotaGroupCooldown({
+          serviceClient: context.serviceClient,
+          userId: context.user.id,
+          key: selectedKey,
+          nextStatus,
+          cooldownUntil,
+        }).catch(() => undefined);
+
         continue;
       }
 
-      selectedKey = geminiKey;
-      selectedSecret = secret;
-      selectedRole = role;
-      break;
-    }
-
-    if (selectedKey) {
-      break;
-    }
-  }
-
-  if (!selectedKey || !selectedSecret || !selectedRole) {
-    const message = "No eligible Gemini key is available for prompt-pack generation.";
-    const waitingTask = await markTaskWaitingForKey(taskId, message);
-    return {
-      task: waitingTask,
-      promptPack: context.promptPack,
-      message,
-    };
-  }
-
-  const { error: taskKeyUpdateError } = await context.serviceClient
-    .from("ai_tasks")
-    .update({
-      gemini_api_key_id: selectedKey.id,
-    })
-    .eq("id", taskId)
-    .eq("user_id", context.user.id);
-
-  if (taskKeyUpdateError) {
-    const message = sanitizeGeminiFailureMessage(new Error(taskKeyUpdateError.message));
-    await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
-    throw new Error(message);
-  }
-
-  const { error: generatingUpdateError } = await context.supabase
-    .from("prompt_packs")
-    .update({
-      ai_task_id: taskId,
-      status: "GENERATING",
-      error_message: null,
-    })
-    .eq("id", promptPackId)
-    .eq("user_id", context.user.id);
-
-  if (generatingUpdateError) {
-    const message = sanitizeGeminiFailureMessage(new Error(generatingUpdateError.message));
-    await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
-    throw new Error(message);
-  }
-
-  const prompt = buildPromptPackGenerationPrompt(context, selectedKey);
-
-  try {
-    const response = await generateGeminiJsonText({
-      modelName: selectedKey.model_name as GeminiModelName,
-      apiKey: selectedSecret,
-      prompt,
-      temperature: 0.2,
-      maxOutputTokens: 8192,
-    });
-
-    const outputJson = parsePromptPackGenerationOutput(response.text);
-
-    const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
-    const task = await markTaskSuccess(taskId, outputJson);
-
-    await context.serviceClient
-      .from("gemini_api_keys")
-      .update({
-        requests_today: selectedKey.requests_today + 1,
-        last_used_at: new Date().toISOString(),
-        status: "ACTIVE",
-        cooldown_until: null,
-      })
-      .eq("id", selectedKey.id)
-      .eq("user_id", context.user.id);
-
-    return {
-      task,
-      promptPack,
-      message: `Prompt pack generated with Gemini using ${buildGeminiKeySelectionLabel(selectedKey)}.`,
-    };
-  } catch (error) {
-    if (error instanceof GeminiClientError && error.status === 429) {
-      const retryAfterSeconds = error.retryAfterSeconds ?? 900;
-      const cooldownUntil = new Date(Date.now() + retryAfterSeconds * 1000).toISOString();
-      const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+      const message = sanitizeGeminiFailureMessage(error);
+      const failedTask = await markTaskFailed(taskId, message, { retryable: false });
 
       try {
-        await updateGeminiKeyOperationalStatus(context, selectedKey.id, nextStatus, cooldownUntil);
+        await updatePromptPackGenerationFailure(context, taskId, message);
       } catch {
-        // Ignore key status update failures so the prompt pack failure still reports cleanly.
-      }
-
-      const retryTask = await markTaskFailed(taskId, error.message, { retryable: true });
-
-      if (retryTask.status === "RETRYING") {
-        await context.supabase
-          .from("prompt_packs")
-          .update({
-            ai_task_id: taskId,
-            status: "QUEUED",
-            error_message: null,
-          })
-          .eq("id", promptPackId)
-          .eq("user_id", context.user.id);
-
-        return {
-          task: retryTask,
-          promptPack: context.promptPack,
-          message: `Gemini rate limited. Prompt pack task will retry later. Using ${buildGeminiKeySelectionLabel(selectedKey)}.`,
-        };
-      }
-
-      const exhaustedMessage = "Gemini rate limit was reached and retries were exhausted.";
-
-      try {
-        await updatePromptPackGenerationFailure(context, taskId, exhaustedMessage);
-      } catch {
-        // Preserve the original retry exhaustion state if prompt pack update also fails.
+        // Preserve the original failure if prompt pack update also fails.
       }
 
       return {
-        task: retryTask,
+        task: failedTask,
         promptPack: context.promptPack,
-        message: exhaustedMessage,
+        message,
       };
     }
-
-    const message = sanitizeGeminiFailureMessage(error);
-
-    const failedTask = await markTaskFailed(taskId, message, { retryable: false });
-
-    try {
-      await updatePromptPackGenerationFailure(context, taskId, message);
-    } catch {
-      // Preserve the original failure if prompt pack update also fails.
-    }
-
-    return {
-      task: failedTask,
-      promptPack: context.promptPack,
-      message,
-    };
   }
 }
 

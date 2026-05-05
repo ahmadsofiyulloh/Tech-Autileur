@@ -2,22 +2,27 @@
 
 import {
   Check,
+  ChevronLeft,
   ExternalLink,
   File,
   FileText,
   Folder,
   Image as ImageIcon,
+  Eye,
   Link2,
   Plus,
   Search,
   Upload,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { saveDriveItem } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
+import { MediaThumbnailFrame } from "@/components/operator/media-thumbnail-frame";
 import { OperatorBottomSheet } from "@/components/operator/bottom-sheet";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 
 export type DriveVisualItem = {
   id: string;
@@ -32,6 +37,8 @@ export type DriveVisualItem = {
   size_bytes: number | null;
   checksum: string | null;
   drive_modified_at: string | null;
+  preview_url: string | null;
+  detail_url: string | null;
 };
 
 type DriveVisualManagerProps = {
@@ -121,10 +128,17 @@ function DriveTile({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
 
-  function startLongPress() {
+  function startLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    cancelLongPress();
     longPressed.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
     longPressTimer.current = setTimeout(() => {
       longPressed.current = true;
+      navigator.vibrate?.(8);
       onToggleSelected();
       longPressTimer.current = null;
     }, 420);
@@ -156,6 +170,7 @@ function DriveTile({
         event.preventDefault();
         onToggleSelected();
       }}
+      onDragStart={(event) => event.preventDefault()}
       onPointerCancel={cancelLongPress}
       onPointerDown={startLongPress}
       onPointerLeave={cancelLongPress}
@@ -166,9 +181,12 @@ function DriveTile({
           <Check size={15} aria-hidden="true" />
         </span>
       ) : null}
-      <span className="drive-tile__thumb">
-        {isImageLike(item) ? <img alt="" src={item.drive_url} /> : <DriveIcon item={item} />}
-      </span>
+      <MediaThumbnailFrame
+        alt={item.name}
+        className="drive-tile__thumb"
+        fallback={<DriveIcon item={item} />}
+        src={item.preview_url}
+      />
       <span className="drive-tile__header">
         <span className="drive-tile__copy">
           <strong title={item.name}>{item.name}</strong>
@@ -183,6 +201,15 @@ function DriveTile({
 }
 
 function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: () => void }) {
+  const [viewMode, setViewMode] = useState<"summary" | "detail">("summary");
+
+  useEffect(() => {
+    setViewMode("summary");
+  }, [item.id]);
+
+  const mediaSrc = viewMode === "detail" ? item.detail_url : item.preview_url;
+  const mediaClassName = `drive-preview-sheet__media drive-preview-sheet__media--${viewMode}`;
+
   return (
     <OperatorBottomSheet
       ariaLabel="Preview Drive"
@@ -192,8 +219,48 @@ function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: 
       title={item.name}
       onClose={onClose}
     >
-      <div className="drive-tile__thumb">
-        {isImageLike(item) ? <img alt={item.name} src={item.drive_url} /> : <DriveIcon item={item} />}
+      <MediaThumbnailFrame
+        alt={item.name}
+        className={mediaClassName}
+        fallback={<DriveIcon item={item} />}
+        loading={viewMode === "detail" ? "eager" : "lazy"}
+        src={mediaSrc}
+      />
+      <div className="form-actions drive-preview-sheet__actions desktop-action-set">
+        {item.detail_url ? (
+          <button className="button compact primary" type="button" onClick={() => setViewMode(viewMode === "detail" ? "summary" : "detail")}>
+            {viewMode === "detail" ? <ChevronLeft size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
+            {viewMode === "detail" ? "Ringkas" : "Detail"}
+          </button>
+        ) : null}
+        <a className="button compact" href={item.drive_url} target="_blank" rel="noreferrer">
+          <ExternalLink size={16} aria-hidden="true" />
+          Buka link
+        </a>
+        <form action={saveDriveItem}>
+          <input type="hidden" name="intent" value="archive" />
+          <input type="hidden" name="id" value={item.id} />
+          <DeleteActionButton confirmMessage={`Hapus item Drive "${item.name}"?`} />
+        </form>
+      </div>
+      <div className="mobile-action-set drive-preview-sheet__mobile-actions">
+        <a className="button compact primary" href={item.drive_url} target="_blank" rel="noreferrer">
+          <ExternalLink size={16} aria-hidden="true" />
+          Buka link
+        </a>
+        <OverflowActionMenu>
+          {item.detail_url ? (
+            <button className="button compact" type="button" onClick={() => setViewMode(viewMode === "detail" ? "summary" : "detail")}>
+              {viewMode === "detail" ? <ChevronLeft size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
+              {viewMode === "detail" ? "Ringkas" : "Detail"}
+            </button>
+          ) : null}
+          <form action={saveDriveItem}>
+            <input type="hidden" name="intent" value="archive" />
+            <input type="hidden" name="id" value={item.id} />
+            <DeleteActionButton confirmMessage={`Hapus item Drive "${item.name}"?`} />
+          </form>
+        </OverflowActionMenu>
       </div>
       <div className="metric-grid">
         <div className="metric">
@@ -220,12 +287,6 @@ function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: 
         </div>
       </div>
       {item.checksum ? <p className="text-caption">Checksum: {item.checksum}</p> : null}
-      <div className="form-actions form-actions--single">
-        <a className="button primary" href={item.drive_url} target="_blank" rel="noreferrer">
-          <ExternalLink size={16} aria-hidden="true" />
-          Buka link
-        </a>
-      </div>
     </OperatorBottomSheet>
   );
 }

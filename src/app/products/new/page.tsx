@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
+import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { SectionCard } from "@/components/operator/section-card";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
@@ -80,14 +81,16 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     );
   }
 
-  const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const visibleWorkspaces = workspaces.filter((workspace) => workspace.status !== "ARCHIVED");
+  const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
+  const workspaceMap = new Map(visibleWorkspaces.map((workspace) => [workspace.id, workspace]));
+  const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
   const affiliateProfilesWithAvatars = await Promise.all(
-    affiliateProfiles.map(async (profile) => ({
+    affiliateProfiles.map((profile) => ({
       id: profile.id,
       profile_name: profile.profile_name,
       account_label: profile.account_label,
-      avatarUrl: await resolveAffiliateProfileAvatar(profile, driveItemMap),
+      avatarUrl: resolveAffiliateProfileAvatar(profile, driveItemMap),
       niche: profile.niche,
       platform: profile.platform,
       status: profile.status,
@@ -104,6 +107,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   return (
     <div className="stack intake-native-page">
+      <PwaInstallCard />
       <section className="intake-native-surface" aria-label="Workflow intake produk">
         <IntakeWorkflowForm
           affiliateProfiles={affiliateProfilesWithAvatars}

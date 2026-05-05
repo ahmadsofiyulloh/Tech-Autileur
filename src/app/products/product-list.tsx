@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, Edit3, Package, Plus, Search } from "lucide-react";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { MediaThumbnailFrame } from "@/components/operator/media-thumbnail-frame";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { saveProduct } from "./actions";
 
 export type ProductListRow = {
   id: string;
@@ -58,6 +62,10 @@ const productFilters: Array<{ key: ProductFilter; label: string }> = [
 function matchesFilter(product: ProductListRow, filter: ProductFilter) {
   const status = product.product_status.toUpperCase();
 
+  if (status === "ARCHIVED") {
+    return false;
+  }
+
   if (filter === "draft") {
     return status === "DRAFT";
   }
@@ -67,6 +75,27 @@ function matchesFilter(product: ProductListRow, filter: ProductFilter) {
   }
 
   return true;
+}
+
+function ProductThumbnail({
+  alt,
+  className,
+  fallbackSize,
+  src,
+}: {
+  alt: string;
+  className: string;
+  fallbackSize: number;
+  src: string | null;
+}) {
+  return (
+    <MediaThumbnailFrame
+      alt={alt}
+      className={className}
+      fallback={<Package size={fallbackSize} aria-hidden="true" />}
+      src={src}
+    />
+  );
 }
 
 export function ProductList({ products }: ProductListProps) {
@@ -147,17 +176,30 @@ export function ProductList({ products }: ProductListProps) {
                   </td>
                   <td>{product.created_at_label}</td>
                   <td>
-                    <div className="product-row-actions">
-                      <Link className="button compact" href={product.href}>
-                        <ArrowRight size={15} aria-hidden="true" />
-                        Detail
-                      </Link>
-                      {product.review_href ? (
-                        <Link className="button compact primary" href={product.review_href}>
-                          <Edit3 size={15} aria-hidden="true" />
-                          Edit
+                    <div className="product-row-controls">
+                      <div className="product-row-actions">
+                        <Link className="button compact" href={product.href}>
+                          <ArrowRight size={15} aria-hidden="true" />
+                          Detail
                         </Link>
-                      ) : null}
+                        {product.review_href ? (
+                          <Link className="button compact primary" href={product.review_href}>
+                            <Edit3 size={15} aria-hidden="true" />
+                            Edit
+                          </Link>
+                        ) : null}
+                        <form action={saveProduct}>
+                          <input type="hidden" name="intent" value="archive" />
+                          <input type="hidden" name="id" value={product.id} />
+                          <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
+                        </form>
+                      </div>
+                      <ProductThumbnail
+                        alt={product.product_name}
+                        className="product-row-preview"
+                        fallbackSize={22}
+                        src={product.thumbnail_url}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -169,9 +211,7 @@ export function ProductList({ products }: ProductListProps) {
         <div className="products-cards-mobile">
           {filteredProducts.map((product) => (
             <article className="visual-list-card" key={product.id}>
-              <div className="visual-list-card__thumb" aria-hidden="true">
-                {product.thumbnail_url ? <img alt="" src={product.thumbnail_url} /> : <Package size={28} />}
-              </div>
+              <ProductThumbnail alt={product.product_name} className="visual-list-card__thumb" fallbackSize={28} src={product.thumbnail_url} />
               <div className="visual-list-card__body">
                 <div className="visual-list-card__header">
                   <div className="visual-list-card__copy">
@@ -181,26 +221,30 @@ export function ProductList({ products }: ProductListProps) {
                   </div>
                   <div className="visual-list-card__status" aria-label="Status produk">
                     <StatusBadge status={product.product_status} />
-                    {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
                   </div>
                 </div>
                 <div className="visual-list-card__footer">
                   <span>{product.created_at_label}</span>
                   {product.marketplace ? <span>{product.marketplace}</span> : null}
                 </div>
-                <div
-                  className={`product-row-actions visual-list-card__actions action-rail action-rail--${product.review_href ? "pair" : "single"}`.trim()}
-                >
-                  <Link className="button compact tertiary" href={product.href}>
+                <div className="mobile-card-actions">
+                  <Link className="button compact primary" href={product.href}>
                     <ArrowRight size={15} aria-hidden="true" />
                     Detail
                   </Link>
-                  {product.review_href ? (
-                    <Link className="button compact primary" href={product.review_href}>
-                      <Edit3 size={15} aria-hidden="true" />
-                      Edit
-                    </Link>
-                  ) : null}
+                  <OverflowActionMenu>
+                    {product.review_href ? (
+                      <Link className="button compact" href={product.review_href}>
+                        <Edit3 size={15} aria-hidden="true" />
+                        Edit
+                      </Link>
+                    ) : null}
+                    <form action={saveProduct}>
+                      <input type="hidden" name="intent" value="archive" />
+                      <input type="hidden" name="id" value={product.id} />
+                      <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
+                    </form>
+                  </OverflowActionMenu>
                 </div>
               </div>
             </article>

@@ -3,6 +3,7 @@ import { HardDrive } from "lucide-react";
 import { DriveVisualManager } from "./drive-visual-manager";
 import { EmptyState } from "@/components/operator/empty-state";
 import { getDriveItemById, listDriveItems } from "@/lib/server/drive-items";
+import { resolveDriveImageDetailUrl, resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -32,13 +33,35 @@ export default async function DrivePage() {
     );
   }
 
+  const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
+  const previewUrlCache = new Map<string, string | null>();
+  const detailUrlCache = new Map<string, string | null>();
+  const visualItems = await Promise.all(
+    visibleDriveItems.map((item) => ({
+      id: item.id,
+      drive_item_id: item.drive_item_id,
+      item_type: item.item_type,
+      name: item.name,
+      drive_url: item.drive_url,
+      drive_path: item.drive_path,
+      mime_type: item.mime_type,
+      purpose: item.purpose,
+      status: item.status,
+      size_bytes: item.size_bytes,
+      checksum: item.checksum,
+      drive_modified_at: item.drive_modified_at,
+      preview_url: resolveDriveImagePreviewUrl(item, previewUrlCache),
+      detail_url: resolveDriveImageDetailUrl(item, detailUrlCache),
+    })),
+  );
+
   try {
     const workspace = await getCurrentWorkspace();
 
     if (workspace?.drive_root_folder_ref_id) {
       const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
 
-      if (rootFolder?.item_type === "FOLDER" && rootFolder.drive_item_id) {
+      if (rootFolder?.item_type === "FOLDER" && rootFolder.drive_item_id && rootFolder.status !== "ARCHIVED") {
         uploadTarget = {
           id: rootFolder.id,
           name: rootFolder.name,
@@ -53,20 +76,7 @@ export default async function DrivePage() {
   return (
     <DriveVisualManager
       uploadTarget={uploadTarget}
-      items={driveItems.map((item) => ({
-        id: item.id,
-        drive_item_id: item.drive_item_id,
-        item_type: item.item_type,
-        name: item.name,
-        drive_url: item.drive_url,
-        drive_path: item.drive_path,
-        mime_type: item.mime_type,
-        purpose: item.purpose,
-        status: item.status,
-        size_bytes: item.size_bytes,
-        checksum: item.checksum,
-        drive_modified_at: item.drive_modified_at,
-      }))}
+      items={visualItems}
     />
   );
 }

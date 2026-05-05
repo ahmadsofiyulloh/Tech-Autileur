@@ -4,6 +4,7 @@ import { ArrowLeft, Edit3, FileText, History } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { TopbarOverride } from "@/components/operator/topbar-context";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -83,9 +84,13 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
     );
   }
 
+  if (selectedPromptPack.status === "ARCHIVED") {
+    redirect("/prompts?message=Data%20dihapus.");
+  }
+
   const product = await getProductById(selectedPromptPack.product_id);
 
-  if (!product) {
+  if (!product || product.status === "ARCHIVED") {
     notFound();
   }
 
@@ -104,7 +109,7 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
   }
 
   const siblingPromptPacks = promptPacks
-    .filter((pack) => pack.prompt_code === selectedPromptPack.prompt_code)
+    .filter((pack) => pack.prompt_code === selectedPromptPack.prompt_code && pack.status !== "ARCHIVED")
     .sort((left, right) => {
       if (left.version !== right.version) {
         return right.version - left.version;
@@ -134,7 +139,7 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
       <TopbarOverride title="History Prompt" subtitle={[product.product_name, `${siblingPromptPacks.length} versi`].join(" - ")} />
 
       <div className="surface-toolbar">
-        <div className="surface-toolbar__actions action-rail action-rail--pair">
+        <div className="surface-toolbar__actions action-rail action-rail--pair desktop-action-set">
           <Link className="button compact" href={`/prompts/${selectedPromptPack.id}`}>
             <ArrowLeft size={16} aria-hidden="true" />
             Editor
@@ -142,6 +147,17 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
           <Link className="button compact tertiary" href="/prompts">
             Prompt
           </Link>
+        </div>
+        <div className="surface-toolbar__actions mobile-action-set">
+          <Link className="button compact primary" href={`/prompts/${selectedPromptPack.id}`}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            Editor
+          </Link>
+          <OverflowActionMenu>
+            <Link className="button compact" href="/prompts">
+              Prompt
+            </Link>
+          </OverflowActionMenu>
         </div>
       </div>
 

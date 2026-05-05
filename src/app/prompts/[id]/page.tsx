@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Clock3, FileText, FileUp, RefreshCcw } from "lucide-react";
+import { Clock3, FileText, FileUp, RefreshCcw } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { TopbarOverride } from "@/components/operator/topbar-context";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { getProductById, listProductImages } from "@/lib/server/products";
@@ -91,6 +92,10 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
     );
   }
 
+  if (promptPack.status === "ARCHIVED") {
+    redirect("/prompts?message=Data%20dihapus.");
+  }
+
   try {
     [product, intakeSessions, productImages, affiliateProfiles, promptTask] = await Promise.all([
       getProductById(promptPack.product_id),
@@ -109,7 +114,7 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
     );
   }
 
-  if (!product) {
+  if (!product || product.status === "ARCHIVED") {
     notFound();
   }
 
@@ -132,20 +137,7 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
 
   return (
     <div className="stack">
-      <TopbarOverride title="Editor Prompt" subtitle={subtitleInfo} />
-
-      <div className="surface-toolbar">
-        <div className="surface-toolbar__actions action-rail action-rail--pair">
-          <Link className="button compact" href="/prompts">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Prompt
-          </Link>
-          <Link className="button compact tertiary" href={`/prompts/${promptPack.id}/history`}>
-            <Clock3 size={16} aria-hidden="true" />
-            History
-          </Link>
-        </div>
-      </div>
+      <TopbarOverride title="Editor Prompt" subtitle={subtitleInfo} hideSettingsLink />
 
       {message ? <section className="success-box">{message}</section> : null}
       {errorMessage ? <section className="error-box">{errorMessage}</section> : null}
@@ -154,7 +146,7 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
 
       <SectionCard icon={FileText} title="Output Siap Copy">
         <PromptOutputFields pack={promptPack} />
-        <form className="section-card__actions" action={savePromptPack}>
+        <form className="section-card__actions desktop-action-set" action={savePromptPack}>
           <input type="hidden" name="id" value={promptPack.id} />
           <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
           <input type="hidden" name="product_id" value={promptPack.product_id} />
@@ -163,6 +155,19 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
             Simpan TXT Drive
           </button>
         </form>
+        <div className="mobile-action-set">
+          <OverflowActionMenu>
+            <form action={savePromptPack}>
+              <input type="hidden" name="id" value={promptPack.id} />
+              <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
+              <input type="hidden" name="product_id" value={promptPack.product_id} />
+              <button className="button compact" name="intent" type="submit" value="export_prompt_txt">
+                <FileUp size={15} aria-hidden="true" />
+                Simpan TXT Drive
+              </button>
+            </form>
+          </OverflowActionMenu>
+        </div>
       </SectionCard>
 
       <SectionCard icon={RefreshCcw} title="Regenerate Prompt">

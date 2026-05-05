@@ -16,7 +16,6 @@ import { getProductById, listProductImages } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
 export const dynamic = "force-dynamic";
 
 type ProductRecord = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
@@ -291,17 +290,24 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     notFound();
   }
 
-  const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+  if (product.status === "ARCHIVED") {
+    redirect("/products?message=Data%20dihapus.");
+  }
+
+  const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
+  const visiblePromptPacks = promptPacks.filter((pack) => pack.status !== "ARCHIVED");
+  const visibleAffiliateProfiles = affiliateProfiles.filter((profile) => profile.status !== "ARCHIVED");
+  const workspaceMap = new Map(workspaces.filter((workspace) => workspace.status !== "ARCHIVED").map((workspace) => [workspace.id, workspace]));
   const productWorkspaceId = product.workspace_id;
   const scopedAffiliateProfiles = productWorkspaceId
-    ? affiliateProfiles.filter((profile) => profile.workspace_ids.includes(productWorkspaceId))
-    : affiliateProfiles;
+    ? visibleAffiliateProfiles.filter((profile) => profile.workspace_ids.includes(productWorkspaceId))
+    : visibleAffiliateProfiles;
   const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
-  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
   const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
-  const latestPromptPack = promptPacks[0] ?? null;
+  const latestPromptPack = visiblePromptPacks[0] ?? null;
 
   if (requestedTab === "prompt_pack") {
     redirect(latestPromptPack ? `/prompts/${latestPromptPack.id}/history` : `/products/${product.id}?tab=metadata`);
@@ -405,7 +411,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       description: session.product_title ?? "Intake",
       status: session.status,
     })),
-    ...promptPacks.map((pack) => ({
+    ...visiblePromptPacks.map((pack) => ({
       at: pack.created_at,
       title: "Prompt pack",
       description: `Version ${pack.version}`,
@@ -436,7 +442,12 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       <TopbarOverride
         title={product.product_name}
         subtitle={[productWorkspaceLabel, product.status].filter(Boolean).join(" - ")}
+        hideSettingsLink
       />
+
+      <div className="surface-toolbar">
+        <span className="surface-context">Detail produk</span>
+      </div>
 
       <nav className="tab-nav tab-nav--flush" aria-label="Product detail tabs">
         {detailTabs.map((tab) => (
@@ -677,9 +688,9 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
           </SectionCard>
 
           <SectionCard icon={FileText} title="Prompt pack versions">
-            {promptPacks.length ? (
+            {visiblePromptPacks.length ? (
               <ul className="list">
-                {promptPacks.map((pack) => {
+                {visiblePromptPacks.map((pack) => {
                   const intakeSession = pack.intake_session_id
                     ? intakeSessions.find((session) => session.id === pack.intake_session_id) ?? null
                     : null;

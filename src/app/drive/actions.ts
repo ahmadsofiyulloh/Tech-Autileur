@@ -75,7 +75,7 @@ export async function saveDriveItem(formData: FormData) {
 
     await archiveDriveItem(id);
     revalidatePath("/drive");
-    redirect("/drive?message=Drive item archived");
+    redirect("/drive?message=Data%20dihapus.");
   }
 
   if (intent === "refresh") {

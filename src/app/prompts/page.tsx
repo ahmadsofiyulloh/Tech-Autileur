@@ -5,6 +5,8 @@ import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listIntakeSessions } from "@/lib/server/intake";
@@ -93,7 +95,6 @@ function PromptRowCard({
 }) {
   const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
   const affiliateProfileName = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
-  const actionLayout = promptPack || intakeSession ? "pair" : "single";
   const sourceImageLabel = sourceImageDriveItem?.name ?? sourceImage?.id ?? "Foto belum ada";
 
   return (
@@ -116,7 +117,9 @@ function PromptRowCard({
 
       <div className="prompt-list-card__divider" aria-hidden="true" />
 
-      <div className={`prompt-list-card__actions action-rail action-rail--${actionLayout}`.trim()}>
+      <div
+        className={`prompt-list-card__actions desktop-action-set action-rail action-rail--${promptPack ? "triple" : intakeSession ? "pair" : "single"}`.trim()}
+      >
         {promptPack ? (
           <>
             <Link className="button compact primary" href={`/prompts/${promptPack.id}`}>
@@ -127,6 +130,13 @@ function PromptRowCard({
               <Clock3 size={15} aria-hidden="true" />
               History
             </Link>
+            <form action={savePromptPack}>
+              <input type="hidden" name="intent" value="archive" />
+              <input type="hidden" name="return_to" value="/prompts" />
+              <input type="hidden" name="id" value={promptPack.id} />
+              <input type="hidden" name="product_id" value={promptPack.product_id} />
+              <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} variant="iconOnly" />
+            </form>
           </>
         ) : (
           <>
@@ -140,6 +150,52 @@ function PromptRowCard({
                 product={product}
                 sourceImage={sourceImage}
               />
+            ) : null}
+          </>
+        )}
+      </div>
+
+      <div className="mobile-card-actions prompt-list-card__mobile-actions">
+        {promptPack ? (
+          <>
+            <Link className="button compact primary" href={`/prompts/${promptPack.id}`}>
+              <Edit3 size={15} aria-hidden="true" />
+              Buka
+            </Link>
+            <OverflowActionMenu>
+              <Link className="button compact" href={`/prompts/${promptPack.id}/history`}>
+                <Clock3 size={15} aria-hidden="true" />
+                History
+              </Link>
+              <form action={savePromptPack}>
+                <input type="hidden" name="intent" value="archive" />
+                <input type="hidden" name="return_to" value="/prompts" />
+                <input type="hidden" name="id" value={promptPack.id} />
+                <input type="hidden" name="product_id" value={promptPack.product_id} />
+                <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
+              </form>
+            </OverflowActionMenu>
+          </>
+        ) : (
+          <>
+            {intakeSession ? (
+              <PromptPackCreateForm
+                affiliateProfile={affiliateProfile}
+                intakeSession={intakeSession}
+                product={product}
+                sourceImage={sourceImage}
+              />
+            ) : (
+              <Link className="button compact primary" href={`/products/${product.id}?tab=metadata`}>
+                Produk
+              </Link>
+            )}
+            {intakeSession ? (
+              <OverflowActionMenu>
+                <Link className="button compact" href={`/products/${product.id}?tab=metadata`}>
+                  Produk
+                </Link>
+              </OverflowActionMenu>
             ) : null}
           </>
         )}
@@ -191,8 +247,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     );
   }
 
-  const productMap = new Map(products.map((product) => [product.id, product]));
-  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const visibleProducts = products.filter((product) => product.status !== "ARCHIVED");
+  const visiblePromptPacks = promptPacks.filter((pack) => pack.status !== "ARCHIVED");
+  const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
+  const productMap = new Map(visibleProducts.map((product) => [product.id, product]));
+  const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
   const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
   const requestedAffiliateProfile =
     requestedAffiliateProfileId && affiliateProfileMap.has(requestedAffiliateProfileId)
@@ -201,7 +260,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const latestPromptPackByProductId = new Map<string, PromptPackRecord>();
   const latestReviewedIntakeByProductId = new Map<string, IntakeSessionRecord>();
 
-  for (const pack of promptPacks) {
+  for (const pack of visiblePromptPacks) {
     if (!latestPromptPackByProductId.has(pack.product_id)) {
       latestPromptPackByProductId.set(pack.product_id, pack);
     }
@@ -227,7 +286,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     (requestedIntakeId && intakeSessions.find((session) => session.id === requestedIntakeId)?.product_id) ??
     "";
   const promptTaskIds = Array.from(
-    new Set(promptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))),
+    new Set(visiblePromptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))),
   );
   const promptTaskResult = promptTaskIds.length
     ? await supabase.from("ai_tasks").select("id, status, error_message").eq("user_id", user.id).in("id", promptTaskIds)
@@ -242,7 +301,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   }
 
   const promptTaskMap = new Map((promptTaskResult.data ?? []).map((task) => [task.id, task as PromptTaskRecord]));
-  const orderedProducts = [...products].sort((left, right) => {
+  const orderedProducts = [...visibleProducts].sort((left, right) => {
     if (selectedProductId) {
       if (left.id === selectedProductId) {
         return -1;
@@ -259,7 +318,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   return (
     <div className="stack prompt-page-stack">
       <div className="settings-inline-summary prompt-inline-summary">
-        <span>{products.length} produk</span>
+        <span>{visibleProducts.length} produk</span>
         <StatusBadge status={currentAffiliateProfileLabel} tone={currentAffiliateProfile ? "success" : "warning"} />
       </div>
 

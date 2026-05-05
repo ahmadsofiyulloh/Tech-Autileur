@@ -62,6 +62,11 @@ type GoogleOAuthTokenResponse = {
   token_type?: string;
 };
 
+type GoogleDriveThumbnailResponse = {
+  mimeType?: string | null;
+  thumbnailLink?: string | null;
+};
+
 const cachedAccessTokens = new Map<string, AccessTokenCache>();
 const GOOGLE_DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
@@ -418,6 +423,44 @@ export async function getGoogleDriveAccountInfo(accessToken: string) {
   };
 }
 
+export async function getGoogleDriveImageThumbnailBytes(fileId: string) {
+  try {
+    const token = await fetchGoogleDriveAccessToken();
+    const parsed = await fetchGoogleDriveJson<GoogleDriveThumbnailResponse>(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,mimeType,thumbnailLink`,
+      token,
+    );
+    const thumbnailLink = readText(parsed.thumbnailLink);
+
+    if (!thumbnailLink) {
+      return null;
+    }
+
+    const response = await fetch(thumbnailLink, {
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+
+    if (!bytes.length) {
+      return null;
+    }
+
+    return {
+      bytes,
+      contentType: readText(response.headers.get("content-type")) || readText(parsed.mimeType) || "image/jpeg",
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchGoogleDriveFileBytes(fileId: string) {
   const token = await fetchGoogleDriveAccessToken();
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
@@ -432,6 +475,10 @@ async function fetchGoogleDriveFileBytes(fileId: string) {
   }
 
   return Buffer.from(await response.arrayBuffer());
+}
+
+export async function getGoogleDriveFileContentBytes(fileId: string) {
+  return fetchGoogleDriveFileBytes(fileId);
 }
 
 async function findGoogleDriveFolder(input: { name: string; parentFolderId?: string | null }) {

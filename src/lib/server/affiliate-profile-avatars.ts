@@ -1,10 +1,10 @@
 import "server-only";
 
-import { tryGetGoogleDriveImageDataUrl } from "@/lib/server/google-drive";
+import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import type { AffiliateProfileRecord } from "@/lib/server/affiliate-profiles";
 import type { DriveItemRecord } from "@/lib/server/drive-items";
 
-export async function resolveAffiliateProfileAvatar(
+export function resolveAffiliateProfileAvatar(
   profile: AffiliateProfileRecord,
   driveItemMap: Map<string, DriveItemRecord>,
 ) {
@@ -17,11 +17,11 @@ export async function resolveAffiliateProfileAvatar(
 
     const item = driveItemMap.get(refId);
 
-    if (item?.mime_type?.startsWith("image/") && item.drive_item_id) {
-      const imageDataUrl = await tryGetGoogleDriveImageDataUrl({ fileId: item.drive_item_id, mimeType: item.mime_type });
+    if (item) {
+      const previewUrl = resolveDriveImagePreviewUrl(item);
 
-      if (imageDataUrl) {
-        return imageDataUrl;
+      if (previewUrl) {
+        return previewUrl;
       }
     }
   }

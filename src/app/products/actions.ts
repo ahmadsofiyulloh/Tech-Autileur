@@ -38,7 +38,7 @@ export async function saveProduct(formData: FormData) {
 
     await archiveProduct(id);
     revalidatePath("/products");
-    redirect("/products?message=Product archived");
+    redirect("/products?message=Data%20dihapus.");
   }
 
   if (intent === "create") {

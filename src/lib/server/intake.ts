@@ -11,7 +11,8 @@ import {
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
-import { GeminiClientError, generateGeminiJsonText } from "@/lib/server/gemini-client";
+import { GeminiClientError } from "@/lib/server/gemini-client";
+import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
   appendUniqueNote,
   normalizeIntakeVisionOutput,
@@ -29,7 +30,14 @@ import {
 } from "@/lib/intake/validation";
 import { type GeminiModelName } from "@/lib/gemini/validation";
 import { createDriveItem, getDriveItemById } from "@/lib/server/drive-items";
-import { buildProductCode, createProduct, getProductById, listProductImages, updateProduct } from "@/lib/server/products";
+import {
+  attachProductSourceImage,
+  buildProductCode,
+  createProduct,
+  getProductById,
+  listProductImages,
+  updateProduct,
+} from "@/lib/server/products";
 import { buildProductAnchorCode, createProductAnchor, listProductAnchors, type ProductAnchorRecord } from "@/lib/server/product-anchors";
 import {
   type MarketplaceSourceInput,
@@ -1172,6 +1180,20 @@ export async function createProductFromIntake(
       })
     : await createProduct(productInput);
 
+  if (session.product_photo_drive_item_ref_id) {
+    const existingProductImages = await listProductImages({ productId: product.id, limit: 1 });
+
+    if (!existingProductImages.length) {
+      await attachProductSourceImage({
+        productId: product.id,
+        driveItemRefId: session.product_photo_drive_item_ref_id,
+        isPrimary: true,
+        status: "ATTACHED",
+        notes: "Auto-attached from intake photo.",
+      });
+    }
+  }
+
   await updateIntakeSession(session.id, {
     workspace_id: product.workspace_id,
     product_id: product.id,
@@ -1309,23 +1331,29 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       buildIntakeAnalysisImagePart(input.tiktokScreenshot),
     ]);
 
-    const response = await generateGeminiJsonText({
-      modelName: selectedKey.key.model_name as GeminiModelName,
-      apiKey: selectedKey.secret,
-      parts: [
-        productImagePart,
-        shopeeScreenshotPart,
-        tiktokScreenshotPart,
-        {
-          text: buildIntakeParsePrompt({
-            productImage: productImageSummary,
-            shopeeScreenshot: shopeeScreenshotSummary,
-            tiktokScreenshot: tiktokScreenshotSummary,
-          }),
-        },
-      ],
-      temperature: 0.1,
-      maxOutputTokens: 2048,
+    const response = await generateTrackedGeminiJsonText({
+      aiTaskId: task.id,
+      geminiApiKey: selectedKey.key,
+      taskType: "VISION_ANALYSIS",
+      userId: user.id,
+      request: {
+        modelName: selectedKey.key.model_name as GeminiModelName,
+        apiKey: selectedKey.secret,
+        parts: [
+          productImagePart,
+          shopeeScreenshotPart,
+          tiktokScreenshotPart,
+          {
+            text: buildIntakeParsePrompt({
+              productImage: productImageSummary,
+              shopeeScreenshot: shopeeScreenshotSummary,
+              tiktokScreenshot: tiktokScreenshotSummary,
+            }),
+          },
+        ],
+        temperature: 0.1,
+        maxOutputTokens: 2048,
+      },
     });
 
     const parsed = parseIntakeVisionOutput(response.text);

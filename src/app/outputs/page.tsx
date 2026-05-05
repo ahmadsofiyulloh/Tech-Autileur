@@ -18,8 +18,8 @@ export default async function OutputsPage() {
 
   return (
     <div className="stack">
-      <SectionCard icon={Archive} title="Output archive">
-        <EmptyState icon={Archive} title="Arsip output." />
+      <SectionCard icon={Archive} title="Output">
+        <EmptyState icon={Archive} title="Belum ada output." />
       </SectionCard>
     </div>
   );

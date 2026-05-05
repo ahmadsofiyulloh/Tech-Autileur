@@ -3,6 +3,7 @@ import "server-only";
 import type { GeminiModelName } from "@/lib/gemini/validation";
 
 type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
 
 type GeminiInlineDataPart = {
   inline_data: {
@@ -22,8 +23,11 @@ type GeminiGenerateContentOptions = {
   apiKey: string;
   prompt?: string;
   parts?: GeminiPart[];
+  responseJsonSchema?: JsonObject;
+  systemInstruction?: string;
   temperature?: number;
   maxOutputTokens?: number;
+  timeoutMs?: number;
 };
 
 type GeminiCandidate = {
@@ -138,9 +142,8 @@ function extractTextFromResponse(body: unknown) {
   return null;
 }
 
-function buildGeminiEndpoint(modelName: GeminiModelName, apiKey: string) {
+function buildGeminiEndpoint(modelName: GeminiModelName) {
   const url = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`);
-  url.searchParams.set("key", apiKey);
   return url.toString();
 }
 
@@ -159,26 +162,61 @@ function buildRequestParts(options: GeminiGenerateContentOptions) {
   return parts;
 }
 
-export async function generateGeminiJsonText(options: GeminiGenerateContentOptions) {
-  const response = await fetch(buildGeminiEndpoint(options.modelName, options.apiKey), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: buildRequestParts(options),
-        },
-      ],
-      generationConfig: {
-        temperature: options.temperature ?? 0.2,
-        maxOutputTokens: options.maxOutputTokens ?? 8192,
-        responseMimeType: "application/json",
+function buildGenerationConfig(options: GeminiGenerateContentOptions) {
+  return {
+    temperature: options.temperature ?? 0.2,
+    maxOutputTokens: options.maxOutputTokens ?? 8192,
+    responseMimeType: "application/json",
+    ...(options.responseJsonSchema ? { responseJsonSchema: options.responseJsonSchema } : {}),
+  };
+}
+
+function buildRequestBody(options: GeminiGenerateContentOptions) {
+  const systemInstruction = options.systemInstruction?.trim();
+
+  return {
+    contents: [
+      {
+        role: "user",
+        parts: buildRequestParts(options),
       },
-    }),
-  });
+    ],
+    ...(systemInstruction
+      ? {
+          systemInstruction: {
+            parts: [{ text: systemInstruction }],
+          },
+        }
+      : {}),
+    generationConfig: buildGenerationConfig(options),
+  };
+}
+
+export async function generateGeminiJsonText(options: GeminiGenerateContentOptions) {
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+
+  try {
+    response = await fetch(buildGeminiEndpoint(options.modelName), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": options.apiKey,
+      },
+      signal: controller.signal,
+      body: JSON.stringify(buildRequestBody(options)),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new GeminiClientError("Gemini request timed out.", 408);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const retryAfterSeconds = readRetryAfterSeconds(response.headers.get("retry-after"));
 

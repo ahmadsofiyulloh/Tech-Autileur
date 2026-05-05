@@ -3,6 +3,7 @@ import "server-only";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { type GeminiKeyRole } from "@/lib/gemini/validation";
+export { PROMPT_PACK_GEMINI_KEY_PRIORITY } from "@/lib/server/gemini-key-routing";
 import {
   type AiTaskStatus,
   type AiTaskType,
@@ -60,13 +61,6 @@ type RequireUserResult = {
 
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_ALLOWED_RETRIES = 10;
-export const PROMPT_PACK_GEMINI_KEY_PRIORITY = [
-  "I2V_PROMPT",
-  "CONSISTENCY_CHECK",
-  "I2I_PROMPT",
-  "VISION_ANALYSIS",
-  "FALLBACK",
-] as const satisfies readonly GeminiKeyRole[];
 
 function clampLimit(value: number | undefined) {
   if (value === undefined) {

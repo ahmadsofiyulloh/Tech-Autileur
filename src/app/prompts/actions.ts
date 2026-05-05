@@ -214,7 +214,7 @@ export async function savePromptPack(formData: FormData) {
     }
 
     revalidatePromptRoutes(id, readText(formData, "product_id") || null);
-    doneFromForm(formData, "Prompt pack diarsipkan", readText(formData, "product_id") || null);
+    doneFromForm(formData, "Data dihapus.", readText(formData, "product_id") || null);
   }
 
   if (intent === "create_generate" || intent === "create") {

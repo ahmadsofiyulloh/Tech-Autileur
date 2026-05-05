@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { listDriveItems } from "@/lib/server/drive-items";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductImages, listProducts } from "@/lib/server/products";
+import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -123,8 +124,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     );
   }
 
-  const workspaceMap = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const visibleProducts = products.filter((product) => product.status !== "ARCHIVED");
+  const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
+  const workspaceMap = new Map(workspaces.filter((workspace) => workspace.status !== "ARCHIVED").map((workspace) => [workspace.id, workspace]));
+  const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
+  const previewUrlCache = new Map<string, string | null>();
   const latestIntakeByProductId = new Map<string, (typeof intakeSessions)[number]>();
   const latestReviewIntakeByProductId = new Map<string, (typeof intakeSessions)[number]>();
 
@@ -142,46 +146,49 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     }
   }
 
-  const productRows: ProductListRow[] = products.map((product) => {
-    const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
-    const latestReviewIntake = latestReviewIntakeByProductId.get(product.id) ?? null;
-    const metadata =
-      latestReviewIntake?.reviewed_metadata_json ??
-      latestReviewIntake?.parsed_metadata_json ??
-      latestIntake?.reviewed_metadata_json ??
-      latestIntake?.parsed_metadata_json ??
-      null;
-    const keyword = metadataText(metadata, "keyword_cari_etalase", "category") || fieldValue(product.niche);
-    const primaryImage =
-      productImages.find((image) => image.product_id === product.id && image.is_primary) ??
-      productImages.find((image) => image.product_id === product.id) ??
-      null;
-    const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
+  const productRows: ProductListRow[] = await Promise.all(
+    visibleProducts.map((product) => {
+      const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
+      const latestReviewIntake = latestReviewIntakeByProductId.get(product.id) ?? null;
+      const metadata =
+        latestReviewIntake?.reviewed_metadata_json ??
+        latestReviewIntake?.parsed_metadata_json ??
+        latestIntake?.reviewed_metadata_json ??
+        latestIntake?.parsed_metadata_json ??
+        null;
+      const keyword = metadataText(metadata, "keyword_cari_etalase", "category") || fieldValue(product.niche);
+      const primaryImage =
+        productImages.find((image) => image.product_id === product.id && image.is_primary) ??
+        productImages.find((image) => image.product_id === product.id) ??
+        null;
+      const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
+      const thumbnailUrl = resolveDriveImagePreviewUrl(primaryDriveItem, previewUrlCache);
 
-    return {
-      id: product.id,
-      product_name: product.product_name,
-      workspace_label: workspaceLabel(product.workspace_id, workspaceMap),
-      marketplace: fieldValue(product.marketplace),
-      keyword,
-      product_status: product.status,
-      intake_status: latestIntake?.status ?? "",
-      created_at_label: formatDate(product.created_at),
-      thumbnail_url: primaryDriveItem?.mime_type?.startsWith("image/") ? primaryDriveItem.drive_url : null,
-      href: `/products/${product.id}`,
-      review_href: latestReviewIntake
-        ? productReviewHref({
+      return {
+        id: product.id,
+        product_name: product.product_name,
+        workspace_label: workspaceLabel(product.workspace_id, workspaceMap),
+        marketplace: fieldValue(product.marketplace),
+        keyword,
+        product_status: product.status,
+        intake_status: latestIntake?.status ?? "",
+        created_at_label: formatDate(product.created_at),
+        thumbnail_url: thumbnailUrl,
+        href: `/products/${product.id}`,
+        review_href: latestReviewIntake
+          ? productReviewHref({
             affiliateProfileId: requestedAffiliateProfileId,
             intakeId: latestReviewIntake.id,
             showAllWorkspaces,
           })
-        : null,
-    };
-  });
+          : null,
+      };
+    }),
+  );
 
   return (
     <div className="stack">
-      {products.length ? (
+      {visibleProducts.length ? (
         <ProductList products={productRows} />
       ) : (
         <EmptyState

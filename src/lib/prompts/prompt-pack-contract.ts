@@ -582,7 +582,10 @@ export function buildPromptPackEditorStoragePayload(
   };
 }
 
-export function buildPromptPackStoragePayload(output: PromptPackGenerationOutput): PromptPackStoragePayload {
+export function buildPromptPackStoragePayload(
+  output: PromptPackGenerationOutput,
+  promptContextOverride?: JsonObject | null,
+): PromptPackStoragePayload {
   return {
     product_analysis_json: output.product_analysis,
     i2i_prompts_json: output.i2i_prompts,
@@ -594,7 +597,7 @@ export function buildPromptPackStoragePayload(output: PromptPackGenerationOutput
       negative_prompt_rules: output.negative_prompt_rules,
     },
     personalization_json: {
-      prompt_context: output.prompt_context,
+      prompt_context: promptContextOverride ?? output.prompt_context,
       caption: output.caption,
       tags: normalizeHashtagString(output.tags),
       target_marketplace: PROMPT_TARGET_MARKETPLACE,
