@@ -3,10 +3,10 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import {
   createAITask,
-  listAvailableGeminiKeysByRole,
   markTaskFailed,
   markTaskRunning,
   markTaskSuccess,
+  markTaskWaitingForKey,
 } from "@/lib/server/ai-task-queue";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -29,6 +29,14 @@ import {
   readIntakeText,
 } from "@/lib/intake/validation";
 import { type GeminiModelName } from "@/lib/gemini/validation";
+import { GEMINI_INTAKE_VISION_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
+import {
+  getGeminiQuotaGroupKey,
+  listQuotaAwareGeminiKeys,
+  markGeminiKeySuccess,
+  markGeminiQuotaGroupCooldown,
+  type GeminiRoutableKey,
+} from "@/lib/server/gemini-key-routing";
 import { createDriveItem, getDriveItemById } from "@/lib/server/drive-items";
 import {
   attachProductSourceImage,
@@ -114,27 +122,7 @@ type AiTaskRecord = {
   updated_at: string;
 };
 
-type GeminiSelectedKey = {
-  id: string;
-  user_id: string;
-  key_code: string;
-  label: string;
-  provider: string;
-  google_account_label: string | null;
-  project_label: string | null;
-  model_name: string;
-  role: string;
-  rpm_limit: number | null;
-  rpd_limit: number | null;
-  tpm_limit: number | null;
-  requests_today: number;
-  last_used_at: string | null;
-  cooldown_until: string | null;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
+type GeminiSelectedKey = GeminiRoutableKey;
 
 type IntakeWorkspace = {
   product: ProductRecord | null;
@@ -189,8 +177,6 @@ type IntakeAnalysisUploadInput = {
   shopeeScreenshot: File;
   tiktokScreenshot: File;
 };
-
-const INTAKE_GEMINI_KEY_PRIORITY = ["VISION_ANALYSIS", "CONSISTENCY_CHECK", "FALLBACK"] as const;
 
 function readText(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -756,25 +742,27 @@ async function readGeminiSecretForKey(
   return decryptGeminiApiKey(data.encrypted_api_key);
 }
 
-async function selectGeminiKeyForIntake(userId: string) {
+async function selectGeminiKeyForIntake(userId: string, excludedQuotaGroups: ReadonlySet<string> = new Set()) {
   const serviceClient = createSupabaseServiceRoleClient();
+  const geminiKeys = await listQuotaAwareGeminiKeys({
+    userId,
+    purpose: "VISION_ANALYSIS",
+    excludedQuotaGroups,
+    serviceClient,
+  });
 
-  for (const role of INTAKE_GEMINI_KEY_PRIORITY) {
-    const geminiKeys = (await listAvailableGeminiKeysByRole(role)) as GeminiSelectedKey[];
+  for (const geminiKey of geminiKeys) {
+    const secret = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
 
-    for (const geminiKey of geminiKeys) {
-      const secret = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
-
-      if (!secret) {
-        continue;
-      }
-
-      return {
-        key: geminiKey,
-        secret,
-        role,
-      };
+    if (!secret) {
+      continue;
     }
+
+    return {
+      key: geminiKey,
+      secret,
+      role: geminiKey.role,
+    };
   }
 
   return null;
