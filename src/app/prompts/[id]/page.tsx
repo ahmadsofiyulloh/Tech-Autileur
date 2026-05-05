@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Clock3, FileText, FileUp, RefreshCcw } from "lucide-react";
+import { Clock3, FileText, RefreshCcw } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { TopbarOverride } from "@/components/operator/topbar-context";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
@@ -29,12 +30,7 @@ type PromptTaskRecord = {
 
 type PromptDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string | string[]; message?: string | string[] }>;
 };
-
-function firstParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 async function readPromptTask(promptPack: PromptPackRecord, userId: string): Promise<PromptTaskRecord | null> {
   if (!promptPack.ai_task_id) {
@@ -56,7 +52,7 @@ async function readPromptTask(promptPack: PromptPackRecord, userId: string): Pro
   return data ? (data as PromptTaskRecord) : null;
 }
 
-export default async function PromptDetailPage({ params, searchParams }: PromptDetailPageProps) {
+export default async function PromptDetailPage({ params }: PromptDetailPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -66,9 +62,7 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
     redirect("/login");
   }
 
-  const [{ id }, query] = await Promise.all([params, searchParams]);
-  const message = firstParam(query.message);
-  const errorMessage = firstParam(query.error);
+  const { id } = await params;
   let promptPack: PromptPackRecord;
   let product: ProductRecord | null = null;
   let intakeSessions: IntakeSessionRecord[] = [];
@@ -128,6 +122,7 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
     ? productImages.find((image) => image.id === promptPack.source_product_image_id) ?? null
     : productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const promptSet = readPromptOutputSet(promptPack);
+  const promptErrorMessage = promptPack.error_message ?? promptTask?.error_message ?? null;
   const subtitleInfo = [
     product.product_name,
     `v${promptPack.version}`,
@@ -139,10 +134,7 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
     <div className="stack">
       <TopbarOverride title="Editor Prompt" subtitle={subtitleInfo} hideSettingsLink />
 
-      {message ? <section className="success-box">{message}</section> : null}
-      {errorMessage ? <section className="error-box">{errorMessage}</section> : null}
-      {promptTask?.error_message ? <section className="error-box">{promptTask.error_message}</section> : null}
-      {promptPack.error_message ? <section className="error-box">{promptPack.error_message}</section> : null}
+      {promptErrorMessage ? <section className="error-box">{promptErrorMessage}</section> : null}
 
       <SectionCard icon={FileText} title="Output Siap Copy">
         <PromptOutputFields pack={promptPack} />
@@ -150,10 +142,18 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
           <input type="hidden" name="id" value={promptPack.id} />
           <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
           <input type="hidden" name="product_id" value={promptPack.product_id} />
-          <button className="button compact tertiary" name="intent" type="submit" value="export_prompt_txt">
-            <FileUp size={15} aria-hidden="true" />
+          <PendingActionButton
+            activityDescription="Menyimpan prompt TXT ke Drive."
+            activityKind="prompt-export"
+            activityTitle="Menyimpan TXT Drive"
+            className="button compact tertiary"
+            estimatedDurationMs={8000}
+            pendingLabel="Menyimpan"
+            name="intent"
+            value="export_prompt_txt"
+          >
             Simpan TXT Drive
-          </button>
+          </PendingActionButton>
         </form>
         <div className="mobile-action-set">
           <OverflowActionMenu>
@@ -161,10 +161,18 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
               <input type="hidden" name="id" value={promptPack.id} />
               <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
               <input type="hidden" name="product_id" value={promptPack.product_id} />
-              <button className="button compact" name="intent" type="submit" value="export_prompt_txt">
-                <FileUp size={15} aria-hidden="true" />
+              <PendingActionButton
+                activityDescription="Menyimpan prompt TXT ke Drive."
+                activityKind="prompt-export"
+                activityTitle="Menyimpan TXT Drive"
+                className="button compact"
+                estimatedDurationMs={8000}
+                pendingLabel="Menyimpan"
+                name="intent"
+                value="export_prompt_txt"
+              >
                 Simpan TXT Drive
-              </button>
+              </PendingActionButton>
             </form>
           </OverflowActionMenu>
         </div>
@@ -191,10 +199,18 @@ export default async function PromptDetailPage({ params, searchParams }: PromptD
               <Clock3 size={16} aria-hidden="true" />
               History
             </Link>
-            <button className="button primary" name="intent" type="submit" value="regenerate">
-              <RefreshCcw size={16} aria-hidden="true" />
+            <PendingActionButton
+              activityDescription="Menunggu Gemini meregenerasi paket prompt."
+              activityKind="prompt-regenerate"
+              activityTitle="Meregenerasi prompt"
+              className="button primary"
+              estimatedDurationMs={20000}
+              pendingLabel="Meregenerasi"
+              name="intent"
+              value="regenerate"
+            >
               Buat Ulang
-            </button>
+            </PendingActionButton>
           </FormActions>
         </form>
       </SectionCard>

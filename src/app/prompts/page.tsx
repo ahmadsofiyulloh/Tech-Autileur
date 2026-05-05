@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Clock3, Edit3, FileText, Package, Plus, Play } from "lucide-react";
+import { Clock3, Edit3, FileText, Package, Plus } from "lucide-react";
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
@@ -62,10 +63,17 @@ function PromptPackCreateForm({
       <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
       <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
       <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
-      <button className="button compact primary" type="submit" disabled={!canCreate}>
-        <Play size={15} aria-hidden="true" />
+      <PendingActionButton
+        activityDescription="Menunggu Gemini membuat paket prompt."
+        activityKind="prompt-create"
+        activityTitle="Membuat paket prompt"
+        className="button compact primary"
+        estimatedDurationMs={20000}
+        pendingLabel="Membuat"
+        disabled={!canCreate}
+      >
         Buat Prompt
-      </button>
+      </PendingActionButton>
     </form>
   );
 }

@@ -1,3 +1,4 @@
+import { recoverJsonText } from "@/lib/json/recover-json";
 import {
   PROMPT_CLIP_KEYS,
   PROMPT_PACK_OUTPUT_KEYS,
@@ -169,6 +170,24 @@ function requireBoolean(value: unknown, label: string) {
   return value;
 }
 
+function resolveBooleanWithFallback(value: unknown, label: string, fallbackValue?: boolean | null) {
+  const fallback = typeof fallbackValue === "boolean" ? fallbackValue : null;
+
+  if (typeof value === "boolean") {
+    if (fallback !== null && value !== fallback) {
+      throw new Error(`${label} must match the source image flag (${fallback}).`);
+    }
+
+    return value;
+  }
+
+  if (fallback !== null) {
+    return fallback;
+  }
+
+  throw new Error(`${label} must be a boolean.`);
+}
+
 function requireStringArray(value: unknown, label: string) {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim().length > 0)) {
     throw new Error(`${label} must be an array of non-empty strings.`);
@@ -193,24 +212,75 @@ function requireMaybeDriveItem(value: unknown, label: string) {
   };
 }
 
-function requireMaybeSourceImage(value: unknown, label: string) {
+function resolveStringWithFallback(value: unknown, label: string, fallbackValue?: string | null) {
+  const actual = requireOptionalString(value);
+  const fallback = requireOptionalString(fallbackValue);
+
+  if (!actual) {
+    if (fallback) {
+      return fallback;
+    }
+
+    throw new Error(`${label} must be a non-empty string.`);
+  }
+
+  if (fallback && actual !== fallback) {
+    throw new Error(`${label} must match the source image value (${fallback}).`);
+  }
+
+  return actual;
+}
+
+function requireMaybeSourceImage(
+  value: unknown,
+  label: string,
+  fallbackValue?: PromptPackSourceImageRecord | null,
+) {
   if (value === null || value === undefined) {
-    return null;
+    return fallbackValue ?? null;
   }
 
   const record = requireRecord(value, label);
+  const fallback = fallbackValue ?? null;
 
   return {
-    id: requireString(record.id, `${label}.id`),
-    is_primary: typeof record.is_primary === "boolean" ? record.is_primary : false,
-    status: requireString(record.status, `${label}.status`),
-    source_type: requireString(record.source_type, `${label}.source_type`),
-    drive_item_ref_id: requireString(record.drive_item_ref_id, `${label}.drive_item_ref_id`),
-    drive_item: requireMaybeDriveItem(record.drive_item, `${label}.drive_item`),
+    id: resolveStringWithFallback(record.id, `${label}.id`, fallback?.id),
+    is_primary: resolveBooleanWithFallback(record.is_primary, `${label}.is_primary`, fallback?.is_primary),
+    status: resolveStringWithFallback(record.status, `${label}.status`, fallback?.status),
+    source_type: resolveStringWithFallback(record.source_type, `${label}.source_type`, fallback?.source_type),
+    drive_item_ref_id: resolveStringWithFallback(
+      record.drive_item_ref_id,
+      `${label}.drive_item_ref_id`,
+      fallback?.drive_item_ref_id,
+    ),
+    drive_item: fallback?.drive_item ?? requireMaybeDriveItem(record.drive_item, `${label}.drive_item`),
   };
 }
 
-function requirePromptAnalysisJson(value: unknown) {
+function resolveProductStatus(value: unknown, label: string, fallbackValue?: string | null) {
+  const status = requireOptionalString(value);
+  const fallbackStatus = requireOptionalString(fallbackValue);
+
+  if (!status) {
+    if (fallbackStatus) {
+      return fallbackStatus;
+    }
+
+    throw new Error(`${label} must be a non-empty string.`);
+  }
+
+  if (fallbackStatus && status !== fallbackStatus) {
+    throw new Error(`${label} must match the source product status (${fallbackStatus}).`);
+  }
+
+  return status;
+}
+
+function requirePromptAnalysisJson(
+  value: unknown,
+  fallbackProductStatus?: string | null,
+  fallbackSourceImage?: PromptPackSourceImageRecord | null,
+) {
   const record = requireRecord(value, "product_analysis");
   const product = requireRecord(record.product, "product_analysis.product");
   const coverage = requireRecord(record.coverage, "product_analysis.coverage");
@@ -228,9 +298,9 @@ function requirePromptAnalysisJson(value: unknown) {
       marketplace: typeof product.marketplace === "string" ? product.marketplace.trim() : null,
       marketplace_product_link:
         typeof product.marketplace_product_link === "string" ? product.marketplace_product_link.trim() : null,
-      status: requireString(product.status, "product_analysis.product.status"),
+      status: resolveProductStatus(product.status, "product_analysis.product.status", fallbackProductStatus),
     },
-    source_image: requireMaybeSourceImage(record.source_image, "product_analysis.source_image"),
+    source_image: requireMaybeSourceImage(record.source_image, "product_analysis.source_image", fallbackSourceImage),
     coverage: {
       vision_analysis: requireNumber(coverage.vision_analysis, "product_analysis.coverage.vision_analysis"),
       prompt_clips: requireNumber(coverage.prompt_clips, "product_analysis.coverage.prompt_clips"),
@@ -335,56 +405,6 @@ function requireConsistencyRulesJson(value: unknown) {
   } as PromptPackConsistencyRulesJson;
 }
 
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-
-  if (!trimmed) {
-    throw new Error("Gemini output was empty.");
-  }
-
-  if (trimmed.startsWith("```")) {
-    const firstNewLine = trimmed.indexOf("\n");
-    const lastFence = trimmed.lastIndexOf("```");
-
-    if (firstNewLine >= 0 && lastFence > firstNewLine) {
-      const inner = trimmed.slice(firstNewLine + 1, lastFence).trim();
-
-      if (inner) {
-        return inner;
-      }
-    }
-  }
-
-  return trimmed;
-}
-
-function recoverJsonText(rawText: string) {
-  const initial = extractJsonText(rawText);
-
-  try {
-    JSON.parse(initial);
-    return initial;
-  } catch {
-    const firstBrace = initial.indexOf("{");
-    const lastBrace = initial.lastIndexOf("}");
-
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      const sliced = initial.slice(firstBrace, lastBrace + 1).trim();
-
-      if (sliced) {
-        try {
-          JSON.parse(sliced);
-          return sliced;
-        } catch {
-          // Fall through to the sanitized error below.
-        }
-      }
-    }
-  }
-
-  throw new Error("Gemini output did not contain valid JSON.");
-}
-
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -481,7 +501,13 @@ function toI2VStorageClip(clipKey: PromptClipKey, clip: PromptPackEditorClip) {
   } satisfies PromptPackI2VPromptJson;
 }
 
-export function parsePromptPackGenerationOutput(rawText: string): PromptPackGenerationOutput {
+export function parsePromptPackGenerationOutput(
+  rawText: string,
+  options?: {
+    fallbackProductStatus?: string | null;
+    fallbackSourceImage?: PromptPackSourceImageRecord | null;
+  },
+): PromptPackGenerationOutput {
   const jsonText = recoverJsonText(rawText);
   const parsed: unknown = JSON.parse(jsonText);
   const record = requireRecord(parsed, "Gemini output");
@@ -494,7 +520,11 @@ export function parsePromptPackGenerationOutput(rawText: string): PromptPackGene
   }
 
   return {
-    product_analysis: requirePromptAnalysisJson(record.product_analysis),
+    product_analysis: requirePromptAnalysisJson(
+      record.product_analysis,
+      options?.fallbackProductStatus,
+      options?.fallbackSourceImage,
+    ),
     prompt_context: requirePromptContextJson(record.prompt_context),
     i2i_prompts: requireI2IPromptMap(record.i2i_prompts),
     i2v_prompts: requireI2VPromptMap(record.i2v_prompts),

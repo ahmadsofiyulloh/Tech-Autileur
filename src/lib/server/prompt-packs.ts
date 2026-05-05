@@ -79,6 +79,23 @@ type ProductImageRecord = {
   updated_at: string;
 };
 
+type PromptPackSourceDriveItemSnapshot = {
+  id: string;
+  name: string;
+  drive_path: string;
+  drive_url: string;
+  mime_type: string | null;
+};
+
+type PromptPackSourceImageSnapshot = {
+  id: string;
+  is_primary: boolean;
+  status: string;
+  source_type: string;
+  drive_item_ref_id: string;
+  drive_item: PromptPackSourceDriveItemSnapshot | null;
+};
+
 type PromptPackRecord = {
   id: string;
   user_id: string;
@@ -309,7 +326,9 @@ type DriveItemRecord = {
   updated_at: string;
 };
 
-function buildDriveItemSnapshot(item: Pick<DriveItemRecord, "id" | "name" | "drive_path" | "drive_url" | "mime_type"> | null) {
+function buildDriveItemSnapshot(
+  item: PromptPackSourceDriveItemSnapshot | null,
+): PromptPackSourceDriveItemSnapshot | null {
   if (!item) {
     return null;
   }
@@ -320,7 +339,7 @@ function buildDriveItemSnapshot(item: Pick<DriveItemRecord, "id" | "name" | "dri
     drive_path: item.drive_path,
     drive_url: item.drive_url,
     mime_type: item.mime_type,
-  } satisfies JsonObject;
+  };
 }
 
 function buildProductSnapshot(product: ProductRecord) {
@@ -476,6 +495,24 @@ function buildSourceImageSnapshot(image: ProductImageRecord | null, driveItem: D
     notes: image.notes,
     drive_item: buildDriveItemSnapshot(driveItem),
   } satisfies JsonObject;
+}
+
+function buildPromptSourceImageSnapshot(
+  image: ProductImageRecord | null,
+  driveItem: PromptPackSourceDriveItemSnapshot | null,
+): PromptPackSourceImageSnapshot | null {
+  if (!image) {
+    return null;
+  }
+
+  return {
+    id: image.id,
+    is_primary: image.is_primary,
+    status: image.status,
+    source_type: image.source_type,
+    drive_item_ref_id: image.drive_item_ref_id,
+    drive_item: buildDriveItemSnapshot(driveItem),
+  };
 }
 
 function buildPromptContextSnapshot(context: {
@@ -977,6 +1014,8 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
       product_name: context.product.product_name,
       niche: context.product.niche,
       marketplace: context.product.marketplace,
+      marketplace_product_link: context.product.marketplace_product_link,
+      status: context.product.status,
     },
     workspace: context.currentWorkspace
       ? {
@@ -1009,14 +1048,7 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
           },
         }
       : null,
-    source_image: context.sourceProductImage
-      ? {
-          id: context.sourceProductImage.id,
-          drive_item_ref_id: context.sourceProductImage.drive_item_ref_id,
-          drive_path: context.sourceDriveItem?.drive_path ?? null,
-          mime_type: context.sourceDriveItem?.mime_type ?? null,
-        }
-      : null,
+    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage, context.sourceDriveItem),
     marketplace_sources: context.marketplaceSources.slice(0, 6).map((source) => ({
       platform: source.platform,
       title: compactText(source.title, 180),
@@ -1065,6 +1097,8 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "Each i2i clip object must include slot, first_frame, and last_frame.",
     "Each i2v clip object must include slot and prompt.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
+    "product_analysis.product must echo the source product fields from prompt_context_for_model.product and must copy product.status exactly from the source product record.",
+    "product_analysis.source_image must echo the source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, and source_image.drive_item_ref_id exactly.",
     "caption must be a shared caption string.",
     `tags must be one compact hashtag string and target_marketplace must equal ${PROMPT_TARGET_MARKETPLACE}.`,
     "negative_prompt_rules and consistency_rules must each be arrays of strings.",
@@ -1093,8 +1127,23 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
             mode: "gemini",
             prompt_code: promptPack.prompt_code,
             version: promptPack.version,
-            product: "object",
-            source_image: "object-or-null",
+            product: {
+              id: "string",
+              product_code: "string",
+              product_name: "string",
+              niche: "string-or-null",
+              marketplace: "string-or-null",
+              marketplace_product_link: "string-or-null",
+              status: "string",
+            },
+            source_image: {
+              id: "string",
+              is_primary: "boolean",
+              status: "string",
+              source_type: "string",
+              drive_item_ref_id: "string",
+              drive_item: "object-or-null",
+            },
             coverage: {
               vision_analysis: 1,
               prompt_clips: PROMPT_CLIP_KEYS.length,
@@ -1477,7 +1526,10 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
         },
       });
 
-      const outputJson = parsePromptPackGenerationOutput(response.text);
+      const outputJson = parsePromptPackGenerationOutput(response.text, {
+        fallbackProductStatus: context.product.status,
+        fallbackSourceImage: buildPromptSourceImageSnapshot(context.sourceProductImage, context.sourceDriveItem),
+      });
       const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
       const task = await markTaskSuccess(taskId, outputJson);
 

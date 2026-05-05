@@ -1,4 +1,4 @@
-import { CopyButton } from "@/components/operator/copy-button";
+import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { readPromptPackEditorPromptSet, type PromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import {
@@ -63,17 +63,7 @@ export function HiddenPromptSetFields({
 }
 
 export function PromptReadOnlyField({ label, value }: { label: string; value: string }) {
-  const trimmedValue = value.trim();
-
-  return (
-    <div className="prompt-readonly-field">
-      <div className="prompt-readonly-field__header">
-        <strong>{label}</strong>
-        <CopyButton className="tertiary" disabled={!trimmedValue} label="Salin" text={trimmedValue} />
-      </div>
-      <pre className="prompt-readonly-field__body" data-empty={!trimmedValue ? "true" : undefined}>{trimmedValue || "Belum ada."}</pre>
-    </div>
-  );
+  return <CopyableReadOnlyField label={label} value={value} />;
 }
 
 export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
