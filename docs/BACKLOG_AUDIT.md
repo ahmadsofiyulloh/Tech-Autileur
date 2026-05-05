@@ -64,6 +64,7 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-05 | 731a46d | S6-010, S2-003 | Added shared Gemini routing and quota-aware intake hardening. |
 | 2026-05-05 | 1d7f55a | S8-005 | Hardened mobile Drive long-press selection, synced the light mobile themeColor, and stabilized the smoke assertion path. |
 | 2026-05-05 | 0ae6a76 | S6-011 | Added owner FK indexes for Gemini usage event joins. |
+| 2026-05-05 | f6d3c2b | S6-012 | Hardened `gemini_api_key_secrets` with a deny-all client policy and revoked public EXECUTE on exposed helper functions. |
 
 ## Legacy Foundation Checkpoints
 

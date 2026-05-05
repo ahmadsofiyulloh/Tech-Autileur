@@ -12,8 +12,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S3-001, S3-002, S3-003
 - S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002
-- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009, S6-010
-- S6-011
+- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009, S6-010, S6-011, S6-012
 - S7-001
 - S8-001, S8-002, S8-003, S8-004, S8-005
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
@@ -216,6 +215,11 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Add supporting owner FK indexes for Gemini usage events used by usage aggregation and key/task joins.
 **Owner:** Codex
 **Acceptance:** `gemini_api_usage_events (gemini_api_key_id, user_id)` and `gemini_api_usage_events (ai_task_id, user_id)` exist through migration-first changes, and the schema lock stays aligned with the actual database indexes.
+
+### S6-012 - Gemini secret and public function hardening _(DONE)_
+**Goal:** Deny direct client access to `gemini_api_key_secrets` and remove public EXECUTE from the exposed public helper functions.
+**Owner:** Codex
+**Acceptance:** `gemini_api_key_secrets` has a restrictive deny-all policy for client roles, `handle_new_auth_user` and `set_updated_at` are not executable by `public`, `anon`, or `authenticated`, and future public functions do not auto-expose through default privileges.
 
 ## S7 - Dashboard Analytics
 
