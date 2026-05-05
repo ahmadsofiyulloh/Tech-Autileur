@@ -18,9 +18,10 @@
 ## Required Enums
 
 ```sql
-create type account_status as enum ('ACTIVE', 'COOLDOWN', 'RATE_LIMITED', 'DISABLED');
+create type account_status as enum ('ACTIVE', 'COOLDOWN', 'RATE_LIMITED', 'DISABLED', 'ERROR');
 create type ai_task_status as enum ('QUEUED', 'RUNNING', 'SUCCESS', 'FAILED', 'RETRYING', 'WAITING_FOR_KEY', 'CANCELLED');
-create type ai_task_type as enum ('VISION_ANALYSIS', 'I2I_PROMPT_PACK', 'I2V_PROMPT_PACK', 'CONSISTENCY_CHECK', 'PROMPT_REPAIR', 'CAPTION_TAGS', 'RISK_CHECK');
+create type ai_task_type as enum ('VISION_ANALYSIS', 'I2I_PROMPT', 'I2V_PROMPT', 'CONSISTENCY_CHECK', 'PROMPT_REPAIR', 'FALLBACK', 'PROMPT_PACK_GENERATION');
+create type gemini_key_role as enum ('VISION_ANALYSIS', 'I2I_PROMPT', 'I2V_PROMPT', 'CONSISTENCY_CHECK', 'PROMPT_REPAIR', 'FALLBACK');
 create type workspace_status as enum ('ACTIVE', 'ARCHIVED');
 create type product_status as enum ('DRAFT', 'IMAGE_ATTACHED', 'IMAGE_ANALYZED', 'PROMPT_READY', 'IN_PRODUCTION', 'READY_FOR_UPLOAD', 'UPLOADED', 'ARCHIVED');
 create type intake_status as enum ('DRAFT', 'SUBMITTED', 'NEEDS_REVIEW', 'REVIEWED', 'ANCHOR_READY');
@@ -125,6 +126,10 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+`rpm_limit`, `rpd_limit`, and `tpm_limit` are not operator-editable fields in Phase awal. The app writes model-derived defaults when the key is created or updated.
+
+`project_label` must be non-empty for `ACTIVE` Gemini keys. The app uses that metadata for `project + model` quota grouping and usage overview rendering.
+
 ### `gemini_api_key_secrets`
 
 Server-only encrypted secret store.
@@ -137,6 +142,42 @@ encrypted_api_key text
 created_at timestamptz
 updated_at timestamptz
 ```
+
+### `gemini_api_usage_events`
+
+Request usage ledger for app-side Gemini quota analytics. Secret values are never stored here.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+gemini_api_key_id uuid composite fk gemini_api_keys(id, user_id)
+ai_task_id uuid nullable composite fk ai_tasks(id, user_id)
+project_label text nullable
+model_name text
+role gemini_key_role
+task_type ai_task_type
+request_started_at timestamptz
+request_finished_at timestamptz nullable
+status text check in ('STARTED', 'SUCCESS', 'FAILED', 'RATE_LIMITED')
+http_status int nullable
+prompt_token_count int nullable
+candidates_token_count int nullable
+total_token_count int nullable
+thoughts_token_count int nullable
+cached_content_token_count int nullable
+retry_after_seconds int nullable
+error_message text nullable
+created_at timestamptz
+updated_at timestamptz
+```
+
+Usage overview rules:
+
+- group by `project_label + model_name` when `project_label` exists.
+- fall back to per-key grouping when `project_label` is empty.
+- `RPD` uses current Google quota day starting at midnight Pacific time.
+- `RPM` uses rolling last 60 seconds.
+- `TPM` uses Gemini `usageMetadata.promptTokenCount` for rolling last 60 seconds.
 
 ### `ai_tasks`
 
@@ -565,6 +606,9 @@ Minimum indexes:
 - `generated_files (user_id, drive_item_id)`.
 - `generated_files (user_id, match_status)`.
 - `helper_api_tokens (user_id, token_code)` unique.
+- `gemini_api_usage_events (user_id, request_started_at desc)`.
+- `gemini_api_usage_events (user_id, gemini_api_key_id, request_started_at desc)`.
+- `gemini_api_usage_events (user_id, project_label, model_name, request_started_at desc)`.
 
 Minimum foreign keys:
 
@@ -576,6 +620,8 @@ Minimum foreign keys:
 - `clip_jobs (prompt_pack_id, user_id)` -> `prompt_packs (id, user_id)`.
 - `generated_files (clip_job_id, user_id)` -> `clip_jobs (id, user_id)`.
 - `generated_files (drive_item_id, user_id)` -> `drive_items (id, user_id)`.
+- `gemini_api_usage_events (gemini_api_key_id, user_id)` -> `gemini_api_keys (id, user_id)`.
+- `gemini_api_usage_events (ai_task_id, user_id)` -> `ai_tasks (id, user_id)`.
 
 ## RLS Policy Pattern
 

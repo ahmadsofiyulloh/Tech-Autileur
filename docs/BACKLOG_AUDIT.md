@@ -55,6 +55,13 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-05 | db97145 | S6-008, S6-009 | Moved Google Drive connect into the settings overview and retired `/settings/drive` as a visible surface. |
 | 2026-05-05 | ec8e735 | S8-004 | Removed duplicated KPI tiles from prompt editor and prompt detail surfaces. |
 | 2026-05-05 | 6698a6e | S6-007 | Converted Gemini settings into a multi-key list-card surface with drawer CRUD and disable action. |
+| 2026-05-05 | 9fdd240 | support | Added PWA install card, shared primitives, and loading states. |
+| 2026-05-05 | 4488a71 | S2-002, S2-003, S3-002, S5-001, S5-002 | Wired drive previews and tracked prompt generation. |
+| 2026-05-05 | 54f4a60 | S6-010 | Added Gemini usage overview and settings sync. |
+| 2026-05-05 | ca35faa | S2-003, S3-002 | Finished quota-aware intake Gemini routing. |
+| 2026-05-05 | 765eb87 | S8-002 | Refreshed mobile shell and PWA install smoke coverage. |
+| 2026-05-05 | 192db71 | S2-003 | Created marketplace sources from vision evidence. |
+| 2026-05-05 | 731a46d | S6-010, S2-003 | Added shared Gemini routing and quota-aware intake hardening. |
 
 ## Legacy Foundation Checkpoints
 

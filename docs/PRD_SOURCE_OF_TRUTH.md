@@ -268,6 +268,8 @@ Pengaturan is the configuration hub for:
 
 The Settings overview is opened through the global topbar gear on non-Settings routes. This single gear is the approved visual entry point and is not considered a duplicate Settings affordance.
 
+The top of `/settings` may surface a compact Gemini Usage overview before the settings card groups. It shows current app-side `RPD`, `RPM`, and `TPM` usage against model-derived limits, grouped by `project + model` when project metadata exists. With multiple Gemini keys, the overview uses a carousel with mobile swipe. The card uses a thick, static donut chart on the left half and quota numbers on the right half; chart tap should not open tooltip/focus framing. When no key/usage card is available, only the inline header row remains.
+
 Settings section routes are locked:
 
 ```text
@@ -308,9 +310,11 @@ Settings > Affiliate Profiles:
 Settings > Gemini:
 
 - multi-key list + drawer CRUD, not a history page.
-- visible fields: `name`, `model`, `purpose`, masked encrypted API key.
+- visible fields: `name`, `project`, `model`, `purpose`, masked encrypted API key.
 - `model` uses a static supported model picker.
 - `purpose` uses the locked Gemini role picker.
+- quota fields are not shown; `RPM`, `RPD`, and `TPM` are stored automatically from the selected model.
+- active keys require a non-empty project label so usage can group by `project + model`.
 - actions: Gemini baru, Kelola, Simpan, Disable.
 - Test, Copy Key, and Regenerate are out of scope for the MVP UI.
 - key code stays internal/hidden.
@@ -429,6 +433,7 @@ MVP means the system can:
 - Select an Affiliate Profile for prompt handoff.
 - Generate, review copy-ready output, regenerate, persist, and version prompt packs.
 - Browse Google Drive metadata through a touch-friendly visual grid.
+- Review compact Gemini usage versus model quota from Settings.
 - Review output package links and history in the app.
 - Show dashboard counts for Gemini, Drive, prompts, and outputs as a secondary route.
 
@@ -535,6 +540,7 @@ The shell must support safe-area layout for bottom navigation and bottom sheets.
 | File bytes and asset folders | Google Drive |
 | File metadata | `drive_items` in Supabase |
 | Gemini keys and tasks | Supabase server-only metadata/secrets |
+| Gemini usage analytics | Supabase `gemini_api_usage_events` derived from app-side Gemini requests |
 | Prompt rules | Affiliate Profile + prompt pack JSON |
 | Flow execution | Phase 2 Google Flow manual execution + Flow Control manifest |
 | Chrome profile mapping | Windows Helper local config |

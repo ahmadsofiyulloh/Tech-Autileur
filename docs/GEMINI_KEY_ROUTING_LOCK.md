@@ -6,15 +6,15 @@ Use separate Google AI Studio projects/API keys when available, but keep the UI 
 
 ```text
 Project/Key 1: Gemini vision-capable model
-Role: VISION
+Role: VISION_ANALYSIS
 Task: product image + marketplace screenshot analysis
 
-Project/Key 2: Gemini prompt model
-Role: PROMPT
+Project/Key 2: Gemini prompt lane
+Role: I2V_PROMPT / I2I_PROMPT / CONSISTENCY_CHECK
 Task: Paket Prompt generation and regeneration
 
 Project/Key 3: Gemini fallback/repair model optional
-Role: FALLBACK
+Role: PROMPT_REPAIR / FALLBACK
 Task: prompt repair or retry
 ```
 
@@ -30,16 +30,28 @@ optional prompt regeneration when user submits Instruksi Revisi
 
 Do not expose extra Gemini task fields in the main UI unless the workflow needs them.
 
-The Gemini settings surface is a multi-key list-card CRUD surface. Visible fields remain `name`, `model`, `purpose`, and masked `encrypted API key` controls. Create/edit happen in a drawer, row actions are Kelola and Disable, and it is not a history page. Test, Copy Key, and Regenerate stay out of scope for the MVP UI.
+The Gemini settings surface is a multi-key list-card CRUD surface. Visible editable fields are `name`, `project`, `model`, `purpose`, and masked `encrypted API key` controls. Create/edit happen in a drawer, row actions are Kelola and Disable, and it is not a history page. Test, Copy Key, and Regenerate stay out of scope for the MVP UI.
+
+Quota fields (`RPM`, `RPD`, `TPM`) must not be editable operator fields in Phase awal. They are stored from the selected model defaults when a Gemini key is created or updated. The operator changes quota by changing the selected model, not by typing limit numbers. Active Google AI Studio limits can still vary by project tier and account state; AI Studio remains the external source for the provider-side active quota.
+
+Active Gemini keys must carry a non-empty `project` value so the usage overview can group by `project + model`; inactive keys may leave it blank.
+
+`/settings` may show a compact Gemini usage overview directly below the topbar content. It is a usage summary, not a request log. The visual should stay minimal: one inline header row with `Penggunaan Gemini` and key count, then only the carousel when keys exist. Do not render `Usage belum tersedia` or empty-state copy in this panel. Each carousel slide uses a thick, static donut chart on the left half and quota numbers on the right half; the donut should not show tooltip/focus framing on tap. Key label, model, status, and purpose are plain text only, not badges. When more than one key exists, mobile must support horizontal swipe between keys. Usage is counted from app-recorded Gemini calls and grouped by `project + model` when `project` is filled, matching the Google AI Studio quota boundary more closely than a per-key-only count. If `project` is empty, the app falls back to per-key grouping.
+
+Usage calculation rules:
+
+- `RPD` counts app Gemini request attempts from the current Google quota day, reset at midnight Pacific time.
+- `RPM` counts app Gemini request attempts in the last rolling 60 seconds.
+- `TPM` sums Gemini `usageMetadata.promptTokenCount` in the last rolling 60 seconds.
+- Failed and rate-limited attempts remain counted as request attempts because they consumed an app-side call attempt.
+- Gemini key secrets must never be exposed to the overview client component.
 
 ## Routing Rules
 
-- `VISION_ANALYSIS` -> role `VISION`.
-- `I2I_PROMPT_PACK` -> role `PROMPT`.
-- `I2V_PROMPT_PACK` -> role `PROMPT`.
-- `PROMPT_REPAIR` -> role `PROMPT` or `FALLBACK`.
-- `CAPTION_TAGS` -> role `PROMPT`.
-- `RISK_CHECK` -> role `PROMPT` or `FALLBACK`.
+- `VISION_ANALYSIS` -> role `VISION_ANALYSIS`.
+- `PROMPT_PACK_GENERATION` -> role `I2V_PROMPT`, `I2I_PROMPT`, `CONSISTENCY_CHECK`, `PROMPT_REPAIR`, or `FALLBACK`.
+- `PROMPT_REPAIR` -> role `PROMPT_REPAIR` or `FALLBACK`.
+- `CONSISTENCY_CHECK` -> role `CONSISTENCY_CHECK` or `FALLBACK`.
 
 ## Prompt Pack Context
 

@@ -85,6 +85,7 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 - Upload affiliate profile character and environment assets from the Affiliate Profile drawer into the profile-owned admin folders.
 - Store those profile assets as Drive metadata references that resolve back to the active Affiliate Profile or its linked workspace context.
 - Attach existing Drive file metadata by URL or picker when needed.
+- Resolve image-like Drive items server-side into transient preview data URLs for thumbnails and bottom-sheet previews. The same preview path may be reused by compact product list rows so mobile surfaces stay visually consistent.
 - Store prompt reference file metadata.
 - Store batch manifest metadata.
 - Store helper-uploaded output clip metadata.
@@ -132,4 +133,5 @@ No server-side ZIP generation in Phase awal. Download uses Drive links.
 - Server-side video proxy/upload for helper outputs.
 - Automatic editing or rendering inside Drive.
 - Claiming visual parsing from links when image bytes are not available.
+- Persisting preview blobs or base64 thumbnail caches as a new asset storage layer.
 - Creating a third profile-owned background-reference asset slot in Phase awal.

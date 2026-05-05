@@ -13,6 +13,7 @@
 - Compatibility routes keep working without becoming primary duplicate funnels.
 - Metadata is stored in Supabase.
 - File bytes and asset folders are stored in Google Drive.
+- The PWA manifest exposes install metadata (`start_url`, icons, screenshots), and install affordance appears only when the browser offers it.
 - RLS prevents cross-user access.
 
 ## Products and Intake
@@ -100,6 +101,9 @@
 - Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, archive, and explicit workspace links/default selection.
 - Affiliate Profile settings do not show `notes` fields.
 - Gemini settings expose a multi-key list-card CRUD surface with a workspace-style add button, no search, and create/edit/disable only.
+- Gemini settings do not expose editable quota fields; `RPM`, `RPD`, and `TPM` are saved from the selected model.
+- `/settings` shows compact Gemini usage versus quota using app-recorded calls, grouped by `project + model` when project metadata exists.
+- Multiple Gemini keys render in the usage overview with a carousel.
 - Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
 - Flow Accounts are controller-owned execution tools and do not become a separate Settings CRUD surface.
 - Chrome profile pairing and App API Token controls live in `Pengaturan > Account`.
@@ -109,7 +113,7 @@
 ## Drive Visual Manager
 
 - `/drive` is a touch-friendly grid/gallery, not a table-first surface.
-- Image-like Drive items show a thumbnail/preview when metadata supports it.
+- Image-like Drive items show a thumbnail/preview when Drive image bytes can be resolved server-side.
 - Non-image Drive items show file-type icons or placeholders instead of fake images.
 - Tap opens a bottom sheet preview with file metadata and Open link action.
 - Long-press select is client-side only and does not create batch archive/delete mutations.

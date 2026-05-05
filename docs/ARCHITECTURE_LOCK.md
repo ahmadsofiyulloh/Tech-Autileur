@@ -142,6 +142,7 @@ Asset/file source of truth: Google Drive
 Supabase Storage: not used for large video/image assets in MVP
 Intake image UX: upload cards with local preview, not link-only parsing
 Supabase stores: Drive item metadata, URL, path, MIME type, status, relationships
+Image-like Drive items may resolve server-side into transient preview data URLs for product thumbnails and Drive previews. This is render-time presentation only and does not create a new asset store.
 Drive Phase 1 UI: visual grid over all Drive item metadata
 ```
 
@@ -155,9 +156,14 @@ Live Gemini analysis required for real E2E acceptance
 Mock mode allowed only as labeled development fallback
 Prompt rules editable in Affiliate Profile UI
 Structured JSON outputs required
+Usage overview derived from app-recorded Gemini usage events
 ```
 
 Gemini may analyze image bytes uploaded by the operator. The app must not claim visual parsing from links when image bytes are unavailable.
+
+Active Gemini keys require project metadata so usage can group by `project + model` instead of typing quota values manually.
+
+Gemini request usage is tracked server-side after a key is selected. The overview counts `RPD` by Google quota day at midnight Pacific, `RPM` by rolling 60 seconds, and `TPM` from Gemini `usageMetadata.promptTokenCount`. Quota display groups by `project + model` when project metadata exists and falls back to per-key grouping only when project is empty.
 
 ## Prompt Personalization
 
@@ -221,7 +227,8 @@ Settings detail grammar:
 
 - Workspace: list + drawer CRUD, hidden auto-generated code, name, niche picker, Drive root picker, default switch, archive.
 - Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, explicit workspace links/default selection, and quick avatar-based default switching from the overview for the active workspace.
-- Gemini: multi-key list + drawer CRUD; no list/history UI.
+- Gemini: multi-key list + drawer CRUD; no request history UI. Editable fields are name, project, model, purpose, and masked encrypted key. Quota limits are auto-filled from the selected model and are not typed by the operator.
+- Settings overview may show a compact Gemini usage panel directly above the card groups.
 - Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.
 - Drive primary route: visual all-items grid/gallery with bottom-sheet preview.
 - Account: Chrome pairing, App API Token, and sign out.

@@ -12,7 +12,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S3-001, S3-002, S3-003
 - S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002
-- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009
+- S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009, S6-010
 - S7-001
 - S8-001, S8-002, S8-003, S8-004
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
@@ -61,7 +61,8 @@ These tasks document the visual implementation state after the 2026-05-04 Visual
 Known visual/backend gaps:
 
 - No schema migration has been added for Drive thumbnail metadata.
-- Drive thumbnails use available metadata/URL and fall back to icons/placeholders.
+- Drive thumbnails now resolve server-side preview URLs for image-like items when Drive bytes are available, and still fall back to icons/placeholders.
+- The shared media thumbnail frame is reused across `/products` and `/drive` for compact PWA/mobile compatibility.
 - Drive multi-select is client-side only.
 - Settings service status still needs a more explicit backend view-model contract.
 - No fake metrics or fake service statuses should be introduced.
@@ -204,6 +205,11 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Move Google Drive connect into the `/settings` overview and retire `/settings/drive` as a visible UI surface while keeping OAuth callback and workspace sync intact.
 **Owner:** Codex
 **Acceptance:** Google Drive uses a local asset icon, shows `Connect` only when disconnected, `/settings/drive` redirects to `/settings`, OAuth callback returns to `/settings`, and workspace Drive folder provisioning remains available from Workspace settings.
+
+### S6-010 - Gemini usage quota overview _(DONE)_
+**Goal:** Show a compact Gemini `RPD`, `RPM`, and `TPM` usage overview at the top of `/settings`.
+**Owner:** Codex
+**Acceptance:** usage is derived from app-recorded Gemini calls, limits are saved from selected model defaults instead of operator quota fields, counts group by `project + model` when project metadata exists, the UI falls back to per-key grouping when project is empty, the panel keeps a one-line header with no warning/empty copy, each card uses a thick static half-width donut chart with quota numbers beside it, chart tap does not open tooltip/focus framing, and multiple keys render through a swipeable carousel.
 
 ## S7 - Dashboard Analytics
 
