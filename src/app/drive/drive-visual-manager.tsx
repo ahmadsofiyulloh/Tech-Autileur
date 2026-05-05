@@ -63,6 +63,7 @@ type DrivePressGestureState = {
 
 const LONG_PRESS_DELAY_MS = 420;
 const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
+const LONG_PRESS_NATIVE_SUPPRESS_MS = 250;
 
 function isImageLike(item: DriveVisualItem) {
   return item.mime_type?.startsWith("image/") || item.purpose === "SOURCE_IMAGE";
@@ -141,6 +142,7 @@ function DriveTile({
 }) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressGesture = useRef<DrivePressGestureState | null>(null);
+  const suppressNativeActivationUntil = useRef(0);
 
   function clearLongPressTimer() {
     if (!longPressTimer.current) {
@@ -165,6 +167,7 @@ function DriveTile({
 
     gesture.longPressCommitted = true;
     gesture.clickSuppressed = true;
+    suppressNativeActivationUntil.current = Date.now() + LONG_PRESS_NATIVE_SUPPRESS_MS;
     clearLongPressTimer();
     onToggleSelected();
     navigator.vibrate?.(8);
@@ -200,12 +203,7 @@ function DriveTile({
       return;
     }
 
-    clearLongPressTimer();
-    window.setTimeout(() => {
-      if (pressGesture.current?.clickSuppressed) {
-        resetLongPressGesture();
-      }
-    }, 0);
+    resetLongPressGesture();
   }
 
   function moveLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -227,7 +225,21 @@ function DriveTile({
       className="drive-tile"
       data-selected={selected ? "true" : undefined}
       type="button"
+      onClickCapture={(event) => {
+        if (Date.now() >= suppressNativeActivationUntil.current) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        resetLongPressGesture();
+      }}
       onClick={() => {
+        if (Date.now() < suppressNativeActivationUntil.current) {
+          resetLongPressGesture();
+          return;
+        }
+
         const gesture = pressGesture.current;
 
         if (gesture?.clickSuppressed) {
@@ -245,13 +257,11 @@ function DriveTile({
         onOpen();
       }}
       onContextMenu={(event) => {
-        event.preventDefault();
-        const gesture = pressGesture.current;
-
-        if (!gesture || gesture.pointerType === "mouse") {
+        if (Date.now() >= suppressNativeActivationUntil.current) {
           return;
         }
 
+        event.preventDefault();
         commitLongPressSelection();
       }}
       onDragStart={(event) => event.preventDefault()}
