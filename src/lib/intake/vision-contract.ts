@@ -125,12 +125,16 @@ function normalizeMarketplace(value: string) {
 
   const upper = trimmed.toUpperCase();
 
-  if (upper.includes("SHOPEE")) {
-    return "SHOPEE";
+  if (upper.includes("SHOPEE") && upper.includes("TIKTOK")) {
+    return "Shopee + TikTok";
   }
 
   if (upper.includes("TIKTOK")) {
     return "TIKTOK";
+  }
+
+  if (upper.includes("SHOPEE")) {
+    return "SHOPEE";
   }
 
   return "";

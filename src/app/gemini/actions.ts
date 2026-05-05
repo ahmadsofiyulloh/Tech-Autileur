@@ -163,6 +163,10 @@ export async function saveGeminiKey(formData: FormData) {
   const normalizedStatus = readStatus(status);
   const quotaDefaults = GEMINI_MODEL_QUOTA_DEFAULTS[normalizedModel];
 
+  if (normalizedStatus === "ACTIVE" && !projectLabel) {
+    fail("Project is required for active Gemini keys.");
+  }
+
   if (intent === "create") {
     const normalizedKeyCode = buildGeminiKeyCode(label);
     const encryptedApiKey = encryptGeminiApiKey(rawApiKey);

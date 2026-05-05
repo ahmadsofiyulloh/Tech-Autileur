@@ -3,7 +3,8 @@ import "server-only";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { type GeminiKeyRole } from "@/lib/gemini/validation";
-export { PROMPT_PACK_GEMINI_KEY_PRIORITY } from "@/lib/server/gemini-key-routing";
+import { PROMPT_PACK_GEMINI_KEY_PRIORITY } from "@/lib/gemini/routing";
+export { PROMPT_PACK_GEMINI_KEY_PRIORITY };
 import {
   type AiTaskStatus,
   type AiTaskType,

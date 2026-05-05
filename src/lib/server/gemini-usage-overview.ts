@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { GeminiUsageCard, GeminiUsageMetric, GeminiUsageOverview } from "@/lib/gemini/usage-types";
-import { getGeminiQuotaGroupKey, startOfCurrentDayInTimeZone } from "@/lib/server/gemini-key-routing";
+import { getGeminiQuotaGroupKey, startOfCurrentDayInTimeZone } from "@/lib/gemini/routing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type GeminiKeyRecord = {

@@ -578,6 +578,7 @@ function buildIntakeParsePrompt(input: {
     '{ "nama_produk": "", "keyword_cari_etalase": "", "deskripsi_visual": "", "use_case": "", "pain_point": "", "selling_angle": "", "target_viewer": "", "product_title": "", "marketplace": "", "category": "", "rating_text": "", "sold_count_text": "", "price_text": "", "shop_name": "", "visible_product_attributes": [], "risk_notes": [], "confidence_notes": [] }',
     "Use short operator-friendly Indonesian values.",
     "Analyse the uploaded product image, Shopee screenshot, and TikTok screenshot bytes directly.",
+    'If evidence spans both marketplaces, set marketplace to "Shopee + TikTok".',
     "If a field is unknown, return an empty string or empty array.",
     "Do not claim visual parsing from links.",
     "",
@@ -1340,60 +1341,93 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   })) as AiTaskRecord;
 
   let analysisSession: IntakeSessionRecord | null = null;
+  let taskWaitingForKey = false;
 
   try {
-    const selectedKey = await selectGeminiKeyForIntake(user.id);
-
-    if (!selectedKey) {
-      throw new Error("No Gemini key is ready for live intake analysis.");
-    }
-
-    const { error: taskKeyUpdateError } = await supabase
-      .from("ai_tasks")
-      .update({
-        gemini_api_key_id: selectedKey.key.id,
-      })
-      .eq("id", task.id)
-      .eq("user_id", user.id);
-
-    if (taskKeyUpdateError) {
-      throw new Error(taskKeyUpdateError.message);
-    }
-
     await markTaskRunning(task.id);
-
     const [productImagePart, shopeeScreenshotPart, tiktokScreenshotPart] = await Promise.all([
       buildIntakeAnalysisImagePart(input.productImage),
       buildIntakeAnalysisImagePart(input.shopeeScreenshot),
       buildIntakeAnalysisImagePart(input.tiktokScreenshot),
     ]);
+    const excludedQuotaGroups = new Set<string>();
+    let responseText: string | null = null;
+    let selectedKeyForSuccess: GeminiSelectedKey | null = null;
 
-    const response = await generateTrackedGeminiJsonText({
-      aiTaskId: task.id,
-      geminiApiKey: selectedKey.key,
-      taskType: "VISION_ANALYSIS",
-      userId: user.id,
-      request: {
-        modelName: selectedKey.key.model_name as GeminiModelName,
-        apiKey: selectedKey.secret,
-        parts: [
-          productImagePart,
-          shopeeScreenshotPart,
-          tiktokScreenshotPart,
-          {
-            text: buildIntakeParsePrompt({
-              productImage: productImageSummary,
-              shopeeScreenshot: shopeeScreenshotSummary,
-              tiktokScreenshot: tiktokScreenshotSummary,
-            }),
+    while (!responseText) {
+      const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups);
+
+      if (!selectedKey) {
+        const message = "No Gemini key is ready for live intake analysis.";
+        taskWaitingForKey = true;
+        await markTaskWaitingForKey(task.id, message);
+        throw new Error(message);
+      }
+
+      const { error: taskKeyUpdateError } = await supabase
+        .from("ai_tasks")
+        .update({
+          gemini_api_key_id: selectedKey.key.id,
+        })
+        .eq("id", task.id)
+        .eq("user_id", user.id);
+
+      if (taskKeyUpdateError) {
+        throw new Error(taskKeyUpdateError.message);
+      }
+
+      try {
+        const response = await generateTrackedGeminiJsonText({
+          aiTaskId: task.id,
+          geminiApiKey: selectedKey.key,
+          taskType: "VISION_ANALYSIS",
+          userId: user.id,
+          request: {
+            modelName: selectedKey.key.model_name as GeminiModelName,
+            apiKey: selectedKey.secret,
+            parts: [
+              productImagePart,
+              shopeeScreenshotPart,
+              tiktokScreenshotPart,
+              {
+                text: buildIntakeParsePrompt({
+                  productImage: productImageSummary,
+                  shopeeScreenshot: shopeeScreenshotSummary,
+                  tiktokScreenshot: tiktokScreenshotSummary,
+                }),
+              },
+            ],
+            temperature: 0.1,
+            maxOutputTokens: 2048,
+            timeoutMs: 120_000,
+            responseJsonSchema: GEMINI_INTAKE_VISION_RESPONSE_SCHEMA,
           },
-        ],
-        temperature: 0.1,
-        maxOutputTokens: 2048,
-      },
-    });
+        });
 
-    const parsed = parseIntakeVisionOutput(response.text);
+        selectedKeyForSuccess = selectedKey.key;
+        responseText = response.text;
+      } catch (error) {
+        if (error instanceof GeminiClientError && error.status === 429) {
+          const retryAfterSeconds = error.retryAfterSeconds ?? 900;
+          const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
+          const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+
+          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+          await markGeminiQuotaGroupCooldown({
+            serviceClient: createSupabaseServiceRoleClient(),
+            userId: user.id,
+            key: selectedKey.key,
+            nextStatus,
+            cooldownUntil,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    const parsed = parseIntakeVisionOutput(responseText);
     const parsedWithNote: IntakeVisionParseOutput = {
       ...parsed,
       confidence_notes: appendUniqueNote(parsed.confidence_notes, "Analisis Gemini live dari bytes upload."),
@@ -1417,7 +1451,22 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       workspace_id: product.workspace_id,
     };
 
+    await createMarketplaceSourcesFromVisionEvidence({
+      product,
+      session: analysisSession,
+      metadata: parsedWithNote,
+      shopeeScreenshotDriveItemRefId: uploadedEvidence.shopeeScreenshotDriveItem?.id ?? null,
+      tiktokScreenshotDriveItemRefId: uploadedEvidence.tiktokScreenshotDriveItem?.id ?? null,
+    });
+
     const completedTask = await markTaskSuccess(task.id, buildParsedMetadataTaskSnapshot(parsedWithNote));
+    if (selectedKeyForSuccess) {
+      await markGeminiKeySuccess({
+        serviceClient: createSupabaseServiceRoleClient(),
+        userId: user.id,
+        key: selectedKeyForSuccess,
+      }).catch(() => undefined);
+    }
 
     revalidatePath("/intake");
     revalidatePath("/products");
@@ -1431,10 +1480,12 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   } catch (error) {
     const message = safeErrorMessage(error);
 
-    try {
-      await markTaskFailed(task.id, message, { retryable: false });
-    } catch {
-      // Keep the intake recoverable even if task failure update fails.
+    if (!taskWaitingForKey) {
+      try {
+        await markTaskFailed(task.id, message, { retryable: false });
+      } catch {
+        // Keep the intake recoverable even if task failure update fails.
+      }
     }
 
     if (analysisSession) {

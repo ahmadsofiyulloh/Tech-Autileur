@@ -3,7 +3,6 @@ import "server-only";
 import type { GeminiModelName } from "@/lib/gemini/validation";
 
 type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
 
 type GeminiInlineDataPart = {
   inline_data: {
@@ -23,7 +22,7 @@ type GeminiGenerateContentOptions = {
   apiKey: string;
   prompt?: string;
   parts?: GeminiPart[];
-  responseJsonSchema?: JsonObject;
+  responseJsonSchema?: unknown;
   systemInstruction?: string;
   temperature?: number;
   maxOutputTokens?: number;

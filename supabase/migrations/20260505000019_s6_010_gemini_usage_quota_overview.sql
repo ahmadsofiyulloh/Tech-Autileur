@@ -1,6 +1,13 @@
 begin;
 
-create table public.gemini_api_usage_events (
+alter table public.gemini_api_keys
+  drop constraint if exists gemini_api_keys_active_project_label_check;
+
+alter table public.gemini_api_keys
+  add constraint gemini_api_keys_active_project_label_check
+  check (status <> 'ACTIVE'::public.account_status or nullif(btrim(project_label), '') is not null);
+
+create table if not exists public.gemini_api_usage_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   gemini_api_key_id uuid not null,
@@ -58,25 +65,34 @@ before update on public.gemini_api_usage_events
 for each row
 execute function public.set_updated_at();
 
-create index gemini_usage_events_user_started_idx
+create index if not exists gemini_usage_events_user_started_idx
   on public.gemini_api_usage_events (user_id, request_started_at desc);
 
-create index gemini_usage_events_user_key_started_idx
+create index if not exists gemini_usage_events_user_key_started_idx
   on public.gemini_api_usage_events (user_id, gemini_api_key_id, request_started_at desc);
 
-create index gemini_usage_events_user_project_model_started_idx
+create index if not exists gemini_usage_events_user_project_model_started_idx
   on public.gemini_api_usage_events (user_id, project_label, model_name, request_started_at desc);
 
+create index if not exists gemini_api_keys_user_role_status_quota_idx
+  on public.gemini_api_keys (user_id, role, status, model_name, project_label);
+
+create index if not exists gemini_api_keys_user_project_model_status_idx
+  on public.gemini_api_keys (user_id, project_label, model_name, status);
+
+drop policy if exists "gemini_api_usage_events_select_own" on public.gemini_api_usage_events;
 create policy "gemini_api_usage_events_select_own" on public.gemini_api_usage_events
 for select
 to authenticated
 using ((select auth.uid()) = user_id);
 
+drop policy if exists "gemini_api_usage_events_insert_own" on public.gemini_api_usage_events;
 create policy "gemini_api_usage_events_insert_own" on public.gemini_api_usage_events
 for insert
 to authenticated
 with check ((select auth.uid()) = user_id);
 
+drop policy if exists "gemini_api_usage_events_update_own" on public.gemini_api_usage_events;
 create policy "gemini_api_usage_events_update_own" on public.gemini_api_usage_events
 for update
 to authenticated
