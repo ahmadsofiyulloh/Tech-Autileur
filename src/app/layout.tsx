@@ -12,10 +12,29 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Affiliate AI Content OS",
   title: "Affiliate AI Content OS",
   description: "Mobile-first control center for AI affiliate content production.",
   manifest: "/manifest.webmanifest",
-  icons: [{ rel: "icon", url: "/icon.svg", type: "image/svg+xml" }],
+  appleWebApp: {
+    capable: true,
+    title: "AICOS",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/app-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/app-icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -23,6 +42,7 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#f8fbfd" },
     { media: "(prefers-color-scheme: dark)", color: "#070809" },
   ],
+  viewportFit: "cover",
 };
 
 const hydrationAttributeCleanerScript = String.raw`
@@ -99,7 +119,7 @@ export default async function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="id" suppressHydrationWarning>
       <body className={`${inter.variable} ${GeistMono.variable}`} suppressHydrationWarning>
         <Script
           id="hydration-extension-attribute-cleaner"

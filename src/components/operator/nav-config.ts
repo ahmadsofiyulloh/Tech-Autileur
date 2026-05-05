@@ -49,5 +49,5 @@ export const routeTitles = [
   { href: "/settings", label: "Pengaturan", subtitle: "Hub konfigurasi.", icon: Settings },
   { href: "/drive", label: "Drive", subtitle: "Folder aset.", icon: HardDrive },
   { href: "/intake", label: "Intake", subtitle: "Upload dan analisis.", icon: Inbox },
-  { href: "/outputs", label: "Output", subtitle: "Arsip.", icon: Archive },
+  { href: "/outputs", label: "Output", subtitle: "Output tersimpan.", icon: Archive },
 ] satisfies OperatorRouteMeta[];

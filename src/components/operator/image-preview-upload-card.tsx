@@ -1,6 +1,6 @@
 "use client";
 
-import { Image as ImageIcon, Loader2, RotateCcw, Trash2, X } from "lucide-react";
+import { Camera, Image as ImageIcon, Loader2, RotateCcw, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { StatusBadge } from "@/components/operator/status-badge";
 
@@ -22,6 +22,8 @@ type ImagePreviewUploadCardProps = {
   clearName?: string;
   className?: string;
   accept?: string;
+  cameraName?: string;
+  capture?: "user" | "environment";
   onSelectionChange?: (state: ImagePreviewSelectionState) => void;
 };
 
@@ -44,8 +46,11 @@ export function ImagePreviewUploadCard({
   className,
   accept = "image/*",
   onSelectionChange,
+  cameraName,
+  capture,
 }: ImagePreviewUploadCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
@@ -60,6 +65,7 @@ export function ImagePreviewUploadCard({
   const frameAriaLabel = displayPreviewUrl ? `${label}. Ganti gambar` : undefined;
   const clearLabel = isRemoved ? "Pulihkan" : hasLocalSelection && hasRemotePreview ? "Batal" : "Hapus";
   const showClearButton = !disabled && (hasLocalSelection || hasRemotePreview || isRemoved);
+  const showCameraButton = !disabled && Boolean(cameraName && capture);
   const emptyStateTitle = isRemoved ? removedTitle ?? "Referensi dihapus" : emptyTitle;
 
   useEffect(() => {
@@ -69,6 +75,7 @@ export function ImagePreviewUploadCard({
     setIsPreparing(false);
     setIsRemoved(false);
     resetInputValue(inputRef.current);
+    resetInputValue(cameraInputRef.current);
   }, [previewUrl]);
 
   function notifySelection(nextState: ImagePreviewSelectionState) {
@@ -83,6 +90,7 @@ export function ImagePreviewUploadCard({
     setLocalPreviewUrl(null);
     setIsPreparing(false);
     resetInputValue(inputRef.current);
+    resetInputValue(cameraInputRef.current);
     notifySelection({ selected: false, fileName: null, previewUrl: null });
   }
 
@@ -103,6 +111,11 @@ export function ImagePreviewUploadCard({
 
     setError(null);
     setFileName(file.name);
+    if (event.target === inputRef.current) {
+      resetInputValue(cameraInputRef.current);
+    } else {
+      resetInputValue(inputRef.current);
+    }
     setIsPreparing(true);
     setLocalPreviewUrl(null);
     notifySelection({ selected: true, fileName: file.name, previewUrl: null });
@@ -130,6 +143,14 @@ export function ImagePreviewUploadCard({
     }
 
     inputRef.current?.click();
+  }
+
+  function handleCameraClick() {
+    if (disabled || isPreparing) {
+      return;
+    }
+
+    cameraInputRef.current?.click();
   }
 
   function handleClearClick() {
@@ -197,16 +218,31 @@ export function ImagePreviewUploadCard({
           ) : null}
         </button>
 
-        {showClearButton ? (
-          <button
-            className="button compact image-preview-upload-card__clear"
-            disabled={disabled || isPreparing}
-            type="button"
-            onClick={handleClearClick}
-          >
-            <ClearIcon size={14} aria-hidden="true" />
-            {clearLabel}
-          </button>
+        {showCameraButton || showClearButton ? (
+          <div className="image-preview-upload-card__actions">
+            {showCameraButton ? (
+              <button
+                className="button compact image-preview-upload-card__camera"
+                disabled={disabled || isPreparing}
+                type="button"
+                onClick={handleCameraClick}
+              >
+                <Camera size={14} aria-hidden="true" />
+                Kamera
+              </button>
+            ) : null}
+            {showClearButton ? (
+              <button
+                className="button compact image-preview-upload-card__clear"
+                disabled={disabled || isPreparing}
+                type="button"
+                onClick={handleClearClick}
+              >
+                <ClearIcon size={14} aria-hidden="true" />
+                {clearLabel}
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -216,10 +252,22 @@ export function ImagePreviewUploadCard({
         className="image-preview-upload-card__input"
         disabled={disabled}
         name={name}
-        required={required}
+        required={required && !hasLocalSelection && !hasRemotePreview}
         type="file"
         onChange={handleFileChange}
       />
+      {cameraName && capture ? (
+        <input
+          ref={cameraInputRef}
+          accept={accept}
+          capture={capture}
+          className="image-preview-upload-card__input"
+          disabled={disabled}
+          name={cameraName}
+          type="file"
+          onChange={handleFileChange}
+        />
+      ) : null}
 
       {clearName ? (
         <input

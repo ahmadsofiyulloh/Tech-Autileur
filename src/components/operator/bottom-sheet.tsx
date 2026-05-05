@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
 type OperatorBottomSheetProps = {
   open: boolean;
@@ -16,6 +16,10 @@ type OperatorBottomSheetProps = {
 
 export function OperatorBottomSheet({ open, onClose, ariaLabel, title, subtitle, children, className }: OperatorBottomSheetProps) {
   const [mounted, setMounted] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const dragOffsetRef = useRef(0);
+  const dragPointerIdRef = useRef<number | null>(null);
+  const dragStartYRef = useRef(0);
 
   useEffect(() => {
     setMounted(true);
@@ -43,6 +47,55 @@ export function OperatorBottomSheet({ open, onClose, ariaLabel, title, subtitle,
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) {
+      resetDrag();
+    }
+  }, [open]);
+
+  function setSheetOffset(offset: number) {
+    dragOffsetRef.current = offset;
+    setDragOffset(offset);
+  }
+
+  function resetDrag() {
+    dragPointerIdRef.current = null;
+    dragStartYRef.current = 0;
+    setSheetOffset(0);
+  }
+
+  function handleDragStart(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    dragPointerIdRef.current = event.pointerId;
+    dragStartYRef.current = event.clientY;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleDragMove(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (dragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    const offset = Math.max(0, event.clientY - dragStartYRef.current);
+    setSheetOffset(Math.min(offset, 180));
+  }
+
+  function handleDragEnd(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (dragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    const shouldClose = dragOffsetRef.current > 72;
+    resetDrag();
+
+    if (shouldClose) {
+      onClose();
+    }
+  }
+
   if (!mounted || !open) {
     return null;
   }
@@ -59,9 +112,18 @@ export function OperatorBottomSheet({ open, onClose, ariaLabel, title, subtitle,
         aria-label={ariaLabel}
         aria-modal="true"
         className={`operator-bottom-sheet${className ? ` ${className}` : ""}`.trim()}
+        data-dragging={dragOffset > 0 ? "true" : undefined}
         role="dialog"
+        style={dragOffset ? { transform: `translateY(${dragOffset}px)` } : undefined}
       >
-        <span className="operator-bottom-sheet__handle" aria-hidden="true" />
+        <span
+          className="operator-bottom-sheet__handle"
+          aria-hidden="true"
+          onPointerCancel={resetDrag}
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+        />
         <div className="operator-bottom-sheet__header">
           <div className="operator-bottom-sheet__copy">
             <strong>{title}</strong>

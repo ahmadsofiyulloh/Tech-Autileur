@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">AICOS Drive visual manager preview</title>
+  <desc id="desc">Wide PWA preview showing the Drive visual grid and asset preview surface.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f6fbff" />
+      <stop offset="0.58" stop-color="#eef7ff" />
+      <stop offset="1" stop-color="#ffffff" />
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#1a1a1a" flood-opacity="0.12" />
+    </filter>
+  </defs>
+  <rect width="1280" height="720" rx="28" fill="url(#bg)" />
+  <rect x="30" y="30" width="206" height="660" rx="26" fill="#ffffff" opacity="0.9" />
+  <text x="64" y="82" fill="#1a1a1a" font-family="Inter, Segoe UI, sans-serif" font-size="22" font-weight="800">Operator</text>
+  <text x="64" y="110" fill="#4d4d4d" font-family="Inter, Segoe UI, sans-serif" font-size="13">Content OS</text>
+  <g font-family="Inter, Segoe UI, sans-serif" font-size="15" font-weight="700">
+    <rect x="54" y="164" width="158" height="42" rx="14" fill="#f6fbff" />
+    <text x="88" y="191" fill="#4d4d4d">Intake</text>
+    <rect x="54" y="220" width="158" height="42" rx="14" fill="#f6fbff" />
+    <text x="88" y="247" fill="#4d4d4d">Produk</text>
+    <rect x="54" y="276" width="158" height="42" rx="14" fill="#f6fbff" />
+    <text x="88" y="303" fill="#4d4d4d">Prompt</text>
+    <rect x="54" y="332" width="158" height="42" rx="14" fill="#e5f2ff" />
+    <text x="88" y="359" fill="#007aff">Drive</text>
+  </g>
+  <rect x="268" y="30" width="982" height="82" rx="26" fill="#ffffff" opacity="0.92" />
+  <circle cx="318" cy="72" r="20" fill="#e5f2ff" />
+  <text x="354" y="68" fill="#1a1a1a" font-family="Inter, Segoe UI, sans-serif" font-size="21" font-weight="800">Drive</text>
+  <text x="354" y="94" fill="#4d4d4d" font-family="Inter, Segoe UI, sans-serif" font-size="13">Folder aset.</text>
+  <rect x="1112" y="56" width="104" height="32" rx="16" fill="#f6fbff" stroke="#dddddd" />
+  <text x="1138" y="77" fill="#1a1a1a" font-family="Inter, Segoe UI, sans-serif" font-size="12" font-weight="700">Pengaturan</text>
+  <rect x="268" y="140" width="644" height="550" rx="28" fill="#ffffff" filter="url(#shadow)" />
+  <text x="306" y="190" fill="#1a1a1a" font-family="Inter, Segoe UI, sans-serif" font-size="21" font-weight="800">Visual Drive manager</text>
+  <text x="306" y="220" fill="#4d4d4d" font-family="Inter, Segoe UI, sans-serif" font-size="13">Grid aset Google Drive</text>
+  <g>
+    <rect x="306" y="260" width="150" height="144" rx="22" fill="#eef7ff" />
+    <rect x="480" y="260" width="150" height="144" rx="22" fill="#f8f8f8" stroke="#dddddd" />
+    <rect x="654" y="260" width="150" height="144" rx="22" fill="#f8f8f8" stroke="#dddddd" />
+    <rect x="306" y="430" width="150" height="144" rx="22" fill="#f8f8f8" stroke="#dddddd" />
+    <rect x="480" y="430" width="150" height="144" rx="22" fill="#eef7ff" />
+    <rect x="654" y="430" width="150" height="144" rx="22" fill="#f8f8f8" stroke="#dddddd" />
+  </g>
+  <g fill="#1a1a1a" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">
+    <text x="326" y="382">Produk utama</text>
+    <text x="500" y="382">Shopee screenshot</text>
+    <text x="674" y="382">TikTok screenshot</text>
+    <text x="326" y="552">Character lock</text>
+    <text x="500" y="552">Environment</text>
+    <text x="674" y="552">Output clip</text>
+  </g>
+  <rect x="944" y="140" width="306" height="550" rx="28" fill="#ffffff" filter="url(#shadow)" />
+  <rect x="980" y="176" width="234" height="250" rx="26" fill="#e5f2ff" />
+  <path d="M1028 334l54-66 58 76 30-34 44 54" fill="none" stroke="#007aff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="980" y="474" fill="#1a1a1a" font-family="Inter, Segoe UI, sans-serif" font-size="19" font-weight="800">Preview aset</text>
+  <text x="980" y="506" fill="#4d4d4d" font-family="Inter, Segoe UI, sans-serif" font-size="13">Metadata, path, dan Open link.</text>
+  <rect x="980" y="548" width="234" height="44" rx="22" fill="#007aff" />
+  <text x="1068" y="576" fill="#ffffff" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="800">Open link</text>
+</svg>

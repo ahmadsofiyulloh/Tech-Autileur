@@ -1,25 +1,12 @@
-import { SectionCard } from "@/components/operator/section-card";
+import { SkeletonInlineSummary, SkeletonPromptCards } from "@/components/operator/loading-skeleton";
 
 export default function LoadingPromptsPage() {
   return (
-    <SectionCard title="Paket Prompt">
-      <div className="stack" aria-busy="true">
-        <div className="skeleton short" />
-        <div className="skeleton long" />
-        <div className="skeleton medium" />
-        <div className="grid two-up">
-          <div className="muted-box stack">
-            <div className="skeleton long" />
-            <div className="skeleton medium" />
-            <div className="skeleton short" />
-          </div>
-          <div className="muted-box stack">
-            <div className="skeleton long" />
-            <div className="skeleton medium" />
-            <div className="skeleton short" />
-          </div>
-        </div>
-      </div>
-    </SectionCard>
+    <div className="stack prompt-page-stack" aria-busy="true">
+      <SkeletonInlineSummary action={false} />
+      <section className="stack" aria-label="Memuat paket prompt">
+        <SkeletonPromptCards count={3} />
+      </section>
+    </div>
   );
 }

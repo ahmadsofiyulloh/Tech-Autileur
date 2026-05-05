@@ -41,7 +41,7 @@ function OperatorShellContent({ children }: { children: ReactNode }) {
   const activeTitle = override?.title ?? activeRoute?.label ?? "Operator";
   const activeSubtitle = override?.subtitle ?? activeRoute?.subtitle ?? "Content OS.";
   const ActiveIcon = activeRoute?.icon ?? Workflow;
-  const showSettingsGear = !pathname.startsWith("/settings");
+  const showSettingsGear = !pathname.startsWith("/settings") && !override?.hideSettingsLink;
 
   function isActive(href: string) {
     if (href === "/products/new" && pathname.startsWith("/intake")) {

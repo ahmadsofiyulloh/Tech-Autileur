@@ -1,13 +1,10 @@
-import { SectionCard } from "@/components/operator/section-card";
+import { SkeletonLine } from "@/components/operator/loading-skeleton";
 
 export default function FlowLoading() {
   return (
-    <SectionCard title="Flow">
-      <div className="stack" aria-busy="true">
-        <div className="skeleton short" />
-        <div className="skeleton long" />
-        <div className="skeleton medium" />
-      </div>
-    </SectionCard>
+    <div className="stack loading-skeleton-static" aria-busy="true">
+      <SkeletonLine size="long" />
+      <SkeletonLine size="medium" />
+    </div>
   );
 }

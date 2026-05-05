@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 type TopbarOverrideValue = {
   title?: string;
   subtitle?: string | null;
+  hideSettingsLink?: boolean;
 };
 
 type TopbarContextValue = {
@@ -34,16 +35,24 @@ export function useTopbar() {
   return context;
 }
 
-export function TopbarOverride({ title, subtitle }: { title: string; subtitle?: string | null }) {
+export function TopbarOverride({
+  title,
+  subtitle,
+  hideSettingsLink,
+}: {
+  title: string;
+  subtitle?: string | null;
+  hideSettingsLink?: boolean;
+}) {
   const { setOverride } = useTopbar();
 
   useEffect(() => {
-    setOverride({ title, subtitle: subtitle ?? null });
+    setOverride({ title, subtitle: subtitle ?? null, hideSettingsLink: hideSettingsLink ?? false });
 
     return () => {
       setOverride(null);
     };
-  }, [setOverride, subtitle, title]);
+  }, [hideSettingsLink, setOverride, subtitle, title]);
 
   return null;
 }

@@ -2,17 +2,83 @@
   "name": "Affiliate AI Content OS",
   "short_name": "AICOS",
   "description": "Mobile-first control center for AI affiliate content production.",
-  "start_url": "/",
+  "lang": "id-ID",
+  "dir": "ltr",
+  "id": "/",
+  "start_url": "/products/new",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#020617",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
+  "background_color": "#f6fbff",
+  "theme_color": "#f6fbff",
+  "categories": ["business", "productivity"],
   "icons": [
+    {
+      "src": "/icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/pwa-screenshots/intake-mobile.svg",
+      "sizes": "390x844",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "Intake mobile dengan upload, review, dan navigasi bawah"
+    },
+    {
+      "src": "/pwa-screenshots/drive-wide.svg",
+      "sizes": "1280x720",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "Drive visual manager dengan grid aset dan preview"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Intake",
+      "short_name": "Intake",
+      "url": "/products/new",
+      "icons": [{ "src": "/icons/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Produk",
+      "short_name": "Produk",
+      "url": "/products",
+      "icons": [{ "src": "/icons/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Paket Prompt",
+      "short_name": "Prompt",
+      "url": "/prompts",
+      "icons": [{ "src": "/icons/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Drive",
+      "short_name": "Drive",
+      "url": "/drive",
+      "icons": [{ "src": "/icons/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
