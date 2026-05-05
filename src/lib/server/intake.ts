@@ -1202,6 +1202,55 @@ function manualMetadata(platform: string, session: IntakeSessionRecord): JsonRec
   };
 }
 
+function visionMarketplaceMetadata(platform: string, session: IntakeSessionRecord, metadata: IntakeVisionParseOutput) {
+  return {
+    entry_mode: "gemini_vision",
+    platform,
+    intake_session_id: session.id,
+    reviewed_metadata: toReviewedMetadataJson(metadata),
+  } satisfies JsonRecord;
+}
+
+async function createMarketplaceSourcesFromVisionEvidence(input: {
+  product: ProductRecord;
+  session: IntakeSessionRecord;
+  metadata: IntakeVisionParseOutput;
+  shopeeScreenshotDriveItemRefId: string | null;
+  tiktokScreenshotDriveItemRefId: string | null;
+}) {
+  const title = input.metadata.product_title || input.metadata.nama_produk || input.product.product_name;
+  const common = {
+    product_id: input.product.id,
+    workspace_id: input.product.workspace_id ?? input.session.workspace_id,
+    title,
+    category: input.metadata.category,
+    rating_text: input.metadata.rating_text,
+    sold_count_text: input.metadata.sold_count_text,
+    price_text: input.metadata.price_text,
+    shop_name: input.metadata.shop_name,
+    status: "ACTIVE",
+  } satisfies Partial<MarketplaceSourceInput>;
+
+  await Promise.all([
+    input.shopeeScreenshotDriveItemRefId
+      ? createMarketplaceSource({
+          ...common,
+          platform: "SHOPEE",
+          screenshot_drive_item_ref_id: input.shopeeScreenshotDriveItemRefId,
+          parsed_metadata_json: visionMarketplaceMetadata("SHOPEE", input.session, input.metadata),
+        } as MarketplaceSourceInput)
+      : Promise.resolve(null),
+    input.tiktokScreenshotDriveItemRefId
+      ? createMarketplaceSource({
+          ...common,
+          platform: "TIKTOK",
+          screenshot_drive_item_ref_id: input.tiktokScreenshotDriveItemRefId,
+          parsed_metadata_json: visionMarketplaceMetadata("TIKTOK", input.session, input.metadata),
+        } as MarketplaceSourceInput)
+      : Promise.resolve(null),
+  ]);
+}
+
 export async function createMarketplaceSourcesFromIntake(
   intakeSessionId: string,
   input: {
