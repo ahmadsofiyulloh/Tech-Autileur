@@ -14,15 +14,20 @@ import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
 import { GeminiClientError } from "@/lib/server/gemini-client";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
+  INTAKE_VISION_PROMPT_VERSION,
+  INTAKE_VISION_SCHEMA_VERSION,
   appendUniqueNote,
   normalizeIntakeVisionOutput,
-  parseIntakeVisionOutput,
+  type IntakeOcrEvidenceBlock,
   type IntakeVisionParseOutput,
 } from "@/lib/intake/vision-contract";
+import { parseIntakeVisionOutputWithRepair } from "@/lib/intake/vision-repair";
+import { assertUploadedImage, prepareGeminiCompatibleUploadImage } from "@/lib/intake/upload-validation";
 import {
   INTAKE_STATUSES,
   type IntakeStatus,
   type JsonRecord,
+  type MarketplacePlatform,
   hasMinimumIntakeInput,
   isIntakeStatus,
   normalizeIntakeText,
@@ -178,12 +183,28 @@ type IntakeAnalysisUploadInput = {
   tiktokScreenshot: File;
 };
 
+const INTAKE_VISION_SYSTEM_INSTRUCTION = [
+  "You are an OCR-first product evidence extractor for a private affiliate content workflow.",
+  "Never invent marketplace facts. Literal OCR fields must be copied exactly from visible image text.",
+  "Separate literal OCR evidence from inferred Indonesian operator metadata.",
+  "Use empty strings and quality flags when evidence is missing, blurry, cropped, rotated, or unreadable.",
+  "Return only JSON matching the response schema.",
+].join("\n");
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function readText(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 function readJsonText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function readJsonRecord(value: unknown) {
+  return isRecord(value) ? (value as JsonRecord) : null;
 }
 
 function splitLines(value: string) {
@@ -239,8 +260,12 @@ function readStringArrayLike(value: unknown) {
 
 function buildReviewedMetadataFromInput(metadata: JsonRecord, fallback?: JsonRecord | null) {
   const source = (fallback ?? {}) as JsonRecord;
+  const ocrEvidence = readJsonRecord(metadata.ocr_evidence) ?? readJsonRecord(source.ocr_evidence);
+  const extractionQuality = readJsonRecord(metadata.extraction_quality) ?? readJsonRecord(source.extraction_quality);
 
   return normalizeIntakeVisionOutput({
+    schema_version: readJsonText(metadata.schema_version) || readJsonText(source.schema_version) || INTAKE_VISION_SCHEMA_VERSION,
+    prompt_version: readJsonText(metadata.prompt_version) || readJsonText(source.prompt_version) || INTAKE_VISION_PROMPT_VERSION,
     nama_produk:
       readJsonText(metadata.nama_produk) ||
       readJsonText(metadata.product_title) ||
@@ -270,13 +295,15 @@ function buildReviewedMetadataFromInput(metadata: JsonRecord, fallback?: JsonRec
     confidence_notes: readTextArray(metadata.confidence_notes).length
       ? readTextArray(metadata.confidence_notes)
       : readTextArray(source.confidence_notes),
+    ...(ocrEvidence ? { ocr_evidence: ocrEvidence } : {}),
+    ...(extractionQuality ? { extraction_quality: extractionQuality } : {}),
   });
 }
 
 function toReviewedMetadataJson(metadata: IntakeVisionParseOutput) {
   return {
     ...metadata,
-  } satisfies JsonRecord;
+  } as JsonRecord;
 }
 
 function hasSourceMarketplace(value: string) {
@@ -572,15 +599,27 @@ function buildIntakeParsePrompt(input: {
   tiktokScreenshot: { name: string; mimeType: string; size: number };
 }) {
   return [
-    "You are analysing uploaded product evidence for a single-owner operator workflow.",
-    "Return JSON only. Do not use markdown, code fences, or commentary.",
-    "Return exactly one JSON object with these keys and no extras:",
-    '{ "nama_produk": "", "keyword_cari_etalase": "", "deskripsi_visual": "", "use_case": "", "pain_point": "", "selling_angle": "", "target_viewer": "", "product_title": "", "marketplace": "", "category": "", "rating_text": "", "sold_count_text": "", "price_text": "", "shop_name": "", "visible_product_attributes": [], "risk_notes": [], "confidence_notes": [] }',
-    "Use short operator-friendly Indonesian values.",
-    "Analyse the uploaded product image, Shopee screenshot, and TikTok screenshot bytes directly.",
-    'If evidence spans both marketplaces, set marketplace to "Shopee + TikTok".',
-    "If a field is unknown, return an empty string or empty array.",
-    "Do not claim visual parsing from links.",
+    "Task: extract OCR evidence and prompt-ready product metadata from the uploaded bytes.",
+    `schema_version must be "${INTAKE_VISION_SCHEMA_VERSION}".`,
+    `prompt_version must be "${INTAKE_VISION_PROMPT_VERSION}".`,
+    "",
+    "Image order:",
+    "1. product_image",
+    "2. shopee_screenshot",
+    "3. tiktok_screenshot",
+    "",
+    "Literal OCR rules:",
+    "- Copy visible marketplace text exactly for title, category, rating, sold count, price, and shop/account name.",
+    "- Do not translate, normalize currency, round ratings, or rewrite sold count abbreviations in literal fields.",
+    "- If text is unreadable or absent, use an empty string and add a quality flag.",
+    "- visible_text_lines should contain concise exact text lines seen in each image.",
+    "",
+    "Inference rules:",
+    "- Use short operator-friendly Indonesian for nama_produk, keyword_cari_etalase, deskripsi_visual, use_case, pain_point, selling_angle, and target_viewer.",
+    '- Set marketplace to "Shopee + TikTok" when both marketplace screenshots are present, even if one has weaker OCR.',
+    "- Set extraction_quality.review_required to true when any key marketplace field is unreadable, cropped, blurry, or inferred.",
+    "- Do not claim visual parsing from links.",
+    "- Return JSON only. No markdown, code fences, or commentary.",
     "",
     "Uploaded evidence:",
     JSON.stringify(
@@ -595,8 +634,13 @@ function buildIntakeParsePrompt(input: {
   ].join("\n");
 }
 
-function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput) {
+function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput, selectedModelName?: string | null) {
   return {
+    schema_version: metadata.schema_version,
+    prompt_version: metadata.prompt_version,
+    analysis_mode: "LIVE_IMAGE_BYTES",
+    image_bytes_available: true,
+    selected_model_name: selectedModelName ?? null,
     nama_produk: metadata.nama_produk,
     keyword_cari_etalase: metadata.keyword_cari_etalase,
     deskripsi_visual: metadata.deskripsi_visual,
@@ -614,6 +658,8 @@ function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput) {
     visible_product_attributes: metadata.visible_product_attributes,
     risk_notes: metadata.risk_notes,
     confidence_notes: metadata.confidence_notes,
+    ocr_evidence: metadata.ocr_evidence,
+    extraction_quality: metadata.extraction_quality,
   } satisfies JsonRecord;
 }
 
@@ -625,6 +671,8 @@ function buildIntakeTaskInput(input: {
   return {
     analysis_mode: "LIVE_IMAGE_BYTES",
     image_bytes_available: true,
+    schema_version: INTAKE_VISION_SCHEMA_VERSION,
+    prompt_version: INTAKE_VISION_PROMPT_VERSION,
     product_image: input.productImage,
     shopee_screenshot: input.shopeeScreenshot,
     tiktok_screenshot: input.tiktokScreenshot,
@@ -635,13 +683,17 @@ function buildIntakeProductTitle(metadata: IntakeVisionParseOutput) {
   return readIntakeText(metadata.nama_produk) || readIntakeText(metadata.keyword_cari_etalase) || "Intake Tanpa Nama";
 }
 
-async function buildIntakeAnalysisImagePart(file: File) {
-  const buffer = await file.arrayBuffer();
+async function buildIntakeAnalysisImagePart(file: File, label: string) {
+  const preparedImage = await prepareGeminiCompatibleUploadImage(file, label);
+
+  if (!preparedImage) {
+    throw new Error(`${label} is required.`);
+  }
 
   return {
     inline_data: {
-      mime_type: file.type || "application/octet-stream",
-      data: Buffer.from(buffer).toString("base64"),
+      mime_type: preparedImage.mimeType,
+      data: preparedImage.buffer.toString("base64"),
     },
   };
 }
@@ -687,37 +739,45 @@ async function syncMarketplaceSourceMetadata(
   session: IntakeSessionRecord,
   metadata: IntakeVisionParseOutput,
 ) {
-  if (!session.product_id || !hasSourceMarketplace(metadata.marketplace)) {
+  const platforms = sourceMarketplacesFromMetadata(metadata);
+
+  if (!session.product_id || !platforms.length) {
     return;
   }
 
-  const { data: source, error } = await supabase
+  const { data: sources, error } = await supabase
     .from("product_marketplace_sources")
-    .select("id")
+    .select("id, platform, title")
     .eq("user_id", userId)
     .eq("product_id", session.product_id)
-    .eq("platform", metadata.marketplace)
-    .maybeSingle();
+    .in("platform", platforms);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  if (!source) {
+  if (!sources?.length) {
     return;
   }
 
-  const { error: updateError } = await supabase
-    .from("product_marketplace_sources")
-    .update({
-      parsed_metadata_json: toReviewedMetadataJson(metadata),
-    })
-    .eq("id", source.id)
-    .eq("user_id", userId);
+  await Promise.all(
+    sources.map(async (source) => {
+      const platform = source.platform as MarketplacePlatform;
+      const fields = marketplaceSourceFieldsForPlatform(platform, metadata, readText(source.title) || session.product_title || "");
+      const { error: updateError } = await supabase
+        .from("product_marketplace_sources")
+        .update({
+          ...fields,
+          parsed_metadata_json: visionMarketplaceMetadata(platform, session, metadata),
+        })
+        .eq("id", source.id)
+        .eq("user_id", userId);
 
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+    }),
+  );
 }
 
 async function readGeminiSecretForKey(
@@ -769,6 +829,109 @@ async function selectGeminiKeyForIntake(userId: string, excludedQuotaGroups: Rea
   return null;
 }
 
+type GeminiKeySelection = {
+  key: GeminiSelectedKey;
+  secret: string;
+  role: string;
+};
+
+async function listGeminiRepairKeySelections(
+  userId: string,
+  fallbackSelection: GeminiKeySelection,
+  excludedQuotaGroups: ReadonlySet<string> = new Set(),
+) {
+  const serviceClient = createSupabaseServiceRoleClient();
+  const geminiKeys = await listQuotaAwareGeminiKeys({
+    userId,
+    purpose: "PROMPT_REPAIR",
+    excludedQuotaGroups,
+    serviceClient,
+  });
+  const selections: GeminiKeySelection[] = [];
+  const seenKeyIds = new Set<string>();
+
+  for (const geminiKey of geminiKeys) {
+    const secret = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
+
+    if (!secret || seenKeyIds.has(geminiKey.id)) {
+      continue;
+    }
+
+    selections.push({
+      key: geminiKey,
+      secret,
+      role: geminiKey.role,
+    });
+    seenKeyIds.add(geminiKey.id);
+  }
+
+  if (!seenKeyIds.has(fallbackSelection.key.id)) {
+    selections.push(fallbackSelection);
+  }
+
+  return selections;
+}
+
+async function repairIntakeVisionOutput(input: {
+  rawText: string;
+  prompt: string;
+  userId: string;
+  taskId: string;
+  fallbackSelection: GeminiKeySelection;
+  excludedQuotaGroups: Set<string>;
+}) {
+  const repairSelections = await listGeminiRepairKeySelections(input.userId, input.fallbackSelection, input.excludedQuotaGroups);
+  let lastError: unknown = null;
+
+  for (const selection of repairSelections) {
+    try {
+      const response = await generateTrackedGeminiJsonText({
+        aiTaskId: input.taskId,
+        geminiApiKey: selection.key,
+        taskType: "PROMPT_REPAIR",
+        userId: input.userId,
+        request: {
+          modelName: selection.key.model_name as GeminiModelName,
+          apiKey: selection.secret,
+          prompt: input.prompt,
+          systemInstruction: INTAKE_VISION_SYSTEM_INSTRUCTION,
+          temperature: 0,
+          maxOutputTokens: 4096,
+          timeoutMs: 120_000,
+          responseJsonSchema: GEMINI_INTAKE_VISION_RESPONSE_SCHEMA,
+        },
+      });
+
+      return {
+        responseText: response.text,
+        selectedKeySelection: selection,
+      };
+    } catch (error) {
+      lastError = error;
+
+      if (error instanceof GeminiClientError && error.status === 429) {
+        const retryAfterSeconds = error.retryAfterSeconds ?? 900;
+        const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
+        const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+
+        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        await markGeminiQuotaGroupCooldown({
+          serviceClient: createSupabaseServiceRoleClient(),
+          userId: input.userId,
+          key: selection.key,
+          nextStatus,
+          cooldownUntil,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Unable to repair Gemini output.");
+}
+
 async function updateIntakeSessionRecord(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   userId: string,
@@ -793,20 +956,6 @@ async function updateIntakeSessionRecord(
   }
 
   return data as IntakeSessionRecord;
-}
-
-function assertUploadedImage(file: File, label: string) {
-  if (!(file instanceof File)) {
-    throw new Error(`${label} is required.`);
-  }
-
-  if (!file.size) {
-    throw new Error(`${label} cannot be empty.`);
-  }
-
-  if (!file.type.startsWith("image/")) {
-    throw new Error(`${label} must be an image file.`);
-  }
 }
 
 function buildUploadedImageSummary(file: File) {
@@ -1203,11 +1352,46 @@ function manualMetadata(platform: string, session: IntakeSessionRecord): JsonRec
   };
 }
 
-function visionMarketplaceMetadata(platform: string, session: IntakeSessionRecord, metadata: IntakeVisionParseOutput) {
+function sourceMarketplacesFromMetadata(metadata: IntakeVisionParseOutput): MarketplacePlatform[] {
+  if (metadata.marketplace === "Shopee + TikTok") {
+    return ["SHOPEE", "TIKTOK"];
+  }
+
+  return hasSourceMarketplace(metadata.marketplace) ? [metadata.marketplace] : [];
+}
+
+function ocrEvidenceForPlatform(metadata: IntakeVisionParseOutput, platform: MarketplacePlatform): IntakeOcrEvidenceBlock {
+  return platform === "SHOPEE" ? metadata.ocr_evidence.shopee_screenshot : metadata.ocr_evidence.tiktok_screenshot;
+}
+
+function marketplaceSourceFieldsForPlatform(
+  platform: MarketplacePlatform,
+  metadata: IntakeVisionParseOutput,
+  fallbackTitle: string,
+) {
+  const extracted = ocrEvidenceForPlatform(metadata, platform).extracted_fields;
+
+  return {
+    title: readIntakeText(extracted.product_title) || metadata.product_title || metadata.nama_produk || fallbackTitle,
+    category: readIntakeText(extracted.category) || metadata.category,
+    rating_text: readIntakeText(extracted.rating_text) || metadata.rating_text,
+    sold_count_text: readIntakeText(extracted.sold_count_text) || metadata.sold_count_text,
+    price_text: readIntakeText(extracted.price_text) || metadata.price_text,
+    shop_name: readIntakeText(extracted.shop_name) || metadata.shop_name,
+  };
+}
+
+function visionMarketplaceMetadata(platform: MarketplacePlatform, session: IntakeSessionRecord, metadata: IntakeVisionParseOutput) {
+  const evidence = platform === "SHOPEE" ? metadata.ocr_evidence.shopee_screenshot : metadata.ocr_evidence.tiktok_screenshot;
+
   return {
     entry_mode: "gemini_vision",
     platform,
     intake_session_id: session.id,
+    schema_version: metadata.schema_version,
+    prompt_version: metadata.prompt_version,
+    ocr_evidence: evidence,
+    extraction_quality: metadata.extraction_quality,
     reviewed_metadata: toReviewedMetadataJson(metadata),
   } satisfies JsonRecord;
 }
@@ -1223,12 +1407,6 @@ async function createMarketplaceSourcesFromVisionEvidence(input: {
   const common = {
     product_id: input.product.id,
     workspace_id: input.product.workspace_id ?? input.session.workspace_id,
-    title,
-    category: input.metadata.category,
-    rating_text: input.metadata.rating_text,
-    sold_count_text: input.metadata.sold_count_text,
-    price_text: input.metadata.price_text,
-    shop_name: input.metadata.shop_name,
     status: "ACTIVE",
   } satisfies Partial<MarketplaceSourceInput>;
 
@@ -1236,6 +1414,7 @@ async function createMarketplaceSourcesFromVisionEvidence(input: {
     input.shopeeScreenshotDriveItemRefId
       ? createMarketplaceSource({
           ...common,
+          ...marketplaceSourceFieldsForPlatform("SHOPEE", input.metadata, title),
           platform: "SHOPEE",
           screenshot_drive_item_ref_id: input.shopeeScreenshotDriveItemRefId,
           parsed_metadata_json: visionMarketplaceMetadata("SHOPEE", input.session, input.metadata),
@@ -1244,6 +1423,7 @@ async function createMarketplaceSourcesFromVisionEvidence(input: {
     input.tiktokScreenshotDriveItemRefId
       ? createMarketplaceSource({
           ...common,
+          ...marketplaceSourceFieldsForPlatform("TIKTOK", input.metadata, title),
           platform: "TIKTOK",
           screenshot_drive_item_ref_id: input.tiktokScreenshotDriveItemRefId,
           parsed_metadata_json: visionMarketplaceMetadata("TIKTOK", input.session, input.metadata),
@@ -1346,13 +1526,13 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   try {
     await markTaskRunning(task.id);
     const [productImagePart, shopeeScreenshotPart, tiktokScreenshotPart] = await Promise.all([
-      buildIntakeAnalysisImagePart(input.productImage),
-      buildIntakeAnalysisImagePart(input.shopeeScreenshot),
-      buildIntakeAnalysisImagePart(input.tiktokScreenshot),
+      buildIntakeAnalysisImagePart(input.productImage, "Foto Produk Utama"),
+      buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee"),
+      buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok"),
     ]);
     const excludedQuotaGroups = new Set<string>();
     let responseText: string | null = null;
-    let selectedKeyForSuccess: GeminiSelectedKey | null = null;
+    let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
     while (!responseText) {
       const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups);
@@ -1397,14 +1577,15 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
                 }),
               },
             ],
+            systemInstruction: INTAKE_VISION_SYSTEM_INSTRUCTION,
             temperature: 0.1,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 4096,
             timeoutMs: 120_000,
             responseJsonSchema: GEMINI_INTAKE_VISION_RESPONSE_SCHEMA,
           },
         });
 
-        selectedKeyForSuccess = selectedKey.key;
+        selectedKeySelectionForSuccess = selectedKey;
         responseText = response.text;
       } catch (error) {
         if (error instanceof GeminiClientError && error.status === 429) {
@@ -1427,7 +1608,27 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       }
     }
 
-    const parsed = parseIntakeVisionOutput(responseText);
+    const parsed = await parseIntakeVisionOutputWithRepair({
+      rawText: responseText,
+      repair: async ({ rawText, prompt }) => {
+        if (!selectedKeySelectionForSuccess) {
+          throw new Error("Missing successful Gemini key selection for intake repair.");
+        }
+
+        const repairResult = await repairIntakeVisionOutput({
+          rawText,
+          prompt,
+          userId: user.id,
+          taskId: task.id,
+          fallbackSelection: selectedKeySelectionForSuccess,
+          excludedQuotaGroups,
+        });
+
+        selectedKeySelectionForSuccess = repairResult.selectedKeySelection;
+
+        return repairResult.responseText;
+      },
+    });
     const parsedWithNote: IntakeVisionParseOutput = {
       ...parsed,
       confidence_notes: appendUniqueNote(parsed.confidence_notes, "Analisis Gemini live dari bytes upload."),
@@ -1459,7 +1660,10 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       tiktokScreenshotDriveItemRefId: uploadedEvidence.tiktokScreenshotDriveItem?.id ?? null,
     });
 
-    const completedTask = await markTaskSuccess(task.id, buildParsedMetadataTaskSnapshot(parsedWithNote));
+    const completedTask = await markTaskSuccess(
+      task.id,
+      buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeyForSuccess?.model_name),
+    );
     if (selectedKeyForSuccess) {
       await markGeminiKeySuccess({
         serviceClient: createSupabaseServiceRoleClient(),

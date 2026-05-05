@@ -1,5 +1,14 @@
+import { recoverJsonText } from "@/lib/json/recover-json";
+
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+
+export const INTAKE_VISION_PROMPT_VERSION = "intake-vision-v2";
+export const INTAKE_VISION_SCHEMA_VERSION = "2026-05-ocr-v2";
+
+const INTAKE_CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
+
+export type IntakeConfidenceLevel = (typeof INTAKE_CONFIDENCE_LEVELS)[number];
 
 export type IntakeReviewMetadata = {
   nama_produk: string;
@@ -11,7 +20,38 @@ export type IntakeReviewMetadata = {
   target_viewer: string;
 };
 
+export type IntakeOcrExtractedFields = {
+  product_title: string;
+  category: string;
+  rating_text: string;
+  sold_count_text: string;
+  price_text: string;
+  shop_name: string;
+};
+
+export type IntakeOcrEvidenceBlock = {
+  visible_text_lines: string[];
+  extracted_fields: IntakeOcrExtractedFields;
+  confidence: IntakeConfidenceLevel;
+  quality_flags: string[];
+};
+
+export type IntakeOcrEvidence = {
+  product_image: IntakeOcrEvidenceBlock;
+  shopee_screenshot: IntakeOcrEvidenceBlock;
+  tiktok_screenshot: IntakeOcrEvidenceBlock;
+};
+
+export type IntakeExtractionQuality = {
+  overall_confidence: IntakeConfidenceLevel;
+  review_required: boolean;
+  blocking_flags: string[];
+  notes: string[];
+};
+
 export type IntakeVisionParseOutput = IntakeReviewMetadata & {
+  schema_version: string;
+  prompt_version: string;
   product_title: string;
   marketplace: string;
   category: string;
@@ -22,6 +62,8 @@ export type IntakeVisionParseOutput = IntakeReviewMetadata & {
   visible_product_attributes: string[];
   risk_notes: string[];
   confidence_notes: string[];
+  ocr_evidence: IntakeOcrEvidence;
+  extraction_quality: IntakeExtractionQuality;
 };
 
 const INTAKE_REVIEW_KEYS = [
@@ -33,6 +75,8 @@ const INTAKE_REVIEW_KEYS = [
   "selling_angle",
   "target_viewer",
 ] as const;
+
+const INTAKE_VERSION_KEYS = ["schema_version", "prompt_version"] as const;
 
 const INTAKE_COMPAT_KEYS = [
   "product_title",
@@ -46,6 +90,17 @@ const INTAKE_COMPAT_KEYS = [
   "risk_notes",
   "confidence_notes",
 ] as const;
+
+const INTAKE_DIAGNOSTIC_KEYS = ["ocr_evidence", "extraction_quality"] as const;
+
+const EMPTY_EXTRACTED_FIELDS: IntakeOcrExtractedFields = {
+  product_title: "",
+  category: "",
+  rating_text: "",
+  sold_count_text: "",
+  price_text: "",
+  shop_name: "",
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -116,6 +171,13 @@ function readOptionalString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readConfidence(value: unknown, fallback: IntakeConfidenceLevel = "low"): IntakeConfidenceLevel {
+  const normalized = readOptionalString(value).toLowerCase();
+  return (INTAKE_CONFIDENCE_LEVELS as readonly string[]).includes(normalized)
+    ? (normalized as IntakeConfidenceLevel)
+    : fallback;
+}
+
 function normalizeMarketplace(value: string) {
   const trimmed = value.trim();
 
@@ -141,7 +203,12 @@ function normalizeMarketplace(value: string) {
 }
 
 function ensureExactKeys(record: Record<string, unknown>, label: string) {
-  const allowed = new Set<string>([...INTAKE_REVIEW_KEYS, ...INTAKE_COMPAT_KEYS]);
+  const allowed = new Set<string>([
+    ...INTAKE_REVIEW_KEYS,
+    ...INTAKE_VERSION_KEYS,
+    ...INTAKE_COMPAT_KEYS,
+    ...INTAKE_DIAGNOSTIC_KEYS,
+  ]);
   const extraKeys = Object.keys(record).filter((key) => !allowed.has(key));
 
   if (extraKeys.length) {
@@ -149,14 +216,119 @@ function ensureExactKeys(record: Record<string, unknown>, label: string) {
   }
 }
 
-function buildVisibleFallback(review: IntakeReviewMetadata) {
+function readExtractedFields(value: unknown, fallback: Partial<IntakeOcrExtractedFields> = {}): IntakeOcrExtractedFields {
+  const record = isRecord(value) ? value : {};
+
+  return {
+    product_title: readOptionalString(record.product_title) || fallback.product_title || "",
+    category: readOptionalString(record.category) || fallback.category || "",
+    rating_text: readOptionalString(record.rating_text) || fallback.rating_text || "",
+    sold_count_text: readOptionalString(record.sold_count_text) || fallback.sold_count_text || "",
+    price_text: readOptionalString(record.price_text) || fallback.price_text || "",
+    shop_name: readOptionalString(record.shop_name) || fallback.shop_name || "",
+  };
+}
+
+function buildEvidenceLines(fields: Partial<IntakeOcrExtractedFields>) {
   return [
-    review.deskripsi_visual,
-    review.use_case,
-    review.pain_point,
-    review.selling_angle,
-    review.target_viewer,
-  ].filter((item) => item.length > 0);
+    fields.product_title,
+    fields.category,
+    fields.rating_text,
+    fields.sold_count_text,
+    fields.price_text,
+    fields.shop_name,
+  ].filter((item): item is string => Boolean(item));
+}
+
+function readEvidenceBlock(value: unknown, fallback: Partial<IntakeOcrEvidenceBlock> = {}): IntakeOcrEvidenceBlock {
+  const record = isRecord(value) ? value : {};
+  const extractedFields = readExtractedFields(record.extracted_fields, fallback.extracted_fields);
+  const visibleTextLines = readStringArray(record.visible_text_lines);
+  const qualityFlags = readStringArray(record.quality_flags);
+
+  return {
+    visible_text_lines: visibleTextLines.length ? visibleTextLines : fallback.visible_text_lines ?? buildEvidenceLines(extractedFields),
+    extracted_fields: extractedFields,
+    confidence: readConfidence(record.confidence, fallback.confidence ?? "low"),
+    quality_flags: qualityFlags.length ? qualityFlags : fallback.quality_flags ?? [],
+  };
+}
+
+function buildLegacyOcrEvidence(output: {
+  product_title: string;
+  category: string;
+  rating_text: string;
+  sold_count_text: string;
+  price_text: string;
+  shop_name: string;
+  visible_product_attributes: string[];
+}): IntakeOcrEvidence {
+  const marketplaceFields = {
+    product_title: output.product_title,
+    category: output.category,
+    rating_text: output.rating_text,
+    sold_count_text: output.sold_count_text,
+    price_text: output.price_text,
+    shop_name: output.shop_name,
+  };
+
+  return {
+    product_image: readEvidenceBlock(null, {
+      visible_text_lines: output.visible_product_attributes,
+      extracted_fields: {
+        ...EMPTY_EXTRACTED_FIELDS,
+        product_title: output.product_title,
+        category: output.category,
+      },
+      confidence: "low",
+      quality_flags: ["legacy_ocr_contract"],
+    }),
+    shopee_screenshot: readEvidenceBlock(null, {
+      extracted_fields: marketplaceFields,
+      confidence: "low",
+      quality_flags: ["legacy_ocr_contract"],
+    }),
+    tiktok_screenshot: readEvidenceBlock(null, {
+      extracted_fields: marketplaceFields,
+      confidence: "low",
+      quality_flags: ["legacy_ocr_contract"],
+    }),
+  };
+}
+
+function readOcrEvidence(value: unknown, fallback: IntakeOcrEvidence): IntakeOcrEvidence {
+  const record = isRecord(value) ? value : {};
+
+  return {
+    product_image: readEvidenceBlock(record.product_image, fallback.product_image),
+    shopee_screenshot: readEvidenceBlock(record.shopee_screenshot, fallback.shopee_screenshot),
+    tiktok_screenshot: readEvidenceBlock(record.tiktok_screenshot, fallback.tiktok_screenshot),
+  };
+}
+
+function readBoolean(value: unknown, fallback: boolean) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function readExtractionQuality(value: unknown, fallback: IntakeExtractionQuality): IntakeExtractionQuality {
+  const record = isRecord(value) ? value : {};
+  const blockingFlags = readStringArray(record.blocking_flags);
+  const notes = readStringArray(record.notes);
+
+  return {
+    overall_confidence: readConfidence(record.overall_confidence, fallback.overall_confidence),
+    review_required: readBoolean(record.review_required, fallback.review_required),
+    blocking_flags: blockingFlags.length ? blockingFlags : fallback.blocking_flags,
+    notes: notes.length ? notes : fallback.notes,
+  };
+}
+
+function hasUsefulOcrEvidence(output: IntakeVisionParseOutput) {
+  return [
+    output.ocr_evidence.product_image,
+    output.ocr_evidence.shopee_screenshot,
+    output.ocr_evidence.tiktok_screenshot,
+  ].some((evidence) => evidence.visible_text_lines.length || Object.values(evidence.extracted_fields).some(Boolean));
 }
 
 function hasUsefulContent(output: IntakeVisionParseOutput) {
@@ -176,7 +348,8 @@ function hasUsefulContent(output: IntakeVisionParseOutput) {
       output.price_text ||
       output.shop_name ||
       output.visible_product_attributes.length ||
-      output.risk_notes.length,
+      output.risk_notes.length ||
+      hasUsefulOcrEvidence(output),
   );
 }
 
@@ -214,9 +387,27 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
   const visibleProductAttributes = readStringArray(record.visible_product_attributes);
   const riskNotes = readStringArray(record.risk_notes);
   const confidenceNotes = readStringArray(record.confidence_notes);
+  const legacyEvidence = buildLegacyOcrEvidence({
+    product_title: productTitle,
+    category,
+    rating_text: ratingText,
+    sold_count_text: soldCountText,
+    price_text: priceText,
+    shop_name: shopName,
+    visible_product_attributes: visibleProductAttributes,
+  });
+  const ocrEvidence = readOcrEvidence(record.ocr_evidence, legacyEvidence);
+  const extractionQuality = readExtractionQuality(record.extraction_quality, {
+    overall_confidence: record.ocr_evidence ? "medium" : "low",
+    review_required: true,
+    blocking_flags: record.ocr_evidence ? [] : ["legacy_ocr_contract"],
+    notes: record.ocr_evidence ? [] : ["Legacy OCR payload has no diagnostic evidence."],
+  });
 
   const output: IntakeVisionParseOutput = {
     ...review,
+    schema_version: readOptionalString(record.schema_version) || INTAKE_VISION_SCHEMA_VERSION,
+    prompt_version: readOptionalString(record.prompt_version) || INTAKE_VISION_PROMPT_VERSION,
     product_title: productTitle,
     marketplace,
     category,
@@ -224,11 +415,11 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
     sold_count_text: soldCountText,
     price_text: priceText,
     shop_name: shopName,
-    visible_product_attributes: visibleProductAttributes.length ? visibleProductAttributes : buildVisibleFallback(review),
+    visible_product_attributes: visibleProductAttributes,
     risk_notes: riskNotes,
-    confidence_notes: confidenceNotes.length
-      ? confidenceNotes
-      : ["Analisis Gemini live dari bytes upload."],
+    confidence_notes: confidenceNotes,
+    ocr_evidence: ocrEvidence,
+    extraction_quality: extractionQuality,
   };
 
   if (!hasUsefulContent(output)) {
@@ -236,52 +427,6 @@ export function normalizeIntakeVisionOutput(value: unknown): IntakeVisionParseOu
   }
 
   return output;
-}
-
-function extractJsonText(rawText: string) {
-  const trimmed = rawText.trim();
-
-  if (!trimmed) {
-    throw new Error("Gemini output was empty.");
-  }
-
-  if (trimmed.startsWith("```")) {
-    const firstNewLine = trimmed.indexOf("\n");
-    const lastFence = trimmed.lastIndexOf("```");
-
-    if (firstNewLine >= 0 && lastFence > firstNewLine) {
-      const inner = trimmed.slice(firstNewLine + 1, lastFence).trim();
-
-      if (inner) {
-        return inner;
-      }
-    }
-  }
-
-  return trimmed;
-}
-
-function recoverJsonText(rawText: string) {
-  const initial = extractJsonText(rawText);
-
-  try {
-    JSON.parse(initial);
-    return initial;
-  } catch {
-    const firstBrace = initial.indexOf("{");
-    const lastBrace = initial.lastIndexOf("}");
-
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      const sliced = initial.slice(firstBrace, lastBrace + 1).trim();
-
-      if (sliced) {
-        JSON.parse(sliced);
-        return sliced;
-      }
-    }
-  }
-
-  throw new Error("Gemini output did not contain valid JSON.");
 }
 
 export function parseIntakeVisionOutput(rawText: string) {

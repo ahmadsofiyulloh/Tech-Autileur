@@ -1,22 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import {
   AlertTriangle,
-  CheckCircle2,
   FileText,
   Link2,
-  Loader2,
-  Plus,
   WandSparkles,
-  type LucideIcon,
 } from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard, type ImagePreviewSelectionState } from "@/components/operator/image-preview-upload-card";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
 import type { JsonRecord } from "@/lib/intake/validation";
 
@@ -46,9 +42,7 @@ type IntakeWorkflowFormProps = {
     status: string;
   }>;
   currentWorkspaceName: string | null;
-  errorMessage: string | null;
   initialStep: IntakeWorkflowStep;
-  message: string | null;
   savedSession: IntakeWorkflowSession | null;
   savedSessionWorkspaceName: string | null;
   selectedAffiliateProfileId: string | null;
@@ -90,27 +84,6 @@ function promptHref(productId: string, intakeId: string, affiliateProfileId?: st
   }
 
   return `/prompts?${searchParams.toString()}`;
-}
-
-function SubmitButton({
-  children,
-  icon: Icon,
-  pendingLabel,
-  disabled = false,
-}: {
-  children: string;
-  disabled?: boolean;
-  icon: LucideIcon;
-  pendingLabel: string;
-}) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button className="button primary" disabled={disabled || pending} type="submit">
-      {pending ? <Loader2 className="spin" size={16} aria-hidden="true" /> : <Icon size={16} aria-hidden="true" />}
-      {pending ? pendingLabel : children}
-    </button>
-  );
 }
 
 function affiliateInitials(profileName: string) {
@@ -169,36 +142,6 @@ function AffiliateProfileCarousel({
             </button>
           );
         })}
-      </div>
-    </section>
-  );
-}
-
-function SubmitSkeleton() {
-  const { pending } = useFormStatus();
-
-  if (!pending) {
-    return null;
-  }
-
-  return (
-    <section className="muted-box stack analysis-skeleton-card" role="status">
-      <div className="section-card__actions">
-        <Loader2 className="spin" size={16} aria-hidden="true" />
-        <strong>Gemini analyzing...</strong>
-      </div>
-      <div className="visual-list-card">
-        <div className="visual-list-card__thumb">
-          <div className="skeleton long" />
-        </div>
-        <div className="stack-tight">
-          <div className="skeleton long" />
-          <div className="skeleton medium" />
-          <div className="visual-chip-row">
-            <div className="skeleton short" />
-            <div className="skeleton short" />
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -315,9 +258,17 @@ function AnalysisReadyPanel({
         </div>
 
         <FormActions layout="triple">
-          <SubmitButton icon={CheckCircle2} pendingLabel="Menyimpan" disabled={!savedSession.id}>
+          <PendingActionButton
+            activityDescription="Menyimpan metadata yang sudah direview."
+            activityKind="generic"
+            activityTitle="Menyimpan review"
+            className="button primary"
+            estimatedDurationMs={7000}
+            pendingLabel="Menyimpan"
+            disabled={!savedSession.id}
+          >
             Simpan Review
-          </SubmitButton>
+          </PendingActionButton>
           {promptProductId ? (
             <Link className="button primary" href={promptHref(promptProductId, savedSession.id, affiliateProfileId)}>
               <FileText size={16} aria-hidden="true" />
@@ -339,9 +290,7 @@ function AnalysisReadyPanel({
 export function IntakeWorkflowForm({
   affiliateProfiles,
   currentWorkspaceName,
-  errorMessage,
   initialStep,
-  message,
   savedSession,
   savedSessionWorkspaceName,
   selectedAffiliateProfileId,
@@ -366,19 +315,6 @@ export function IntakeWorkflowForm({
 
   return (
     <section className="intake-workflow stack">
-      {message ? (
-        <div className="muted-box status-box" role="status">
-          <CheckCircle2 size={17} aria-hidden="true" />
-          <span>{message}</span>
-        </div>
-      ) : null}
-      {errorMessage ? (
-        <div className="error-box status-box" role="alert">
-          <AlertTriangle size={17} aria-hidden="true" />
-          <span>{errorMessage}</span>
-        </div>
-      ) : null}
-
       {step === "intake" ? (
         <form action={saveIntake} className="stack">
           <input type="hidden" name="intent" value="parse_intake" />
@@ -456,11 +392,18 @@ export function IntakeWorkflowForm({
             </div>
           ) : null}
           <FormActions layout="single">
-            <SubmitButton icon={WandSparkles} pendingLabel="Memproses" disabled={!hasMinimum}>
+            <PendingActionButton
+              activityDescription="Menunggu Gemini memproses evidence."
+              activityKind="analysis"
+              activityTitle="Menganalisis gambar"
+              className="button primary"
+              estimatedDurationMs={22000}
+              pendingLabel="Memproses"
+              disabled={!hasMinimum}
+            >
               Analisis Gemini
-            </SubmitButton>
+            </PendingActionButton>
           </FormActions>
-          <SubmitSkeleton />
         </form>
       ) : savedSession ? (
         <AnalysisReadyPanel

@@ -15,9 +15,7 @@ export const dynamic = "force-dynamic";
 
 type NewProductPageProps = {
   searchParams: Promise<{
-    error?: string | string[];
     intake_id?: string | string[];
-    message?: string | string[];
     step?: string | string[];
     workspace?: string | string[];
     affiliate_profile_id?: string | string[];
@@ -97,8 +95,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     })),
   );
   const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
-  const message = firstParam(query.message) ?? null;
-  const errorMessage = firstParam(query.error) ?? null;
   const savedSessionWorkspaceName = selectedSession ? workspaceLabel(selectedSession.workspace_id, workspaceMap) : null;
   const selectedAffiliateProfileId =
     requestedAffiliateProfileId && affiliateProfiles.some((profile) => profile.id === requestedAffiliateProfileId)
@@ -112,9 +108,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
         <IntakeWorkflowForm
           affiliateProfiles={affiliateProfilesWithAvatars}
           currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
-          errorMessage={errorMessage}
           initialStep={initialStep}
-          message={message}
           savedSession={selectedSession}
           savedSessionWorkspaceName={savedSessionWorkspaceName}
           selectedAffiliateProfileId={selectedAffiliateProfileId}
