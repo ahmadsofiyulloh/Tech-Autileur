@@ -123,7 +123,17 @@ Prompt generation must persist structured JSON with at least:
 
 ```json
 {
-  "product_analysis": {},
+  "product_analysis": {
+    "product": {
+      "id": "",
+      "product_code": "",
+      "product_name": "",
+      "niche": null,
+      "marketplace": null,
+      "marketplace_product_link": null,
+      "status": ""
+    }
+  },
   "prompt_context": {},
   "i2i_prompts": {
     "clip_1": {
@@ -156,6 +166,10 @@ Prompt generation must persist structured JSON with at least:
   }
 }
 ```
+
+`product_analysis.product.status` is mandatory and must be copied from the source product record. The model must not infer or invent this value.
+
+When a source product image exists, `product_analysis.source_image` must echo the source image record and include `id`, `is_primary`, `status`, `source_type`, and `drive_item_ref_id`. The server may backfill missing source_image fields from the source image record, but mismatched values are contract errors.
 
 `prompt_context` must be persisted in `prompt_packs.personalization_json`.
 

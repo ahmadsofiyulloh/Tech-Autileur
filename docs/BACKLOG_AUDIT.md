@@ -65,6 +65,13 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-05 | 1d7f55a | S8-005 | Hardened mobile Drive long-press selection, synced the light mobile themeColor, and stabilized the smoke assertion path. |
 | 2026-05-05 | 0ae6a76 | S6-011 | Added owner FK indexes for Gemini usage event joins. |
 | 2026-05-05 | f6d3c2b | S6-012 | Hardened `gemini_api_key_secrets` with a deny-all client policy and revoked public EXECUTE on exposed helper functions. |
+| 2026-05-06 | 9d0d786 | S8-006 | Added the shared activity feedback dock, bottom banners, and progress-aware pending actions. |
+| 2026-05-06 | 2dce588 | S5-003, S5-004 | Shipped the mobile product workflow tabs, continue entrypoint, and status-only bottom sheet. |
+| 2026-05-06 | 72c6e51 | S8-007 | Hardened intake OCR evidence, upload validation, and marketplace parsing contracts. |
+| 2026-05-06 | 6f0bd1c | support | Hardened prompt output surfaces and strict generation flow parsing. |
+| 2026-05-06 | 1c948cc | support | Added shared JSON recovery helpers for intake and prompt parsing. |
+| 2026-05-06 | cc510e5 | support | Fixed intake quota bookkeeping in the Gemini repair fallback path. |
+| 2026-05-06 | 32664ab | support | Hardened Drive long-press selection guard. |
 
 ## Legacy Foundation Checkpoints
 
@@ -87,3 +94,4 @@ These commits predate the task-tagged commit convention but still document actua
 - `24d5a1b` refreshes the lock docs and backlog for the current repo state; it is a support checkpoint, not feature completion.
 - `11efa04` and `d7e86bc` are follow-up commits on already-completed tasks; they do not change the current backlog completion snapshot.
 - `2ca104d` and `66c09ee` are docs and baseline sync checkpoints, not feature completion by themselves.
+- `6f0bd1c`, `1c948cc`, `cc510e5`, and `32664ab` are support commits that keep the repo consistent after the task-backed feature batches.

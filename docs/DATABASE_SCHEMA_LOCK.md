@@ -24,10 +24,13 @@ create type ai_task_type as enum ('VISION_ANALYSIS', 'I2I_PROMPT', 'I2V_PROMPT',
 create type gemini_key_role as enum ('VISION_ANALYSIS', 'I2I_PROMPT', 'I2V_PROMPT', 'CONSISTENCY_CHECK', 'PROMPT_REPAIR', 'FALLBACK');
 create type workspace_status as enum ('ACTIVE', 'ARCHIVED');
 create type product_status as enum ('DRAFT', 'IMAGE_ATTACHED', 'IMAGE_ANALYZED', 'PROMPT_READY', 'IN_PRODUCTION', 'READY_FOR_UPLOAD', 'UPLOADED', 'ARCHIVED');
-create type intake_status as enum ('DRAFT', 'SUBMITTED', 'NEEDS_REVIEW', 'REVIEWED', 'ANCHOR_READY');
+create type intake_status as enum ('DRAFT', 'SUBMITTED', 'NEEDS_REVIEW', 'REVIEWED', 'ANCHOR_READY', 'ARCHIVED', 'ERROR');
 create type prompt_pack_status as enum ('DRAFT', 'QUEUED', 'GENERATING', 'GENERATED', 'NEEDS_REVIEW', 'APPROVED', 'ARCHIVED', 'ERROR');
 create type flow_batch_status as enum ('DRAFT', 'READY_TO_EXPORT', 'EXPORTED', 'RUNNING', 'IMPORTING', 'PARTIALLY_IMPORTED', 'IMPORTED', 'NEED_MANUAL_MATCH', 'CLOSED');
 create type drive_item_kind as enum ('SOURCE_IMAGE', 'SCREENSHOT', 'ANALYSIS', 'PROMPT_REFERENCE', 'I2I_RESULT', 'RAW_CLIP', 'FINAL_VIDEO', 'BATCH_EXPORT', 'MANIFEST', 'UPLOAD_PACKAGE', 'OTHER');
+create type marketplace_platform as enum ('SHOPEE', 'TIKTOK');
+create type marketplace_source_status as enum ('DRAFT', 'ACTIVE', 'NEEDS_REVIEW', 'ARCHIVED', 'ERROR');
+create type product_anchor_status as enum ('DRAFT', 'READY', 'USED_FOR_PROMPT', 'ARCHIVED', 'ERROR');
 create type affiliate_platform as enum ('TIKTOK', 'SHOPEE', 'OTHER');
 create type affiliate_profile_status as enum ('ACTIVE', 'PAUSED', 'ARCHIVED');
 create type upload_status as enum ('DRAFT', 'READY_TO_UPLOAD', 'UPLOADED', 'FAILED');
@@ -242,9 +245,12 @@ niche text
 marketplace text
 marketplace_product_link text
 status product_status
+workflow_status_json jsonb not null default '{"video_generated": false, "uploaded_shopee": false, "uploaded_tiktok": false}'::jsonb
 created_at timestamptz
 updated_at timestamptz
 ```
+
+`workflow_status_json` stores manual product management markers for the mobile `/products` surface. Prompt-ready remains derived from prompt packs, and final clip upload stays manual outside the app.
 
 ### `product_images`
 
@@ -283,23 +289,33 @@ updated_at timestamptz
 
 ### `product_marketplace_sources`
 
-Manual marketplace references and screenshot notes.
+Marketplace evidence rows for Shopee and TikTok screenshots.
 
 ```text
 id uuid pk
 user_id uuid fk auth.users
 workspace_id uuid nullable composite fk workspaces(id, user_id)
 product_id uuid fk products
-source_type text
-source_url text
-source_title text
-notes text
-drive_item_ref_id uuid nullable fk drive_items
+platform marketplace_platform
+product_url text nullable
+affiliate_url text nullable
+title text nullable
+category text nullable
+rating_text text nullable
+sold_count_text text nullable
+price_text text nullable
+shop_name text nullable
+screenshot_drive_item_ref_id uuid nullable composite fk drive_items(id, user_id)
+parsed_metadata_json jsonb nullable
+status marketplace_source_status
+notes text nullable
 created_at timestamptz
 updated_at timestamptz
 ```
 
-Do not claim visual parsing from `source_url` when image bytes are not available.
+Rows are unique per `(user_id, product_id, platform)`. OCR-derived fields must come from uploaded image bytes and `parsed_metadata_json` must retain the diagnostic OCR evidence when Gemini vision is used.
+
+Do not claim visual parsing from `product_url` or `affiliate_url` when image bytes are not available.
 
 ### `product_anchors`
 

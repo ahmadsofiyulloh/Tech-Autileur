@@ -11,10 +11,10 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S2-001, S2-002, S2-003
 - S3-001, S3-002, S3-003
 - S4-001, S4-002, S4-003, S4-004, S4-005
-- S5-001, S5-002
+- S5-001, S5-002, S5-003, S5-004
 - S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009, S6-010, S6-011, S6-012
 - S7-001
-- S8-001, S8-002, S8-003, S8-004, S8-005
+- S8-001, S8-002, S8-003, S8-004, S8-005, S8-006, S8-007
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 
 ## S0 - Docs and Source of Truth Sync
@@ -159,6 +159,16 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Acceptance:** output download uses Drive links/folders, not server ZIP.
 
+### S5-003 - Mobile product workflow tabs and skeleton _(DONE)_
+**Goal:** Refactor `/products` for mobile-first workflow tabs, `Draf` continue entrypoint, one-badge cards, search, and matching loading skeleton.
+**Owner:** Codex
+**Acceptance:** tab labels are one word only, `Draf` shows a visible `Lanjutkan` CTA, `Upload` reveals `Shopee`/`TikTok`/`Keduanya` subfilters, search covers product name/code/workspace/marketplace/status context, mobile cards stay compact with one primary badge plus a short context line, and the loading skeleton matches the new tab structure.
+
+### S5-004 - Mobile product status bottom sheet _(DONE)_
+**Goal:** Add an overflow action that opens a mobile bottom sheet for status-only manual workflow flags.
+**Owner:** Codex
+**Acceptance:** overflow exposes `Ubah status`, the sheet uses native switch rows for `Video`, `Shopee`, and `TikTok`, prompt-ready stays derived from prompt packs, no copy UI or duplicate status summary is shown, and no in-app clip upload or big `/products/[id]` refactor is introduced.
+
 ## S6 - Pengaturan Hub
 
 ### S6-001 - Workspace and affiliate settings _(DONE)_
@@ -253,4 +263,14 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S8-005 - Mobile Drive selection hardening _(DONE)_
 **Goal:** Keep Drive grid long-press selection persistent on mobile and align the shell chrome color used by the PWA.
 **Owner:** Codex
-**Acceptance:** long-press on Drive commits client-side multi-select and survives release or small pointer movement, tap still opens preview when selection mode is off, the light mobile themeColor uses `#f6fbff`, and the associated smoke coverage remains stable.
+**Acceptance:** long-press on Drive commits client-side multi-select and survives release or small pointer movement, tap still opens preview when selection mode is off, the light mobile themeColor uses `#f8fbfd`, and the associated smoke coverage remains stable.
+
+### S8-006 - Global activity feedback and loading progress _(DONE)_
+**Goal:** Make long-running actions across the app use the same bottom-native feedback dock, pending banners, and visible progress estimate where the workflow is still loading.
+**Owner:** Codex
+**Acceptance:** analysis and prompt generation actions surface a shared loading banner with an estimated progress percentage, flash messages appear once in the bottom feedback dock instead of duplicating inline, auth routes keep their own inline banners, and the dock stays clear of the mobile bottom nav.
+
+### S8-007 - OCR evidence hardening _(DONE)_
+**Goal:** Make intake Gemini analysis OCR-first and preserve exact per-image marketplace evidence for downstream prompt generation.
+**Owner:** Codex
+**Acceptance:** Gemini intake schema requires versioned OCR diagnostics, parser preserves exact OCR fields and review flags, marketplace source rows use Shopee/TikTok-specific evidence, prompt pack parsing rejects source product/status mismatches, and no link-only visual parsing is claimed.

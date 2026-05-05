@@ -89,7 +89,17 @@ A prompt pack should include:
 
 ```json
 {
-  "product_analysis": {},
+  "product_analysis": {
+    "product": {
+      "id": "",
+      "product_code": "",
+      "product_name": "",
+      "niche": null,
+      "marketplace": null,
+      "marketplace_product_link": null,
+      "status": ""
+    }
+  },
   "prompt_context": {},
   "i2i_prompts": {
     "clip_1": {
@@ -112,3 +122,5 @@ A prompt pack should include:
   "negative_rules": []
 }
 ```
+
+`product_analysis.product.status` must be present and must mirror the source product record. It is not a model-inferred field.
