@@ -201,6 +201,11 @@ async function AffiliateProfilesQuickSwitchSection({
               icon={Users}
               title="Belum ada profile aktif."
               description="Profile yang terhubung ke workspace ini akan muncul di sini."
+              action={
+                <Link className="button compact primary" href="/settings/affiliate-profiles">
+                  Kelola affiliate profile
+                </Link>
+              }
             />
           )
         ) : (
