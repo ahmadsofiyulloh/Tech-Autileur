@@ -16,7 +16,10 @@ import {
   type PromptPackGenerationOutput,
   type JsonObject,
 } from "../../src/lib/prompts/prompt-pack-contract";
-import { isGeminiTemporaryUnavailableMessage, sanitizeGeminiStatusMessage } from "../../src/lib/gemini/error-message";
+import {
+  isGeminiTemporaryUnavailableMessage,
+  sanitizeGeminiStatusMessage,
+} from "../../src/lib/gemini/error-message";
 import { isAffiliateProfileSchemaMissingError } from "../../src/lib/affiliate-profiles/schema-errors";
 import {
   getAffiliateProfileAssetAnalysisState,
@@ -668,4 +671,24 @@ test("Gemini temporary unavailable status is retryable", () => {
     "Gemini service is temporarily unavailable.",
   );
   expect(isGeminiTemporaryUnavailableMessage("Gemini service is temporarily unavailable.")).toBe(true);
+});
+
+test("route toaster replays identical toasts after dismissal", async ({ page }) => {
+  await page.goto("/settings/account");
+
+  const createTokenButton = page.getByRole("button", { name: "Buat token" });
+  const saveHashButton = page.getByRole("button", { name: "Simpan hash" });
+  const successToast = page.locator('.toast[data-tone="success"]');
+
+  await createTokenButton.click();
+  await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
+  await saveHashButton.click();
+  await expect(successToast).toContainText("App API Token saved");
+  await page.getByRole("button", { name: "Tutup notifikasi" }).click();
+  await expect(successToast).toHaveCount(0);
+
+  await createTokenButton.click();
+  await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
+  await saveHashButton.click();
+  await expect(page.locator('.toast[data-tone="success"]').last()).toContainText("App API Token saved");
 });

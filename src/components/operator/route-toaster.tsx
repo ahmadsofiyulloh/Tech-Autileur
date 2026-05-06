@@ -13,6 +13,7 @@ type ToastTone = "success" | "error" | "warning" | "info";
 
 type Toast = {
   id: string;
+  key: string;
   message: string;
   tone: ToastTone;
 };
@@ -28,7 +29,7 @@ export function RouteToaster() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const lastToastKey = useRef("");
+  const activeToastKeys = useRef(new Set<string>());
   const suppressToasts = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
   useEffect(() => {
@@ -50,15 +51,25 @@ export function RouteToaster() {
     const toastMessage = retryableGeminiError ? getGeminiTemporaryUnavailableRetryMessage() : value;
     const key = `${pathname}:${tone}:${toastMessage}`;
 
-    if (lastToastKey.current === key) {
+    if (activeToastKeys.current.has(key)) {
       return;
     }
 
-    lastToastKey.current = key;
+    activeToastKeys.current.add(key);
     const id = `${Date.now()}-${tone}`;
-    setToasts((current) => [{ id, tone, message: toastMessage }, ...current].slice(0, 3));
+    setToasts((current) => {
+      const next = [{ id, key, tone, message: toastMessage }, ...current];
+      const trimmed = next.slice(0, 3);
+
+      for (const removedToast of next.slice(3)) {
+        activeToastKeys.current.delete(removedToast.key);
+      }
+
+      return trimmed;
+    });
 
     const timeout = window.setTimeout(() => {
+      activeToastKeys.current.delete(key);
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);
 
@@ -90,7 +101,10 @@ export function RouteToaster() {
               aria-label="Tutup notifikasi"
               className="toast__close"
               type="button"
-              onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}
+              onClick={() => {
+                activeToastKeys.current.delete(toast.key);
+                setToasts((current) => current.filter((item) => item.id !== toast.id));
+              }}
             >
               <X aria-hidden="true" size={15} />
             </button>

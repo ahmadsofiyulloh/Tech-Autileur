@@ -13,6 +13,7 @@ type PendingActionButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
   pendingLabel?: string;
   estimatedDurationMs?: number;
+  pendingOverride?: boolean;
 };
 
 const activityIcons = {
@@ -36,6 +37,7 @@ export function PendingActionButton({
   disabled,
   estimatedDurationMs = 12000,
   pendingLabel,
+  pendingOverride,
   type = "submit",
   ...buttonProps
 }: PendingActionButtonProps) {
@@ -43,9 +45,10 @@ export function PendingActionButton({
   const { registerActivity, clearActivity } = useActivityFeedback();
   const activityId = useId();
   const Icon = activityIcons[activityKind];
+  const isPending = pendingOverride ?? pending;
 
   useEffect(() => {
-    if (!pending) {
+    if (!isPending) {
       clearActivity(activityId);
       return;
     }
@@ -58,7 +61,7 @@ export function PendingActionButton({
       startedAt: Date.now(),
       estimatedDurationMs,
     });
-  }, [activityDescription, activityId, activityKind, activityTitle, clearActivity, estimatedDurationMs, pending, registerActivity]);
+  }, [activityDescription, activityId, activityKind, activityTitle, clearActivity, estimatedDurationMs, isPending, registerActivity]);
 
   useEffect(
     () => () => {
@@ -71,11 +74,11 @@ export function PendingActionButton({
     <button
       {...buttonProps}
       className={joinClassNames("button", className?.replace(/\bbutton\b/g, "").replace(/\s+/g, " ").trim())}
-      disabled={disabled || pending}
+      disabled={disabled || isPending}
       type={type}
     >
-      {pending ? <Loader2 size={16} aria-hidden="true" className="spin" /> : Icon ? <Icon size={16} aria-hidden="true" /> : null}
-      {pending ? pendingLabel ?? "Memproses" : children}
+      {isPending ? <Loader2 size={16} aria-hidden="true" className="spin" /> : Icon ? <Icon size={16} aria-hidden="true" /> : null}
+      {isPending ? pendingLabel ?? "Memproses" : children}
     </button>
   );
 }

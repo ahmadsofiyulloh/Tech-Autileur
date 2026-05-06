@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
@@ -39,6 +40,26 @@ type DriveItemOption = {
   label: string;
   description: string;
 };
+
+type ReanalysisKind = "CHARACTER" | "ENVIRONMENT";
+type RouteFeedbackTone = "success" | "warning" | "error";
+type RouteFeedback = {
+  tone: RouteFeedbackTone;
+  title: string;
+  message: string;
+};
+
+function routeFeedbackTitle(tone: RouteFeedbackTone) {
+  if (tone === "error") {
+    return "Gagal";
+  }
+
+  if (tone === "warning") {
+    return "Perhatian";
+  }
+
+  return "Selesai";
+}
 
 function profileMatchesQuery(profile: AffiliateProfileRecord, query: string) {
   const value = query.trim().toLowerCase();
@@ -109,15 +130,35 @@ export function AffiliateProfilesBoard({
   driveItems,
   currentWorkspaceId,
 }: AffiliateProfilesBoardProps) {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [selectedProfileId, setSelectedProfileId] = useState(profiles.find(isVisibleProfile)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pendingReanalysisKind, setPendingReanalysisKind] = useState<ReanalysisKind | null>(null);
 
   const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE"), [workspaces]);
   const visibleProfiles = useMemo(() => profiles.filter(isVisibleProfile), [profiles]);
   const filteredProfiles = useMemo(() => visibleProfiles.filter((profile) => profileMatchesQuery(profile, query)), [query, visibleProfiles]);
   const activeProfileCount = useMemo(() => visibleProfiles.filter((profile) => profile.status === "ACTIVE").length, [visibleProfiles]);
+  const routeFeedback = useMemo<RouteFeedback | null>(() => {
+    const error = searchParams.get("error")?.trim();
+    const warning = searchParams.get("warning")?.trim();
+    const message = searchParams.get("message")?.trim();
+    const value = error || warning || message;
+
+    if (!value) {
+      return null;
+    }
+
+    const tone: RouteFeedbackTone = error ? "error" : warning ? "warning" : "success";
+
+    return {
+      tone,
+      title: routeFeedbackTitle(tone),
+      message: value,
+    };
+  }, [searchParams]);
   const selectedProfile =
     isCreating
       ? null
@@ -164,6 +205,18 @@ export function AffiliateProfilesBoard({
     setDrawerOpen(false);
   }
 
+  useEffect(() => {
+    if (!drawerOpen) {
+      setPendingReanalysisKind(null);
+    }
+  }, [drawerOpen]);
+
+  useEffect(() => {
+    if (routeFeedback) {
+      setPendingReanalysisKind(null);
+    }
+  }, [routeFeedback]);
+
   const namespaceWorkspaceId =
     (selectedProfile?.default_workspace_id ?? selectedProfile?.workspace_ids[0] ?? currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "") || "";
   const selectedSeedCharacterDriveItem = useMemo(
@@ -179,6 +232,7 @@ export function AffiliateProfilesBoard({
   const selectedEnvironmentPreviewUrl =
     selectedEnvironmentDriveItem?.mime_type?.startsWith("image/") ? selectedEnvironmentDriveItem.drive_url : null;
   const initialProfile = selectedProfile ?? null;
+  const visiblePendingReanalysisKind = routeFeedback ? null : pendingReanalysisKind;
   const seedCharacterAnalysisState = getAffiliateProfileAssetAnalysisState({
     locked: initialProfile?.lock_seed_character ?? true,
     driveItemRefId: initialProfile?.seed_character_drive_item_ref_id,
@@ -219,6 +273,13 @@ export function AffiliateProfilesBoard({
             Profile baru
           </button>
         </div>
+
+        {!drawerOpen && routeFeedback ? (
+          <div className="settings-action-feedback" data-tone={routeFeedback.tone} role={routeFeedback.tone === "error" ? "alert" : "status"} aria-live={routeFeedback.tone === "error" ? "assertive" : "polite"}>
+            <strong>{routeFeedback.title}</strong>
+            <span className="subtle">{routeFeedback.message}</span>
+          </div>
+        ) : null}
 
         <div className="table-wrap products-table-desktop">
           <table className="data-table product-table">
@@ -344,6 +405,12 @@ export function AffiliateProfilesBoard({
 
         {drawerOpen ? (
           <>
+            {routeFeedback ? (
+              <div className="settings-action-feedback" data-tone={routeFeedback.tone} role={routeFeedback.tone === "error" ? "alert" : "status"} aria-live={routeFeedback.tone === "error" ? "assertive" : "polite"}>
+                <strong>{routeFeedback.title}</strong>
+                <span className="subtle">{routeFeedback.message}</span>
+              </div>
+            ) : null}
             {!isCreating && initialProfile ? (
               <>
                 <form hidden id="reanalyze-seed-character-form" action={reanalyzeAffiliateProfileAsset}>
@@ -403,10 +470,19 @@ export function AffiliateProfilesBoard({
                   </div>
                   <StatusBadge status={overallAnalysisState === "PENDING" ? "Analisis pending" : "Analisis siap"} tone={overallAnalysisState === "PENDING" ? "warning" : "success"} />
                 </div>
-                <div className="grid two-up">
-                  <section className="stack-tight">
+                {visiblePendingReanalysisKind ? (
+                  <div className="settings-action-feedback" data-tone="warning" role="status" aria-live="polite">
+                    <strong>
+                      {visiblePendingReanalysisKind === "CHARACTER" ? "Menganalisis Character" : "Menganalisis Environment"}
+                    </strong>
+                    <span className="subtle">Menunggu Gemini memproses bytes Drive dan menyimpan JSON.</span>
+                  </div>
+                ) : null}
+                <div className="affiliate-profile-assets-grid">
+                  <section className="affiliate-profile-asset-card stack-tight">
                     <ImagePreviewUploadCard
                       clearName="clear_seed_character_drive_item_ref_id"
+                      className="affiliate-profile-asset-card__preview"
                       emptyTitle="Belum ada karakter"
                       removedTitle="Referensi dihapus"
                       label="Character"
@@ -443,19 +519,22 @@ export function AffiliateProfilesBoard({
                         activityDescription="Membaca bytes Drive dan menyimpan JSON Character."
                         activityKind="analysis"
                         activityTitle="Menganalisis Character"
-                        className="button compact tertiary"
+                        className="button compact tertiary affiliate-profile-asset-card__reanalyse"
                         disabled={characterAnalysisDisabled}
                         form="reanalyze-seed-character-form"
                         pendingLabel="Menganalisis..."
+                        pendingOverride={visiblePendingReanalysisKind === "CHARACTER"}
+                        onClick={() => setPendingReanalysisKind("CHARACTER")}
                       >
                         Analisis ulang
                       </PendingActionButton>
                     ) : null}
                   </section>
 
-                  <section className="stack-tight">
+                  <section className="affiliate-profile-asset-card stack-tight">
                     <ImagePreviewUploadCard
                       clearName="clear_environment_drive_item_ref_id"
+                      className="affiliate-profile-asset-card__preview"
                       emptyTitle="Belum ada environment"
                       removedTitle="Referensi dihapus"
                       label="Environment"
@@ -492,10 +571,12 @@ export function AffiliateProfilesBoard({
                         activityDescription="Membaca bytes Drive dan menyimpan JSON Environment."
                         activityKind="analysis"
                         activityTitle="Menganalisis Environment"
-                        className="button compact tertiary"
+                        className="button compact tertiary affiliate-profile-asset-card__reanalyse"
                         disabled={environmentAnalysisDisabled}
                         form="reanalyze-environment-form"
                         pendingLabel="Menganalisis..."
+                        pendingOverride={visiblePendingReanalysisKind === "ENVIRONMENT"}
+                        onClick={() => setPendingReanalysisKind("ENVIRONMENT")}
                       >
                         Analisis ulang
                       </PendingActionButton>

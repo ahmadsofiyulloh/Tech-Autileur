@@ -64,9 +64,10 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
     await expect(page.getByRole("button", { name: "Simpan hash" })).toBeVisible();
     await page.getByRole("button", { name: "Simpan hash" }).click();
-    await expect(page.getByRole("button", { name: "Cabut token" })).toBeEnabled();
+    const revokeTokenButton = page.locator(".desktop-action-set").getByRole("button", { name: "Cabut token" });
+    await expect(revokeTokenButton).toBeEnabled();
     await expect(page.getByText("ACTIVE")).toBeVisible();
-    await page.getByRole("button", { name: "Cabut token" }).click();
+    await revokeTokenButton.click();
     await expect(page.getByText("Belum ada token aktif.")).toBeVisible();
 
     await page.goto("/settings/workspace");
@@ -106,5 +107,57 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(page.locator(".tab-nav")).toHaveCount(0);
   } catch (error) {
     throw classifySmokeError("shell and settings", error);
+  }
+});
+
+test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
+  try {
+    page.on("dialog", (dialog) => {
+      void dialog.accept();
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings/affiliate-profiles", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Akun Affiliate", level: 1 })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
+
+    const affiliateDetailButton = page.getByRole("button", { name: "Detail" });
+    if (await affiliateDetailButton.count()) {
+      await affiliateDetailButton.first().click();
+
+      const drawer = page.getByRole("complementary", { name: "Detail akun affiliate" });
+      await expect(drawer).toBeVisible();
+      await expect(page.locator(".product-drawer__header .product-status-stack")).toBeVisible();
+
+      const assetGrid = page.locator(".affiliate-profile-assets-grid");
+      await expect(assetGrid).toBeVisible();
+
+      const assetCards = assetGrid.locator(".affiliate-profile-asset-card");
+      await expect(assetCards).toHaveCount(2);
+
+      const cardBoxes = await assetCards.evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const rect = node.getBoundingClientRect();
+          return {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          };
+        }),
+      );
+      expect(Math.abs(cardBoxes[0].top - cardBoxes[1].top)).toBeLessThan(10);
+      expect(Math.max(cardBoxes[0].width, cardBoxes[1].width)).toBeLessThan(220);
+
+      const previewFrames = assetGrid.locator(".image-preview-upload-card__frame");
+      await expect(previewFrames).toHaveCount(2);
+
+      const frameHeights = await previewFrames.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+      expect(Math.max(...frameHeights)).toBeLessThan(190);
+
+      await page.keyboard.press("Escape");
+    }
+  } catch (error) {
+    throw classifySmokeError("affiliate profile drawer mobile", error);
   }
 });
