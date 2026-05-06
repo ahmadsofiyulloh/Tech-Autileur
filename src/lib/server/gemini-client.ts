@@ -1,5 +1,6 @@
 import "server-only";
 
+import { sanitizeGeminiStatusMessage } from "@/lib/gemini/error-message";
 import type { GeminiModelName } from "@/lib/gemini/validation";
 
 type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
@@ -80,34 +81,6 @@ function readRetryAfterSeconds(value: string | null) {
 
   const delta = Math.ceil((retryDate.getTime() - Date.now()) / 1000);
   return delta > 0 ? delta : 0;
-}
-
-function sanitizeStatusMessage(status: number, fallback = "Gemini request failed.") {
-  if (status === 401) {
-    return "Gemini authorization failed.";
-  }
-
-  if (status === 403) {
-    return "Gemini access denied.";
-  }
-
-  if (status === 404) {
-    return "Gemini model was not found.";
-  }
-
-  if (status === 408) {
-    return "Gemini request timed out.";
-  }
-
-  if (status === 429) {
-    return "Gemini rate limit reached.";
-  }
-
-  if (status >= 500) {
-    return "Gemini service is temporarily unavailable.";
-  }
-
-  return fallback;
 }
 
 function extractTextFromResponse(body: unknown) {
@@ -221,16 +194,25 @@ export async function generateGeminiJsonText(options: GeminiGenerateContentOptio
 
   if (!response.ok) {
     let errorStatus = response.status;
+    let errorMessage: string | null = null;
     try {
       const body = (await response.json()) as GeminiErrorResponse;
       if (typeof body.error?.code === "number") {
         errorStatus = body.error.code;
       }
+
+      if (typeof body.error?.message === "string" && body.error.message.trim()) {
+        errorMessage = body.error.message.trim();
+      }
     } catch {
       // Ignore response parsing failures and fall back to the HTTP status.
     }
 
-    throw new GeminiClientError(sanitizeStatusMessage(errorStatus), errorStatus, retryAfterSeconds);
+    throw new GeminiClientError(
+      sanitizeGeminiStatusMessage(errorStatus, "Gemini request failed.", errorMessage),
+      errorStatus,
+      retryAfterSeconds,
+    );
   }
 
   const body = (await response.json()) as unknown;

@@ -14,10 +14,12 @@ import {
   normalizeNullableAffiliateProfileUuid,
   readAffiliateProfileText,
   validateAffiliateProfileInput,
+  type JsonObject,
   type AffiliatePlatform,
   type AffiliateProfileInput,
   type AffiliateProfileStatus,
 } from "@/lib/affiliate-profiles/validation";
+import { isAffiliateProfileSchemaMissingError } from "@/lib/affiliate-profiles/schema-errors";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -47,9 +49,11 @@ type AffiliateProfileRow = {
   lock_seed_character: boolean;
   seed_character_notes: string;
   seed_character_drive_item_ref_id: string | null;
+  seed_character_analysis_json: JsonObject | null;
   lock_environment: boolean;
   environment_notes: string;
   environment_drive_item_ref_id: string | null;
+  environment_analysis_json: JsonObject | null;
   status: AffiliateProfileStatus;
   created_at: string;
   updated_at: string;
@@ -81,12 +85,6 @@ type AffiliateProfileUpdateInput = Partial<AffiliateProfileInput> & {
   default_workspace_id?: string | null;
 };
 
-function errorCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-    ? error.code
-    : "";
-}
-
 function errorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -95,24 +93,6 @@ function errorMessage(error: unknown) {
   return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
     ? error.message
     : "Affiliate profile operation failed.";
-}
-
-export function isAffiliateProfileSchemaMissingError(error: unknown) {
-  const message = errorMessage(error).toLowerCase();
-
-  return (
-    errorCode(error) === "42P01" ||
-    errorCode(error) === "42704" ||
-    message.includes("affiliate profile schema is not applied") ||
-    message.includes("schema cache") ||
-    (message.includes("could not find the table") && message.includes("affiliate_profile_workspace_links")) ||
-    (message.includes("could not find the table") && message.includes("affiliate_profiles")) ||
-    (message.includes("relation") && message.includes("affiliate_profiles") && message.includes("does not exist")) ||
-    (message.includes("relation") && message.includes("affiliate_profile_workspace_links") && message.includes("does not exist")) ||
-    (message.includes("type") &&
-      (message.includes("affiliate_platform") || message.includes("affiliate_profile_status")) &&
-      message.includes("does not exist"))
-  );
 }
 
 function affiliateProfileSchemaMissingError() {
@@ -384,9 +364,11 @@ function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) 
     lock_seed_character: boolean;
     seed_character_notes: string;
     seed_character_drive_item_ref_id: string | null;
+    seed_character_analysis_json: JsonObject | null;
     lock_environment: boolean;
     environment_notes: string;
     environment_drive_item_ref_id: string | null;
+    environment_analysis_json: JsonObject | null;
     status: AffiliateProfileStatus;
   }> = {};
 
@@ -470,6 +452,10 @@ function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) 
     );
   }
 
+  if (input.seed_character_analysis_json !== undefined) {
+    payload.seed_character_analysis_json = input.seed_character_analysis_json ?? null;
+  }
+
   if (input.lock_environment !== undefined) {
     payload.lock_environment = input.lock_environment;
   }
@@ -483,6 +469,10 @@ function buildAffiliateProfileUpdatePayload(input: AffiliateProfileUpdateInput) 
       input.environment_drive_item_ref_id,
       "Environment Drive reference must be a valid row id.",
     );
+  }
+
+  if (input.environment_analysis_json !== undefined) {
+    payload.environment_analysis_json = input.environment_analysis_json ?? null;
   }
 
   if (input.status !== undefined) {

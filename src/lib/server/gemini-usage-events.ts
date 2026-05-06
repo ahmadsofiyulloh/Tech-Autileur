@@ -31,6 +31,18 @@ function readOptionalInt(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
+function readGeminiErrorMessage(error: unknown) {
+  if (error instanceof GeminiClientError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return error ? "Gemini request failed." : null;
+}
+
 function readUsageMetadata(raw: unknown) {
   const metadata = isRecord(raw)
     ? isRecord(raw.usageMetadata)
@@ -93,7 +105,7 @@ async function finishGeminiUsageEvent(input: {
   const httpStatus = geminiError?.status ?? null;
   const retryAfterSeconds = geminiError?.retryAfterSeconds ?? null;
   const status = error ? (httpStatus === 429 ? "RATE_LIMITED" : "FAILED") : "SUCCESS";
-  const errorMessage = error instanceof Error ? error.message : error ? "Gemini request failed." : null;
+  const errorMessage = readGeminiErrorMessage(error);
 
   try {
     const serviceClient = createSupabaseServiceRoleClient();

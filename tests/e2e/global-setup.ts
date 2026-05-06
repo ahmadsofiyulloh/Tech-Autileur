@@ -141,8 +141,8 @@ async function upsertSmokeWorkspace(userId: string) {
     workspace_name: "Smoke Workspace",
     niche: "Smoke Testing",
     drive_root_folder_ref_id: null,
-    drive_root_folder_url: "https://drive.google.com/drive/folders/smoke-root-primary",
-    drive_root_folder_path: "/AffiliateAI/WORKSPACES/SMOKE_PRIMARY",
+    drive_root_folder_url: null,
+    drive_root_folder_path: null,
     status: "ACTIVE",
     is_default: true,
     notes: "Seeded by Playwright smoke setup.",
@@ -177,33 +177,28 @@ async function upsertSmokeWorkspace(userId: string) {
 async function seedSmokeData(userId: string) {
   const workspace = await upsertSmokeWorkspace(userId);
 
-  const workspaceRoot = await upsertByNaturalKey(
-    "drive_items",
-    {
-      user_id: userId,
-      drive_item_id: SMOKE_CODES.driveItems.workspaceRoot,
-    },
-    {
-      user_id: userId,
-      item_type: "FOLDER",
-      drive_item_id: SMOKE_CODES.driveItems.workspaceRoot,
-      parent_id: null,
-      parent_drive_item_id: null,
-      name: "Smoke Workspace Root",
-      drive_url: "https://drive.google.com/drive/folders/smoke-root-primary",
-      drive_path: "/AffiliateAI/WORKSPACE/PRIMARY",
-      mime_type: null,
-      size_bytes: null,
-      purpose: "ROOT_FOLDER",
-      status: "ACTIVE",
-      notes: "Seeded workspace root folder.",
-    },
-  );
+  const existingWorkspaceRoot = await selectRow("drive_items", {
+    user_id: userId,
+    drive_item_id: SMOKE_CODES.driveItems.workspaceRoot,
+  });
+
+  if (existingWorkspaceRoot) {
+    const { error: deleteRootError } = await createSmokeServiceClient()
+      .from("drive_items")
+      .delete()
+      .eq("id", existingWorkspaceRoot.id);
+
+    if (deleteRootError) {
+      throw new Error(deleteRootError.message);
+    }
+  }
 
   const { error: workspaceRootUpdateError } = await createSmokeServiceClient()
     .from("workspaces")
     .update({
-      drive_root_folder_ref_id: workspaceRoot.id,
+      drive_root_folder_ref_id: null,
+      drive_root_folder_url: null,
+      drive_root_folder_path: null,
     })
     .eq("id", workspace.id);
 
@@ -318,12 +313,35 @@ async function seedSmokeData(userId: string) {
       niche: "Smoke testing",
       affiliate_url: "https://example.com/smoke-profile",
       notes: "Seeded by Playwright smoke setup.",
-      i2i_prompt_rules: "Write direct frame prompts with clear product emphasis.",
-      i2v_prompt_rules: "Write a concise video motion prompt that stays product focused.",
-      caption_rules: "Keep captions short and operational.",
-      hashtag_rules: "#smoke #qa #affiliate",
-      negative_prompt_rules: "No blur, no watermark, no text artifacts.",
-      product_positioning_notes: "Product first. Keep the product readable.",
+      i2i_prompt_rules: [
+        "Keep the product as the main subject in every frame.",
+        "Preserve product shape, label, and color accuracy.",
+        "Use the locked character and environment without changing identity.",
+        "Avoid extra props, duplicate products, clutter, and text overlays.",
+        "Keep composition clean, commercial, and easy to read.",
+      ].join("\n"),
+      i2v_prompt_rules: [
+        "Keep motion subtle and continuous across the clip.",
+        "Preserve product identity, angle, and lighting continuity.",
+        "Do not introduce cuts, abrupt zooms, or scene changes.",
+        "Use the locked character and environment consistently.",
+      ].join("\n"),
+      caption_rules: [
+        "Open with one clear hook.",
+        "State one benefit and one simple call to action.",
+        "Keep the caption short, natural, and non-spammy.",
+      ].join("\n"),
+      hashtag_rules: "#smoke #qa #affiliate #testing",
+      negative_prompt_rules: [
+        "No blur, no watermark, and no text artifacts.",
+        "No warped anatomy, broken hands, or duplicate objects.",
+        "No clutter, noise, overexposure, or low-resolution output.",
+      ].join("\n"),
+      product_positioning_notes: [
+        "Lead with the product.",
+        "Keep the product readable at a glance.",
+        "Do not let background elements dominate the frame.",
+      ].join("\n"),
       lock_seed_character: true,
       seed_character_notes: "Smoke seed character reference.",
       seed_character_drive_item_ref_id: seedCharacter.id,
@@ -481,13 +499,119 @@ async function seedSmokeData(userId: string) {
     product,
     intake,
     driveItems: {
-      workspaceRoot,
       seedCharacter,
       environment,
       productImage: productImageRow,
       shopeeScreenshot,
     },
   };
+}
+
+async function seedSmokeGeminiKeys(userId: string) {
+  const client = createSmokeServiceClient();
+  const { data: existingSmokeKey, error: existingSmokeKeyError } = await client
+    .from("gemini_api_keys")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "ACTIVE")
+    .eq("role", "VISION_ANALYSIS")
+    .limit(1)
+    .maybeSingle();
+
+  if (existingSmokeKeyError) {
+    throw new Error(existingSmokeKeyError.message);
+  }
+
+  if (existingSmokeKey) {
+    return;
+  }
+
+  const { data: sourceKey, error: sourceKeyError } = await client
+    .from("gemini_api_keys")
+    .select("user_id")
+    .neq("user_id", userId)
+    .eq("status", "ACTIVE")
+    .eq("role", "VISION_ANALYSIS")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (sourceKeyError) {
+    throw new Error(sourceKeyError.message);
+  }
+
+  if (!sourceKey?.user_id) {
+    throw new Error("No Gemini key source was found for smoke setup.");
+  }
+
+  const { data: sourceKeys, error: sourceKeysError } = await client
+    .from("gemini_api_keys")
+    .select(
+      "id, user_id, key_code, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, requests_today, last_used_at, cooldown_until, status, notes",
+    )
+    .eq("user_id", sourceKey.user_id)
+    .order("created_at", { ascending: true });
+
+  if (sourceKeysError) {
+    throw new Error(sourceKeysError.message);
+  }
+
+  const { data: sourceSecrets, error: sourceSecretsError } = await client
+    .from("gemini_api_key_secrets")
+    .select("gemini_api_key_id, encrypted_api_key")
+    .eq("user_id", sourceKey.user_id);
+
+  if (sourceSecretsError) {
+    throw new Error(sourceSecretsError.message);
+  }
+
+  const secretMap = new Map((sourceSecrets ?? []).map((secret) => [secret.gemini_api_key_id, secret.encrypted_api_key]));
+
+  for (const source of sourceKeys ?? []) {
+    const smokeKeyCode = source.key_code.startsWith("SMOKE_") ? source.key_code : `SMOKE_${source.key_code}`;
+    const smokeKey = await upsertByNaturalKey(
+      "gemini_api_keys",
+      {
+        user_id: userId,
+        key_code: smokeKeyCode,
+      },
+      {
+        user_id: userId,
+        key_code: smokeKeyCode,
+        label: source.label,
+        provider: source.provider,
+        google_account_label: source.google_account_label,
+        project_label: source.project_label,
+        model_name: source.model_name,
+        role: source.role,
+        rpm_limit: source.rpm_limit,
+        rpd_limit: source.rpd_limit,
+        tpm_limit: source.tpm_limit,
+        requests_today: 0,
+        last_used_at: null,
+        cooldown_until: null,
+        status: source.status,
+        notes: source.notes,
+      },
+    );
+    const encryptedApiKey = secretMap.get(source.id);
+
+    if (!encryptedApiKey) {
+      throw new Error(`Missing Gemini secret for smoke seed key ${source.key_code}.`);
+    }
+
+    await upsertByNaturalKey(
+      "gemini_api_key_secrets",
+      {
+        gemini_api_key_id: smokeKey.id,
+      },
+      {
+        user_id: userId,
+        gemini_api_key_id: smokeKey.id,
+        encrypted_api_key: encryptedApiKey,
+      },
+    );
+  }
 }
 
 async function clearSmokeRuntimeData(userId: string) {
@@ -522,6 +646,7 @@ export default async function globalSetup() {
   const userId = await ensureSmokeUser(smokeEmail, smokePassword);
   await clearSmokeRuntimeData(userId);
   const seed = await seedSmokeData(userId);
+  await seedSmokeGeminiKeys(userId);
 
   await writeSmokeBootstrapState({
     run_tag: runTag,
@@ -551,7 +676,7 @@ export default async function globalSetup() {
       code: seed.intake.intake_code as string,
     },
     drive_items: {
-      workspace_root_id: seed.driveItems.workspaceRoot.id,
+      workspace_root_id: null,
       seed_character_id: seed.driveItems.seedCharacter.id,
       environment_id: seed.driveItems.environment.id,
       product_image_id: seed.driveItems.productImage.id,

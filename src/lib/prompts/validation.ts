@@ -36,6 +36,16 @@ export const PROMPT_PACK_OUTPUT_KEYS = [
   "environment",
 ] as const;
 
+export const PROMPT_PACK_COMPACT_OUTPUT_KEYS = [
+  "product_analysis",
+  "i2i_prompts",
+  "i2v_prompts",
+  "caption",
+  "tags",
+  "negative_prompt_rules",
+  "consistency_rules",
+] as const;
+
 export type PromptPackStatus = (typeof PROMPT_PACK_STATUSES)[number];
 export type PromptClipKey = (typeof PROMPT_CLIP_KEYS)[number];
 

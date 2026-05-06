@@ -1,14 +1,12 @@
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
+import { isAffiliateProfileSchemaMissingError } from "@/lib/affiliate-profiles/schema-errors";
 import { AffiliateProfilesBoard } from "./affiliate-profiles-board";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
 import {
-  isAffiliateProfileSchemaMissingError,
-  listAffiliateProfileWorkspaceLinks,
   listAffiliateProfiles,
   type AffiliateProfileRecord,
-  type AffiliateProfileWorkspaceLinkRecord,
 } from "@/lib/server/affiliate-profiles";
 import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError, type WorkspaceSelectionState } from "@/lib/server/workspaces";
@@ -33,7 +31,6 @@ export default async function AffiliateProfilesSettingsPage() {
   let workspaceState: WorkspaceSelectionState | null = null;
   let workspaceError: string | null = null;
   let affiliateProfiles: AffiliateProfileRecord[] = [];
-  let affiliateProfileLinks: AffiliateProfileWorkspaceLinkRecord[] = [];
   let affiliateProfileSchemaMissing = false;
   let affiliateProfileLoadError: string | null = null;
   let driveItems: DriveItemRecord[] = [];
@@ -47,7 +44,6 @@ export default async function AffiliateProfilesSettingsPage() {
 
   try {
     affiliateProfiles = await listAffiliateProfiles({ limit: 200 });
-    affiliateProfileLinks = await listAffiliateProfileWorkspaceLinks({ limit: 500 });
   } catch (error) {
     affiliateProfileSchemaMissing = isAffiliateProfileSchemaMissingError(error);
     affiliateProfileLoadError = affiliateProfileSchemaMissing ? "Apply the local Sprint 13 migration before using affiliate profiles." : errorMessage(error);
@@ -77,15 +73,12 @@ export default async function AffiliateProfilesSettingsPage() {
         <EmptyState icon={Users} title="Affiliate profiles unavailable." description={affiliateProfileLoadError} />
       ) : workspaceError ? (
         <EmptyState icon={Users} title="Workspace schema pending." description={workspaceError} />
-      ) : !workspaces.length ? (
-        <EmptyState icon={Users} title="Buat workspace dulu." description="Workspace diperlukan." />
       ) : driveItemsError ? (
         <EmptyState icon={Users} title="Drive references unavailable." description={driveItemsError} />
       ) : (
         <AffiliateProfilesBoard
           currentWorkspaceId={currentWorkspace?.id ?? null}
           driveItems={driveItems}
-          profileLinks={affiliateProfileLinks}
           profiles={affiliateProfilesWithAvatars}
           workspaces={workspaces}
         />

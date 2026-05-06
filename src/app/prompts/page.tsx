@@ -23,6 +23,7 @@ type ProductRecord = Awaited<ReturnType<typeof listProducts>>[number];
 type IntakeSessionRecord = Awaited<ReturnType<typeof listIntakeSessions>>[number];
 type ProductImageRecord = Awaited<ReturnType<typeof listProductImages>>[number];
 type DriveItemRecord = Awaited<ReturnType<typeof listDriveItems>>[number];
+type AffiliateProfileRecord = Awaited<ReturnType<typeof listAffiliateProfiles>>[number];
 type PromptTaskRecord = {
   id: string;
   status: string;
@@ -41,6 +42,36 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function ruleLines(value: string | null | undefined) {
+  return typeof value === "string"
+    ? value
+        .split(/\r?\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+}
+
+function isAffiliateProfilePromptReady(profile: AffiliateProfileRecord | null) {
+  if (!profile || profile.status !== "ACTIVE") {
+    return false;
+  }
+
+  const rulesReady =
+    ruleLines(profile.i2i_prompt_rules).length > 0 &&
+    ruleLines(profile.i2v_prompt_rules).length > 0 &&
+    ruleLines(profile.caption_rules).length > 0 &&
+    ruleLines(profile.hashtag_rules).length > 0 &&
+    ruleLines(profile.negative_prompt_rules).length > 0 &&
+    ruleLines(profile.product_positioning_notes).length > 0;
+
+  const characterReady =
+    !profile.lock_seed_character || (Boolean(profile.seed_character_drive_item_ref_id) && Boolean(profile.seed_character_analysis_json));
+  const environmentReady =
+    !profile.lock_environment || (Boolean(profile.environment_drive_item_ref_id) && Boolean(profile.environment_analysis_json));
+
+  return rulesReady && characterReady && environmentReady && profile.workspace_ids.length > 0;
+}
+
 function PromptPackCreateForm({
   product,
   intakeSession,
@@ -49,10 +80,14 @@ function PromptPackCreateForm({
 }: {
   product: ProductRecord;
   intakeSession: IntakeSessionRecord | null;
-  affiliateProfile: { id: string; profile_name: string } | null;
+  affiliateProfile: AffiliateProfileRecord | null;
   sourceImage: ProductImageRecord | null;
 }) {
-  const canCreate = Boolean(intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED");
+  const canCreate = Boolean(
+    (intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED") &&
+      sourceImage?.drive_item_ref_id &&
+      isAffiliateProfilePromptReady(affiliateProfile),
+  );
 
   return (
     <form className="prompt-list-card__action-form" action={savePromptPack}>
@@ -94,7 +129,7 @@ function PromptRowCard({
   workspaceName: string;
   promptPack: PromptPackRecord | null;
   intakeSession: IntakeSessionRecord | null;
-  affiliateProfile: { id: string; profile_name: string } | null;
+  affiliateProfile: AffiliateProfileRecord | null;
   sourceImage: ProductImageRecord | null;
   sourceImageDriveItem: DriveItemRecord | null;
   generationTask: PromptTaskRecord | null;

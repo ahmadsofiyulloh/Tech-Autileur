@@ -8,6 +8,10 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+type WindowWithBeforeInstallPrompt = Window & {
+  __aicosBeforeInstallPromptEvent?: BeforeInstallPromptEvent | null;
+};
+
 function isStandaloneDisplay() {
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
 
@@ -32,6 +36,7 @@ export function PwaInstallCard() {
 
   useEffect(() => {
     const displayModeQuery = window.matchMedia("(display-mode: standalone)");
+    const windowWithPrompt = window as WindowWithBeforeInstallPrompt;
 
     function syncDisplayMode() {
       setIsInstalled(isStandaloneDisplay());
@@ -39,24 +44,34 @@ export function PwaInstallCard() {
 
     function handleBeforeInstallPrompt(event: Event) {
       event.preventDefault();
-      setDeferredPrompt(event as BeforeInstallPromptEvent);
+      const installPrompt = event as BeforeInstallPromptEvent;
+      windowWithPrompt.__aicosBeforeInstallPromptEvent = installPrompt;
+      setDeferredPrompt(installPrompt);
     }
 
     function handleInstalled() {
+      windowWithPrompt.__aicosBeforeInstallPromptEvent = null;
       setDeferredPrompt(null);
       setIsInstalled(true);
     }
 
     syncDisplayMode();
     setIsIos(isIosSafari());
+    setDeferredPrompt(windowWithPrompt.__aicosBeforeInstallPromptEvent ?? null);
     setIsReady(true);
 
+    const handleBridgeBeforeInstallPrompt = () => {
+      setDeferredPrompt(windowWithPrompt.__aicosBeforeInstallPromptEvent ?? null);
+    };
+
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("aicos-beforeinstallprompt", handleBridgeBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleInstalled);
     displayModeQuery.addEventListener("change", syncDisplayMode);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("aicos-beforeinstallprompt", handleBridgeBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);
       displayModeQuery.removeEventListener("change", syncDisplayMode);
     };

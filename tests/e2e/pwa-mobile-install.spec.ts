@@ -52,8 +52,8 @@ test("manifest exposes Phase 1 install metadata and screenshot assets", async ({
     expect(manifest.start_url).toBe("/products/new");
     expect(manifest.scope).toBe("/");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.theme_color).toBe("#f6fbff");
-    expect(manifest.background_color).toBe("#f6fbff");
+    expect(manifest.theme_color).toBe("#f8fbfd");
+    expect(manifest.background_color).toBe("#f8fbfd");
     expect(manifest.categories).toEqual(expect.arrayContaining(["business", "productivity"]));
     expect(manifest.icons?.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable")).toBe(true);
 
@@ -84,7 +84,7 @@ test("mobile intake shell has install-ready head tags and no horizontal overflow
       viewport: document.querySelector<HTMLMetaElement>('meta[name="viewport"]')?.content ?? null,
     }));
     expect(headState.manifestHref).toBe("/manifest.webmanifest");
-    expect(headState.themeColor).toBe("#f6fbff");
+    expect(headState.themeColor).toBe("#f8fbfd");
     expect(headState.viewport).toContain("viewport-fit=cover");
     expect(headState.appleCapable).toBe("yes");
 

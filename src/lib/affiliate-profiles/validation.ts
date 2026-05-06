@@ -5,6 +5,9 @@ export const AFFILIATE_PROFILE_STATUSES = ["ACTIVE", "PAUSED", "ARCHIVED"] as co
 export type AffiliatePlatform = (typeof AFFILIATE_PLATFORMS)[number];
 export type AffiliateProfileStatus = (typeof AFFILIATE_PROFILE_STATUSES)[number];
 
+type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+
 export type AffiliateProfileInput = {
   profile_code?: string | null;
   profile_name: string;
@@ -22,9 +25,11 @@ export type AffiliateProfileInput = {
   lock_seed_character?: boolean;
   seed_character_notes?: string | null;
   seed_character_drive_item_ref_id?: string | null;
+  seed_character_analysis_json?: JsonObject | null;
   lock_environment?: boolean;
   environment_notes?: string | null;
   environment_drive_item_ref_id?: string | null;
+  environment_analysis_json?: JsonObject | null;
   status?: string;
 };
 
@@ -136,12 +141,14 @@ export function validateAffiliateProfileInput(input: AffiliateProfileInput) {
       input.seed_character_drive_item_ref_id,
       "Seed character Drive reference must be a valid row id.",
     ),
+    seed_character_analysis_json: input.seed_character_analysis_json ?? null,
     lock_environment: input.lock_environment ?? true,
     environment_notes: normalizeAffiliateProfileRulesText(input.environment_notes),
     environment_drive_item_ref_id: normalizeNullableAffiliateProfileUuid(
       input.environment_drive_item_ref_id,
       "Environment Drive reference must be a valid row id.",
     ),
+    environment_analysis_json: input.environment_analysis_json ?? null,
     status,
   };
 }

@@ -4883,8 +4883,8 @@ details,
 
 /* VIS-REDESIGN-LOGIN-INTAKE-SHELL: native shell + focused intake/auth redesign. */
 :root {
-  --color-shell-canvas: #f6fbff;
-  --color-shell-canvas-rgb: 246, 251, 255;
+  --color-shell-canvas: #f8fbfd;
+  --color-shell-canvas-rgb: 248, 251, 253;
   --color-primary-strong: #006fe6;
   --shell-sidebar-width: 238px;
   --shell-sidebar-padding-x: 14px;

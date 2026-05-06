@@ -237,7 +237,7 @@ export async function savePromptPack(formData: FormData) {
         throw new Error("Status prompt pack tidak valid.");
       }
 
-      const storagePayload = readPromptEditorPayload(formData);
+      const storagePayload = intent === "create" ? readPromptEditorPayload(formData) : null;
       const promptPack = await createPromptPack({
         product_id: productId,
         intake_session_id: readNullableText(formData, "intake_session_id"),
@@ -245,9 +245,13 @@ export async function savePromptPack(formData: FormData) {
         source_product_image_id: readNullableText(formData, "source_product_image_id"),
         version: readVersion(formData, "version"),
         status,
-        i2i_prompts_json: storagePayload.i2i_prompts_json,
-        i2v_prompts_json: storagePayload.i2v_prompts_json,
-        personalization_json: storagePayload.personalization_json,
+        ...(storagePayload
+          ? {
+              i2i_prompts_json: storagePayload.i2i_prompts_json,
+              i2v_prompts_json: storagePayload.i2v_prompts_json,
+              personalization_json: storagePayload.personalization_json,
+            }
+          : {}),
       });
       createdPromptPackId = promptPack.id;
 

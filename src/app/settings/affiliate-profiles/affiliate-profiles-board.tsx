@@ -6,11 +6,12 @@ import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveAffiliateProfile } from "../actions";
 import { AFFILIATE_PLATFORMS, AFFILIATE_PROFILE_STATUSES } from "@/lib/affiliate-profiles/validation";
-import { type AffiliateProfileRecord, type AffiliateProfileWorkspaceLinkRecord } from "@/lib/server/affiliate-profiles";
+import { type AffiliateProfileRecord } from "@/lib/server/affiliate-profiles";
 import { type DriveItemRecord } from "@/lib/server/drive-items";
 
 type AffiliateProfileListRecord = AffiliateProfileRecord & {
@@ -29,14 +30,7 @@ type AffiliateProfilesBoardProps = {
   profiles: AffiliateProfileListRecord[];
   workspaces: WorkspaceRecord[];
   driveItems: DriveItemRecord[];
-  profileLinks: AffiliateProfileWorkspaceLinkRecord[];
   currentWorkspaceId: string | null;
-};
-
-type WorkspaceOption = {
-  value: string;
-  label: string;
-  description: string;
 };
 
 type DriveItemOption = {
@@ -66,14 +60,6 @@ function profileMatchesQuery(profile: AffiliateProfileRecord, query: string) {
     .includes(value);
 }
 
-function workspaceLabel(workspace: WorkspaceRecord | undefined) {
-  if (!workspace) {
-    return "Workspace tidak tersedia";
-  }
-
-  return workspace.workspace_name;
-}
-
 function choiceOptions(values: readonly string[]) {
   return values.map((value) => ({
     value,
@@ -96,7 +82,6 @@ export function AffiliateProfilesBoard({
   profiles,
   workspaces,
   driveItems,
-  profileLinks,
   currentWorkspaceId,
 }: AffiliateProfilesBoardProps) {
   const [query, setQuery] = useState("");
@@ -116,18 +101,6 @@ export function AffiliateProfilesBoard({
         visibleProfiles.find((profile) => profile.id === selectedProfileId) ??
         null;
 
-  const profileLinksByProfileId = useMemo(() => {
-    const map = new Map<string, AffiliateProfileWorkspaceLinkRecord[]>();
-
-    for (const link of profileLinks) {
-      const existing = map.get(link.affiliate_profile_id) ?? [];
-      existing.push(link);
-      map.set(link.affiliate_profile_id, existing);
-    }
-
-    return map;
-  }, [profileLinks]);
-
   const driveItemOptions = useMemo<DriveItemOption[]>(
     () =>
       driveItems
@@ -138,15 +111,6 @@ export function AffiliateProfilesBoard({
           description: [item.item_type, item.purpose, item.drive_path].filter(Boolean).join(" - "),
         })),
     [driveItems],
-  );
-  const workspaceOptions = useMemo<WorkspaceOption[]>(
-    () =>
-      activeWorkspaces.map((workspace) => ({
-        value: workspace.id,
-        label: workspace.workspace_name,
-        description: workspace.is_default ? "default" : "",
-      })),
-    [activeWorkspaces],
   );
 
   useEffect(() => {
@@ -175,10 +139,8 @@ export function AffiliateProfilesBoard({
     setDrawerOpen(false);
   }
 
-  const selectedProfileLinks = selectedProfile ? profileLinksByProfileId.get(selectedProfile.id) ?? [] : [];
-  const selectedProfileWorkspaceIds = selectedProfile?.workspace_ids ?? [];
-  const defaultWorkspaceId =
-    (selectedProfile?.default_workspace_id ?? currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "") || "";
+  const namespaceWorkspaceId =
+    (selectedProfile?.default_workspace_id ?? selectedProfile?.workspace_ids[0] ?? currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "") || "";
   const selectedSeedCharacterDriveItem = useMemo(
     () => driveItems.find((item) => item.id === selectedProfile?.seed_character_drive_item_ref_id) ?? null,
     [driveItems, selectedProfile?.seed_character_drive_item_ref_id],
@@ -315,7 +277,7 @@ export function AffiliateProfilesBoard({
         {!filteredProfiles.length ? (
           <div className="muted-box stack">
             <strong>Belum ada profile affiliate.</strong>
-            <span className="subtle">Buat profile pertama untuk workspace aktif.</span>
+            <span className="subtle">Buat profile pertama.</span>
             <button className="button primary" type="button" onClick={openCreateDrawer}>
               <Plus size={15} aria-hidden="true" />
               Profile baru
@@ -333,7 +295,6 @@ export function AffiliateProfilesBoard({
             <strong>{isCreating ? "Buat profile affiliate" : selectedProfile?.profile_name ?? "Pilih profile"}</strong>
             <div className="product-status-stack">
               <StatusBadge status={initialProfile?.status ?? "DRAFT"} />
-              <StatusBadge status={`${selectedProfileWorkspaceIds.length || (isCreating ? 1 : 0)} workspace`} tone="info" />
               <StatusBadge
                 status={seedCharacterMissing ? "Character missing" : "Character ready"}
                 tone={seedCharacterMissing ? "warning" : "success"}
@@ -357,6 +318,8 @@ export function AffiliateProfilesBoard({
               {!isCreating && initialProfile ? <input type="hidden" name="id" value={initialProfile.id} /> : null}
               <input type="hidden" name="current_seed_character_drive_item_ref_id" value={initialProfile?.seed_character_drive_item_ref_id ?? ""} />
               <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile?.environment_drive_item_ref_id ?? ""} />
+              <input type="hidden" name="workspace_ids" value={namespaceWorkspaceId} />
+              <input type="hidden" name="default_workspace_id" value={namespaceWorkspaceId} />
 
               <label className="stack auth-field" htmlFor="affiliate-profile-name">
                 <span>Profile name</span>
@@ -384,47 +347,6 @@ export function AffiliateProfilesBoard({
                 />
               </div>
 
-              <details open>
-                <summary>Workspace links</summary>
-                <div className="stack">
-                  <div className="stack-tight">
-                    <span className="subtle">Link ke workspace aktif</span>
-                    <div className="stack-tight">
-                      {activeWorkspaces.map((workspace) => {
-                        const isChecked = isCreating
-                          ? workspace.id === (currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "")
-                          : selectedProfileWorkspaceIds.includes(workspace.id);
-
-                        return (
-                          <label className="checkbox-row" key={workspace.id}>
-                            <input
-                              defaultChecked={isChecked}
-                              name="workspace_ids"
-                              type="checkbox"
-                              value={workspace.id}
-                            />
-                            <span>{workspaceLabel(workspace)}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <RelationalPicker
-                    allowClear
-                    defaultValue={defaultWorkspaceId}
-                    label="Default workspace"
-                    name="default_workspace_id"
-                    options={workspaceOptions}
-                    placeholder="Pilih default"
-                    searchPlaceholder="Cari workspace"
-                    searchable={activeWorkspaces.length > 5}
-                  />
-                  <div className="section-card__actions">
-                    <StatusBadge status={`${selectedProfileLinks.length || (isCreating ? 1 : 0)} link`} tone="info" />
-                  </div>
-                </div>
-              </details>
-
               <section className="stack">
                 <div className="section-card__actions">
                   <div className="stack-tight">
@@ -447,6 +369,18 @@ export function AffiliateProfilesBoard({
                       previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
                       previewUrl={selectedSeedCharacterPreviewUrl}
                     />
+                    <div className="muted-box stack-tight">
+                      <label className="checkbox-row" htmlFor={`${formKey}-lock-seed-character`}>
+                        <input
+                          id={`${formKey}-lock-seed-character`}
+                          name="lock_seed_character"
+                          type="checkbox"
+                          defaultChecked={initialProfile ? initialProfile.lock_seed_character : true}
+                        />
+                        <span>Lock Character</span>
+                      </label>
+                      <StatusBadge status={initialProfile?.lock_seed_character ? "Character locked" : "Character open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
+                    </div>
                     <details className="stack-tight">
                       <summary>Referensi Drive</summary>
                       <RelationalPicker
@@ -471,6 +405,18 @@ export function AffiliateProfilesBoard({
                       previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
                       previewUrl={selectedEnvironmentPreviewUrl}
                     />
+                    <div className="muted-box stack-tight">
+                      <label className="checkbox-row" htmlFor={`${formKey}-lock-environment`}>
+                        <input
+                          id={`${formKey}-lock-environment`}
+                          name="lock_environment"
+                          type="checkbox"
+                          defaultChecked={initialProfile ? initialProfile.lock_environment : true}
+                        />
+                        <span>Lock Environment</span>
+                      </label>
+                      <StatusBadge status={initialProfile?.lock_environment ? "Environment locked" : "Environment open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
+                    </div>
                     <details className="stack-tight">
                       <summary>Referensi Drive</summary>
                       <RelationalPicker
@@ -534,29 +480,20 @@ export function AffiliateProfilesBoard({
                     <span>Negative prompt rules</span>
                     <textarea id="affiliate-negative-rules" name="negative_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.negative_prompt_rules ?? ""} />
                   </label>
-                  <div className="grid two-up">
-                    <div className="muted-box stack-tight">
-                      <label className="checkbox-row" htmlFor="lock-seed-character">
-                        <input id="lock-seed-character" name="lock_seed_character" type="checkbox" defaultChecked={initialProfile ? initialProfile.lock_seed_character : true} />
-                        <span>Lock character seed</span>
-                      </label>
-                      <StatusBadge status={initialProfile?.lock_seed_character ? "Character locked" : "Character open"} tone={initialProfile?.lock_seed_character ? "success" : "neutral"} />
-                    </div>
-                    <div className="muted-box stack-tight">
-                      <label className="checkbox-row" htmlFor="lock-environment">
-                        <input id="lock-environment" name="lock_environment" type="checkbox" defaultChecked={initialProfile ? initialProfile.lock_environment : true} />
-                        <span>Lock environment</span>
-                      </label>
-                      <StatusBadge status={initialProfile?.lock_environment ? "Environment locked" : "Environment open"} tone={initialProfile?.lock_environment ? "success" : "neutral"} />
-                    </div>
-                  </div>
                 </div>
               </details>
 
             <FormActions layout="single">
-              <button className="button primary" type="submit">
+              <PendingActionButton
+                activityDescription="OCR dan vision membaca Character, Environment, serta menyimpan JSON metadata ke affiliate profile."
+                activityKind="analysis"
+                activityTitle={isCreating ? "Menganalisis asset affiliate" : "Memperbarui asset affiliate"}
+                className="primary"
+                estimatedDurationMs={30000}
+                pendingLabel={isCreating ? "Menganalisis..." : "Menyimpan..."}
+              >
                 {isCreating ? "Buat profile" : "Simpan profile"}
-              </button>
+              </PendingActionButton>
             </FormActions>
             </form>
             {!isCreating && initialProfile ? (

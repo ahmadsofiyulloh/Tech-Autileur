@@ -7,7 +7,7 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
       void dialog.accept();
     });
 
-    await page.goto("/dashboard");
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     const desktopSidebar = page.getByRole("complementary", { name: "Operator navigation" });
     await expect(desktopSidebar).toContainText("Intake");
     await expect(desktopSidebar).toContainText("Produk");

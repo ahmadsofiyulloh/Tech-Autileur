@@ -29,7 +29,7 @@ export type SmokeBootstrapState = {
     code: string;
   };
   drive_items: {
-    workspace_root_id: string;
+    workspace_root_id: string | null;
     seed_character_id: string;
     environment_id: string;
     product_image_id: string;
@@ -54,4 +54,3 @@ export async function writeSmokeBootstrapState(state: SmokeBootstrapState) {
 export function makeSmokeTag() {
   return new Date().toISOString().replace(/\D/g, "").slice(0, 14);
 }
-

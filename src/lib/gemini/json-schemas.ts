@@ -190,20 +190,169 @@ const nullableLockStateSchema = {
   additionalProperties: false,
 } as const satisfies JsonSchema;
 
+const promptRulesSchema = {
+  type: "object",
+  required: [
+    "i2i_prompt_rules",
+    "i2v_prompt_rules",
+    "caption_rules",
+    "hashtag_rules",
+    "negative_prompt_rules",
+    "product_positioning_notes",
+  ],
+  properties: {
+    i2i_prompt_rules: stringArraySchema,
+    i2v_prompt_rules: stringArraySchema,
+    caption_rules: stringArraySchema,
+    hashtag_rules: stringArraySchema,
+    negative_prompt_rules: stringArraySchema,
+    product_positioning_notes: stringArraySchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const visualReferenceSchema = {
+  type: "object",
+  required: ["kind", "label", "drive_item_ref_id", "drive_url", "drive_path", "analysis_json"],
+  properties: {
+    kind: { type: "string", enum: ["CHARACTER", "ENVIRONMENT", "PRODUCT"] },
+    label: stringSchema,
+    drive_item_ref_id: stringSchema,
+    drive_url: stringSchema,
+    drive_path: stringSchema,
+    analysis_json: {
+      type: ["object", "null"],
+      additionalProperties: true,
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+function buildI2IFramePromptSchema(slot: "clip_1" | "clip_2", frame: "first_frame" | "last_frame") {
+  return {
+    type: "object",
+    required: ["slot", "frame", "prompt_text", "visual_references", "prompt_rules"],
+    properties: {
+      slot: { type: "string", enum: [slot] },
+      frame: { type: "string", enum: [frame] },
+      prompt_text: stringSchema,
+      visual_references: {
+        type: "array",
+        items: visualReferenceSchema,
+      },
+      prompt_rules: promptRulesSchema,
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
+
+function buildI2IClipPromptSchema(slot: "clip_1" | "clip_2") {
+  return {
+    type: "object",
+    required: ["slot", "first_frame", "last_frame"],
+    properties: {
+      slot: { type: "string", enum: [slot] },
+      first_frame: buildI2IFramePromptSchema(slot, "first_frame"),
+      last_frame: buildI2IFramePromptSchema(slot, "last_frame"),
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
+
+const continuityPromptSchema = {
+  type: "object",
+  required: ["first_frame_hint", "last_frame_hint"],
+  properties: {
+    first_frame_hint: stringSchema,
+    last_frame_hint: stringSchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+function buildI2VPromptSchema(slot: "clip_1" | "clip_2") {
+  return {
+    type: "object",
+    required: ["slot", "prompt_text", "visual_references", "prompt_rules", "continuity"],
+    properties: {
+      slot: { type: "string", enum: [slot] },
+      prompt_text: stringSchema,
+      visual_references: {
+        type: "array",
+        items: visualReferenceSchema,
+      },
+      prompt_rules: promptRulesSchema,
+      continuity: continuityPromptSchema,
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
+
+const promptContextSchema = {
+  type: "object",
+  required: ["mode"],
+  properties: {
+    mode: { type: "string", enum: ["server_injected"] },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+function buildCompactI2IFramePromptSchema(slot: "clip_1" | "clip_2", frame: "first_frame" | "last_frame") {
+  return {
+    type: "object",
+    required: ["slot", "frame", "prompt_text"],
+    properties: {
+      slot: { type: "string", enum: [slot] },
+      frame: { type: "string", enum: [frame] },
+      prompt_text: stringSchema,
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
+
+function buildCompactI2IClipPromptSchema(slot: "clip_1" | "clip_2") {
+  return {
+    type: "object",
+    required: ["slot", "first_frame", "last_frame"],
+    properties: {
+      slot: { type: "string", enum: [slot] },
+      first_frame: buildCompactI2IFramePromptSchema(slot, "first_frame"),
+      last_frame: buildCompactI2IFramePromptSchema(slot, "last_frame"),
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
+
+function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2") {
+  return {
+    type: "object",
+    required: ["slot", "prompt_text", "continuity"],
+    properties: {
+      slot: { type: "string", enum: [slot] },
+      prompt_text: stringSchema,
+      continuity: {
+        type: "object",
+        required: ["first_frame_hint", "last_frame_hint"],
+        properties: {
+          first_frame_hint: stringSchema,
+          last_frame_hint: stringSchema,
+        },
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
+
 export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
   type: "object",
   required: [
     "product_analysis",
-    "prompt_context",
     "i2i_prompts",
     "i2v_prompts",
     "caption",
     "tags",
-    "target_marketplace",
     "negative_prompt_rules",
     "consistency_rules",
-    "seed_character",
-    "environment",
   ],
   properties: {
     product_analysis: {
@@ -229,13 +378,17 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
         },
         source_image: {
           type: ["object", "null"],
-          required: ["id", "is_primary", "status", "source_type", "drive_item_ref_id"],
+          required: ["id", "is_primary", "status", "source_type", "drive_item_ref_id", "analysis_json"],
           properties: {
             id: stringSchema,
             is_primary: { type: "boolean" },
             status: stringSchema,
             source_type: stringSchema,
             drive_item_ref_id: stringSchema,
+            analysis_json: {
+              type: ["object", "null"],
+              additionalProperties: true,
+            },
             drive_item: {
               type: ["object", "null"],
               additionalProperties: true,
@@ -266,34 +419,12 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
       },
       additionalProperties: false,
     },
-    prompt_context: {
-      type: "object",
-      additionalProperties: true,
-    },
     i2i_prompts: {
       type: "object",
       required: ["clip_1", "clip_2"],
       properties: {
-        clip_1: {
-          type: "object",
-          required: ["slot", "first_frame", "last_frame"],
-          properties: {
-            slot: { type: "string", enum: ["clip_1"] },
-            first_frame: stringSchema,
-            last_frame: stringSchema,
-          },
-          additionalProperties: false,
-        },
-        clip_2: {
-          type: "object",
-          required: ["slot", "first_frame", "last_frame"],
-          properties: {
-            slot: { type: "string", enum: ["clip_2"] },
-            first_frame: stringSchema,
-            last_frame: stringSchema,
-          },
-          additionalProperties: false,
-        },
+        clip_1: buildCompactI2IClipPromptSchema("clip_1"),
+        clip_2: buildCompactI2IClipPromptSchema("clip_2"),
       },
       additionalProperties: false,
     },
@@ -301,34 +432,95 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
       type: "object",
       required: ["clip_1", "clip_2"],
       properties: {
-        clip_1: {
-          type: "object",
-          required: ["slot", "prompt"],
-          properties: {
-            slot: { type: "string", enum: ["clip_1"] },
-            prompt: stringSchema,
-          },
-          additionalProperties: false,
-        },
-        clip_2: {
-          type: "object",
-          required: ["slot", "prompt"],
-          properties: {
-            slot: { type: "string", enum: ["clip_2"] },
-            prompt: stringSchema,
-          },
-          additionalProperties: false,
-        },
+        clip_1: buildCompactI2VPromptSchema("clip_1"),
+        clip_2: buildCompactI2VPromptSchema("clip_2"),
       },
       additionalProperties: false,
     },
     caption: stringSchema,
     tags: stringSchema,
-    target_marketplace: { type: "string", enum: ["Shopee + TikTok"] },
     negative_prompt_rules: stringArraySchema,
     consistency_rules: stringArraySchema,
-    seed_character: nullableLockStateSchema,
-    environment: nullableLockStateSchema,
   },
   additionalProperties: false,
 } as const satisfies JsonSchema;
+
+const affiliateAssetVisualAnalysisSchema = {
+  type: "object",
+  required: [
+    "summary",
+    "subject",
+    "style_keywords",
+    "scene_keywords",
+    "color_keywords",
+    "material_keywords",
+    "mood_keywords",
+    "composition_keywords",
+    "ocr_text_lines",
+    "quality_flags",
+  ],
+  properties: {
+    summary: stringSchema,
+    subject: stringSchema,
+    style_keywords: stringArraySchema,
+    scene_keywords: stringArraySchema,
+    color_keywords: stringArraySchema,
+    material_keywords: stringArraySchema,
+    mood_keywords: stringArraySchema,
+    composition_keywords: stringArraySchema,
+    ocr_text_lines: stringArraySchema,
+    quality_flags: stringArraySchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const affiliateAssetPromptRulesSchema = {
+  type: "object",
+  required: ["must_keep", "must_avoid"],
+  properties: {
+    must_keep: stringArraySchema,
+    must_avoid: stringArraySchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const affiliateAssetQualitySchema = {
+  type: "object",
+  required: ["overall_confidence", "review_required", "blocking_flags", "notes"],
+  properties: {
+    overall_confidence: confidenceSchema,
+    review_required: { type: "boolean" },
+    blocking_flags: stringArraySchema,
+    notes: stringArraySchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const affiliateAssetAnalysisSchema = {
+  type: "object",
+  required: [
+    "schema_version",
+    "prompt_version",
+    "asset_kind",
+    "profile_code",
+    "drive_item_ref_id",
+    "drive_item_name",
+    "analysis",
+    "prompt_rules",
+    "quality",
+  ],
+  properties: {
+    schema_version: { type: "string" },
+    prompt_version: { type: "string" },
+    asset_kind: { type: "string", enum: ["CHARACTER", "ENVIRONMENT"] },
+    profile_code: stringSchema,
+    drive_item_ref_id: stringSchema,
+    drive_item_name: stringSchema,
+    analysis: affiliateAssetVisualAnalysisSchema,
+    prompt_rules: affiliateAssetPromptRulesSchema,
+    quality: affiliateAssetQualitySchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+export const GEMINI_AFFILIATE_PROFILE_ASSET_ANALYSIS_RESPONSE_SCHEMA = affiliateAssetAnalysisSchema;
