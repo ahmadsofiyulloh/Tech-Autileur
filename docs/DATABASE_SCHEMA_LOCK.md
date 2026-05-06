@@ -14,6 +14,8 @@
 - Windows Helper Drive OAuth tokens must not be stored in Supabase in Phase awal.
 - Prompt packs do not get `workspace_id`; derive workspace context from product, intake session, and affiliate profile.
 - Large asset bytes must not be stored in Supabase.
+- 2026-05-06 refactor: `workspace_id` remains internal namespace infrastructure. Operator-facing scope is Affiliate Profile.
+- Do not remove or rename `workspaces` in this refactor. Any direct `affiliate_profile_id` schema cleanup for product-flow tables belongs to a later explicit migration task.
 
 ## Required Enums
 
@@ -50,7 +52,13 @@ updated_at timestamptz default now()
 
 ### `workspaces`
 
-Workspace means niche/folder kerja.
+Workspace means internal niche/folder namespace.
+
+2026-05-06 refactor lock:
+
+- A workspace is no longer the visible top-level planning concept.
+- Each Affiliate Profile owns one internal workspace/folder namespace.
+- Workspace records may remain editable only as retained internal support until a later UI cleanup task removes that surface.
 
 ```text
 id uuid pk
@@ -335,7 +343,7 @@ updated_at timestamptz
 
 ### `affiliate_profiles`
 
-Top-level affiliate persona records. One profile can link to many workspaces through `affiliate_profile_workspace_links`.
+Top-level affiliate persona records. In the 2026-05-06 refactor, one profile owns one internal workspace/folder namespace. The existing link table remains for compatibility, but new UI must not expose many-to-many workspace choices.
 
 ```text
 id uuid pk
@@ -356,9 +364,11 @@ product_positioning_notes text
 lock_seed_character boolean
 seed_character_notes text
 seed_character_drive_item_ref_id uuid nullable fk drive_items
+seed_character_analysis_json jsonb nullable
 lock_environment boolean
 environment_notes text
 environment_drive_item_ref_id uuid nullable fk drive_items
+environment_analysis_json jsonb nullable
 status affiliate_profile_status
 created_at timestamptz
 updated_at timestamptz
@@ -368,7 +378,7 @@ Affiliate Profile is the only owner for character and environment locks in Phase
 
 UI note: `notes` may remain as legacy/internal metadata, but it must not be shown in Phase awal forms.
 
-Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive.
+Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive. Their OCR/vision analysis snapshots are cached on the affiliate profile in `seed_character_analysis_json` and `environment_analysis_json` and are reused for prompt generation until the asset reference changes.
 
 UI surface lock: Affiliate Profile create/edit happens in a list + drawer CRUD surface. Character and environment are separate image cards in the drawer. Asset upload/replace/remove controls live inside the editable drawer only.
 
@@ -386,7 +396,30 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-Each workspace can link to multiple affiliate profiles, but only one link should be marked default per workspace. Create flows should default both asset locks to `true`; save may still happen without asset refs, but prompt generation must block if a locked asset reference is missing.
+Compatibility table for profile-to-internal-workspace ownership.
+
+2026-05-06 refactor lock:
+
+- new UI must maintain exactly one active workspace link per Affiliate Profile.
+- many-to-many workspace selection must not be exposed to the operator.
+- create flows should default both asset locks to `true`.
+- save may still happen without asset refs, but prompt generation must block if a locked asset reference or cached analysis JSON is missing.
+
+Legacy behavior where each workspace can link to multiple affiliate profiles is retained only for existing compatibility until a later schema cleanup task is approved.
+
+### Cutoff Preserve List
+
+The 2026-05-06 data cutoff is destructive and must preserve only:
+
+```text
+auth.users
+public.profiles
+public.gemini_api_keys
+public.gemini_api_key_secrets
+public.google_drive_connections
+```
+
+Cutoff must delete Supabase metadata/data only. It must not delete real files from Google Drive.
 
 ### `prompt_packs`
 

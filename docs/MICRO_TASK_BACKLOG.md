@@ -24,6 +24,42 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Owner:** Codex
 **Acceptance:** no doc treats Flow accounts as workspace-bound, mobile Flow Control as primary, duplicate Settings entry points as acceptable, or verbose UI copy as allowed.
 
+### MT-REF-00 - Affiliate Profile namespace docs lock _(DONE)_
+**Goal:** Lock the 2026-05-06 personal-use refactor: `Akun Affiliate` is the visible top-level namespace, Workspace is internal infrastructure, one profile owns one internal namespace, and implementers may not add unapproved UI copy.
+**Owner:** Codex
+**Scope:** docs only.
+**Acceptance:** PRD, architecture, schema, prompt lock, and backlog all describe the same namespace model, cutoff preserve list, and no-assumption implementation constraints.
+
+### MT-REF-01 - Early Supabase cutoff _(DONE)_
+**Goal:** Clear test operational data before runtime refactor while preserving only auth profiles, Gemini key metadata/secrets, and Google Drive connection metadata.
+**Owner:** Codex
+**Scope:** Supabase DML only; no schema changes and no Google Drive file deletion.
+**Acceptance:** row counts confirm preserved tables remain and operational tables are empty.
+
+### MT-REF-02 - Visible Affiliate Profile lock controls _(DONE)_
+**Goal:** Move lock controls into the visible asset section of the Affiliate Profile drawer.
+**Owner:** Codex
+**Scope:** Affiliate Profile settings UI only.
+**Acceptance:** `Lock Character` and `Lock Environment` are visible beside the asset cards; no new explanatory copy is added.
+
+### MT-REF-03 - One profile one internal namespace _(DONE)_
+**Goal:** Remove many-to-many workspace choices from the Affiliate Profile drawer and submit exactly one internal namespace link per profile.
+**Owner:** Codex
+**Scope:** Affiliate Profile UI/action path only; keep existing schema.
+**Acceptance:** create/update sends one `workspace_ids` value and one `default_workspace_id`; no checkbox list of workspaces remains in the drawer.
+
+### MT-REF-04 - Prompt readiness guards _(DONE)_
+**Goal:** Block prompt creation/generation/regeneration unless selected profile, internal namespace, reviewed metadata, source image, required rules, and locked asset analysis JSON are ready.
+**Owner:** Codex
+**Scope:** prompt server path and minimal prompt launcher status only.
+**Acceptance:** missing requirements fail with clear existing-style errors before Gemini request creation.
+
+### MT-REF-05 - Strict prompt JSON runtime _(DONE)_
+**Goal:** Remove prompt runtime fallback paths that convert prose, missing source echoes, legacy full Gemini shape, or weak editor payloads into accepted output.
+**Owner:** Codex
+**Scope:** prompt contract parser/reader and targeted tests.
+**Acceptance:** invalid prompt JSON fails instead of creating empty `visual_references` or empty `prompt_rules`.
+
 ## VIS - Visual PWA Mobile-First Sync
 
 These tasks document the visual implementation state after the 2026-05-04 Visual PWA Mobile-First override.

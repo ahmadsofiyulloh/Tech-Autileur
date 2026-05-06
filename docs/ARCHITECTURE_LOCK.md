@@ -167,11 +167,18 @@ Gemini request usage is tracked server-side after a key is selected. The overvie
 
 ## Prompt Personalization
 
-Affiliate Profile is a top-level prompt persona. Workspace links are explicit and can mark one default per workspace. Character and environment locks are profile-owned only in Phase awal.
+Affiliate Profile is the visible top-level namespace and prompt persona for the private operator workflow. Each Affiliate Profile owns exactly one internal workspace/folder namespace during the 2026-05-06 refactor. Workspace remains internal storage/scope infrastructure and must not be expanded as a user-facing planning model.
 
-Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides. If a selected profile lock is enabled but the Drive reference is missing, generation must block.
+Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides. If a selected profile lock is enabled but the Drive reference or cached analysis JSON is missing, generation must block.
 
 The final lock keeps only character and environment as first-class profile assets. The environment asset carries the background-lock role.
+
+Implementation guard:
+
+- do not add global workspace picker UI.
+- do not expose many-to-many workspace profile choices in Affiliate Profile forms.
+- do not add new UI copy beyond approved labels or already existing app copy.
+- do not remove the `workspaces` schema until a later dedicated schema cleanup task is approved.
 
 ## Execution
 
@@ -215,7 +222,6 @@ Out of scope:
 
 Pengaturan is the configuration hub for:
 
-- Ruang Kerja.
 - Akun Affiliate.
 - Gemini.
 - Google Drive.
@@ -225,8 +231,8 @@ Pengaturan is the configuration hub for:
 
 Settings detail grammar:
 
-- Workspace: list + drawer CRUD, hidden auto-generated code, name, niche picker, Drive root picker, default switch, archive.
-- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, rule editors, archive, explicit workspace links/default selection, and quick avatar-based default switching from the overview for the active workspace.
+- Workspace: retained internal support only during the refactor; new feature work must not expand Workspace UX.
+- Affiliate Profiles: list + drawer CRUD, base info, two asset cards, visible `Lock Character` and `Lock Environment` controls, rule editors, archive, and one internal workspace/folder namespace per profile.
 - Gemini: multi-key list + drawer CRUD; no request history UI. Editable fields are name, project, model, purpose, and masked encrypted key. Quota limits are auto-filled from the selected model and are not typed by the operator.
 - Settings overview may show a compact Gemini usage panel directly above the card groups.
 - Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.

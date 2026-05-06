@@ -13,3 +13,5 @@ supabase/.temp
 playwright-report
 test-results
 gemini_prototype_design
+*.log
+*.temp.ts

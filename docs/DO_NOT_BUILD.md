@@ -22,6 +22,9 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - A third background-reference asset slot for Affiliate Profiles in Phase awal.
 - Implicit latest-active default profile selection.
 - Reverting Affiliate Profile to workspace-scoped only in the revised model.
+- Expanding Workspace as the operator-facing planning model during the 2026-05-06 Affiliate Profile namespace refactor.
+- Exposing many-to-many workspace choices in the Affiliate Profile drawer during the 2026-05-06 refactor.
+- Adding unapproved UI copy, helper paragraphs, marketing text, or duplicate descriptions during refactor micro-tasks.
 - Multiple simultaneous Settings entry points across topbar, header, sidebar, and bottom nav. The single approved topbar Settings gear on non-Settings routes is allowed.
 - A separate Settings CRUD surface for Flow Accounts in Phase awal.
 - Inline flat settings forms replacing the locked overview + section route + drawer grammar.

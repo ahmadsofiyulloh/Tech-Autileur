@@ -16,6 +16,27 @@ This MVP is an AI production control center. It is not a video editor, not an au
 
 Phase 1 freezes Controller and Flow orchestration as primary UI surfaces. Existing backend logic may remain for later reuse, but the operator-facing Phase 1 experience must focus on Intake, Produk, Prompt, and Drive.
 
+## 0.1 2026-05-06 Personal-Use Refactor Lock
+
+The latest operator brief on 2026-05-06 updates the earlier workspace/profile interpretation.
+
+Locked decisions:
+
+- `Akun Affiliate` is the visible top-level namespace for the operator.
+- One Affiliate Profile owns one internal workspace/folder namespace.
+- Products, intake sessions, prompt packs, and prompt history must not mix across Affiliate Profiles.
+- `Workspace` remains as internal storage/scope infrastructure for now; it is not a user-facing planning concept during this refactor.
+- Gemini API keys and Google Drive connection remain global user config shared by all Affiliate Profiles.
+- Cutoff preserves only auth profiles, Gemini key metadata/secrets, and Google Drive connection metadata.
+
+Implementation constraints:
+
+- Do not remove the `workspaces` schema in this refactor.
+- Do not add broad schema cleanup unless a later task explicitly approves it.
+- Do not introduce a global workspace picker.
+- Do not add new explanatory UI copy, helper text, marketing text, or duplicate descriptions. Only labels explicitly documented here or already present in the app are allowed.
+- Each implementation micro-task must be small, independently verified, and must not refactor unrelated modules.
+
 ## 1. Locked App Flow and UX
 
 ### 1.1 Main Navigation
@@ -169,7 +190,9 @@ Phase 1 controller is frozen: `GENERATED` is the final operator-facing prompt st
 
 ### 1.7 Affiliate Profile Personalization
 
-Affiliate Profile is a top-level persona object and acts as the prompt persona.
+Affiliate Profile is the top-level operator namespace and prompt persona.
+
+Each Affiliate Profile owns one internal workspace/folder namespace. The internal workspace isolates products, intake rows, prompt packs, Drive metadata relations, and prompt history for that profile. The operator should understand and operate through `Akun Affiliate`, not through free many-to-many workspace planning.
 
 Profile-owned locks only:
 
@@ -182,9 +205,9 @@ Character and environment are the only profile-owned image assets in Phase awal.
 
 There is no separate background-reference asset slot in MVP. Prompt pages must not create per-prompt overrides for character or environment locks in Phase awal. The prompt page may show which profile is active, but the source of personalization remains the Affiliate Profile.
 
-Prompt generation must always consume the active workspace, the workspace-linked or explicitly selected affiliate profile, the profile character/environment Drive references, and the reviewed Gemini metadata for that workspace. If a profile lock is enabled but the matching Drive reference is missing, generation must block instead of falling back.
+Prompt generation must always consume the selected Affiliate Profile, that profile's internal workspace namespace, the profile character/environment Drive references, and reviewed Gemini metadata inside the same namespace. If a profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, generation must block instead of falling back.
 
-Each workspace resolves its default-linked affiliate profile when one is configured.
+If only one Affiliate Profile exists, it may be treated as the active profile. When multiple profiles exist, the selected profile or active profile is required.
 
 During Phase 1 intake, the operator may explicitly choose an Affiliate Profile using a horizontal mobile-friendly selector. The selected profile is passed into the prompt handoff; no database migration is required solely for this selector unless a later task explicitly approves persistence changes.
 
@@ -256,7 +279,6 @@ Dashboard is a secondary analytics route in Phase 1. It is not the primary entry
 
 Pengaturan is the configuration hub for:
 
-- Ruang Kerja.
 - Akun Affiliate.
 - Gemini.
 - Google Drive.
@@ -264,7 +286,7 @@ Pengaturan is the configuration hub for:
 - Windows Helper / App API Token.
 - Account/logout.
 
-`/settings` is overview-only. The hub must surface compact cards for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link. It must not become the edit form itself and must not create a second global navigation system.
+`/settings` is overview-only. The hub must surface compact cards for Affiliate Profiles, Gemini, Drive, Account, and Flow link. Workspace may remain visible only as retained internal support until its UI is removed by a dedicated micro-task. It must not become the operator's primary planning concept.
 
 The Settings overview is opened through the global topbar gear on non-Settings routes. This single gear is the approved visual entry point and is not considered a duplicate Settings affordance.
 
@@ -292,18 +314,22 @@ Settings > Workspace:
 - `Niche` uses static suggestions with free fallback.
 - `Folder Drive Utama` uses Drive folder picker.
 - archive-first lifecycle; hard delete is not a primary action.
+- retained only as internal support during the Affiliate Profile namespace refactor.
+- new feature work must not expand Workspace UX.
 
 Settings > Affiliate Profiles:
 
 - list + drawer CRUD.
 - overview may show linked profile avatar thumbnails and a quick default switch for the active workspace.
 - visible base fields: profile name, platform/mode label, account label, affiliate URL, status.
-- workspace links are managed in the drawer and one link per workspace can be marked default.
+- one internal workspace/folder namespace is maintained per profile.
+- many-to-many workspace choices must not be exposed in the drawer during this refactor.
 - `notes` is internal metadata only and must not be shown in forms.
 - character and environment are two separate image cards.
 - each image card supports upload/replace/remove, local preview, Drive reference status, and lock status.
+- lock controls must be visible in the asset section using only these labels: `Lock Character`, `Lock Environment`.
 - asset lock is per profile and defaults ON for new profiles.
-- if a locked asset ref is missing, prompt generation blocks until the reference is filled.
+- if a locked asset ref or cached analysis JSON is missing, prompt generation blocks until the reference is filled and analyzed.
 - rule editors remain editable for i2i, i2v, caption, hashtag, and negative prompt.
 - no separate background-reference asset slot exists.
 
@@ -412,9 +438,9 @@ Meta/Status: Inter 10/10, 400
 ## 2. Product Vision
 
 1. Reduce manual work in intake and prompt preparation.
-2. Keep images, screenshots, prompts, Flow assignments, and outputs organized by product and workspace.
+2. Keep images, screenshots, prompts, Flow assignments, and outputs organized by product and Affiliate Profile namespace.
 3. Keep Flow accounts global execution tools, not workspace-bound.
-4. Allow unlimited top-level affiliate profiles with editable prompt rules and explicit workspace links.
+4. Allow unlimited top-level affiliate profiles with editable prompt rules and one isolated internal workspace/folder namespace each.
 5. Use mobile for upload/review/prompt work and desktop for Flow execution.
 6. Keep Supabase as metadata source of truth and Google Drive as asset source of truth.
 
@@ -423,8 +449,7 @@ Meta/Status: Inter 10/10, 400
 MVP means the system can:
 
 - Log in through Supabase Auth.
-- Create a workspace and store its Drive root folder metadata.
-- Create an affiliate profile and link it to one or more workspaces.
+- Create an affiliate profile with its isolated internal workspace/folder namespace.
 - Open the app at `/products/new` as the Phase 1 entrypoint.
 - Install or launch as a basic PWA through `manifest.json` and mobile meta tags.
 - Upload or capture real product images and marketplace screenshots.

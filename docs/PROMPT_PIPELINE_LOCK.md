@@ -57,8 +57,8 @@ Prompt generation must consume:
 
 - reviewed product metadata.
 - uploaded product image and screenshot context when bytes are available.
-- workspace context.
-- selected or workspace-default-linked Affiliate Profile.
+- selected Affiliate Profile.
+- the selected Affiliate Profile's internal workspace/folder namespace.
 - Affiliate Profile i2i, i2v, caption, hashtag, and negative rules.
 - Affiliate Profile character lock.
 - Affiliate Profile environment lock.
@@ -66,9 +66,22 @@ Prompt generation must consume:
 
 Character and environment are profile-owned only in Phase awal. The environment asset is the background-lock asset for prompt generation. Prompt pages must not create per-prompt overrides for these locks.
 
-If a selected profile lock is enabled but the matching Drive reference is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
+Character and environment assets are analyzed at save time and their JSON metadata snapshots are cached on the affiliate profile. Prompt generation must reuse those cached JSON metadata snapshots until the asset reference changes.
 
-Prompt generation must also consume the active workspace's reviewed Gemini output and must not invent any extra profile asset slot beyond character and environment.
+If a selected profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
+
+Prompt generation must also consume reviewed Gemini output inside the selected Affiliate Profile namespace and must not invent any extra profile asset slot beyond character and environment.
+
+2026-05-06 strict readiness guards before `Buat Prompt` or `Buat Ulang`:
+
+- selected Affiliate Profile is required.
+- the profile's internal namespace must resolve.
+- source product image with Drive reference is required.
+- reviewed Gemini metadata is required.
+- all six rule groups must be non-empty: i2i, i2v, caption, hashtag, negative, product positioning.
+- if `Lock Character` is ON, character Drive reference and `seed_character_analysis_json` are required.
+- if `Lock Environment` is ON, environment Drive reference and `environment_analysis_json` are required.
+- no runtime fallback may select another profile, create empty rules, or downgrade to legacy prompt fields.
 
 ## Required Prompt UI
 
@@ -87,6 +100,8 @@ Caption
 Tags
 Target Marketplace
 ```
+
+Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. The UI surface stays the same; only the copied value changes.
 
 Editable regeneration field:
 
@@ -107,9 +122,9 @@ Prompt set structure:
 - `/prompts/[id]` is the prompt detail/editor surface.
 - `/prompts/[id]/history` is the prompt-only generation history surface, grouped by `prompt_code`.
 - Prompt Clip 1 and Prompt Clip 2 are separate collapsed clip panels that can expand.
-- Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready fields.
-- `I2I First Frame` and `I2I Last Frame` are the two frame anchors for the clip-specific image-to-image prompt path.
-- `I2V Prompt` is the motion-oriented text for the clip-specific image-to-video path.
+- Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready JSON fields.
+- `I2I First Frame` and `I2I Last Frame` are the two frame anchors for the clip-specific image-to-image prompt path and must include ordered visual references.
+- `I2V Prompt` is the clip-specific image-to-video JSON payload and must include ordered visual references plus first/last frame continuity hints.
 - Caption is shared across the prompt set and is read-only copy-ready after generation.
 - Tags are stored and rendered as a hashtag string and are read-only copy-ready after generation.
 - Target Marketplace is a fixed read-only chip for `Shopee + TikTok`.
@@ -137,17 +152,51 @@ Prompt generation must persist structured JSON with at least:
   "prompt_context": {},
   "i2i_prompts": {
     "clip_1": {
-      "first_frame": "",
-      "last_frame": ""
+      "first_frame": {
+        "slot": "clip_1",
+        "frame": "first_frame",
+        "prompt_text": "",
+        "visual_references": [],
+        "prompt_rules": {}
+      },
+      "last_frame": {
+        "slot": "clip_1",
+        "frame": "last_frame",
+        "prompt_text": "",
+        "visual_references": [],
+        "prompt_rules": {}
+      }
     },
     "clip_2": {
-      "first_frame": "",
-      "last_frame": ""
+      "first_frame": {
+        "slot": "clip_2",
+        "frame": "first_frame",
+        "prompt_text": "",
+        "visual_references": [],
+        "prompt_rules": {}
+      },
+      "last_frame": {
+        "slot": "clip_2",
+        "frame": "last_frame",
+        "prompt_text": "",
+        "visual_references": [],
+        "prompt_rules": {}
+      }
     }
   },
   "i2v_prompts": {
-    "clip_1": "",
-    "clip_2": ""
+    "clip_1": {
+      "prompt_text": "",
+      "visual_references": [],
+      "prompt_rules": {},
+      "continuity": {}
+    },
+    "clip_2": {
+      "prompt_text": "",
+      "visual_references": [],
+      "prompt_rules": {},
+      "continuity": {}
+    }
   },
   "caption": "",
   "tags": "",
@@ -157,12 +206,14 @@ Prompt generation must persist structured JSON with at least:
   "seed_character": {
     "locked": false,
     "notes": "",
-    "drive_item_ref_id": null
+    "drive_item_ref_id": null,
+    "analysis_json": null
   },
   "environment": {
     "locked": false,
     "notes": "",
-    "drive_item_ref_id": null
+    "drive_item_ref_id": null,
+    "analysis_json": null
   }
 }
 ```
@@ -178,8 +229,10 @@ When a source product image exists, `product_analysis.source_image` must echo th
 - i2i, i2v, caption, hashtag, and negative prompt rules must be editable in Affiliate Profile UI.
 - Prompt rules must not be hardcoded in JSX, HTML, route handlers, or inline strings.
 - Do not claim visual parsing from links when image bytes are missing.
-- Use text fallback only when image bytes are not available and label it honestly.
+- Use cached JSON metadata snapshots instead of re-running OCR/vision on every prompt generation.
 - Do not add a third background-reference asset slot in Phase awal.
+- lock controls must be visible in the Affiliate Profile asset section with labels `Lock Character` and `Lock Environment`.
+- do not add explanatory copy or helper paragraphs around lock controls.
 
 ## Versioning
 
