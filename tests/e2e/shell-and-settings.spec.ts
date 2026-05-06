@@ -127,7 +127,9 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
 
       const drawer = page.getByRole("complementary", { name: "Detail akun affiliate" });
       await expect(drawer).toBeVisible();
-      await expect(page.locator(".product-drawer__header .product-status-stack")).toBeVisible();
+      await expect(page.locator(".product-drawer__header .product-status-stack")).toHaveCount(0);
+      await expect(drawer.locator(".status-badge")).toHaveCount(0);
+      await expect(drawer.getByRole("button", { name: "Analisis ulang aset" })).toHaveCount(1);
 
       const assetGrid = page.locator(".affiliate-profile-assets-grid");
       await expect(assetGrid).toBeVisible();
@@ -151,6 +153,11 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
 
       const previewFrames = assetGrid.locator(".image-preview-upload-card__frame");
       await expect(previewFrames).toHaveCount(2);
+      await expect(assetGrid.locator(".image-preview-upload-card__media")).toHaveCount(2);
+      const previewSources = await assetGrid.locator(".image-preview-upload-card__media").evaluateAll((nodes) =>
+        nodes.map((node) => (node as HTMLImageElement).getAttribute("src") ?? ""),
+      );
+      expect(previewSources.every((src) => src.includes("/api/drive/items/"))).toBe(true);
 
       const frameHeights = await previewFrames.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
       expect(Math.max(...frameHeights)).toBeLessThan(190);
@@ -159,5 +166,39 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
     }
   } catch (error) {
     throw classifySmokeError("affiliate profile drawer mobile", error);
+  }
+});
+
+test("affiliate profile reanalysis submits from the drawer", async ({ page }) => {
+  try {
+    page.on("dialog", (dialog) => {
+      void dialog.accept();
+    });
+
+    await page.goto("/settings/affiliate-profiles", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Akun Affiliate", level: 1 })).toBeVisible();
+    await expect(page.locator(".tab-nav")).toHaveCount(0);
+
+    const affiliateDetailButton = page.getByRole("button", { name: "Detail" });
+    if (await affiliateDetailButton.count()) {
+      await affiliateDetailButton.first().click();
+
+      const drawer = page.getByRole("complementary", { name: "Detail akun affiliate" });
+      await expect(drawer).toBeVisible();
+
+      const characterReanalyseButton = drawer.getByRole("button", { name: "Analisis ulang aset" });
+      await expect(characterReanalyseButton).toHaveCount(1);
+      const postRequestPromise = page.waitForRequest(
+        (request) => request.method() === "POST" && request.url().includes("/settings/affiliate-profiles"),
+        { timeout: 10_000 },
+      );
+
+      await characterReanalyseButton.click({ noWaitAfter: true });
+      await postRequestPromise;
+      await expect(drawer.locator(".affiliate-profile-reanalysis-feedback")).toBeVisible();
+      await expect(drawer).toBeVisible();
+    }
+  } catch (error) {
+    throw classifySmokeError("affiliate profile reanalysis submit", error);
   }
 });

@@ -70,6 +70,7 @@ type GoogleDriveThumbnailResponse = {
 
 const cachedAccessTokens = new Map<string, AccessTokenCache>();
 const GOOGLE_DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
+const GOOGLE_DRIVE_FILE_FETCH_TIMEOUT_MS = 30_000;
 
 class GoogleDriveClientError extends Error {
   constructor(
@@ -474,18 +475,32 @@ export async function getGoogleDriveImageThumbnailBytes(fileId: string) {
 
 async function fetchGoogleDriveFileBytes(fileId: string) {
   const token = await fetchGoogleDriveAccessToken();
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GOOGLE_DRIVE_FILE_FETCH_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const rawText = await response.text();
-    throw googleDriveErrorFromResponse(response, rawText, "Google Drive file fetch failed.");
+  try {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const rawText = await response.text();
+      throw googleDriveErrorFromResponse(response, rawText, "Google Drive file fetch failed.");
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new GoogleDriveClientError("Google Drive file fetch timed out.", 408, true);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return Buffer.from(await response.arrayBuffer());
 }
 
 export async function getGoogleDriveFileContentBytes(fileId: string) {

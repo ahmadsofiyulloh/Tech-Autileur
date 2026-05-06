@@ -18,8 +18,10 @@ import {
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
 import type { JsonObject } from "@/lib/affiliate-profiles/validation";
-
-export type AffiliateProfileAssetKind = "CHARACTER" | "ENVIRONMENT";
+import {
+  canonicalizeAffiliateProfileAssetAnalysisJson,
+  type AffiliateProfileAssetKind,
+} from "@/lib/affiliate-profiles/asset-reanalysis";
 
 type SupabaseServiceClient = ReturnType<typeof createSupabaseServiceRoleClient>;
 
@@ -230,7 +232,7 @@ async function analyzeAssetWithKey(input: {
       userId: input.userId,
       key: selection.key,
     }).catch(() => undefined);
-    return outputJson;
+    return canonicalizeAffiliateProfileAssetAnalysisJson(outputJson, input.driveItemId);
   } catch (error) {
     if (error instanceof GeminiClientError && (error.status === 429 || error.status >= 500)) {
       console.warn("[affiliate-profile-asset-analysis] Gemini upstream error", {

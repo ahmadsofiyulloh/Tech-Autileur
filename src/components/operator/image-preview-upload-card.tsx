@@ -25,6 +25,7 @@ type ImagePreviewUploadCardProps = {
   cameraName?: string;
   capture?: "user" | "environment";
   onSelectionChange?: (state: ImagePreviewSelectionState) => void;
+  showStatusBadge?: boolean;
 };
 
 function resetInputValue(input: HTMLInputElement | null) {
@@ -48,6 +49,7 @@ export function ImagePreviewUploadCard({
   onSelectionChange,
   cameraName,
   capture,
+  showStatusBadge = true,
 }: ImagePreviewUploadCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -183,10 +185,12 @@ export function ImagePreviewUploadCard({
     <section className={`image-preview-upload-card stack-tight${className ? ` ${className}` : ""}`} data-has-preview={displayPreviewUrl ? "true" : "false"} data-removed={isRemoved ? "true" : "false"}>
       <div className="image-preview-upload-card__header">
         <strong>{label}</strong>
-        <StatusBadge
-          status={previewLabel}
-          tone={previewTone as "neutral" | "info" | "success" | "warning" | "danger"}
-        />
+        {showStatusBadge ? (
+          <StatusBadge
+            status={previewLabel}
+            tone={previewTone as "neutral" | "info" | "success" | "warning" | "danger"}
+          />
+        ) : null}
       </div>
 
       <div className="image-preview-upload-card__frame-wrap">

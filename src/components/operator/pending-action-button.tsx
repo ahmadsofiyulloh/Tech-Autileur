@@ -6,7 +6,8 @@ import { CheckCircle2, FileUp, Loader2, Play, RefreshCcw, WandSparkles, type Luc
 import { useFormStatus } from "react-dom";
 import { useActivityFeedback, type ActivityKind } from "./activity-feedback-context";
 
-type PendingActionButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type PendingActionButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "formAction"> & {
+  formAction?: ButtonHTMLAttributes<HTMLButtonElement>["formAction"] | ((formData: FormData) => void | Promise<void>);
   activityDescription?: string | null;
   activityKind?: ActivityKind;
   activityTitle: string;
@@ -36,6 +37,7 @@ export function PendingActionButton({
   className,
   disabled,
   estimatedDurationMs = 12000,
+  formAction,
   pendingLabel,
   pendingOverride,
   type = "submit",
@@ -73,6 +75,7 @@ export function PendingActionButton({
   return (
     <button
       {...buttonProps}
+      formAction={formAction}
       className={joinClassNames("button", className?.replace(/\bbutton\b/g, "").replace(/\s+/g, " ").trim())}
       disabled={disabled || isPending}
       type={type}

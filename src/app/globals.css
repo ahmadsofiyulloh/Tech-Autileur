@@ -5556,6 +5556,62 @@ body:has(.operator-shell) {
   color: inherit;
 }
 
+.affiliate-profile-reanalysis-feedback__list {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.affiliate-profile-reanalysis-feedback__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: calc(var(--radius) - 1px);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  padding: 10px 12px;
+}
+
+.affiliate-profile-reanalysis-feedback__item[data-status="success"] {
+  border-color: var(--color-status-success-border);
+}
+
+.affiliate-profile-reanalysis-feedback__item[data-status="warning"] {
+  border-color: color-mix(in srgb, var(--color-status-warning) 22%, var(--border));
+}
+
+.affiliate-profile-reanalysis-feedback__item[data-status="error"] {
+  border-color: var(--color-status-error-border);
+}
+
+.affiliate-profile-reanalysis-feedback__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.affiliate-profile-reanalysis-feedback__copy strong {
+  color: inherit;
+  font-size: var(--type-control-size);
+  line-height: var(--type-control-line);
+}
+
+.affiliate-profile-reanalysis-feedback__copy span {
+  color: inherit;
+  font-size: var(--type-subtitle-size);
+  line-height: var(--type-subtitle-line);
+}
+
+.affiliate-profile-reanalysis-feedback__status {
+  color: var(--muted-strong);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+  white-space: nowrap;
+}
+
 .settings-manager--affiliate .affiliate-profile-assets-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5705,9 +5761,13 @@ body:has(.operator-shell) {
   }
 
   .settings-manager--affiliate .product-drawer__header .product-status-stack {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: none;
+  }
+
+  .settings-manager--affiliate .product-drawer .settings-card-meta-line {
+    overflow: visible;
+    text-overflow: initial;
+    white-space: normal;
   }
 
   .settings-manager .product-drawer__close {
@@ -5768,37 +5828,42 @@ body:has(.operator-shell) {
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview {
-    padding: 8px;
+    padding: 6px;
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__header {
-    gap: 6px;
+    justify-content: flex-start;
+    gap: 4px;
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__header strong {
-    font-size: var(--type-control-sm-size);
-    line-height: var(--type-control-sm-line);
+    font-size: var(--type-control-size);
+    line-height: var(--type-control-line);
+  }
+
+  .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__frame {
+    aspect-ratio: 1 / 1;
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__empty {
-    padding: 12px 10px;
-    gap: 6px;
+    padding: 8px;
+    gap: 4px;
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__trigger {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__actions {
-    top: 6px;
-    right: 6px;
+    top: 5px;
+    right: 5px;
     gap: 4px;
   }
 
   .settings-manager--affiliate .affiliate-profile-asset-card__preview .image-preview-upload-card__actions .button {
-    min-height: 28px;
-    padding: 0.34rem 0.48rem;
+    min-height: 26px;
+    padding: 0.3rem 0.42rem;
     font-size: var(--type-control-sm-size);
   }
 

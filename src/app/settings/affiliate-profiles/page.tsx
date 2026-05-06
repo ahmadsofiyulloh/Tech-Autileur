@@ -2,13 +2,14 @@ import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { isAffiliateProfileSchemaMissingError } from "@/lib/affiliate-profiles/schema-errors";
-import { AffiliateProfilesBoard } from "./affiliate-profiles-board";
+import { AffiliateProfilesBoard, type AffiliateProfileBoardDriveItemRecord } from "./affiliate-profiles-board";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
 import {
   listAffiliateProfiles,
   type AffiliateProfileRecord,
 } from "@/lib/server/affiliate-profiles";
 import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
+import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError, type WorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -58,6 +59,11 @@ export default async function AffiliateProfilesSettingsPage() {
   const workspaces = (workspaceState?.workspaces ?? []).filter((workspace) => workspace.status !== "ARCHIVED");
   const currentWorkspace = workspaceState?.currentWorkspace ?? null;
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
+  const drivePreviewUrlCache = new Map<string, string | null>();
+  const driveItemsWithPreview: AffiliateProfileBoardDriveItemRecord[] = driveItems.map((item) => ({
+    ...item,
+    previewUrl: resolveDriveImagePreviewUrl(item, drivePreviewUrlCache),
+  }));
   const affiliateProfilesWithAvatars = await Promise.all(
     affiliateProfiles.map((profile) => ({
       ...profile,
@@ -78,7 +84,7 @@ export default async function AffiliateProfilesSettingsPage() {
       ) : (
         <AffiliateProfilesBoard
           currentWorkspaceId={currentWorkspace?.id ?? null}
-          driveItems={driveItems}
+          driveItems={driveItemsWithPreview}
           profiles={affiliateProfilesWithAvatars}
           workspaces={workspaces}
         />

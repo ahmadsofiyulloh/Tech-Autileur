@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { FormActions } from "@/components/operator/form-actions";
@@ -10,14 +10,24 @@ import { StatusBadge } from "@/components/operator/status-badge";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
-import { reanalyzeAffiliateProfileAsset, saveAffiliateProfile } from "../actions";
+import { reanalyzeAffiliateProfileAssets, saveAffiliateProfile } from "../actions";
 import { AFFILIATE_PLATFORMS, AFFILIATE_PROFILE_STATUSES } from "@/lib/affiliate-profiles/validation";
+import {
+  AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE,
+  formatAffiliateProfileAssetKind,
+  type AffiliateProfileAssetReanalysisResult,
+  type AffiliateProfileAssetReanalysisState,
+} from "@/lib/affiliate-profiles/asset-reanalysis";
 import { getAffiliateProfileAssetAnalysisState, type AffiliateProfileAssetAnalysisState } from "@/lib/affiliate-profiles/readiness";
 import { type AffiliateProfileRecord } from "@/lib/server/affiliate-profiles";
 import { type DriveItemRecord } from "@/lib/server/drive-items";
 
 type AffiliateProfileListRecord = AffiliateProfileRecord & {
   avatarUrl: string | null;
+};
+
+export type AffiliateProfileBoardDriveItemRecord = DriveItemRecord & {
+  previewUrl: string | null;
 };
 
 type WorkspaceRecord = {
@@ -31,7 +41,7 @@ type WorkspaceRecord = {
 type AffiliateProfilesBoardProps = {
   profiles: AffiliateProfileListRecord[];
   workspaces: WorkspaceRecord[];
-  driveItems: DriveItemRecord[];
+  driveItems: AffiliateProfileBoardDriveItemRecord[];
   currentWorkspaceId: string | null;
 };
 
@@ -41,7 +51,6 @@ type DriveItemOption = {
   description: string;
 };
 
-type ReanalysisKind = "CHARACTER" | "ENVIRONMENT";
 type RouteFeedbackTone = "success" | "warning" | "error";
 type RouteFeedback = {
   tone: RouteFeedbackTone;
@@ -102,26 +111,119 @@ function profileMobileMeta(profile: AffiliateProfileRecord) {
 
 function assetAnalysisBadgeLabel(state: AffiliateProfileAssetAnalysisState) {
   if (state === "READY") {
-    return "Analisis siap";
+    return "Siap dipakai";
   }
 
   if (state === "OPTIONAL") {
     return "Opsional";
   }
 
-  return "Analisis pending";
+  return "Belum dianalisis";
 }
 
-function assetAnalysisBadgeTone(state: AffiliateProfileAssetAnalysisState) {
-  if (state === "READY") {
+function reanalysisTone(status: AffiliateProfileAssetReanalysisState["status"]): RouteFeedbackTone {
+  if (status === "error") {
+    return "error";
+  }
+
+  if (status === "warning") {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function reanalysisResultLabel(result: AffiliateProfileAssetReanalysisResult) {
+  if (result.status === "success") {
+    return "Tersimpan";
+  }
+
+  if (result.status === "warning") {
+    return "Perlu dicek";
+  }
+
+  if (result.status === "error") {
+    return "Gagal";
+  }
+
+  return "Dilewati";
+}
+
+function reanalysisResultTone(result: AffiliateProfileAssetReanalysisResult) {
+  if (result.status === "success") {
     return "success";
   }
 
-  if (state === "OPTIONAL") {
-    return "neutral";
+  if (result.status === "warning") {
+    return "warning";
   }
 
-  return "warning";
+  if (result.status === "error") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function AffiliateProfileAssetReanalysisPanel({ isCreating }: { isCreating: boolean }) {
+  const [state, formAction, isPending] = useActionState(
+    reanalyzeAffiliateProfileAssets,
+    AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE,
+  );
+
+  const bannerState = isPending
+    ? {
+        status: "warning" as const,
+        title: "Menganalisis aset",
+        message: "Character dan Environment diproses di server. Drawer tetap terbuka sampai selesai.",
+        assetResults: [] as AffiliateProfileAssetReanalysisResult[],
+      }
+    : state;
+
+  const showBanner = isPending || bannerState.status !== "idle";
+
+  return (
+    <div className="stack-tight affiliate-profile-reanalysis-panel">
+      {showBanner ? (
+        <div
+          className="settings-action-feedback affiliate-profile-reanalysis-feedback"
+          data-tone={reanalysisTone(bannerState.status)}
+          role={bannerState.status === "error" ? "alert" : "status"}
+          aria-live={bannerState.status === "error" ? "assertive" : "polite"}
+        >
+          <strong>{bannerState.title}</strong>
+          <span className="subtle">{bannerState.message}</span>
+          {!isPending && bannerState.assetResults.length ? (
+            <ul className="affiliate-profile-reanalysis-feedback__list">
+              {bannerState.assetResults.map((result) => (
+                <li className="affiliate-profile-reanalysis-feedback__item" data-status={reanalysisResultTone(result)} key={result.kind}>
+                  <div className="affiliate-profile-reanalysis-feedback__copy">
+                    <strong>{formatAffiliateProfileAssetKind(result.kind)}</strong>
+                    <span>{result.message}</span>
+                  </div>
+                  <span className="affiliate-profile-reanalysis-feedback__status">{reanalysisResultLabel(result)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!isCreating ? (
+        <PendingActionButton
+          activityDescription="Membaca bytes Drive dan menyimpan JSON Character + Environment."
+          activityKind="analysis"
+          activityTitle="Menganalisis aset affiliate"
+          className="button compact tertiary affiliate-profile-asset-card__reanalyse"
+          formAction={formAction}
+          pendingLabel="Menganalisis..."
+          pendingOverride={isPending}
+        >
+          Analisis ulang aset
+        </PendingActionButton>
+      ) : null}
+    </div>
+  );
 }
 
 export function AffiliateProfilesBoard({
@@ -135,7 +237,6 @@ export function AffiliateProfilesBoard({
   const [selectedProfileId, setSelectedProfileId] = useState(profiles.find(isVisibleProfile)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pendingReanalysisKind, setPendingReanalysisKind] = useState<ReanalysisKind | null>(null);
 
   const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE"), [workspaces]);
   const visibleProfiles = useMemo(() => profiles.filter(isVisibleProfile), [profiles]);
@@ -205,18 +306,6 @@ export function AffiliateProfilesBoard({
     setDrawerOpen(false);
   }
 
-  useEffect(() => {
-    if (!drawerOpen) {
-      setPendingReanalysisKind(null);
-    }
-  }, [drawerOpen]);
-
-  useEffect(() => {
-    if (routeFeedback) {
-      setPendingReanalysisKind(null);
-    }
-  }, [routeFeedback]);
-
   const namespaceWorkspaceId =
     (selectedProfile?.default_workspace_id ?? selectedProfile?.workspace_ids[0] ?? currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "") || "";
   const selectedSeedCharacterDriveItem = useMemo(
@@ -227,12 +316,9 @@ export function AffiliateProfilesBoard({
     () => driveItems.find((item) => item.id === selectedProfile?.environment_drive_item_ref_id) ?? null,
     [driveItems, selectedProfile?.environment_drive_item_ref_id],
   );
-  const selectedSeedCharacterPreviewUrl =
-    selectedSeedCharacterDriveItem?.mime_type?.startsWith("image/") ? selectedSeedCharacterDriveItem.drive_url : null;
-  const selectedEnvironmentPreviewUrl =
-    selectedEnvironmentDriveItem?.mime_type?.startsWith("image/") ? selectedEnvironmentDriveItem.drive_url : null;
+  const selectedSeedCharacterPreviewUrl = selectedSeedCharacterDriveItem?.previewUrl ?? null;
+  const selectedEnvironmentPreviewUrl = selectedEnvironmentDriveItem?.previewUrl ?? null;
   const initialProfile = selectedProfile ?? null;
-  const visiblePendingReanalysisKind = routeFeedback ? null : pendingReanalysisKind;
   const seedCharacterAnalysisState = getAffiliateProfileAssetAnalysisState({
     locked: initialProfile?.lock_seed_character ?? true,
     driveItemRefId: initialProfile?.seed_character_drive_item_ref_id,
@@ -243,12 +329,8 @@ export function AffiliateProfilesBoard({
     driveItemRefId: initialProfile?.environment_drive_item_ref_id,
     analysisJson: initialProfile?.environment_analysis_json,
   });
-  const overallAnalysisState: AffiliateProfileAssetAnalysisState =
-    seedCharacterAnalysisState === "PENDING" || environmentAnalysisState === "PENDING" ? "PENDING" : "READY";
 
   const formKey = isCreating ? "create-profile" : selectedProfile?.id ?? "edit-profile";
-  const characterAnalysisDisabled = !initialProfile?.seed_character_drive_item_ref_id;
-  const environmentAnalysisDisabled = !initialProfile?.environment_drive_item_ref_id;
 
   return (
     <section className="product-master settings-manager settings-manager--affiliate" aria-label="Akun Affiliate">
@@ -391,12 +473,7 @@ export function AffiliateProfilesBoard({
           <div className="stack-tight">
             <span className="subtle">{isCreating ? "Profile baru" : "Detail"}</span>
             <strong>{isCreating ? "Buat profile affiliate" : selectedProfile?.profile_name ?? "Pilih profile"}</strong>
-            <div className="product-status-stack">
-              <StatusBadge status={initialProfile?.status ?? "DRAFT"} />
-              <StatusBadge status={overallAnalysisState === "PENDING" ? "Analisis pending" : "Analisis siap"} tone={overallAnalysisState === "PENDING" ? "warning" : "success"} />
-              <StatusBadge status={assetAnalysisBadgeLabel(seedCharacterAnalysisState)} tone={assetAnalysisBadgeTone(seedCharacterAnalysisState)} />
-              <StatusBadge status={assetAnalysisBadgeLabel(environmentAnalysisState)} tone={assetAnalysisBadgeTone(environmentAnalysisState)} />
-            </div>
+            {!isCreating && initialProfile ? <span className="settings-card-meta-line">{profileMobileMeta(initialProfile)}</span> : null}
           </div>
           <button className="button compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
             <X size={16} aria-hidden="true" />
@@ -410,22 +487,6 @@ export function AffiliateProfilesBoard({
                 <strong>{routeFeedback.title}</strong>
                 <span className="subtle">{routeFeedback.message}</span>
               </div>
-            ) : null}
-            {!isCreating && initialProfile ? (
-              <>
-                <form hidden id="reanalyze-seed-character-form" action={reanalyzeAffiliateProfileAsset}>
-                  <input type="hidden" name="id" value={initialProfile.id} />
-                  <input type="hidden" name="kind" value="CHARACTER" />
-                  <input type="hidden" name="current_seed_character_drive_item_ref_id" value={initialProfile.seed_character_drive_item_ref_id ?? ""} />
-                  <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
-                </form>
-                <form hidden id="reanalyze-environment-form" action={reanalyzeAffiliateProfileAsset}>
-                  <input type="hidden" name="id" value={initialProfile.id} />
-                  <input type="hidden" name="kind" value="ENVIRONMENT" />
-                  <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile.environment_drive_item_ref_id ?? ""} />
-                  <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
-                </form>
-              </>
             ) : null}
             <form key={formKey} className="stack" action={saveAffiliateProfile}>
               <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
@@ -468,16 +529,8 @@ export function AffiliateProfilesBoard({
                     <span className="subtle">Asset lock</span>
                     <strong>Character dan Environment</strong>
                   </div>
-                  <StatusBadge status={overallAnalysisState === "PENDING" ? "Analisis pending" : "Analisis siap"} tone={overallAnalysisState === "PENDING" ? "warning" : "success"} />
                 </div>
-                {visiblePendingReanalysisKind ? (
-                  <div className="settings-action-feedback" data-tone="warning" role="status" aria-live="polite">
-                    <strong>
-                      {visiblePendingReanalysisKind === "CHARACTER" ? "Menganalisis Character" : "Menganalisis Environment"}
-                    </strong>
-                    <span className="subtle">Menunggu Gemini memproses bytes Drive dan menyimpan JSON.</span>
-                  </div>
-                ) : null}
+                {!isCreating && initialProfile ? <AffiliateProfileAssetReanalysisPanel key={formKey} isCreating={isCreating} /> : null}
                 <div className="affiliate-profile-assets-grid">
                   <section className="affiliate-profile-asset-card stack-tight">
                     <ImagePreviewUploadCard
@@ -489,6 +542,7 @@ export function AffiliateProfilesBoard({
                       name="seed_character_file"
                       previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
                       previewUrl={selectedSeedCharacterPreviewUrl}
+                      showStatusBadge={false}
                     />
                     <div className="muted-box stack-tight">
                       <label className="checkbox-row" htmlFor={`${formKey}-lock-seed-character`}>
@@ -500,7 +554,7 @@ export function AffiliateProfilesBoard({
                         />
                         <span>Lock Character</span>
                       </label>
-                      <StatusBadge status={assetAnalysisBadgeLabel(seedCharacterAnalysisState)} tone={assetAnalysisBadgeTone(seedCharacterAnalysisState)} />
+                      <span className="settings-card-meta-line">{assetAnalysisBadgeLabel(seedCharacterAnalysisState)}</span>
                     </div>
                     <details className="stack-tight">
                       <summary>Referensi Drive</summary>
@@ -514,21 +568,6 @@ export function AffiliateProfilesBoard({
                         searchPlaceholder="Cari Drive item"
                       />
                     </details>
-                    {!isCreating && initialProfile ? (
-                      <PendingActionButton
-                        activityDescription="Membaca bytes Drive dan menyimpan JSON Character."
-                        activityKind="analysis"
-                        activityTitle="Menganalisis Character"
-                        className="button compact tertiary affiliate-profile-asset-card__reanalyse"
-                        disabled={characterAnalysisDisabled}
-                        form="reanalyze-seed-character-form"
-                        pendingLabel="Menganalisis..."
-                        pendingOverride={visiblePendingReanalysisKind === "CHARACTER"}
-                        onClick={() => setPendingReanalysisKind("CHARACTER")}
-                      >
-                        Analisis ulang
-                      </PendingActionButton>
-                    ) : null}
                   </section>
 
                   <section className="affiliate-profile-asset-card stack-tight">
@@ -541,6 +580,7 @@ export function AffiliateProfilesBoard({
                       name="environment_file"
                       previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
                       previewUrl={selectedEnvironmentPreviewUrl}
+                      showStatusBadge={false}
                     />
                     <div className="muted-box stack-tight">
                       <label className="checkbox-row" htmlFor={`${formKey}-lock-environment`}>
@@ -552,7 +592,7 @@ export function AffiliateProfilesBoard({
                         />
                         <span>Lock Environment</span>
                       </label>
-                      <StatusBadge status={assetAnalysisBadgeLabel(environmentAnalysisState)} tone={assetAnalysisBadgeTone(environmentAnalysisState)} />
+                      <span className="settings-card-meta-line">{assetAnalysisBadgeLabel(environmentAnalysisState)}</span>
                     </div>
                     <details className="stack-tight">
                       <summary>Referensi Drive</summary>
@@ -566,21 +606,6 @@ export function AffiliateProfilesBoard({
                         searchPlaceholder="Cari Drive item"
                       />
                     </details>
-                    {!isCreating && initialProfile ? (
-                      <PendingActionButton
-                        activityDescription="Membaca bytes Drive dan menyimpan JSON Environment."
-                        activityKind="analysis"
-                        activityTitle="Menganalisis Environment"
-                        className="button compact tertiary affiliate-profile-asset-card__reanalyse"
-                        disabled={environmentAnalysisDisabled}
-                        form="reanalyze-environment-form"
-                        pendingLabel="Menganalisis..."
-                        pendingOverride={visiblePendingReanalysisKind === "ENVIRONMENT"}
-                        onClick={() => setPendingReanalysisKind("ENVIRONMENT")}
-                      >
-                        Analisis ulang
-                      </PendingActionButton>
-                    ) : null}
                   </section>
                 </div>
               </section>

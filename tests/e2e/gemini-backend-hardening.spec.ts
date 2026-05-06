@@ -21,6 +21,7 @@ import {
   sanitizeGeminiStatusMessage,
 } from "../../src/lib/gemini/error-message";
 import { isAffiliateProfileSchemaMissingError } from "../../src/lib/affiliate-profiles/schema-errors";
+import { canonicalizeAffiliateProfileAssetAnalysisJson } from "../../src/lib/affiliate-profiles/asset-reanalysis";
 import {
   getAffiliateProfileAssetAnalysisState,
   isAffiliateProfileAssetAnalysisReady,
@@ -409,6 +410,41 @@ test("affiliate profile asset analysis readiness is ref aware", () => {
       analysisJson: null,
     }),
   ).toBe("OPTIONAL");
+});
+
+test("affiliate profile asset analysis canonicalizes the active drive ref", () => {
+  const canonical = canonicalizeAffiliateProfileAssetAnalysisJson(
+    {
+      schema_version: "2026-05-06.asset-analysis.v1",
+      prompt_version: "2026-05-06.asset-analysis.prompt.v1",
+      asset_kind: "CHARACTER",
+      profile_code: "SMOKE_PROFILE_PRIMARY",
+      drive_item_ref_id: "model-ref-id",
+      drive_item_name: "smoke-character.png",
+      analysis: {
+        summary: "Character posture",
+      },
+      prompt_rules: {
+        i2i_prompt_rules: ["keep silhouette"],
+        i2v_prompt_rules: ["keep silhouette"],
+        caption_rules: ["short"],
+        hashtag_rules: ["#smoke"],
+        negative_prompt_rules: ["no blur"],
+        product_positioning_notes: ["center the subject"],
+      },
+      quality: {
+        ocr_confidence: 0.92,
+        visual_confidence: 0.95,
+      },
+    } as JsonObject,
+    "active-drive-ref-id",
+  );
+
+  expect(canonical?.drive_item_ref_id).toBe("active-drive-ref-id");
+  expect(canonical?.profile_code).toBe("SMOKE_PROFILE_PRIMARY");
+  expect(canonical?.analysis).toEqual({
+    summary: "Character posture",
+  });
 });
 
 test("affiliate profile prompt readiness rejects stale cached analysis", () => {

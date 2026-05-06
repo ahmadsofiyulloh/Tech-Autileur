@@ -11,10 +11,21 @@ import {
 } from "@/lib/server/affiliate-profiles";
 import { buildAffiliateProfileCode } from "@/lib/affiliate-profiles/validation";
 import {
+  AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE,
+  buildAffiliateProfileAssetReanalysisState,
+  canonicalizeAffiliateProfileAssetAnalysisJson,
+  formatAffiliateProfileAssetKind,
+  type AffiliateProfileAssetKind,
+  type AffiliateProfileAssetReanalysisResult,
+  type AffiliateProfileAssetReanalysisState,
+} from "@/lib/affiliate-profiles/asset-reanalysis";
+import {
   getGeminiTemporaryUnavailableRetryMessage,
   isGeminiTemporaryUnavailableMessage,
 } from "@/lib/gemini/error-message";
-import { analyzeAffiliateProfileAsset } from "@/lib/server/affiliate-profile-asset-analysis";
+import {
+  analyzeAffiliateProfileAsset,
+} from "@/lib/server/affiliate-profile-asset-analysis";
 import { uploadAffiliateProfileAsset } from "@/lib/server/affiliate-profile-assets";
 import {
   disableHelperApiToken as disableStoredHelperApiToken,
@@ -69,10 +80,6 @@ function fail(message: string, path = "/settings"): never {
 
 function done(message: string, path = "/settings"): never {
   redirectWithMessage(path, "message", message);
-}
-
-function warn(message: string, path = "/settings"): never {
-  redirectWithMessage(path, "warning", message);
 }
 
 function revalidateWorkspaceSurfaces() {
@@ -273,12 +280,13 @@ async function resolveAffiliateProfileAssetRef(input: {
   return pickerRef || currentRef || null;
 }
 
-function readAffiliateProfileAssetKind(value: string): "CHARACTER" | "ENVIRONMENT" {
-  if (value === "CHARACTER" || value === "ENVIRONMENT") {
-    return value;
-  }
-
-  throw new Error("Unsupported affiliate profile asset kind.");
+function readAffiliateProfileAssetDraft(formData: FormData) {
+  return {
+    lock_seed_character: readBoolean(formData, "lock_seed_character"),
+    seed_character_drive_item_ref_id: readText(formData, "seed_character_drive_item_ref_id") || null,
+    lock_environment: readBoolean(formData, "lock_environment"),
+    environment_drive_item_ref_id: readText(formData, "environment_drive_item_ref_id") || null,
+  };
 }
 
 export async function saveAffiliateProfile(formData: FormData) {
@@ -373,67 +381,157 @@ export async function saveAffiliateProfile(formData: FormData) {
   done(message, returnTo);
 }
 
-export async function reanalyzeAffiliateProfileAsset(formData: FormData) {
-  const id = readText(formData, "id");
-  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings/affiliate-profiles");
-  let message = "";
+async function analyzeAffiliateProfileAssetWithState(input: {
+  profileCode: string;
+  kind: AffiliateProfileAssetKind;
+  locked: boolean;
+  driveItemRefId: string | null;
+  profileId: string;
+  results: AffiliateProfileAssetReanalysisResult[];
+}) {
+  const label = formatAffiliateProfileAssetKind(input.kind);
+
+  if (!input.locked) {
+    input.results.push({
+      kind: input.kind,
+      status: "skipped",
+      message: "Lock nonaktif; dilewati.",
+      driveItemRefId: input.driveItemRefId,
+      analysisStored: false,
+    });
+    return;
+  }
+
+  if (!input.driveItemRefId) {
+    input.results.push({
+      kind: input.kind,
+      status: "warning",
+      message: `Referensi ${label} belum dipilih.`,
+      driveItemRefId: null,
+      analysisStored: false,
+    });
+    return;
+  }
 
   try {
-    const kind = readAffiliateProfileAssetKind(readText(formData, "kind"));
-    const currentRefKey = kind === "CHARACTER" ? "current_seed_character_drive_item_ref_id" : "current_environment_drive_item_ref_id";
-    const currentDriveItemRefId = readText(formData, currentRefKey);
-    const assetLabel = kind === "CHARACTER" ? "Character" : "Environment";
-    message = `${assetLabel} dianalisis`;
-
-    if (!id) {
-      throw new Error("Missing affiliate profile id.");
-    }
-
-    if (!currentDriveItemRefId) {
-      throw new Error(`Referensi ${assetLabel} wajib diisi.`);
-    }
-
-    const profile = await getAffiliateProfileById(id);
-    const profileDriveItemRefId = kind === "CHARACTER" ? profile.seed_character_drive_item_ref_id : profile.environment_drive_item_ref_id;
-
-    if (profileDriveItemRefId !== currentDriveItemRefId) {
-      throw new Error(`Referensi ${assetLabel} berubah. Simpan profile lagi.`);
-    }
-
     const analysisJson = await analyzeAffiliateProfileAsset({
-      profileCode: profile.profile_code,
-      kind,
-      driveItemId: currentDriveItemRefId,
+      profileCode: input.profileCode,
+      kind: input.kind,
+      driveItemId: input.driveItemRefId,
     });
 
-    if (!analysisJson) {
-      throw new Error(`${assetLabel} analysis failed.`);
+    const normalizedAnalysisJson = canonicalizeAffiliateProfileAssetAnalysisJson(analysisJson, input.driveItemRefId);
+
+    if (!normalizedAnalysisJson) {
+      throw new Error(`${label} analysis failed.`);
     }
 
-    const latestProfile = await getAffiliateProfileById(id);
-    const latestDriveItemRefId = kind === "CHARACTER" ? latestProfile.seed_character_drive_item_ref_id : latestProfile.environment_drive_item_ref_id;
+    await updateAffiliateProfile(input.profileId, {
+      ...(input.kind === "CHARACTER"
+        ? { seed_character_analysis_json: normalizedAnalysisJson }
+        : { environment_analysis_json: normalizedAnalysisJson }),
+    });
 
-    if (latestDriveItemRefId !== currentDriveItemRefId) {
-      throw new Error(`Referensi ${assetLabel} berubah saat analisis. Jalankan ulang analisis.`);
+    input.results.push({
+      kind: input.kind,
+      status: "success",
+      message: `JSON disimpan dengan ref aktif.`,
+      driveItemRefId: input.driveItemRefId,
+      analysisStored: true,
+    });
+  } catch (error) {
+    if (error instanceof Error && isGeminiTemporaryUnavailableMessage(error.message)) {
+      input.results.push({
+        kind: input.kind,
+        status: "warning",
+        message: getGeminiTemporaryUnavailableRetryMessage(),
+        driveItemRefId: input.driveItemRefId,
+        analysisStored: false,
+      });
+      return;
     }
+
+    const errorMessage = error instanceof Error ? error.message : `${label} analysis failed.`;
+    input.results.push({
+      kind: input.kind,
+      status: "error",
+      message: errorMessage,
+      driveItemRefId: input.driveItemRefId,
+      analysisStored: false,
+    });
+  }
+}
+
+export async function reanalyzeAffiliateProfileAssets(
+  _previousState: AffiliateProfileAssetReanalysisState,
+  formData: FormData,
+): Promise<AffiliateProfileAssetReanalysisState> {
+  const id = readText(formData, "id");
+
+  if (!id) {
+    return {
+      ...AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE,
+      status: "error",
+      title: "Analisis aset gagal",
+      message: "Missing affiliate profile id.",
+    };
+  }
+
+  try {
+    const profile = await getAffiliateProfileById(id);
+    const draft = readAffiliateProfileAssetDraft(formData);
 
     await updateAffiliateProfile(id, {
-      ...(kind === "CHARACTER"
-        ? { seed_character_analysis_json: analysisJson }
-        : { environment_analysis_json: analysisJson }),
+      lock_seed_character: draft.lock_seed_character,
+      seed_character_drive_item_ref_id: draft.seed_character_drive_item_ref_id,
+      lock_environment: draft.lock_environment,
+      environment_drive_item_ref_id: draft.environment_drive_item_ref_id,
+    });
+
+    const results: AffiliateProfileAssetReanalysisResult[] = [];
+
+    await analyzeAffiliateProfileAssetWithState({
+      profileCode: profile.profile_code,
+      kind: "CHARACTER",
+      locked: draft.lock_seed_character,
+      driveItemRefId: draft.seed_character_drive_item_ref_id,
+      profileId: id,
+      results,
+    });
+
+    await analyzeAffiliateProfileAssetWithState({
+      profileCode: profile.profile_code,
+      kind: "ENVIRONMENT",
+      locked: draft.lock_environment,
+      driveItemRefId: draft.environment_drive_item_ref_id,
+      profileId: id,
+      results,
     });
 
     revalidateAffiliateProfileSurfaces();
+    return buildAffiliateProfileAssetReanalysisState(results);
   } catch (error) {
     if (error instanceof Error && isGeminiTemporaryUnavailableMessage(error.message)) {
-      return warn(getGeminiTemporaryUnavailableRetryMessage(), returnTo);
+      return {
+        ...AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE,
+        status: "warning",
+        title: "Analisis aset ditunda",
+        message: getGeminiTemporaryUnavailableRetryMessage(),
+      };
     }
 
     const errorMessage = error instanceof Error ? error.message : "Affiliate profile analysis failed.";
-    fail(errorMessage, returnTo);
+    return {
+      ...AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE,
+      status: "error",
+      title: "Analisis aset gagal",
+      message: errorMessage,
+    };
   }
+}
 
-  done(message || "Affiliate profile analysis completed", returnTo);
+export async function reanalyzeAffiliateProfileAsset(formData: FormData) {
+  return await reanalyzeAffiliateProfileAssets(AFFILIATE_PROFILE_ASSET_REANALYSIS_INITIAL_STATE, formData);
 }
 
 export async function setDefaultAffiliateProfile(formData: FormData) {
