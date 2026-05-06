@@ -1,3 +1,9 @@
+export const GEMINI_TEMPORARY_UNAVAILABLE_MESSAGE = "Gemini service is temporarily unavailable." as const;
+
+export function isGeminiTemporaryUnavailableMessage(message: string) {
+  return message.trim() === GEMINI_TEMPORARY_UNAVAILABLE_MESSAGE;
+}
+
 export function sanitizeGeminiStatusMessage(status: number, fallback = "Gemini request failed.", upstreamMessage?: string | null) {
   if (status === 401) {
     return "Gemini authorization failed.";
@@ -20,7 +26,7 @@ export function sanitizeGeminiStatusMessage(status: number, fallback = "Gemini r
   }
 
   if (status >= 500) {
-    return "Gemini service is temporarily unavailable.";
+    return GEMINI_TEMPORARY_UNAVAILABLE_MESSAGE;
   }
 
   if (typeof upstreamMessage === "string" && upstreamMessage.trim()) {

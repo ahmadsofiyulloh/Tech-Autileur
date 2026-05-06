@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
-import { classifySmokeError } from "./support/blockers";
+import { classifySmokeError, isControlledGeminiTemporaryUnavailableBlocker, SmokeBlockerError } from "./support/blockers";
 import { readSmokeBootstrapState } from "./support/bootstrap";
 import { createSmokeImageFixtures } from "./support/images";
 
@@ -28,6 +28,7 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
   const fixtureDir = path.join(testInfo.outputDir, "intake-fixtures");
   const fixtureContext = await browser.newContext();
   const state = await readSmokeBootstrapState();
+  let geminiTemporaryUnavailableMessage: string | null = null;
 
   try {
     const files = await createSmokeImageFixtures(fixtureContext, fixtureDir);
@@ -65,18 +66,26 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
     const errorMessage = currentUrl.searchParams.get("error");
 
     if (errorMessage) {
-      throw classifySmokeError("intake live", errorMessage);
+      if (isControlledGeminiTemporaryUnavailableBlocker(errorMessage)) {
+        geminiTemporaryUnavailableMessage = errorMessage;
+      } else {
+        throw classifySmokeError("intake live", errorMessage);
+      }
+    } else {
+      await expect(page.getByRole("heading", { name: "Review metadata" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Simpan Review" })).toBeVisible();
+      await page.getByRole("button", { name: "Simpan Review" }).click();
+      await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.has("product_id"));
+      await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
+      const promptCard = page.locator("article").filter({ hasText: state.product.name }).first();
+      await expect(promptCard).toBeVisible();
+      await expect(promptCard.getByRole("button", { name: "Buat Prompt" })).toBeVisible();
+    }
+  } catch (error) {
+    if (error instanceof SmokeBlockerError) {
+      throw error;
     }
 
-    await expect(page.getByRole("heading", { name: "Review metadata" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Simpan Review" })).toBeVisible();
-    await page.getByRole("button", { name: "Simpan Review" }).click();
-    await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.has("product_id"));
-    await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
-    const promptCard = page.locator("article").filter({ hasText: state.product.name }).first();
-    await expect(promptCard).toBeVisible();
-    await expect(promptCard.getByRole("button", { name: "Buat Prompt" })).toBeVisible();
-  } catch (error) {
     if (error instanceof Error && error.message.includes("timeout")) {
       throw classifySmokeError("intake live timeout", error);
     }
@@ -84,5 +93,13 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
     throw classifySmokeError("intake live", error);
   } finally {
     await fixtureContext.close();
+  }
+
+  if (geminiTemporaryUnavailableMessage) {
+    testInfo.annotations.push({
+      type: "external-blocker",
+      description: `GEMINI_BLOCKER: ${geminiTemporaryUnavailableMessage}`,
+    });
+    test.skip(true, `Expected external Gemini blocker: ${geminiTemporaryUnavailableMessage}`);
   }
 });

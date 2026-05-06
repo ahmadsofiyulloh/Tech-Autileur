@@ -1,3 +1,5 @@
+import { isGeminiTemporaryUnavailableMessage } from "@/lib/gemini/error-message";
+
 export type SmokeBlockerCategory =
   | "APP_BLOCKER"
   | "AUTH_BLOCKER"
@@ -59,3 +61,6 @@ export function classifySmokeError(stage: string, error: unknown): SmokeBlockerE
   return new SmokeBlockerError(inferBlockerCategory(message), stage, message);
 }
 
+export function isControlledGeminiTemporaryUnavailableBlocker(message: string) {
+  return isGeminiTemporaryUnavailableMessage(message);
+}
