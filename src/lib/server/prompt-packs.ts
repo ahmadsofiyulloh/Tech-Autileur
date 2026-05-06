@@ -1728,6 +1728,19 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
         message: `Prompt pack generated with Gemini using ${buildGeminiKeySelectionLabel(selectedKey)}.`,
       };
     } catch (error) {
+      if (error instanceof GeminiClientError && error.status >= 500) {
+        console.warn("[prompt-packs.runRealPromptPackTask] Gemini upstream unavailable", {
+          promptPackId,
+          taskId,
+          userId: context.user.id,
+          geminiApiKeyId: selectedKey.id,
+          modelName: selectedKey.model_name,
+          status: error.status,
+          retryAfterSeconds: error.retryAfterSeconds,
+          message: error.message,
+        });
+      }
+
       if (error instanceof GeminiClientError && error.status === 429) {
         const retryAfterSeconds = error.retryAfterSeconds ?? 900;
         const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;

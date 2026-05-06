@@ -17,6 +17,10 @@ import { exportPromptPackTextFile } from "@/lib/server/prompt-pack-generated-fil
 import { getProductById } from "@/lib/server/products";
 import { buildPromptPackEditorStoragePayload } from "@/lib/prompts/prompt-pack-contract";
 import { PROMPT_CLIP_KEYS, isPromptPackStatus, type PromptClipKey } from "@/lib/prompts/validation";
+import {
+  getGeminiTemporaryUnavailableRetryMessage,
+  isGeminiTemporaryUnavailableMessage,
+} from "@/lib/gemini/error-message";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -44,7 +48,7 @@ function readSafeReturnTo(formData: FormData) {
   return value;
 }
 
-function appendRedirectMessage(path: string, key: "message" | "error", message: string) {
+function appendRedirectMessage(path: string, key: "message" | "error" | "warning", message: string) {
   const [pathname, query = ""] = path.split("?");
   const searchParams = new URLSearchParams(query);
   searchParams.set(key, message);
@@ -52,11 +56,16 @@ function appendRedirectMessage(path: string, key: "message" | "error", message: 
   return `${pathname}?${searchParams.toString()}`;
 }
 
-function promptDetailRedirect(promptPackId: string, key: "message" | "error", message: string) {
+function promptDetailRedirect(promptPackId: string, key: "message" | "error" | "warning", message: string) {
   return appendRedirectMessage(`/prompts/${promptPackId}`, key, message);
 }
 
-function buildPromptRedirectFromForm(formData: FormData, key: "message" | "error", message: string, productId?: string | null) {
+function buildPromptRedirectFromForm(
+  formData: FormData,
+  key: "message" | "error" | "warning",
+  message: string,
+  productId?: string | null,
+) {
   const returnTo = readSafeReturnTo(formData);
 
   if (returnTo) {
@@ -85,6 +94,14 @@ function buildPromptRedirectFromForm(formData: FormData, key: "message" | "error
 
 function failFromForm(formData: FormData, message: string): never {
   redirect(buildPromptRedirectFromForm(formData, "error", message));
+}
+
+function buildPromptGenerationRedirect(message: string) {
+  const isRetryableGeminiError = isGeminiTemporaryUnavailableMessage(message);
+  return {
+    key: isRetryableGeminiError ? ("warning" as const) : ("error" as const),
+    message: isRetryableGeminiError ? getGeminiTemporaryUnavailableRetryMessage() : message,
+  };
 }
 
 function doneFromForm(formData: FormData, message: string, productId?: string | null): never {
@@ -222,6 +239,7 @@ export async function savePromptPack(formData: FormData) {
     const status = readText(formData, "status") || "DRAFT";
     let message = "Prompt pack disimpan";
     let createdPromptPackId = "";
+    let generationRedirect: { key: "warning" | "error"; message: string } | null = null;
 
     if (!productId) {
       failFromForm(formData, "Produk wajib dipilih.");
@@ -258,16 +276,26 @@ export async function savePromptPack(formData: FormData) {
       if (intent === "create_generate") {
         const result = await generatePromptPack(promptPack.id, generationMode);
         createdPromptPackId = result.promptPack.id;
-        message = result.message;
+        if (result.task.status !== "SUCCESS") {
+          generationRedirect = buildPromptGenerationRedirect(result.message);
+        } else {
+          message = result.message;
+        }
       }
     } catch (error) {
       if (createdPromptPackId) {
         const messageText = errorMessage(error);
+        const redirectInfo = buildPromptGenerationRedirect(messageText);
         revalidatePromptRoutes(createdPromptPackId, productId);
-        redirect(promptDetailRedirect(createdPromptPackId, "error", messageText));
+        redirect(promptDetailRedirect(createdPromptPackId, redirectInfo.key, redirectInfo.message));
       }
 
       failFromForm(formData, errorMessage(error));
+    }
+
+    if (generationRedirect) {
+      revalidatePromptRoutes(createdPromptPackId, productId);
+      redirect(promptDetailRedirect(createdPromptPackId, generationRedirect.key, generationRedirect.message));
     }
 
     if (createdPromptPackId) {
@@ -311,6 +339,7 @@ export async function savePromptPack(formData: FormData) {
     const productId = readText(formData, "product_id");
     let message = "Prompt pack regenerated.";
     let nextPromptPackId = id;
+    let generationRedirect: { key: "warning" | "error"; message: string } | null = null;
 
     if (!productId) {
       failFromForm(formData, "Produk wajib dipilih.");
@@ -330,16 +359,27 @@ export async function savePromptPack(formData: FormData) {
       nextPromptPackId = nextVersion.id;
       const result = await generatePromptPack(nextVersion.id, generationMode);
       nextPromptPackId = result.promptPack.id;
-      message = result.message;
+      if (result.task.status !== "SUCCESS") {
+        generationRedirect = buildPromptGenerationRedirect(result.message);
+      } else {
+        message = result.message;
+      }
     } catch (error) {
       if (nextPromptPackId !== id) {
         const messageText = errorMessage(error);
+        const redirectInfo = buildPromptGenerationRedirect(messageText);
         revalidatePromptRoutes(id, productId);
         revalidatePromptRoutes(nextPromptPackId, productId);
-        redirect(promptDetailRedirect(nextPromptPackId, "error", messageText));
+        redirect(promptDetailRedirect(nextPromptPackId, redirectInfo.key, redirectInfo.message));
       }
 
       failFromForm(formData, errorMessage(error));
+    }
+
+    if (generationRedirect) {
+      revalidatePromptRoutes(id, productId);
+      revalidatePromptRoutes(nextPromptPackId, productId);
+      redirect(promptDetailRedirect(nextPromptPackId, generationRedirect.key, generationRedirect.message));
     }
 
     revalidatePromptRoutes(id, productId);

@@ -1577,6 +1577,18 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
         selectedKeySelectionForSuccess = selectedKey;
         responseText = response.text;
       } catch (error) {
+        if (error instanceof GeminiClientError && error.status >= 500) {
+          console.warn("[intake.parseIntakeWithGemini] Gemini upstream unavailable", {
+            taskId: task.id,
+            userId: user.id,
+            geminiApiKeyId: selectedKey.key.id,
+            modelName: selectedKey.key.model_name,
+            status: error.status,
+            retryAfterSeconds: error.retryAfterSeconds,
+            message: error.message,
+          });
+        }
+
         if (error instanceof GeminiClientError && error.status === 429) {
           const retryAfterSeconds = error.retryAfterSeconds ?? 900;
           const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;

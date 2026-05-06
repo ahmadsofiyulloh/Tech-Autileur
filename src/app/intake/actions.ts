@@ -13,6 +13,10 @@ import {
   updateIntakeSession,
 } from "@/lib/server/intake";
 import type { JsonRecord } from "@/lib/intake/validation";
+import {
+  getGeminiTemporaryUnavailableRetryMessage,
+  isGeminiTemporaryUnavailableMessage,
+} from "@/lib/gemini/error-message";
 
 const INTAKE_RETURN_PATH = "/products/new";
 
@@ -28,6 +32,16 @@ function readUploadedFile(formData: FormData, key: string) {
 
 function redirectWithError(message: string, params?: Record<string, string>): never {
   const searchParams = new URLSearchParams({ error: message });
+
+  for (const [key, value] of Object.entries(params ?? {})) {
+    searchParams.set(key, value);
+  }
+
+  redirect(`${INTAKE_RETURN_PATH}?${searchParams.toString()}`);
+}
+
+function redirectWithWarning(message: string, params?: Record<string, string>): never {
+  const searchParams = new URLSearchParams({ warning: message });
 
   for (const [key, value] of Object.entries(params ?? {})) {
     searchParams.set(key, value);
@@ -239,6 +253,10 @@ export async function saveIntake(formData: FormData) {
             ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
           }
         : undefined;
+
+    if (isGeminiTemporaryUnavailableMessage(errorMessage)) {
+      redirectWithWarning(getGeminiTemporaryUnavailableRetryMessage(), errorParams);
+    }
 
     redirectWithError(errorMessage, errorParams);
   }
