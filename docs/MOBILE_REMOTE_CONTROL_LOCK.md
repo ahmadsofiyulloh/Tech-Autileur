@@ -83,4 +83,6 @@ Mobile settings must keep `/settings` as the overview entrypoint, then open sect
 
 Mutable master lists use compact cards. Edit/create forms open as a full-screen drawer or bottom sheet. Mobile must not expose large desktop tables as the primary interaction.
 
+Affiliate Profile drawers on mobile keep Character and Environment preview cards compact in a two-column grid, use Drive-style preview tiles when image bytes exist, and show inline reanalysis pending or fallback feedback so the drawer does not go silent during retryable Gemini work.
+
 The Settings overview should read as a native grouped list. Account, Affiliate Profiles, Connected Services, Preferences, and System/Support groups may appear when backed by real app state.

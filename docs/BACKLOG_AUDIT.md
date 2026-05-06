@@ -72,6 +72,8 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-06 | 1c948cc | support | Added shared JSON recovery helpers for intake and prompt parsing. |
 | 2026-05-06 | cc510e5 | support | Fixed intake quota bookkeeping in the Gemini repair fallback path. |
 | 2026-05-06 | 32664ab | support | Hardened Drive long-press selection guard. |
+| 2026-05-06 | 962b7b9 | support | Follow-up on S8-006 and S6-006; tightened affiliate drawer fallback UX, pending state, and mobile preview density. |
+| 2026-05-06 | 353300d | support | Follow-up on S2-003 and S3-002; routed retryable Gemini temporary-unavailable responses as warnings in intake and prompt actions. |
 
 ## Legacy Foundation Checkpoints
 
@@ -94,4 +96,5 @@ These commits predate the task-tagged commit convention but still document actua
 - `24d5a1b` refreshes the lock docs and backlog for the current repo state; it is a support checkpoint, not feature completion.
 - `11efa04` and `d7e86bc` are follow-up commits on already-completed tasks; they do not change the current backlog completion snapshot.
 - `2ca104d` and `66c09ee` are docs and baseline sync checkpoints, not feature completion by themselves.
+- `962b7b9` and `353300d` are support follow-ups for Gemini fallback UX and affiliate drawer mobile polish; they do not change the current backlog completion snapshot.
 - `6f0bd1c`, `1c948cc`, `cc510e5`, and `32664ab` are support commits that keep the repo consistent after the task-backed feature batches.

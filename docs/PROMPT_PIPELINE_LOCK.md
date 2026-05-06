@@ -72,6 +72,8 @@ If a selected profile lock is enabled but the matching Drive reference or cached
 
 Prompt generation must also consume reviewed Gemini output inside the selected Affiliate Profile namespace and must not invent any extra profile asset slot beyond character and environment.
 
+Retryable Gemini temporary-unavailable failures from intake and prompt actions should surface as warning redirects, not silent failures, so the operator can dismiss the message and retry from the same surface.
+
 2026-05-06 strict readiness guards before `Buat Prompt` or `Buat Ulang`:
 
 - selected Affiliate Profile is required.

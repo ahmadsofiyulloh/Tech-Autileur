@@ -31,20 +31,24 @@ The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a 
 - Drive visual manager was added through `src/app/drive/page.tsx` and `src/app/drive/drive-visual-manager.tsx`.
 - Settings grouped overview was updated in `src/app/settings/page.tsx`.
 - The shell now includes a pull-to-refresh fallback on mobile, and retryable Gemini outages surface warning toasts instead of hard errors.
-- The affiliate profile drawer now exposes explicit Character and Environment reanalysis actions with ref-aware readiness badges.
+- Intake and prompt actions now route retryable Gemini temporary-unavailable responses through warning redirects so the same retry message can reappear after dismissal.
+- The affiliate profile drawer now exposes explicit Character and Environment reanalysis actions with ref-aware readiness badges, inline pending/fallback feedback, and compact two-column mobile preview cards.
 
 ## Current Follow-Up
 
 - `11efa04` reused the shared image preview upload card across intake and affiliate profile drawers.
 - `d7e86bc` hardened intake upload parsing and raised the server action upload limit for real file bodies.
+- `962b7b9` tightened affiliate drawer fallback UX and mobile preview density.
+- `353300d` routed retryable Gemini temporary-unavailable responses as warnings in intake and prompt actions.
 
 ## Verification Snapshot
 
-Last verification after the visual implementation and before this docs-only sync:
+Last verification after the latest code pass and before this docs-only sync:
 
 - `npm run lint` passed.
 - `npm run typecheck` passed.
 - `npm run build` passed.
+- `npx playwright test tests/e2e/gemini-backend-hardening.spec.ts tests/e2e/shell-and-settings.spec.ts` passed.
 - Authenticated mobile smoke check passed for:
   - `/products/new`: Settings gear visible, bottom nav visible.
   - `/settings`: Settings gear hidden, grouped sections visible.
