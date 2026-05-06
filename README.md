@@ -58,11 +58,38 @@ Keep `.env.local` out of git and store real secrets only in your local environme
 
 ## Deployment
 
-- Set all production environment variables in the host platform.
+### Vercel
+
+1. Import the Git repository into Vercel.
+2. Keep the default Next.js build settings, which use `npm run build`.
+3. Set the required environment variables in Vercel for Production, Preview, and Development.
+4. Deploy the branch and verify the preview URL before merging.
+5. No `vercel.json` is required for the current app shape.
+
+Required variables on Vercel:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `APP_ENCRYPTION_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
+- `GOOGLE_REFRESH_TOKEN`
+- `NEXT_PUBLIC_APP_URL`
+
+Optional:
+
+- `MOCK_MODE` for local development only.
+
+Keep Supabase service role keys, Google secrets, and encryption keys server-side only.
+Review `docs/SUPABASE_MCP_RUNBOOK.md` before any schema work.
+
+### Self-hosting
+
 - Run `npm run build` before release.
 - Start production with `npm run start` or the host equivalent.
-- Keep Supabase service role keys, Google secrets, and encryption keys server-side only.
-- Review `docs/SUPABASE_MCP_RUNBOOK.md` before any schema work.
 
 ## Changelog
 
