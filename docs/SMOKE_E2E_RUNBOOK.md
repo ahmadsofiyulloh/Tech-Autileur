@@ -52,6 +52,8 @@ Optional:
 
 - The live intake test requires working Gemini and Drive integration.
 - The prompt/controller smoke path can use mock prompt generation by default.
+- If Gemini returns the controlled `Gemini service is temporarily unavailable.` blocker, `tests/e2e/intake-live.spec.ts` annotates it as an expected external-service blocker and skips the remainder of that live intake check.
+- Other Gemini auth, schema, validation, or app errors still fail the smoke run.
 - Google Flow remains a manual boundary and is not auto-submitted by the app.
 - The harness creates a local auth state file under `.playwright/.auth/`.
 - The harness seeds a dedicated smoke workspace, affiliate profile, product, intake session, and Drive references before the browser tests start.
