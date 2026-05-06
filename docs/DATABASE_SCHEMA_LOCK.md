@@ -378,7 +378,7 @@ Affiliate Profile is the only owner for character and environment locks in Phase
 
 UI note: `notes` may remain as legacy/internal metadata, but it must not be shown in Phase awal forms.
 
-Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive. Their OCR/vision analysis snapshots are cached on the affiliate profile in `seed_character_analysis_json` and `environment_analysis_json` and are reused for prompt generation until the asset reference changes.
+Character and environment assets are stored as Drive item metadata references and should resolve from the profile-owned admin folders in Google Drive. Their OCR/vision analysis snapshots are cached on the affiliate profile in `seed_character_analysis_json` and `environment_analysis_json`, and the drawer exposes explicit reanalysis refresh actions when the Drive reference changes. Prompt generation reuses the cached snapshot only while its `drive_item_ref_id` still matches the current Drive reference.
 
 UI surface lock: Affiliate Profile create/edit happens in a list + drawer CRUD surface. Character and environment are separate image cards in the drawer. Asset upload/replace/remove controls live inside the editable drawer only.
 
@@ -403,7 +403,7 @@ Compatibility table for profile-to-internal-workspace ownership.
 - new UI must maintain exactly one active workspace link per Affiliate Profile.
 - many-to-many workspace selection must not be exposed to the operator.
 - create flows should default both asset locks to `true`.
-- save may still happen without asset refs, but prompt generation must block if a locked asset reference or cached analysis JSON is missing.
+- save may still happen without asset refs, but prompt generation must block if a locked asset reference or cached analysis JSON is missing or stale.
 
 Legacy behavior where each workspace can link to multiple affiliate profiles is retained only for existing compatibility until a later schema cleanup task is approved.
 

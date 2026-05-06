@@ -14,6 +14,7 @@ import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductImages, listProducts } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { isAffiliateProfilePromptReady } from "@/lib/affiliate-profiles/readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -40,36 +41,6 @@ type PromptsPageProps = {
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function ruleLines(value: string | null | undefined) {
-  return typeof value === "string"
-    ? value
-        .split(/\r?\n+/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-    : [];
-}
-
-function isAffiliateProfilePromptReady(profile: AffiliateProfileRecord | null) {
-  if (!profile || profile.status !== "ACTIVE") {
-    return false;
-  }
-
-  const rulesReady =
-    ruleLines(profile.i2i_prompt_rules).length > 0 &&
-    ruleLines(profile.i2v_prompt_rules).length > 0 &&
-    ruleLines(profile.caption_rules).length > 0 &&
-    ruleLines(profile.hashtag_rules).length > 0 &&
-    ruleLines(profile.negative_prompt_rules).length > 0 &&
-    ruleLines(profile.product_positioning_notes).length > 0;
-
-  const characterReady =
-    !profile.lock_seed_character || (Boolean(profile.seed_character_drive_item_ref_id) && Boolean(profile.seed_character_analysis_json));
-  const environmentReady =
-    !profile.lock_environment || (Boolean(profile.environment_drive_item_ref_id) && Boolean(profile.environment_analysis_json));
-
-  return rulesReady && characterReady && environmentReady && profile.workspace_ids.length > 0;
 }
 
 function PromptPackCreateForm({

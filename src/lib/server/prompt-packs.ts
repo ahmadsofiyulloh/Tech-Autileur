@@ -9,6 +9,7 @@ import {
   markTaskWaitingForKey,
 } from "@/lib/server/ai-task-queue";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
+import { isAffiliateProfileAssetAnalysisReady } from "@/lib/affiliate-profiles/readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PROMPT_CLIP_KEYS,
@@ -21,8 +22,8 @@ import {
 } from "@/lib/prompts/validation";
 import type { GeminiModelName } from "@/lib/gemini/validation";
 import { GEMINI_PROMPT_PACK_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
-import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
 import { GeminiClientError } from "@/lib/server/gemini-client";
+import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
   getGeminiQuotaGroupKey,
@@ -802,10 +803,6 @@ function splitRuleText(value: string | null | undefined) {
     .filter((line) => line.length > 0);
 }
 
-function hasAnalysisJson(value: JsonObject | null | undefined) {
-  return Boolean(value && Object.keys(value).length > 0);
-}
-
 function assertAffiliateProfileReadyForPromptGeneration(profile: AffiliateProfileRecord | null) {
   if (!profile) {
     throw new Error("Affiliate Profile is required before prompt generation.");
@@ -834,16 +831,30 @@ function assertAffiliateProfileReadyForPromptGeneration(profile: AffiliateProfil
     throw new Error("Character lock is enabled but no Character Drive reference is configured.");
   }
 
-  if (profile.lock_seed_character && !hasAnalysisJson(profile.seed_character_analysis_json)) {
-    throw new Error("Character lock is enabled but Character analysis JSON is missing.");
+  if (
+    profile.lock_seed_character &&
+    !isAffiliateProfileAssetAnalysisReady({
+      locked: true,
+      driveItemRefId: profile.seed_character_drive_item_ref_id,
+      analysisJson: profile.seed_character_analysis_json,
+    })
+  ) {
+    throw new Error("Character lock is enabled but Character analysis JSON is missing or stale.");
   }
 
   if (profile.lock_environment && !profile.environment_drive_item_ref_id) {
     throw new Error("Environment lock is enabled but no Environment Drive reference is configured.");
   }
 
-  if (profile.lock_environment && !hasAnalysisJson(profile.environment_analysis_json)) {
-    throw new Error("Environment lock is enabled but Environment analysis JSON is missing.");
+  if (
+    profile.lock_environment &&
+    !isAffiliateProfileAssetAnalysisReady({
+      locked: true,
+      driveItemRefId: profile.environment_drive_item_ref_id,
+      analysisJson: profile.environment_analysis_json,
+    })
+  ) {
+    throw new Error("Environment lock is enabled but Environment analysis JSON is missing or stale.");
   }
 }
 
@@ -1567,25 +1578,6 @@ export async function runMockPromptPackTask(promptPackId: string, taskId: string
 
 type GeminiSelectedKey = GeminiRoutableKey;
 
-async function readGeminiSecretForKey(context: PromptPackGenerationContext, geminiKeyId: string) {
-  const { data, error } = await context.serviceClient
-    .from("gemini_api_key_secrets")
-    .select("encrypted_api_key")
-    .eq("gemini_api_key_id", geminiKeyId)
-    .eq("user_id", context.user.id)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data?.encrypted_api_key) {
-    return null;
-  }
-
-  return decryptGeminiApiKey(data.encrypted_api_key);
-}
-
 function buildGeminiKeySelectionLabel(key: GeminiSelectedKey) {
   return `${key.label} (${key.model_name})`;
 }
@@ -1600,18 +1592,24 @@ async function selectPromptPackGeminiKey(
     excludedQuotaGroups,
     serviceClient: context.serviceClient,
   });
+  let sawSecretDecryptionFailure = false;
 
   for (const geminiKey of keys) {
-    const secret = await readGeminiSecretForKey(context, geminiKey.id);
+    const secretResult = await readGeminiSecretForKey(context.serviceClient, context.user.id, geminiKey.id);
+    sawSecretDecryptionFailure ||= secretResult.decryptFailed;
 
-    if (!secret) {
+    if (!secretResult.secret) {
       continue;
     }
 
     return {
       key: geminiKey,
-      secret,
+      secret: secretResult.secret,
     };
+  }
+
+  if (sawSecretDecryptionFailure) {
+    throw new Error(getGeminiSecretRotationErrorMessage());
   }
 
   return null;

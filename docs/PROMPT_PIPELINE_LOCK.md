@@ -66,7 +66,7 @@ Prompt generation must consume:
 
 Character and environment are profile-owned only in Phase awal. The environment asset is the background-lock asset for prompt generation. Prompt pages must not create per-prompt overrides for these locks.
 
-Character and environment assets are analyzed at save time and their JSON metadata snapshots are cached on the affiliate profile. Prompt generation must reuse those cached JSON metadata snapshots until the asset reference changes.
+Character and environment assets are analyzed explicitly from the Settings drawer and their JSON metadata snapshots are cached on the affiliate profile. Save/update only stores the Drive refs and rules; prompt generation must reuse the cached JSON metadata snapshots until the asset reference changes, and the cached snapshot is only valid while its `drive_item_ref_id` still matches the current Drive reference.
 
 If a selected profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
 

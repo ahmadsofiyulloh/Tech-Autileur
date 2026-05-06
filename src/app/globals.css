@@ -2022,12 +2022,17 @@ summary::marker {
   --toast-tone: var(--color-status-error);
 }
 
+.toast[data-tone="warning"] {
+  --toast-tone: var(--color-status-warning);
+}
+
 .toast[data-tone="info"] {
   --toast-tone: var(--color-status-info);
 }
 
 .toast[data-tone="success"] svg:first-child,
 .toast[data-tone="error"] svg:first-child,
+.toast[data-tone="warning"] svg:first-child,
 .toast[data-tone="info"] svg:first-child {
   color: var(--toast-tone);
 }
@@ -4909,10 +4914,17 @@ details,
   --shell-bottom-nav-link-padding-inline: 2px;
   --shell-bottom-nav-content-offset: 108px;
   --shell-bottom-nav-shadow: 0 -14px 34px color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  --shell-pull-to-refresh-meter-height: 3px;
 }
 
 body {
   background: var(--color-shell-canvas);
+}
+
+html:has(.operator-shell),
+body:has(.operator-shell) {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .operator-shell,
@@ -4921,13 +4933,162 @@ body {
 }
 
 .operator-topbar {
+  position: relative;
   border-bottom-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
   background: color-mix(in srgb, var(--color-shell-canvas) 88%, transparent);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
 .shell-main {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   background: var(--color-shell-canvas);
+}
+
+.shell-main::-webkit-scrollbar {
+  display: none;
+}
+
+.operator-shell {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.operator-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell-main {
+  min-height: 0;
+}
+
+.shell-pull-to-refresh {
+  position: relative;
+  z-index: 18;
+  display: grid;
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.shell-pull-to-refresh__line {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0 4px;
+  pointer-events: auto;
+}
+
+.shell-pull-to-refresh__button {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  padding: 0;
+  text-align: center;
+}
+
+.shell-pull-to-refresh__button:disabled {
+  cursor: progress;
+}
+
+.shell-pull-to-refresh__button[data-state="armed"],
+.shell-pull-to-refresh__button[data-state="refreshing"] {
+  color: var(--color-primary);
+}
+
+.shell-pull-to-refresh__button[data-state="refreshing"] .shell-pull-to-refresh__icon {
+  color: var(--color-primary);
+}
+
+.shell-pull-to-refresh__icon-wrap {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-primary);
+}
+
+.shell-pull-to-refresh__icon {
+  width: 18px;
+  height: 18px;
+}
+
+.shell-pull-to-refresh__icon--spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.shell-pull-to-refresh__copy {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  justify-items: center;
+  gap: 1px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.shell-pull-to-refresh__label,
+.shell-pull-to-refresh__hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-pull-to-refresh__label {
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+}
+
+.shell-pull-to-refresh__hint {
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+}
+
+.shell-pull-to-refresh__meter {
+  position: relative;
+  width: 100%;
+  height: var(--shell-pull-to-refresh-meter-height);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-component-inactive) 65%, transparent);
+  overflow: hidden;
+}
+
+.shell-pull-to-refresh__meter > span {
+  display: block;
+  width: var(--shell-pull-to-refresh-progress, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-progress-fill);
+  transition: width 120ms linear;
+}
+
+@media (max-width: 860px) {
+  .shell-pull-to-refresh {
+    width: calc(100% - 20px);
+  }
+}
+
+@media (max-width: 420px) {
+  .shell-pull-to-refresh__hint {
+    display: none;
+  }
 }
 
 .button.primary {

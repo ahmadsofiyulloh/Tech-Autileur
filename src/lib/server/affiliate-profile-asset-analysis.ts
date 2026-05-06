@@ -4,12 +4,12 @@ import sharp from "sharp";
 import { createAITask, markTaskFailed, markTaskRunning, markTaskSuccess } from "@/lib/server/ai-task-queue";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
-import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
 import { GeminiClientError } from "@/lib/server/gemini-client";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import { GEMINI_AFFILIATE_PROFILE_ASSET_ANALYSIS_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
 import { getDriveItemById } from "@/lib/server/drive-items";
 import { getGoogleDriveFileContentBytes } from "@/lib/server/google-drive";
+import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import {
   getGeminiQuotaGroupKey,
   listQuotaAwareGeminiKeys,
@@ -52,25 +52,6 @@ async function requireCurrentUserId() {
   return { userId: user.id };
 }
 
-async function readGeminiSecretForKey(serviceClient: SupabaseServiceClient, userId: string, geminiKeyId: string) {
-  const { data, error } = await serviceClient
-    .from("gemini_api_key_secrets")
-    .select("encrypted_api_key")
-    .eq("gemini_api_key_id", geminiKeyId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data?.encrypted_api_key) {
-    return null;
-  }
-
-  return decryptGeminiApiKey(data.encrypted_api_key);
-}
-
 async function selectGeminiVisionAnalysisKey(
   serviceClient: SupabaseServiceClient,
   userId: string,
@@ -82,15 +63,21 @@ async function selectGeminiVisionAnalysisKey(
     excludedQuotaGroups,
     serviceClient,
   });
+  let sawSecretDecryptionFailure = false;
 
   for (const key of keys) {
-    const secret = await readGeminiSecretForKey(serviceClient, userId, key.id);
+    const secretResult = await readGeminiSecretForKey(serviceClient, userId, key.id);
+    sawSecretDecryptionFailure ||= secretResult.decryptFailed;
 
-    if (!secret) {
+    if (!secretResult.secret) {
       continue;
     }
 
-    return { key, secret } satisfies GeminiSelection;
+    return { key, secret: secretResult.secret } satisfies GeminiSelection;
+  }
+
+  if (sawSecretDecryptionFailure) {
+    throw new Error(getGeminiSecretRotationErrorMessage());
   }
 
   return null;
@@ -245,6 +232,18 @@ async function analyzeAssetWithKey(input: {
     }).catch(() => undefined);
     return outputJson;
   } catch (error) {
+    if (error instanceof GeminiClientError && (error.status === 429 || error.status >= 500)) {
+      console.warn("[affiliate-profile-asset-analysis] Gemini upstream error", {
+        profileCode: input.profileCode,
+        kind: input.kind,
+        modelName: selection.key.model_name,
+        driveItemRefId: input.driveItemId,
+        status: error.status,
+        retryAfterSeconds: error.retryAfterSeconds,
+        message: error.message,
+      });
+    }
+
     if (error instanceof GeminiClientError && error.status === 429) {
       const retryAfterSeconds = error.retryAfterSeconds ?? 900;
       const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;

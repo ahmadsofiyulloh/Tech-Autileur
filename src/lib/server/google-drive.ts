@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
+import { isEncryptionAuthenticationError } from "@/lib/server/encryption-errors";
 import {
   GOOGLE_DRIVE_CONNECTION_SCOPES,
   getActiveGoogleDriveRefreshToken,
@@ -167,6 +168,8 @@ function googleDriveErrorFromResponse(response: Response, rawText: string, fallb
 }
 
 async function resolveGoogleDriveRefreshToken(): Promise<GoogleDriveRefreshTokenResolution> {
+  let refreshTokenDecryptionFailed = false;
+
   try {
     const storedToken = await getActiveGoogleDriveRefreshToken();
 
@@ -177,18 +180,26 @@ async function resolveGoogleDriveRefreshToken(): Promise<GoogleDriveRefreshToken
       };
     }
   } catch (error) {
-    if (!isGoogleDriveConnectionSchemaMissingError(error)) {
+    if (isEncryptionAuthenticationError(error)) {
+      refreshTokenDecryptionFailed = true;
+    } else if (!isGoogleDriveConnectionSchemaMissingError(error)) {
       throw error;
     }
   }
 
   const envToken = readOptionalEnv("GOOGLE_REFRESH_TOKEN");
 
-  if (envToken && isGoogleDriveEnvRefreshTokenFallbackAllowed()) {
+  if (envToken && (isGoogleDriveEnvRefreshTokenFallbackAllowed() || refreshTokenDecryptionFailed)) {
     return {
       refreshToken: envToken,
       source: "environment",
     };
+  }
+
+  if (refreshTokenDecryptionFailed) {
+    throw new Error(
+      "Stored Google Drive refresh token could not be decrypted. Reconnect Google Drive or set GOOGLE_REFRESH_TOKEN after APP_ENCRYPTION_KEY rotation.",
+    );
   }
 
   throw new Error("Google Drive belum terhubung. Hubungkan Drive di Pengaturan.");

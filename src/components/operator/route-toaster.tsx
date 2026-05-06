@@ -1,11 +1,15 @@
 "use client";
 
-import { CircleAlert, CircleCheck, Info, X } from "lucide-react";
+import { AlertTriangle, CircleAlert, CircleCheck, Info, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import {
+  getGeminiTemporaryUnavailableRetryMessage,
+  isGeminiTemporaryUnavailableMessage,
+} from "@/lib/gemini/error-message";
 
-type ToastTone = "success" | "error" | "info";
+type ToastTone = "success" | "error" | "warning" | "info";
 
 type Toast = {
   id: string;
@@ -16,6 +20,7 @@ type Toast = {
 const toastIcons = {
   success: CircleCheck,
   error: CircleAlert,
+  warning: AlertTriangle,
   info: Info,
 } satisfies Record<ToastTone, LucideIcon>;
 
@@ -32,15 +37,18 @@ export function RouteToaster() {
     }
 
     const error = searchParams.get("error")?.trim();
+    const warning = searchParams.get("warning")?.trim();
     const message = searchParams.get("message")?.trim();
-    const value = error || message;
+    const value = error || warning || message;
 
     if (!value) {
       return;
     }
 
-    const tone: ToastTone = error ? "error" : "success";
-    const key = `${pathname}:${tone}:${value}`;
+    const retryableGeminiError = Boolean(error && isGeminiTemporaryUnavailableMessage(error));
+    const tone: ToastTone = error ? (retryableGeminiError ? "warning" : "error") : warning ? "warning" : "success";
+    const toastMessage = retryableGeminiError ? getGeminiTemporaryUnavailableRetryMessage() : value;
+    const key = `${pathname}:${tone}:${toastMessage}`;
 
     if (lastToastKey.current === key) {
       return;
@@ -48,7 +56,7 @@ export function RouteToaster() {
 
     lastToastKey.current = key;
     const id = `${Date.now()}-${tone}`;
-    setToasts((current) => [{ id, tone, message: value }, ...current].slice(0, 3));
+    setToasts((current) => [{ id, tone, message: toastMessage }, ...current].slice(0, 3));
 
     const timeout = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));

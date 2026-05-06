@@ -30,6 +30,8 @@ The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a 
 - Products and Prompts visual cards were updated in `src/app/products/page.tsx`, `src/app/products/product-list.tsx`, and `src/app/prompts/page.tsx`.
 - Drive visual manager was added through `src/app/drive/page.tsx` and `src/app/drive/drive-visual-manager.tsx`.
 - Settings grouped overview was updated in `src/app/settings/page.tsx`.
+- The shell now includes a pull-to-refresh fallback on mobile, and retryable Gemini outages surface warning toasts instead of hard errors.
+- The affiliate profile drawer now exposes explicit Character and Environment reanalysis actions with ref-aware readiness badges.
 
 ## Current Follow-Up
 

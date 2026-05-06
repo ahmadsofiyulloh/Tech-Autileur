@@ -3,10 +3,11 @@
 import { Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { ActivityFeedbackProvider } from "@/components/operator/activity-feedback-context";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
+import { ShellPullToRefresh } from "@/components/operator/shell-pull-to-refresh";
 import { TopbarProvider, useTopbar } from "@/components/operator/topbar-context";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -35,6 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function OperatorShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const shellMainRef = useRef<HTMLElement | null>(null);
   const activeRoute =
     routeTitles
       .slice()
@@ -114,7 +116,10 @@ function OperatorShellContent({ children }: { children: ReactNode }) {
             ) : null}
           </div>
         </header>
-        <main className="shell-main">{children}</main>
+        <ShellPullToRefresh scrollContainerRef={shellMainRef} />
+        <main className="shell-main" ref={shellMainRef}>
+          {children}
+        </main>
       </div>
 
       <nav className="bottom-nav" aria-label="Mobile operator navigation">

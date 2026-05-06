@@ -9,7 +9,11 @@ import {
   setDefaultAffiliateProfileForWorkspace,
   updateAffiliateProfile,
 } from "@/lib/server/affiliate-profiles";
-import { buildAffiliateProfileCode, type JsonObject } from "@/lib/affiliate-profiles/validation";
+import { buildAffiliateProfileCode } from "@/lib/affiliate-profiles/validation";
+import {
+  getGeminiTemporaryUnavailableRetryMessage,
+  isGeminiTemporaryUnavailableMessage,
+} from "@/lib/gemini/error-message";
 import { analyzeAffiliateProfileAsset } from "@/lib/server/affiliate-profile-asset-analysis";
 import { uploadAffiliateProfileAsset } from "@/lib/server/affiliate-profile-assets";
 import {
@@ -52,7 +56,7 @@ function readTextList(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
-function redirectWithMessage(path: string, key: "error" | "message", message: string): never {
+function redirectWithMessage(path: string, key: "error" | "message" | "warning", message: string): never {
   const returnTo = safeReturnPath(path);
   const separator = returnTo.includes("?") ? "&" : "?";
 
@@ -65,6 +69,10 @@ function fail(message: string, path = "/settings"): never {
 
 function done(message: string, path = "/settings"): never {
   redirectWithMessage(path, "message", message);
+}
+
+function warn(message: string, path = "/settings"): never {
+  redirectWithMessage(path, "warning", message);
 }
 
 function revalidateWorkspaceSurfaces() {
@@ -84,6 +92,12 @@ function revalidateSettingsSurface() {
   revalidatePath("/settings/gemini");
   revalidatePath("/settings/drive");
   revalidatePath("/settings/account");
+}
+
+function revalidateAffiliateProfileSurfaces() {
+  revalidateSettingsSurface();
+  revalidatePath("/prompts");
+  revalidatePath("/products/new");
 }
 
 function safeReturnPath(value: string) {
@@ -229,28 +243,6 @@ function affiliateProfilePersonalizationInputFromForm(formData: FormData) {
   };
 }
 
-async function resolveAffiliateProfileAssetAnalysis(input: {
-  profileCode: string;
-  kind: "CHARACTER" | "ENVIRONMENT";
-  nextDriveItemRefId: string | null;
-  currentDriveItemRefId?: string | null;
-  currentAnalysisJson?: JsonObject | null;
-}): Promise<JsonObject | null> {
-  if (!input.nextDriveItemRefId) {
-    return null;
-  }
-
-  if (input.nextDriveItemRefId === input.currentDriveItemRefId && input.currentAnalysisJson) {
-    return input.currentAnalysisJson;
-  }
-
-  return (await analyzeAffiliateProfileAsset({
-    profileCode: input.profileCode,
-    kind: input.kind,
-    driveItemId: input.nextDriveItemRefId,
-  })) as JsonObject;
-}
-
 async function resolveAffiliateProfileAssetRef(input: {
   formData: FormData;
   profileCode: string;
@@ -281,6 +273,14 @@ async function resolveAffiliateProfileAssetRef(input: {
   return pickerRef || currentRef || null;
 }
 
+function readAffiliateProfileAssetKind(value: string): "CHARACTER" | "ENVIRONMENT" {
+  if (value === "CHARACTER" || value === "ENVIRONMENT") {
+    return value;
+  }
+
+  throw new Error("Unsupported affiliate profile asset kind.");
+}
+
 export async function saveAffiliateProfile(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
@@ -307,24 +307,11 @@ export async function saveAffiliateProfile(formData: FormData) {
         profileCode,
         kind: "ENVIRONMENT",
       });
-      const seedCharacterAnalysisJson = await resolveAffiliateProfileAssetAnalysis({
-        profileCode,
-        kind: "CHARACTER",
-        nextDriveItemRefId: seedCharacterDriveItemRefId,
-      });
-      const environmentAnalysisJson = await resolveAffiliateProfileAssetAnalysis({
-        profileCode,
-        kind: "ENVIRONMENT",
-        nextDriveItemRefId: environmentDriveItemRefId,
-      });
-
       await createAffiliateProfile({
         ...baseInput,
         ...namespaceInput,
         seed_character_drive_item_ref_id: seedCharacterDriveItemRefId,
-        seed_character_analysis_json: seedCharacterAnalysisJson,
         environment_drive_item_ref_id: environmentDriveItemRefId,
-        environment_analysis_json: environmentAnalysisJson,
       });
       message = "Affiliate profile created";
     } else if (intent === "update_affiliate_profile") {
@@ -352,28 +339,12 @@ export async function saveAffiliateProfile(formData: FormData) {
         profileCode: existingProfile.profile_code,
         kind: "ENVIRONMENT",
       });
-      const seedCharacterAnalysisJson = await resolveAffiliateProfileAssetAnalysis({
-        profileCode: existingProfile.profile_code,
-        kind: "CHARACTER",
-        nextDriveItemRefId: seedCharacterDriveItemRefId,
-        currentDriveItemRefId: existingProfile.seed_character_drive_item_ref_id,
-        currentAnalysisJson: existingProfile.seed_character_analysis_json,
-      });
-      const environmentAnalysisJson = await resolveAffiliateProfileAssetAnalysis({
-        profileCode: existingProfile.profile_code,
-        kind: "ENVIRONMENT",
-        nextDriveItemRefId: environmentDriveItemRefId,
-        currentDriveItemRefId: existingProfile.environment_drive_item_ref_id,
-        currentAnalysisJson: existingProfile.environment_analysis_json,
-      });
 
       await updateAffiliateProfile(id, {
         ...baseInput,
         ...namespaceInput,
         seed_character_drive_item_ref_id: seedCharacterDriveItemRefId,
-        seed_character_analysis_json: seedCharacterAnalysisJson,
         environment_drive_item_ref_id: environmentDriveItemRefId,
-        environment_analysis_json: environmentAnalysisJson,
       });
       message = "Affiliate profile updated";
     } else if (intent === "update_affiliate_personalization") {
@@ -398,8 +369,71 @@ export async function saveAffiliateProfile(formData: FormData) {
     fail(errorMessage, returnTo);
   }
 
-  revalidateSettingsSurface();
+  revalidateAffiliateProfileSurfaces();
   done(message, returnTo);
+}
+
+export async function reanalyzeAffiliateProfileAsset(formData: FormData) {
+  const id = readText(formData, "id");
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings/affiliate-profiles");
+  let message = "";
+
+  try {
+    const kind = readAffiliateProfileAssetKind(readText(formData, "kind"));
+    const currentRefKey = kind === "CHARACTER" ? "current_seed_character_drive_item_ref_id" : "current_environment_drive_item_ref_id";
+    const currentDriveItemRefId = readText(formData, currentRefKey);
+    const assetLabel = kind === "CHARACTER" ? "Character" : "Environment";
+    message = `${assetLabel} dianalisis`;
+
+    if (!id) {
+      throw new Error("Missing affiliate profile id.");
+    }
+
+    if (!currentDriveItemRefId) {
+      throw new Error(`Referensi ${assetLabel} wajib diisi.`);
+    }
+
+    const profile = await getAffiliateProfileById(id);
+    const profileDriveItemRefId = kind === "CHARACTER" ? profile.seed_character_drive_item_ref_id : profile.environment_drive_item_ref_id;
+
+    if (profileDriveItemRefId !== currentDriveItemRefId) {
+      throw new Error(`Referensi ${assetLabel} berubah. Simpan profile lagi.`);
+    }
+
+    const analysisJson = await analyzeAffiliateProfileAsset({
+      profileCode: profile.profile_code,
+      kind,
+      driveItemId: currentDriveItemRefId,
+    });
+
+    if (!analysisJson) {
+      throw new Error(`${assetLabel} analysis failed.`);
+    }
+
+    const latestProfile = await getAffiliateProfileById(id);
+    const latestDriveItemRefId = kind === "CHARACTER" ? latestProfile.seed_character_drive_item_ref_id : latestProfile.environment_drive_item_ref_id;
+
+    if (latestDriveItemRefId !== currentDriveItemRefId) {
+      throw new Error(`Referensi ${assetLabel} berubah saat analisis. Jalankan ulang analisis.`);
+    }
+
+    await updateAffiliateProfile(id, {
+      ...(kind === "CHARACTER"
+        ? { seed_character_analysis_json: analysisJson }
+        : { environment_analysis_json: analysisJson }),
+    });
+
+    revalidateAffiliateProfileSurfaces();
+  } catch (error) {
+    if (error instanceof Error && isGeminiTemporaryUnavailableMessage(error.message)) {
+      return warn(getGeminiTemporaryUnavailableRetryMessage(), returnTo);
+    }
+
+    const errorMessage = error instanceof Error ? error.message : "Affiliate profile analysis failed.";
+    fail(errorMessage, returnTo);
+  }
+
+  done(message || "Affiliate profile analysis completed", returnTo);
 }
 
 export async function setDefaultAffiliateProfile(formData: FormData) {

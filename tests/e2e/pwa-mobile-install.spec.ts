@@ -99,26 +99,124 @@ test("mobile intake shell has install-ready head tags and no horizontal overflow
 
     const layoutState = await page.evaluate(() => {
       const bottomNavElement = document.querySelector(".bottom-nav");
+      const topbarElement = document.querySelector(".operator-topbar");
       const shellMain = document.querySelector(".shell-main");
       const navRect = bottomNavElement?.getBoundingClientRect();
+      const mainRect = shellMain?.getBoundingClientRect();
+      const bodyStyle = document.body ? window.getComputedStyle(document.body) : null;
       const mainStyle = shellMain ? window.getComputedStyle(shellMain) : null;
+      const topbarStyle = topbarElement ? window.getComputedStyle(topbarElement) : null;
 
       return {
+        bodyClientHeight: document.scrollingElement?.clientHeight ?? document.documentElement.clientHeight,
+        bodyOverflowY: bodyStyle?.overflowY ?? "",
+        bodyScrollHeight: document.scrollingElement?.scrollHeight ?? document.documentElement.scrollHeight,
         clientWidth: document.documentElement.clientWidth,
+        mainClientHeight: shellMain instanceof HTMLElement ? shellMain.clientHeight : 0,
+        mainOverflowY: mainStyle?.overflowY ?? "",
+        mainRectTop: mainRect?.top ?? 0,
+        mainScrollHeight: shellMain instanceof HTMLElement ? shellMain.scrollHeight : 0,
+        mainOverscrollBehaviorY: mainStyle?.overscrollBehaviorY ?? "",
         navBottom: navRect?.bottom ?? 0,
         navTop: navRect?.top ?? 0,
         paddingBottom: mainStyle?.paddingBottom ?? "",
+        topbarPosition: topbarStyle?.position ?? "",
         scrollWidth: document.documentElement.scrollWidth,
         viewportHeight: window.innerHeight,
       };
     });
 
     expect(layoutState.scrollWidth).toBeLessThanOrEqual(layoutState.clientWidth + 1);
+    expect(layoutState.bodyScrollHeight).toBeLessThanOrEqual(layoutState.bodyClientHeight + 1);
+    expect(layoutState.bodyOverflowY).toBe("hidden");
+    expect(layoutState.mainOverflowY).toBe("auto");
+    expect(layoutState.mainOverscrollBehaviorY).toBe("contain");
+    expect(layoutState.mainScrollHeight).toBeGreaterThanOrEqual(layoutState.mainClientHeight);
+    expect(layoutState.topbarPosition).toBe("relative");
     expect(layoutState.navBottom).toBeLessThanOrEqual(layoutState.viewportHeight + 1);
     expect(layoutState.navTop).toBeGreaterThan(layoutState.viewportHeight - 140);
+    expect(layoutState.mainRectTop).toBeGreaterThanOrEqual(0);
     expect(Number.parseFloat(layoutState.paddingBottom)).toBeGreaterThan(80);
   } catch (error) {
     throw classifySmokeError("mobile PWA shell", error);
+  }
+});
+
+test("mobile shell exposes a pull-to-refresh fallback when the gesture is active", async ({ page }) => {
+  try {
+    await page.goto("/products/new");
+    await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();
+    await page.waitForTimeout(150);
+
+    const pullButton = page.getByRole("button", { name: /Tarik untuk muat ulang|Lepas untuk muat ulang|Muat ulang\.\.\./ });
+    await expect(pullButton).toHaveCount(0);
+
+    await page.locator(".shell-main").evaluate((element) => {
+      if (!(element instanceof HTMLElement)) {
+        throw new Error("shell-main is missing.");
+      }
+
+      const rect = element.getBoundingClientRect();
+      const startX = rect.left + rect.width / 2;
+      const startY = rect.top + 12;
+
+      const startTouch = new Touch({
+        clientX: startX,
+        clientY: startY,
+        force: 1,
+        identifier: 1,
+        pageX: startX,
+        pageY: startY,
+        radiusX: 1,
+        radiusY: 1,
+        rotationAngle: 0,
+        screenX: startX,
+        screenY: startY,
+        target: element,
+      });
+
+      element.dispatchEvent(
+        new TouchEvent("touchstart", {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [startTouch],
+          touches: [startTouch],
+          targetTouches: [startTouch],
+        }),
+      );
+
+      const moveY = startY + 56;
+      const moveTouch = new Touch({
+        clientX: startX,
+        clientY: moveY,
+        force: 1,
+        identifier: 1,
+        pageX: startX,
+        pageY: moveY,
+        radiusX: 1,
+        radiusY: 1,
+        rotationAngle: 0,
+        screenX: startX,
+        screenY: moveY,
+        target: element,
+      });
+
+      element.dispatchEvent(
+        new TouchEvent("touchmove", {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [moveTouch],
+          touches: [moveTouch],
+          targetTouches: [moveTouch],
+        }),
+      );
+    });
+
+    await expect(page.getByRole("button", { name: "Lepas untuk muat ulang" })).toBeVisible();
+    await page.getByRole("button", { name: "Lepas untuk muat ulang" }).click();
+    await expect(page.getByRole("button", { name: "Muat ulang..." })).toBeVisible();
+  } catch (error) {
+    throw classifySmokeError("mobile pull-to-refresh fallback", error);
   }
 });
 

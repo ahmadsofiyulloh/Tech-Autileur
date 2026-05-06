@@ -16,8 +16,13 @@ import {
   type PromptPackGenerationOutput,
   type JsonObject,
 } from "../../src/lib/prompts/prompt-pack-contract";
-import { sanitizeGeminiStatusMessage } from "../../src/lib/gemini/error-message";
+import { isGeminiTemporaryUnavailableMessage, sanitizeGeminiStatusMessage } from "../../src/lib/gemini/error-message";
 import { isAffiliateProfileSchemaMissingError } from "../../src/lib/affiliate-profiles/schema-errors";
+import {
+  getAffiliateProfileAssetAnalysisState,
+  isAffiliateProfileAssetAnalysisReady,
+  isAffiliateProfilePromptReady,
+} from "../../src/lib/affiliate-profiles/readiness";
 import { assertUploadedImage, prepareGeminiCompatibleUploadImage } from "../../src/lib/intake/upload-validation";
 import sharp from "sharp";
 
@@ -363,6 +368,94 @@ test("affiliate profile schema detector handles missing analysis columns", () =>
   expect(isAffiliateProfileSchemaMissingError(error)).toBe(true);
 });
 
+test("affiliate profile asset analysis readiness is ref aware", () => {
+  expect(
+    isAffiliateProfileAssetAnalysisReady({
+      locked: true,
+      driveItemRefId: "drive-character-1",
+      analysisJson: {
+        drive_item_ref_id: "drive-character-1",
+      },
+    }),
+  ).toBe(true);
+
+  expect(
+    isAffiliateProfileAssetAnalysisReady({
+      locked: true,
+      driveItemRefId: "drive-character-2",
+      analysisJson: {
+        drive_item_ref_id: "drive-character-1",
+      },
+    }),
+  ).toBe(false);
+
+  expect(
+    getAffiliateProfileAssetAnalysisState({
+      locked: true,
+      driveItemRefId: "drive-character-2",
+      analysisJson: {
+        drive_item_ref_id: "drive-character-1",
+      },
+    }),
+  ).toBe("PENDING");
+
+  expect(
+    getAffiliateProfileAssetAnalysisState({
+      locked: false,
+      driveItemRefId: null,
+      analysisJson: null,
+    }),
+  ).toBe("OPTIONAL");
+});
+
+test("affiliate profile prompt readiness rejects stale cached analysis", () => {
+  expect(
+    isAffiliateProfilePromptReady({
+      status: "ACTIVE",
+      workspace_ids: ["workspace-1"],
+      i2i_prompt_rules: "keep product shape",
+      i2v_prompt_rules: "keep continuity",
+      caption_rules: "short caption",
+      hashtag_rules: "#tag",
+      negative_prompt_rules: "avoid blur",
+      product_positioning_notes: "product-first",
+      lock_seed_character: true,
+      seed_character_drive_item_ref_id: "drive-character-2",
+      seed_character_analysis_json: {
+        drive_item_ref_id: "drive-character-2",
+      },
+      lock_environment: true,
+      environment_drive_item_ref_id: "drive-environment-1",
+      environment_analysis_json: {
+        drive_item_ref_id: "drive-environment-1",
+      },
+    }),
+  ).toBe(true);
+
+  expect(
+    isAffiliateProfilePromptReady({
+      status: "ACTIVE",
+      workspace_ids: ["workspace-1"],
+      i2i_prompt_rules: "keep product shape",
+      i2v_prompt_rules: "keep continuity",
+      caption_rules: "short caption",
+      hashtag_rules: "#tag",
+      negative_prompt_rules: "avoid blur",
+      product_positioning_notes: "product-first",
+      lock_seed_character: true,
+      seed_character_drive_item_ref_id: "drive-character-2",
+      seed_character_analysis_json: {
+        drive_item_ref_id: "drive-character-1",
+      },
+      lock_environment: true,
+      environment_drive_item_ref_id: "drive-environment-1",
+      environment_analysis_json: {
+        drive_item_ref_id: "drive-environment-1",
+      },
+    }),
+  ).toBe(false);
+});
+
 test("intake upload validation accepts common JPG variants", () => {
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpeg" }), "Screenshot Shopee")).not.toThrow();
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpg" }), "Screenshot TikTok")).not.toThrow();
@@ -568,4 +661,11 @@ test("Gemini error sanitizer preserves upstream invalid argument message", () =>
   expect(sanitizeGeminiStatusMessage(401, "Gemini request failed.", "Schema is too large or too deep.")).toBe(
     "Gemini authorization failed.",
   );
+});
+
+test("Gemini temporary unavailable status is retryable", () => {
+  expect(sanitizeGeminiStatusMessage(500, "Gemini request failed.", "Upstream outage")).toBe(
+    "Gemini service is temporarily unavailable.",
+  );
+  expect(isGeminiTemporaryUnavailableMessage("Gemini service is temporarily unavailable.")).toBe(true);
 });

@@ -10,8 +10,8 @@ import {
 } from "@/lib/server/ai-task-queue";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { decryptGeminiApiKey } from "@/lib/server/gemini-crypto";
 import { GeminiClientError } from "@/lib/server/gemini-client";
+import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
   INTAKE_VISION_PROMPT_VERSION,
@@ -780,29 +780,6 @@ async function syncMarketplaceSourceMetadata(
   );
 }
 
-async function readGeminiSecretForKey(
-  serviceClient: ReturnType<typeof createSupabaseServiceRoleClient>,
-  userId: string,
-  geminiKeyId: string,
-) {
-  const { data, error } = await serviceClient
-    .from("gemini_api_key_secrets")
-    .select("encrypted_api_key")
-    .eq("gemini_api_key_id", geminiKeyId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data?.encrypted_api_key) {
-    return null;
-  }
-
-  return decryptGeminiApiKey(data.encrypted_api_key);
-}
-
 async function selectGeminiKeyForIntake(userId: string, excludedQuotaGroups: ReadonlySet<string> = new Set()) {
   const serviceClient = createSupabaseServiceRoleClient();
   const geminiKeys = await listQuotaAwareGeminiKeys({
@@ -811,19 +788,25 @@ async function selectGeminiKeyForIntake(userId: string, excludedQuotaGroups: Rea
     excludedQuotaGroups,
     serviceClient,
   });
+  let sawSecretDecryptionFailure = false;
 
   for (const geminiKey of geminiKeys) {
-    const secret = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
+    const secretResult = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
+    sawSecretDecryptionFailure ||= secretResult.decryptFailed;
 
-    if (!secret) {
+    if (!secretResult.secret) {
       continue;
     }
 
     return {
       key: geminiKey,
-      secret,
+      secret: secretResult.secret,
       role: geminiKey.role,
     };
+  }
+
+  if (sawSecretDecryptionFailure) {
+    throw new Error(getGeminiSecretRotationErrorMessage());
   }
 
   return null;
@@ -849,17 +832,19 @@ async function listGeminiRepairKeySelections(
   });
   const selections: GeminiKeySelection[] = [];
   const seenKeyIds = new Set<string>();
+  let sawSecretDecryptionFailure = false;
 
   for (const geminiKey of geminiKeys) {
-    const secret = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
+    const secretResult = await readGeminiSecretForKey(serviceClient, userId, geminiKey.id);
+    sawSecretDecryptionFailure ||= secretResult.decryptFailed;
 
-    if (!secret || seenKeyIds.has(geminiKey.id)) {
+    if (!secretResult.secret || seenKeyIds.has(geminiKey.id)) {
       continue;
     }
 
     selections.push({
       key: geminiKey,
-      secret,
+      secret: secretResult.secret,
       role: geminiKey.role,
     });
     seenKeyIds.add(geminiKey.id);
@@ -867,6 +852,10 @@ async function listGeminiRepairKeySelections(
 
   if (!seenKeyIds.has(fallbackSelection.key.id)) {
     selections.push(fallbackSelection);
+  }
+
+  if (!selections.length && sawSecretDecryptionFailure) {
+    throw new Error(getGeminiSecretRotationErrorMessage());
   }
 
   return selections;
