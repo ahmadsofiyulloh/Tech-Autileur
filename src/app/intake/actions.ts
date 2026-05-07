@@ -7,9 +7,10 @@ import {
   createMarketplaceSourcesFromIntake,
   createProductAnchorFromIntake,
   createProductFromIntake,
+  analyzeIntakeMetadataFromSavedCapture,
   linkProductToIntake,
-  parseIntakeWithGemini,
   reviewIntakeMetadata,
+  saveIntakeProductCapture,
   updateIntakeSession,
 } from "@/lib/server/intake";
 import type { JsonRecord } from "@/lib/intake/validation";
@@ -27,7 +28,7 @@ function readText(formData: FormData, key: string) {
 
 function readUploadedFile(formData: FormData, key: string) {
   const value = formData.get(key);
-  return value instanceof File ? value : null;
+  return value instanceof File && value.name.trim().length > 0 && value.size > 0 ? value : null;
 }
 
 function redirectWithError(message: string, params?: Record<string, string>): never {
@@ -155,23 +156,41 @@ export async function saveIntake(formData: FormData) {
         status: readText(formData, "status") || undefined,
       });
       message = "Intake updated";
-    } else if (intent === "parse_intake") {
-      const productImage = readUploadedFile(formData, "product_image") ?? readUploadedFile(formData, "product_image_camera");
+    } else if (intent === "save_product_capture") {
+      const productImage = readUploadedFile(formData, "product_image");
       const shopeeScreenshot = readUploadedFile(formData, "shopee_screenshot") ?? readUploadedFile(formData, "marketplace_screenshot");
       const tiktokScreenshot = readUploadedFile(formData, "tiktok_screenshot");
 
-      if (!productImage || !shopeeScreenshot || !tiktokScreenshot) {
-        throw new Error("Upload semua evidence dulu.");
+      if (!productImage) {
+        throw new Error("Foto Produk Utama wajib diisi.");
       }
 
-      const result = await parseIntakeWithGemini({
+      await saveIntakeProductCapture({
         productImage,
+        shopeeScreenshot,
+        tiktokScreenshot,
+        intakeSessionId: id || null,
+      });
+      message = "Produk disimpan";
+      redirectParams = {
+        ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+        ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
+      };
+    } else if (intent === "analyze_metadata") {
+      if (!id) {
+        throw new Error("Missing intake id.");
+      }
+
+      const shopeeScreenshot = readUploadedFile(formData, "shopee_screenshot") ?? readUploadedFile(formData, "marketplace_screenshot");
+      const tiktokScreenshot = readUploadedFile(formData, "tiktok_screenshot");
+
+      const result = await analyzeIntakeMetadataFromSavedCapture({
+        intakeSessionId: id,
         shopeeScreenshot,
         tiktokScreenshot,
       });
       message = result.message;
       redirectParams = {
-        step: "prompt",
         intake_id: result.session.id,
         ...(workspaceScope === "all" ? { workspace: "all" } : {}),
         ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
@@ -244,10 +263,11 @@ export async function saveIntake(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unable to save intake.";
+    const shouldKeepIntakeContext = intent === "review_metadata" || intent === "save_reviewed_metadata" || intent === "analyze_metadata";
     const errorParams =
-      intent === "review_metadata" || intent === "save_reviewed_metadata"
+      shouldKeepIntakeContext
         ? {
-            step: "prompt",
+            step: intent === "analyze_metadata" ? "intake" : "prompt",
             ...(id ? { intake_id: id } : {}),
             ...(workspaceScope === "all" ? { workspace: "all" } : {}),
             ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),

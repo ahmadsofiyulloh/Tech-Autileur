@@ -38,6 +38,8 @@ export async function saveProduct(formData: FormData) {
 
     await archiveProduct(id);
     revalidatePath("/products");
+    revalidatePath("/products/new");
+    revalidatePath("/intake");
     redirect("/products?message=Data%20dihapus.");
   }
 

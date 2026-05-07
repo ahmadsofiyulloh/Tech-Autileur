@@ -265,7 +265,21 @@ export async function updateProduct(id: string, input: Partial<ProductInput>) {
 }
 
 export async function archiveProduct(id: string) {
-  return await updateProduct(id, { status: "ARCHIVED" });
+  const { supabase, user } = await requireUser();
+  const archivedProduct = await updateProduct(id, { status: "ARCHIVED" });
+  const { error } = await supabase
+    .from("product_intake_sessions")
+    .update({ status: "ARCHIVED" })
+    .eq("user_id", user.id)
+    .eq("product_id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/products/new");
+  revalidatePath("/intake");
+  return archivedProduct;
 }
 
 export async function listProductImages(input?: { productId?: string; limit?: number }) {

@@ -58,7 +58,7 @@ export function SkeletonFilterTabs({ count = 3, className }: SkeletonCountProps)
   );
 }
 
-export function SkeletonUploadCard({ withCamera = false }: { withCamera?: boolean }) {
+export function SkeletonUploadCard() {
   return (
     <section className="image-preview-upload-card stack-tight loading-skeleton-static" aria-hidden="true">
       <div className="image-preview-upload-card__header">
@@ -68,27 +68,87 @@ export function SkeletonUploadCard({ withCamera = false }: { withCamera?: boolea
       <div className="image-preview-upload-card__frame skeleton-preview-frame" />
       <div className="image-preview-upload-card__actions">
         <SkeletonButton />
-        {withCamera ? <SkeletonButton /> : null}
       </div>
     </section>
   );
 }
 
-export function SkeletonProfileCarousel({ count = 2 }: SkeletonCountProps) {
+export function SkeletonIntakeActiveAffiliateCard() {
   return (
-    <section className="stack-tight loading-skeleton-static" aria-hidden="true">
-      <SkeletonLine size="short" />
-      <div className="profile-carousel">
-        {Array.from({ length: count }).map((_, index) => (
-          <div className="profile-card" key={index}>
-            <span className="profile-card__avatar skeleton-avatar" />
-            <span className="profile-card__copy">
-              <SkeletonLine size="medium" />
-              <SkeletonLine size="short" />
-            </span>
-            <SkeletonButton />
-          </div>
-        ))}
+    <section className="intake-active-affiliate-card loading-skeleton-static" aria-hidden="true">
+      <span className="settings-affiliate-profile-card__avatar skeleton-avatar" />
+      <span className="intake-active-affiliate-card__copy">
+        <span className="intake-active-affiliate-card__title-row">
+          <SkeletonLine size="medium" />
+          <span className="skeleton-pill" />
+        </span>
+        <SkeletonLine size="short" />
+        <SkeletonLine size="short" />
+      </span>
+      <SkeletonButton />
+    </section>
+  );
+}
+
+export function SkeletonIntakeEvidenceGrid() {
+  return (
+    <div className="intake-evidence-grid" aria-hidden="true">
+      <SkeletonUploadCard />
+      <SkeletonUploadCard />
+      <SkeletonUploadCard />
+    </div>
+  );
+}
+
+export function SkeletonIntakeMetadataPreview() {
+  return (
+    <section className="prompt-preview-panel stack loading-skeleton-static" aria-hidden="true">
+      <div className="section-card__actions">
+        <div className="stack-tight">
+          <SkeletonLine size="medium" />
+          <SkeletonLine size="short" />
+        </div>
+        <span className="skeleton-pill" />
+      </div>
+
+      <div className="grid two-up">
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="long" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="long" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="medium" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="medium" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="medium" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="long" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="medium" />
+        </div>
+        <div className="stack-tight">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="short" />
+        </div>
+      </div>
+
+      <div className="form-actions action-rail--pair">
+        <SkeletonButton />
+        <SkeletonButton />
       </div>
     </section>
   );

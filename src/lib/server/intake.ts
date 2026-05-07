@@ -58,7 +58,7 @@ import {
   createMarketplaceSource,
   listProductMarketplaceSources,
 } from "@/lib/server/product-marketplace-sources";
-import { uploadFileToGoogleDrive } from "@/lib/server/google-drive";
+import { getGoogleDriveFileContentBytes, uploadFileToGoogleDrive } from "@/lib/server/google-drive";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
@@ -367,14 +367,14 @@ function buildProductCodeForIntake(productName: string, session: IntakeSessionRe
   return suffix ? `${buildProductCode(productName)}-${suffix}` : buildProductCode(productName);
 }
 
-function productStatusFromIntake(session: IntakeSessionRecord, requestedStatus?: string | null) {
+function productStatusFromIntake(requestedStatus?: string | null) {
   const status = readIntakeText(requestedStatus);
 
   if (status) {
     return status;
   }
 
-  return session.parsed_metadata_json || session.reviewed_metadata_json ? "IMAGE_ANALYZED" : "DRAFT";
+  return "DRAFT";
 }
 
 function nextProductStatusForIntake(currentStatus: string, intakeStatus: string) {
@@ -683,6 +683,151 @@ function buildIntakeProductTitle(metadata: IntakeVisionParseOutput) {
   return readIntakeText(metadata.nama_produk) || readIntakeText(metadata.keyword_cari_etalase) || "Intake Tanpa Nama";
 }
 
+function buildIntakeDraftProductTitle(file: File) {
+  const baseName = readText(file.name).replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+
+  return baseName || "Draf Produk";
+}
+
+async function resolveIntakeDriveRootFolder() {
+  const workspace = await getCurrentWorkspace();
+
+  if (!workspace) {
+    throw new Error("Pilih workspace aktif dulu.");
+  }
+
+  if (!workspace.drive_root_folder_ref_id) {
+    throw new Error("Folder Drive Utama belum diisi.");
+  }
+
+  const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
+
+  if (!rootFolder?.drive_item_id) {
+    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+  }
+
+  return {
+    workspace,
+    rootFolder,
+  };
+}
+
+async function uploadIntakeDriveImage(input: {
+  file: File;
+  notes: string;
+  folderLabel: string;
+  intakeCode: string;
+  purpose: "SOURCE_IMAGE" | "OTHER";
+}) {
+  const { workspace, rootFolder } = await resolveIntakeDriveRootFolder();
+  const parentFolderId = rootFolder.drive_item_id;
+  if (!parentFolderId) {
+    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+  }
+
+  const uploaded = await uploadFileToGoogleDrive({
+    file: input.file,
+    name: sanitizeDriveLeafName(input.file.name) || input.folderLabel.toLowerCase().replace(/\//g, "-"),
+    description: input.notes,
+    parentFolderId,
+  });
+  const drivePath = buildIntakeDrivePath({
+    workspaceCode: workspace.workspace_code,
+    workspaceDrivePath: workspace.drive_root_folder_path,
+    intakeCode: input.intakeCode,
+    folderLabel: input.folderLabel,
+    fileName: input.file.name,
+  });
+
+  const driveItem = await createDriveItem({
+    item_type: "FILE",
+    drive_item_id: uploaded.driveItemId,
+    name: uploaded.name,
+    drive_url: uploaded.driveUrl,
+    drive_path: drivePath,
+    mime_type: uploaded.mimeType,
+    size_bytes: uploaded.sizeBytes,
+    checksum: uploaded.checksum,
+    drive_modified_at: uploaded.driveModifiedAt,
+    purpose: input.purpose,
+    status: "ACTIVE",
+    notes: input.notes,
+  });
+
+  return {
+    workspace,
+    driveItem,
+  };
+}
+
+async function uploadIntakeProductImageToDrive(input: { productImage: File; intakeCode?: string | null }) {
+  const intakeCode = input.intakeCode ?? `INTAKE-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`;
+  const result = await uploadIntakeDriveImage({
+    file: input.productImage,
+    notes: "Foto Produk Utama",
+    folderLabel: "SOURCE_IMAGES",
+    intakeCode,
+    purpose: "SOURCE_IMAGE",
+  });
+
+  return {
+    intakeCode,
+    workspace: result.workspace,
+    productImageDriveItem: result.driveItem,
+  };
+}
+
+async function uploadIntakeScreenshotToDrive(input: {
+  file: File;
+  intakeCode: string;
+  folderLabel: "SCREENSHOTS/SHOPEE" | "SCREENSHOTS/TIKTOK";
+  notes: string;
+}) {
+  const result = await uploadIntakeDriveImage({
+    file: input.file,
+    notes: input.notes,
+    folderLabel: input.folderLabel,
+    intakeCode: input.intakeCode,
+    purpose: "OTHER",
+  });
+
+  return {
+    workspace: result.workspace,
+    screenshotDriveItem: result.driveItem,
+  };
+}
+
+async function buildIntakeAnalysisImagePartFromDriveItem(driveItemRefId: string, label: string) {
+  const driveItem = await getDriveItemById(driveItemRefId);
+
+  if (!driveItem || !driveItem.drive_item_id) {
+    throw new Error(`${label} is required.`);
+  }
+
+  if (!driveItem.mime_type) {
+    throw new Error(`${label} mime type is missing.`);
+  }
+
+  const bytes = await getGoogleDriveFileContentBytes(driveItem.drive_item_id);
+
+  if (!bytes.length) {
+    throw new Error(`${label} is empty.`);
+  }
+
+  const preparedImage = await prepareGeminiCompatibleUploadImage(new File([bytes], driveItem.name, { type: driveItem.mime_type }), label);
+
+  if (!preparedImage) {
+    throw new Error(`${label} is not supported for Gemini.`);
+  }
+
+  return {
+    inline_data: {
+      mime_type: preparedImage.mimeType,
+      data: preparedImage.buffer.toString("base64"),
+    },
+  };
+}
+
 async function buildIntakeAnalysisImagePart(file: File, label: string) {
   const preparedImage = await prepareGeminiCompatibleUploadImage(file, label);
 
@@ -925,11 +1070,14 @@ async function updateIntakeSessionRecord(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   userId: string,
   id: string,
-  input: Partial<Pick<IntakeSessionInput, "status" | "error_message" | "parsed_metadata_json" | "reviewed_metadata_json">>,
+  input: Partial<
+    Pick<IntakeSessionInput, "product_title" | "status" | "error_message" | "parsed_metadata_json" | "reviewed_metadata_json">
+  >,
 ) {
   const { data, error } = await supabase
     .from("product_intake_sessions")
     .update({
+      ...(input.product_title !== undefined ? { product_title: normalizeIntakeText(input.product_title) } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(input.error_message !== undefined ? { error_message: normalizeIntakeText(input.error_message) } : {}),
       ...(input.parsed_metadata_json !== undefined ? { parsed_metadata_json: input.parsed_metadata_json } : {}),
@@ -1089,6 +1237,486 @@ async function uploadIntakeEvidenceToDrive(input: {
   };
 }
 
+async function createDurableIntakeCapture(
+  input: IntakeAnalysisUploadInput,
+  uploadedEvidence: Awaited<ReturnType<typeof uploadIntakeEvidenceToDrive>>,
+) {
+  const draftProductName = buildIntakeDraftProductTitle(input.productImage);
+
+  if (!uploadedEvidence.productImageDriveItem) {
+    throw new Error("Foto Produk Utama gagal disimpan ke Drive.");
+  }
+
+  const product = await createProduct({
+    workspace_id: uploadedEvidence.workspace.id,
+    product_name: draftProductName,
+    status: "DRAFT",
+  });
+
+  await attachProductSourceImage({
+    productId: product.id,
+    driveItemRefId: uploadedEvidence.productImageDriveItem.id,
+    isPrimary: true,
+    status: "ATTACHED",
+    notes: "Auto-attached from intake photo.",
+  });
+
+  const session = await createIntakeSession({
+    workspace_id: uploadedEvidence.workspace.id,
+    product_id: product.id,
+    product_title: draftProductName,
+    product_photo_drive_item_ref_id: uploadedEvidence.productImageDriveItem.id,
+    screenshot_drive_item_ref_id: uploadedEvidence.shopeeScreenshotDriveItem?.id ?? null,
+    status: "DRAFT",
+  });
+
+  return {
+    product,
+    session,
+  };
+}
+
+export async function saveIntakeProductCapture(input: {
+  productImage: File;
+  shopeeScreenshot?: File | null;
+  tiktokScreenshot?: File | null;
+  intakeSessionId?: string | null;
+}) {
+  assertUploadedImage(input.productImage, "Foto Produk Utama");
+
+  if (input.shopeeScreenshot) {
+    assertUploadedImage(input.shopeeScreenshot, "Screenshot Shopee");
+  }
+
+  if (input.tiktokScreenshot) {
+    assertUploadedImage(input.tiktokScreenshot, "Screenshot TikTok");
+  }
+
+  const draftProductName = buildIntakeDraftProductTitle(input.productImage);
+  const existingSession = input.intakeSessionId ? await getIntakeSessionById(input.intakeSessionId) : null;
+  const uploaded = await uploadIntakeProductImageToDrive({
+    productImage: input.productImage,
+    intakeCode: existingSession?.intake_code ?? null,
+  });
+  const existingProduct = existingSession?.product_id ? await getProductById(existingSession.product_id) : null;
+  const product = existingProduct
+    ? await updateProduct(existingProduct.id, {
+        workspace_id: existingProduct.workspace_id ?? uploaded.workspace.id,
+        product_name: draftProductName,
+        status: "DRAFT",
+      })
+    : await createProduct({
+        workspace_id: uploaded.workspace.id,
+        product_name: draftProductName,
+        status: "DRAFT",
+      });
+
+  const [shopeeScreenshotDriveItem, tiktokScreenshotDriveItem] = await Promise.all([
+    input.shopeeScreenshot
+      ? uploadIntakeScreenshotToDrive({
+          file: input.shopeeScreenshot,
+          intakeCode: uploaded.intakeCode,
+          folderLabel: "SCREENSHOTS/SHOPEE",
+          notes: "Screenshot Shopee",
+        }).then((result) => result.screenshotDriveItem)
+      : Promise.resolve(null),
+    input.tiktokScreenshot
+      ? uploadIntakeScreenshotToDrive({
+          file: input.tiktokScreenshot,
+          intakeCode: uploaded.intakeCode,
+          folderLabel: "SCREENSHOTS/TIKTOK",
+          notes: "Screenshot TikTok",
+        }).then((result) => result.screenshotDriveItem)
+      : Promise.resolve(null),
+  ]);
+
+  await attachProductSourceImage({
+    productId: product.id,
+    driveItemRefId: uploaded.productImageDriveItem.id,
+    isPrimary: true,
+    status: "ATTACHED",
+    notes: "Auto-attached from intake photo.",
+  });
+
+  const session = existingSession
+      ? await updateIntakeSession(existingSession.id, {
+          workspace_id: existingSession.workspace_id ?? uploaded.workspace.id,
+          product_id: product.id,
+          product_title: draftProductName,
+          product_photo_drive_item_ref_id: uploaded.productImageDriveItem.id,
+          ...(shopeeScreenshotDriveItem ? { screenshot_drive_item_ref_id: shopeeScreenshotDriveItem.id } : {}),
+          status: "DRAFT",
+          error_message: null,
+        })
+    : await createIntakeSession({
+        workspace_id: uploaded.workspace.id,
+        intake_code: uploaded.intakeCode,
+        product_id: product.id,
+        product_title: draftProductName,
+        product_photo_drive_item_ref_id: uploaded.productImageDriveItem.id,
+        screenshot_drive_item_ref_id: shopeeScreenshotDriveItem?.id ?? null,
+        status: "DRAFT",
+      });
+
+  await Promise.all([
+    shopeeScreenshotDriveItem
+      ? createMarketplaceSource({
+          product_id: product.id,
+          workspace_id: product.workspace_id ?? session.workspace_id,
+          platform: "SHOPEE",
+          title: draftProductName,
+          screenshot_drive_item_ref_id: shopeeScreenshotDriveItem.id,
+          status: "DRAFT",
+          notes: "Saved from intake draft.",
+        })
+      : Promise.resolve(null),
+    tiktokScreenshotDriveItem
+      ? createMarketplaceSource({
+          product_id: product.id,
+          workspace_id: product.workspace_id ?? session.workspace_id,
+          platform: "TIKTOK",
+          title: draftProductName,
+          screenshot_drive_item_ref_id: tiktokScreenshotDriveItem.id,
+          status: "DRAFT",
+          notes: "Saved from intake draft.",
+        })
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    product,
+    session,
+  };
+}
+
+export async function analyzeIntakeMetadataFromSavedCapture(input: {
+  intakeSessionId: string;
+  shopeeScreenshot?: File | null;
+  tiktokScreenshot?: File | null;
+}) {
+  const { supabase, user } = await requireUser();
+  const session = await getIntakeSessionById(input.intakeSessionId);
+  const product = session.product_id ? await getProductById(session.product_id) : null;
+
+  if (!product) {
+    throw new Error("Simpan produk dulu.");
+  }
+
+  if (!session.product_photo_drive_item_ref_id) {
+    throw new Error("Foto produk utama belum tersimpan.");
+  }
+
+  if (input.shopeeScreenshot) {
+    assertUploadedImage(input.shopeeScreenshot, "Screenshot Shopee");
+  }
+
+  if (input.tiktokScreenshot) {
+    assertUploadedImage(input.tiktokScreenshot, "Screenshot TikTok");
+  }
+
+  const productDriveItem = await getDriveItemById(session.product_photo_drive_item_ref_id);
+  if (!productDriveItem?.drive_item_id) {
+    throw new Error("Foto produk utama belum tersimpan di Drive.");
+  }
+
+  const totalBytes =
+    (productDriveItem.size_bytes ?? 0) +
+    (input.shopeeScreenshot?.size ?? 0) +
+    (input.tiktokScreenshot?.size ?? 0);
+
+  if (totalBytes > 19 * 1024 * 1024) {
+    throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
+  }
+
+  const intakeCode = session.intake_code;
+  let analysisSession: IntakeSessionRecord | null = null;
+  let task: AiTaskRecord | null = null;
+  let taskWaitingForKey = false;
+
+  try {
+    const existingSources = await listProductMarketplaceSources({ productId: product.id, limit: 20 });
+    const existingShopeeSource = existingSources.find((source) => source.platform === "SHOPEE") ?? null;
+    const existingTiktokSource = existingSources.find((source) => source.platform === "TIKTOK") ?? null;
+    const existingShopeeDriveItemRefId = existingShopeeSource?.screenshot_drive_item_ref_id ?? session.screenshot_drive_item_ref_id ?? null;
+    const existingTiktokDriveItemRefId = existingTiktokSource?.screenshot_drive_item_ref_id ?? null;
+
+    const shopeeScreenshotDriveItem = input.shopeeScreenshot
+      ? (await uploadIntakeScreenshotToDrive({
+          file: input.shopeeScreenshot,
+          intakeCode,
+          folderLabel: "SCREENSHOTS/SHOPEE",
+          notes: "Screenshot Shopee",
+        })).screenshotDriveItem
+      : existingShopeeDriveItemRefId
+        ? await getDriveItemById(existingShopeeDriveItemRefId)
+        : null;
+    const tiktokScreenshotDriveItem = input.tiktokScreenshot
+      ? (await uploadIntakeScreenshotToDrive({
+          file: input.tiktokScreenshot,
+          intakeCode,
+          folderLabel: "SCREENSHOTS/TIKTOK",
+          notes: "Screenshot TikTok",
+        })).screenshotDriveItem
+      : existingTiktokDriveItemRefId
+        ? await getDriveItemById(existingTiktokDriveItemRefId)
+        : null;
+
+    if (!shopeeScreenshotDriveItem?.drive_item_id) {
+      throw new Error("Screenshot Shopee belum tersimpan.");
+    }
+
+    if (!tiktokScreenshotDriveItem?.drive_item_id) {
+      throw new Error("Screenshot TikTok belum tersimpan.");
+    }
+
+    analysisSession = await updateIntakeSessionRecord(supabase, user.id, session.id, {
+      status: "SUBMITTED",
+      error_message: null,
+    });
+
+    await Promise.all([
+      createMarketplaceSource({
+        product_id: product.id,
+        workspace_id: product.workspace_id ?? session.workspace_id,
+        platform: "SHOPEE",
+        title: session.product_title || product.product_name,
+        screenshot_drive_item_ref_id: shopeeScreenshotDriveItem.id,
+        status: "DRAFT",
+        notes: "Awaiting Gemini analysis.",
+      }),
+      createMarketplaceSource({
+        product_id: product.id,
+        workspace_id: product.workspace_id ?? session.workspace_id,
+        platform: "TIKTOK",
+        title: session.product_title || product.product_name,
+        screenshot_drive_item_ref_id: tiktokScreenshotDriveItem.id,
+        status: "DRAFT",
+        notes: "Awaiting Gemini analysis.",
+      }),
+    ]);
+
+    const productImageBytes = await getGoogleDriveFileContentBytes(productDriveItem.drive_item_id);
+    const productImageFile = new File([productImageBytes], productDriveItem.name, {
+      type: productDriveItem.mime_type ?? "image/jpeg",
+    });
+    const productImagePart = await buildIntakeAnalysisImagePartFromDriveItem(session.product_photo_drive_item_ref_id, "Foto Produk Utama");
+    const shopeeScreenshotSummary = input.shopeeScreenshot
+      ? buildUploadedImageSummary(input.shopeeScreenshot)
+      : {
+          name: shopeeScreenshotDriveItem.name,
+          mimeType: shopeeScreenshotDriveItem.mime_type ?? "application/octet-stream",
+          size: shopeeScreenshotDriveItem.size_bytes ?? 0,
+        };
+    const tiktokScreenshotSummary = input.tiktokScreenshot
+      ? buildUploadedImageSummary(input.tiktokScreenshot)
+      : {
+          name: tiktokScreenshotDriveItem.name,
+          mimeType: tiktokScreenshotDriveItem.mime_type ?? "application/octet-stream",
+          size: tiktokScreenshotDriveItem.size_bytes ?? 0,
+        };
+    const shopeeScreenshotPart = input.shopeeScreenshot
+      ? await buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee")
+      : await buildIntakeAnalysisImagePartFromDriveItem(shopeeScreenshotDriveItem.id, "Screenshot Shopee");
+    const tiktokScreenshotPart = input.tiktokScreenshot
+      ? await buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok")
+      : await buildIntakeAnalysisImagePartFromDriveItem(tiktokScreenshotDriveItem.id, "Screenshot TikTok");
+
+    const createdTask = (await createAITask({
+      taskType: "VISION_ANALYSIS",
+      inputJson: buildIntakeTaskInput({
+        productImage: buildUploadedImageSummary(productImageFile),
+        shopeeScreenshot: shopeeScreenshotSummary,
+        tiktokScreenshot: tiktokScreenshotSummary,
+      }),
+      maxRetries: 0,
+    })) as AiTaskRecord;
+
+    task = createdTask;
+    await markTaskRunning(createdTask.id);
+
+    const excludedQuotaGroups = new Set<string>();
+    let responseText: string | null = null;
+    let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
+
+    while (!responseText) {
+      const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups);
+
+      if (!selectedKey) {
+        const message = "No Gemini key is ready for live intake analysis.";
+        taskWaitingForKey = true;
+        await markTaskWaitingForKey(createdTask.id, message);
+        throw new Error(message);
+      }
+
+      const { error: taskKeyUpdateError } = await supabase
+        .from("ai_tasks")
+        .update({
+          gemini_api_key_id: selectedKey.key.id,
+        })
+        .eq("id", createdTask.id)
+        .eq("user_id", user.id);
+
+      if (taskKeyUpdateError) {
+        throw new Error(taskKeyUpdateError.message);
+      }
+
+      try {
+        const response = await generateTrackedGeminiJsonText({
+          aiTaskId: createdTask.id,
+          geminiApiKey: selectedKey.key,
+          taskType: "VISION_ANALYSIS",
+          userId: user.id,
+          request: {
+            modelName: selectedKey.key.model_name as GeminiModelName,
+            apiKey: selectedKey.secret,
+            parts: [
+              productImagePart,
+              shopeeScreenshotPart,
+              tiktokScreenshotPart,
+              {
+                text: buildIntakeParsePrompt({
+                  productImage: buildUploadedImageSummary(productImageFile),
+                  shopeeScreenshot: shopeeScreenshotSummary,
+                  tiktokScreenshot: tiktokScreenshotSummary,
+                }),
+              },
+            ],
+            systemInstruction: INTAKE_VISION_SYSTEM_INSTRUCTION,
+            temperature: 0.1,
+            maxOutputTokens: 4096,
+            timeoutMs: 120_000,
+            responseJsonSchema: GEMINI_INTAKE_VISION_RESPONSE_SCHEMA,
+          },
+        });
+
+        selectedKeySelectionForSuccess = selectedKey;
+        responseText = response.text;
+      } catch (error) {
+        if (error instanceof GeminiClientError && error.status === 429) {
+          const retryAfterSeconds = error.retryAfterSeconds ?? 900;
+          const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
+          const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+
+          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+          await markGeminiQuotaGroupCooldown({
+            serviceClient: createSupabaseServiceRoleClient(),
+            userId: user.id,
+            key: selectedKey.key,
+            nextStatus,
+            cooldownUntil,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    const parsed = await parseIntakeVisionOutputWithRepair({
+      rawText: responseText,
+      repair: async ({ rawText, prompt }) => {
+        if (!selectedKeySelectionForSuccess) {
+          throw new Error("Missing successful Gemini key selection for intake repair.");
+        }
+
+        const repairResult = await repairIntakeVisionOutput({
+          rawText,
+          prompt,
+          userId: user.id,
+          taskId: createdTask.id,
+          fallbackSelection: selectedKeySelectionForSuccess,
+          excludedQuotaGroups,
+        });
+
+        selectedKeySelectionForSuccess = repairResult.selectedKeySelection;
+
+        return repairResult.responseText;
+      },
+    });
+
+    const parsedWithNote: IntakeVisionParseOutput = {
+      ...parsed,
+      confidence_notes: appendUniqueNote(parsed.confidence_notes, "Analisis Gemini live dari screenshot intake yang tersimpan."),
+    };
+    const parsedJson = toReviewedMetadataJson(parsedWithNote);
+
+    const nextProductName = buildIntakeProductTitle(parsedWithNote);
+    const updatedProduct = await updateProduct(product.id, {
+      workspace_id: product.workspace_id ?? session.workspace_id ?? undefined,
+      product_name: nextProductName,
+      niche: productNicheFromMetadata(parsedWithNote, product.niche),
+      marketplace: productMarketplaceFromIntake(session, parsedWithNote),
+    });
+
+    await updateIntakeSessionRecord(supabase, user.id, session.id, {
+      product_title: nextProductName,
+      parsed_metadata_json: parsedJson,
+      status: "NEEDS_REVIEW",
+      error_message: null,
+    });
+
+    const finalSession = await getIntakeSessionById(session.id);
+    analysisSession = finalSession;
+
+    await createMarketplaceSourcesFromVisionEvidence({
+      product: updatedProduct,
+      session: finalSession,
+      metadata: parsedWithNote,
+      shopeeScreenshotDriveItemRefId: shopeeScreenshotDriveItem.id,
+      tiktokScreenshotDriveItemRefId: tiktokScreenshotDriveItem.id,
+    });
+
+    const completedTask = await markTaskSuccess(
+      createdTask.id,
+      buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeySelectionForSuccess?.key.model_name),
+    );
+
+    if (selectedKeySelectionForSuccess) {
+      await markGeminiKeySuccess({
+        serviceClient: createSupabaseServiceRoleClient(),
+        userId: user.id,
+        key: selectedKeySelectionForSuccess.key,
+      }).catch(() => undefined);
+    }
+
+    revalidatePath("/intake");
+    revalidatePath("/products");
+    revalidatePath(`/products/${updatedProduct.id}`);
+
+    return {
+      task: completedTask,
+      product: updatedProduct,
+      session: finalSession,
+      parsed: parsedJson,
+      message: "Analisis metadata selesai. Produk masuk list.",
+    };
+  } catch (error) {
+    const message = safeErrorMessage(error);
+
+    if (task && !taskWaitingForKey) {
+      try {
+        await markTaskFailed(task.id, message, { retryable: false });
+      } catch {
+        // Keep the intake recoverable even if task failure update fails.
+      }
+    }
+
+    if (analysisSession) {
+      try {
+        await updateIntakeSessionRecord(supabase, user.id, analysisSession.id, {
+          status: "ERROR",
+          error_message: message,
+        });
+      } catch {
+        // Preserve the original failure if the intake row update also fails.
+      }
+    }
+
+    revalidatePath("/intake");
+    throw new Error(message);
+  }
+}
+
 export async function createIntakeSession(input: IntakeSessionInput) {
   const { supabase, user } = await requireUser();
   const status = input.status ?? "SUBMITTED";
@@ -1236,11 +1864,12 @@ export async function reviewIntakeMetadata(id: string, metadata: JsonRecord) {
         product_name: productName,
         niche: productNicheFromMetadata(normalized, product.niche),
         marketplace: productMarketplaceFromIntake(updatedSession, normalized),
-        status: nextProductStatusForIntake(product.status, "IMAGE_ANALYZED"),
       });
       revalidatePath(`/products/${product.id}`);
     }
   }
+
+  revalidatePath("/prompts");
 
   return updatedSession;
 }
@@ -1282,7 +1911,7 @@ export async function createProductFromIntake(
 
   const marketplace = productMarketplaceFromIntake(session, metadata);
   const marketplaceProductLink = session.shopee_url ?? session.tiktok_url;
-  const status = productStatusFromIntake(session, input?.status);
+  const status = productStatusFromIntake(input?.status);
   const productInput = {
     workspace_id: session.workspace_id ?? undefined,
     product_code: readIntakeText(input?.product_code) || buildProductCodeForIntake(productName, session),
@@ -1499,21 +2128,26 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   const productImageSummary = buildUploadedImageSummary(input.productImage);
   const shopeeScreenshotSummary = buildUploadedImageSummary(input.shopeeScreenshot);
   const tiktokScreenshotSummary = buildUploadedImageSummary(input.tiktokScreenshot);
-  const task = (await createAITask({
-    taskType: "VISION_ANALYSIS",
-    inputJson: buildIntakeTaskInput({
-      productImage: productImageSummary,
-      shopeeScreenshot: shopeeScreenshotSummary,
-      tiktokScreenshot: tiktokScreenshotSummary,
-    }),
-    maxRetries: 0,
-  })) as AiTaskRecord;
 
   let analysisSession: IntakeSessionRecord | null = null;
+  let task: AiTaskRecord | null = null;
   let taskWaitingForKey = false;
 
   try {
-    await markTaskRunning(task.id);
+    const draftCapture = await createDurableIntakeCapture(input, uploadedEvidence);
+    analysisSession = draftCapture.session;
+    const createdTask = (await createAITask({
+      taskType: "VISION_ANALYSIS",
+      inputJson: buildIntakeTaskInput({
+        productImage: productImageSummary,
+        shopeeScreenshot: shopeeScreenshotSummary,
+        tiktokScreenshot: tiktokScreenshotSummary,
+      }),
+      maxRetries: 0,
+    })) as AiTaskRecord;
+    task = createdTask;
+
+    await markTaskRunning(createdTask.id);
     const [productImagePart, shopeeScreenshotPart, tiktokScreenshotPart] = await Promise.all([
       buildIntakeAnalysisImagePart(input.productImage, "Foto Produk Utama"),
       buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee"),
@@ -1529,7 +2163,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       if (!selectedKey) {
         const message = "No Gemini key is ready for live intake analysis.";
         taskWaitingForKey = true;
-        await markTaskWaitingForKey(task.id, message);
+        await markTaskWaitingForKey(createdTask.id, message);
         throw new Error(message);
       }
 
@@ -1538,7 +2172,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
         .update({
           gemini_api_key_id: selectedKey.key.id,
         })
-        .eq("id", task.id)
+        .eq("id", createdTask.id)
         .eq("user_id", user.id);
 
       if (taskKeyUpdateError) {
@@ -1547,7 +2181,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
 
       try {
         const response = await generateTrackedGeminiJsonText({
-          aiTaskId: task.id,
+          aiTaskId: createdTask.id,
           geminiApiKey: selectedKey.key,
           taskType: "VISION_ANALYSIS",
           userId: user.id,
@@ -1579,7 +2213,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       } catch (error) {
         if (error instanceof GeminiClientError && error.status >= 500) {
           console.warn("[intake.parseIntakeWithGemini] Gemini upstream unavailable", {
-            taskId: task.id,
+            taskId: createdTask.id,
             userId: user.id,
             geminiApiKeyId: selectedKey.key.id,
             modelName: selectedKey.key.model_name,
@@ -1620,7 +2254,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
           rawText,
           prompt,
           userId: user.id,
-          taskId: task.id,
+          taskId: createdTask.id,
           fallbackSelection: selectedKeySelectionForSuccess,
           excludedQuotaGroups,
         });
@@ -1636,33 +2270,38 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     };
     const parsedJson = toReviewedMetadataJson(parsedWithNote);
 
-    analysisSession = await createIntakeSession({
+    await updateIntakeSessionRecord(supabase, user.id, draftCapture.session.id, {
       product_title: buildIntakeProductTitle(parsedWithNote),
       parsed_metadata_json: parsedJson,
-      product_photo_drive_item_ref_id: uploadedEvidence.productImageDriveItem?.id ?? null,
-      screenshot_drive_item_ref_id: uploadedEvidence.shopeeScreenshotDriveItem?.id ?? null,
-      status: "NEEDS_REVIEW",
-    });
-    const product = await createProductFromIntake(analysisSession.id, {
-      status: "IMAGE_ANALYZED",
     });
 
-    analysisSession = {
-      ...analysisSession,
-      product_id: product.id,
-      workspace_id: product.workspace_id,
-    };
+    let product = draftCapture.product;
+
+    try {
+      product = await createProductFromIntake(draftCapture.session.id, {
+        status: "DRAFT",
+      });
+    } catch (error) {
+      console.warn("[intake.parseIntakeWithGemini] Product sync after metadata analysis failed", {
+        sessionId: draftCapture.session.id,
+        productId: draftCapture.product.id,
+        message: safeErrorMessage(error),
+      });
+    }
+
+    const finalSession = await getIntakeSessionById(draftCapture.session.id);
+    analysisSession = finalSession;
 
     await createMarketplaceSourcesFromVisionEvidence({
       product,
-      session: analysisSession,
+      session: finalSession,
       metadata: parsedWithNote,
       shopeeScreenshotDriveItemRefId: uploadedEvidence.shopeeScreenshotDriveItem?.id ?? null,
       tiktokScreenshotDriveItemRefId: uploadedEvidence.tiktokScreenshotDriveItem?.id ?? null,
     });
 
     const completedTask = await markTaskSuccess(
-      task.id,
+      createdTask.id,
       buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeySelectionForSuccess?.key.model_name),
     );
     if (selectedKeySelectionForSuccess) {
@@ -1678,14 +2317,14 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     revalidatePath(`/products/${product.id}`);
     return {
       task: completedTask,
-      session: analysisSession,
+      session: finalSession,
       parsed: parsedJson,
       message: "Analisis Gemini selesai. Produk masuk list.",
     };
   } catch (error) {
     const message = safeErrorMessage(error);
 
-    if (!taskWaitingForKey) {
+    if (task && !taskWaitingForKey) {
       try {
         await markTaskFailed(task.id, message, { retryable: false });
       } catch {

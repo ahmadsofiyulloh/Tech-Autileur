@@ -219,7 +219,11 @@ export function ProductList({ products }: ProductListProps) {
                         <StatusBadge status={product.primary_status_label} />
                         {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
                       </div>
-                      {product.status_context_label ? <span className="settings-card-meta-line">{product.status_context_label}</span> : null}
+                      {product.status_context_label ? (
+                        <span className="settings-card-meta-line product-card-status-line" title={product.status_context_label}>
+                          {product.status_context_label}
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td>{product.created_at_label}</td>
@@ -269,7 +273,11 @@ export function ProductList({ products }: ProductListProps) {
                   </div>
                   <div className="visual-list-card__status" aria-label="Status produk">
                     <StatusBadge status={product.primary_status_label} />
-                    {product.status_context_label ? <span className="settings-card-meta-line">{product.status_context_label}</span> : null}
+                    {product.status_context_label ? (
+                      <span className="settings-card-meta-line product-card-status-line" title={product.status_context_label}>
+                        {product.status_context_label}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="visual-list-card__footer">

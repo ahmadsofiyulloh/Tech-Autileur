@@ -6,18 +6,19 @@ import {
   AlertTriangle,
   FileText,
   Link2,
-  WandSparkles,
 } from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard, type ImagePreviewSelectionState } from "@/components/operator/image-preview-upload-card";
+import { SkeletonIntakeMetadataPreview } from "@/components/operator/loading-skeleton";
+import { PromptLaunchReadinessSummary } from "@/components/operator/prompt-launch-readiness-summary";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
 import type { JsonRecord } from "@/lib/intake/validation";
+import type { PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 
 type IntakeWorkflowStep = "intake" | "prompt";
-type IntakeEvidenceSegment = "produk" | "metadata";
 
 export type IntakeWorkflowSession = {
   id: string;
@@ -27,6 +28,7 @@ export type IntakeWorkflowSession = {
   product_id: string | null;
   created_at: string;
   product_title: string | null;
+  error_message: string | null;
   parsed_metadata_json: JsonRecord | null;
   reviewed_metadata_json: JsonRecord | null;
 };
@@ -46,8 +48,28 @@ type IntakeWorkflowFormProps = {
   savedSession: IntakeWorkflowSession | null;
   savedSessionWorkspaceName: string | null;
   selectedAffiliateProfileId: string | null;
+  promptLaunchReadiness: PromptLaunchReadiness | null;
   showAllWorkspaces: boolean;
+  savedSessionEvidencePreviewUrls?: {
+    productImage: string | null;
+    shopeeScreenshot: string | null;
+    tiktokScreenshot: string | null;
+  };
+  draftQueue: Array<{
+    id: string;
+    productId: string | null;
+    title: string;
+    status: string;
+    errorMessage: string | null;
+    createdAtLabel: string;
+    productImagePreviewUrl: string | null;
+    shopeeReady: boolean;
+    tiktokReady: boolean;
+    continueHref: string;
+  }>;
 };
+
+type IntakeAffiliateProfile = IntakeWorkflowFormProps["affiliateProfiles"][number];
 
 function readReviewValue(metadata: JsonRecord | null, key: string, fallbackKey?: string) {
   if (!metadata) {
@@ -100,48 +122,178 @@ function affiliateNicheLabel(profile: IntakeWorkflowFormProps["affiliateProfiles
   return profile.niche?.trim() || "Niche belum diisi";
 }
 
-function AffiliateProfileCarousel({
-  profiles,
-  selectedId,
-  onSelect,
+function affiliatePlatformLabel(platform: string) {
+  const normalized = platform.trim().toUpperCase();
+
+  if (!normalized) {
+    return "Platform belum diisi";
+  }
+
+  if (normalized === "TIKTOK") {
+    return "TikTok";
+  }
+
+  if (normalized === "SHOPEE") {
+    return "Shopee";
+  }
+
+  if (normalized === "INSTAGRAM") {
+    return "Instagram";
+  }
+
+  if (normalized === "FACEBOOK") {
+    return "Facebook";
+  }
+
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
+function ActiveAffiliateProfileCard({ profile }: { profile: IntakeAffiliateProfile | null }) {
+  if (!profile) {
+    return (
+      <EmptyState
+        action={
+          <Link className="button compact primary" href="/settings/affiliate-profiles">
+            <Link2 size={16} aria-hidden="true" />
+            Buka pengaturan
+          </Link>
+        }
+        icon={FileText}
+        title="Belum ada Akun Affiliate aktif."
+        description="Atur Akun Affiliate dulu."
+      />
+    );
+  }
+
+  const manageHref = `/settings/affiliate-profiles?profile_id=${encodeURIComponent(profile.id)}`;
+  const accountLabel = profile.account_label?.trim() || "Label akun belum diisi";
+
+  return (
+    <section className="intake-active-affiliate-card" aria-label="Akun Affiliate aktif">
+      <span className="settings-affiliate-profile-card__avatar" aria-hidden="true">
+        {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <span>{affiliateInitials(profile.profile_name)}</span>}
+      </span>
+      <div className="intake-active-affiliate-card__copy">
+        <div className="intake-active-affiliate-card__title-row">
+          <strong>{profile.profile_name}</strong>
+          <StatusBadge status={profile.status} />
+        </div>
+        <span className="settings-card-meta-line">{accountLabel}</span>
+        <span className="settings-card-meta-line">
+          {affiliatePlatformLabel(profile.platform)}
+          {" | "}
+          {affiliateNicheLabel(profile)}
+        </span>
+      </div>
+      <Link className="button compact intake-active-affiliate-card__action" href={manageHref}>
+        <Link2 size={16} aria-hidden="true" />
+        Kelola
+      </Link>
+    </section>
+  );
+}
+
+function IntakeMetadataPendingPanel({ status }: { status: string }) {
+  return (
+    <section className="stack" aria-busy="true" aria-live="polite">
+      <div className="section-card__actions">
+        <div className="stack-tight">
+          <h3>{status === "SUBMITTED" ? "Metadata sedang diproses" : "Metadata belum dianalisis"}</h3>
+        </div>
+        <StatusBadge status={status} tone="info" />
+      </div>
+      {status === "SUBMITTED" ? <SkeletonIntakeMetadataPreview /> : null}
+    </section>
+  );
+}
+
+function IntakeMetadataEmptyPanel() {
+  return (
+    <section className="prompt-preview-panel stack">
+      <div className="section-card__actions">
+        <div className="stack-tight">
+          <h3>Metadata siap muncul di sini</h3>
+        </div>
+        <StatusBadge status="DRAFT" tone="info" />
+      </div>
+    </section>
+  );
+}
+
+function IntakeMetadataFailedPanel({
+  affiliateProfileId,
+  savedSession,
+  showAllWorkspaces,
 }: {
-  profiles: IntakeWorkflowFormProps["affiliateProfiles"];
-  selectedId: string;
-  onSelect: (id: string) => void;
+  affiliateProfileId: string | null;
+  savedSession: IntakeWorkflowSession;
+  showAllWorkspaces: boolean;
 }) {
-  if (!profiles.length) {
-    return <EmptyState icon={FileText} title="Belum ada profil affiliate." description="Atur profil di Pengaturan." />;
+  const retryParams = new URLSearchParams({
+    step: "intake",
+    intake_id: savedSession.id,
+  });
+
+  if (showAllWorkspaces) {
+    retryParams.set("workspace", "all");
+  }
+
+  if (affiliateProfileId) {
+    retryParams.set("affiliate_profile_id", affiliateProfileId);
   }
 
   return (
-    <section className="stack-tight" aria-label="Profil Affiliate">
-      <h3 className="section-card__title">Profil Affiliate</h3>
-      <div className="profile-carousel">
-        {profiles.map((profile) => {
-          const selected = selectedId === profile.id;
+    <EmptyState
+      action={
+        <Link className="button primary" href={`/products/new?${retryParams.toString()}`}>
+          <Link2 size={16} aria-hidden="true" />
+          Kembali ke intake
+        </Link>
+      }
+      icon={AlertTriangle}
+      title="Analisis metadata gagal."
+      description={savedSession.error_message || "Draft tersimpan. Coba ulang."}
+    />
+  );
+}
 
-          return (
-            <button
-              aria-pressed={selected}
-              className="profile-card"
-              data-active={selected ? "true" : undefined}
-              key={profile.id}
-              type="button"
-              onClick={() => onSelect(profile.id)}
-            >
-              <span className="profile-card__avatar" aria-hidden="true">
-                {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <span>{affiliateInitials(profile.profile_name)}</span>}
+function DraftQueuePanel({ drafts }: { drafts: IntakeWorkflowFormProps["draftQueue"] }) {
+  if (!drafts.length) {
+    return null;
+  }
+
+  return (
+    <section className="intake-draft-queue stack-tight" aria-label="Draft tersimpan">
+      <div className="section-card__actions">
+        <h3>Draft tersimpan</h3>
+        <StatusBadge status={`${drafts.length} draft`} tone="info" />
+      </div>
+      <div className="intake-draft-queue__list">
+        {drafts.map((draft) => (
+          <article className="intake-draft-queue__item" key={draft.id}>
+            <div className="intake-draft-queue__preview" aria-hidden="true">
+              {draft.productImagePreviewUrl ? <img alt="" src={draft.productImagePreviewUrl} /> : <FileText size={18} aria-hidden="true" />}
+            </div>
+            <div className="intake-draft-queue__copy">
+              <strong title={draft.title}>{draft.title}</strong>
+              <span>
+                {draft.createdAtLabel}
+                {" | "}
+                Shopee {draft.shopeeReady ? "OK" : "-"}
+                {" | "}
+                TikTok {draft.tiktokReady ? "OK" : "-"}
               </span>
-              <span className="profile-card__copy">
-                <strong>{profile.profile_name}</strong>
-                <span className="subtle">{affiliateNicheLabel(profile)}</span>
-              </span>
-              <span className={`button compact ${selected ? "primary" : ""}`}>
-                {selected ? "Aktif" : "Pilih"}
-              </span>
-            </button>
-          );
-        })}
+              {draft.errorMessage ? <small title={draft.errorMessage}>{draft.errorMessage}</small> : null}
+            </div>
+            <div className="intake-draft-queue__actions">
+              <StatusBadge status={draft.status} tone={draft.status === "ERROR" ? "danger" : "info"} />
+              <Link className="button compact primary" href={draft.continueHref}>
+                <Link2 size={15} aria-hidden="true" />
+                Lanjutkan
+              </Link>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -191,12 +343,14 @@ function AnalysisReadyPanel({
   affiliateProfileId,
   currentWorkspaceName,
   savedSession,
+  promptLaunchReadiness,
   showAllWorkspaces,
   savedSessionWorkspaceName,
 }: {
   affiliateProfileId: string | null;
   currentWorkspaceName: string | null;
   savedSession: IntakeWorkflowSession;
+  promptLaunchReadiness: PromptLaunchReadiness | null;
   showAllWorkspaces: boolean;
   savedSessionWorkspaceName: string | null;
 }) {
@@ -282,22 +436,31 @@ function AnalysisReadyPanel({
             </Link>
           ) : null}
         </FormActions>
+        {promptLaunchReadiness && !promptLaunchReadiness.ready ? (
+          <PromptLaunchReadinessSummary readiness={promptLaunchReadiness} />
+        ) : null}
       </section>
     </form>
   );
+}
+
+function hasSessionMetadata(savedSession: IntakeWorkflowSession) {
+  return Boolean(savedSession.reviewed_metadata_json || savedSession.parsed_metadata_json);
 }
 
 export function IntakeWorkflowForm({
   affiliateProfiles,
   currentWorkspaceName,
   initialStep,
+  promptLaunchReadiness,
   savedSession,
   savedSessionWorkspaceName,
   selectedAffiliateProfileId,
+  savedSessionEvidencePreviewUrls,
   showAllWorkspaces,
+  draftQueue,
 }: IntakeWorkflowFormProps) {
   const [step, setStep] = useState<IntakeWorkflowStep>(initialStep);
-  const [activeSegment, setActiveSegment] = useState<IntakeEvidenceSegment>("produk");
   const [productImage, setProductImage] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
   const [shopeeScreenshot, setShopeeScreenshot] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
   const [tiktokScreenshot, setTiktokScreenshot] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
@@ -311,111 +474,109 @@ export function IntakeWorkflowForm({
     setAffiliateProfileId(selectedAffiliateProfileId ?? affiliateProfiles[0]?.id ?? "");
   }, [affiliateProfiles, selectedAffiliateProfileId]);
 
-  const hasMinimum = productImage.selected && shopeeScreenshot.selected && tiktokScreenshot.selected;
+  const activeAffiliateProfile = affiliateProfiles.find((profile) => profile.id === affiliateProfileId) ?? affiliateProfiles[0] ?? null;
+  const hasSavedProductPreview = Boolean(savedSessionEvidencePreviewUrls?.productImage);
+  const hasSavedShopeePreview = Boolean(savedSessionEvidencePreviewUrls?.shopeeScreenshot);
+  const hasSavedTiktokPreview = Boolean(savedSessionEvidencePreviewUrls?.tiktokScreenshot);
+  const canSaveProduct = Boolean(productImage.selected);
+  const canAnalyzeMetadata =
+    Boolean(savedSession?.id) &&
+    Boolean(productImage.selected || hasSavedProductPreview) &&
+    Boolean(shopeeScreenshot.selected || hasSavedShopeePreview) &&
+    Boolean(tiktokScreenshot.selected || hasSavedTiktokPreview);
+  const sessionHasMetadata = savedSession ? hasSessionMetadata(savedSession) : false;
+  const isMetadataPending = Boolean(savedSession && (savedSession.status === "DRAFT" || savedSession.status === "SUBMITTED") && !sessionHasMetadata);
+  const isMetadataFailed = Boolean(savedSession && savedSession.status === "ERROR" && !sessionHasMetadata);
+
+  const metadataPanel = !savedSession ? (
+    <IntakeMetadataEmptyPanel />
+  ) : isMetadataPending ? (
+    <IntakeMetadataPendingPanel status={savedSession.status} />
+  ) : isMetadataFailed ? (
+    <IntakeMetadataFailedPanel affiliateProfileId={affiliateProfileId} savedSession={savedSession} showAllWorkspaces={showAllWorkspaces} />
+  ) : (
+    <AnalysisReadyPanel
+      affiliateProfileId={affiliateProfileId}
+      currentWorkspaceName={currentWorkspaceName}
+      savedSession={savedSession}
+      promptLaunchReadiness={promptLaunchReadiness}
+      showAllWorkspaces={showAllWorkspaces}
+      savedSessionWorkspaceName={savedSessionWorkspaceName}
+    />
+  );
 
   return (
-    <section className="intake-workflow stack">
-      {step === "intake" ? (
-        <form action={saveIntake} className="stack">
-          <input type="hidden" name="intent" value="parse_intake" />
-          <input type="hidden" name="workspace_scope" value={showAllWorkspaces ? "all" : ""} />
-          <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId} />
-          <div className="intake-segment-control" role="tablist" aria-label="Evidence intake">
-            <button
-              aria-selected={activeSegment === "produk"}
-              className="intake-segment-control__button"
-              data-active={activeSegment === "produk" ? "true" : undefined}
-              role="tab"
-              type="button"
-              onClick={() => setActiveSegment("produk")}
-            >
-              Produk
-            </button>
-            <button
-              aria-selected={activeSegment === "metadata"}
-              className="intake-segment-control__button"
-              data-active={activeSegment === "metadata" ? "true" : undefined}
-              role="tab"
-              type="button"
-              onClick={() => setActiveSegment("metadata")}
-            >
-              Metadata
-            </button>
-          </div>
+    <section className={`intake-workflow stack${step === "prompt" ? " intake-workflow--prompt" : ""}`}>
+      <form action={saveIntake} className="stack">
+        <input type="hidden" name="workspace_scope" value={showAllWorkspaces ? "all" : ""} />
+        <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId} />
+        {savedSession?.id ? <input type="hidden" name="id" value={savedSession.id} /> : null}
+        <ActiveAffiliateProfileCard profile={activeAffiliateProfile} />
+        <div className="intake-evidence-grid">
+          <ImagePreviewUploadCard
+            className="intake-evidence-grid__card"
+            label="Foto Produk Utama"
+            name="product_image"
+            emptyTitle="Tambah gambar"
+            previewUrl={savedSessionEvidencePreviewUrls?.productImage ?? null}
+            previewAlt="Foto Produk Utama preview"
+            required
+            showStatusBadge={false}
+            onSelectionChange={setProductImage}
+          />
+          <ImagePreviewUploadCard
+            className="intake-evidence-grid__card"
+            label="Screenshot Shopee"
+            name="shopee_screenshot"
+            emptyTitle="Tambah gambar"
+            previewUrl={savedSessionEvidencePreviewUrls?.shopeeScreenshot ?? null}
+            previewAlt="Screenshot Shopee preview"
+            showStatusBadge={false}
+            onSelectionChange={setShopeeScreenshot}
+          />
+          <ImagePreviewUploadCard
+            className="intake-evidence-grid__card"
+            label="Screenshot TikTok"
+            name="tiktok_screenshot"
+            emptyTitle="Tambah gambar"
+            previewUrl={savedSessionEvidencePreviewUrls?.tiktokScreenshot ?? null}
+            previewAlt="Screenshot TikTok preview"
+            showStatusBadge={false}
+            onSelectionChange={setTiktokScreenshot}
+          />
+        </div>
+        <FormActions layout="pair">
+          <PendingActionButton
+            name="intent"
+            value="save_product_capture"
+            activityDescription="Menyimpan foto produk ke Drive dan membuat draft produk."
+            activityKind="generic"
+            activityTitle="Menyimpan produk"
+            className="button primary"
+            estimatedDurationMs={14000}
+            pendingLabel="Menyimpan"
+            disabled={!canSaveProduct}
+          >
+            Simpan Produk
+          </PendingActionButton>
+          <PendingActionButton
+            name="intent"
+            value="analyze_metadata"
+            activityDescription="Menunggu Gemini memproses evidence."
+            activityKind="analysis"
+            activityTitle="Menganalisis metadata"
+            className="button tertiary"
+            estimatedDurationMs={22000}
+            pendingLabel="Memproses"
+            disabled={!canAnalyzeMetadata}
+          >
+            Analisis Metadata
+          </PendingActionButton>
+        </FormActions>
+      </form>
 
-          <div className="intake-segment-panels">
-            <section
-              aria-hidden={activeSegment !== "produk"}
-              className="intake-segment-panel"
-              data-active={activeSegment === "produk" ? "true" : undefined}
-            >
-              <ImagePreviewUploadCard
-                label="Foto Produk Utama"
-                name="product_image"
-                cameraName="product_image_camera"
-                capture="environment"
-                emptyTitle="Tambah gambar"
-                previewAlt="Foto Produk Utama preview"
-                required
-                onSelectionChange={setProductImage}
-              />
-              <AffiliateProfileCarousel profiles={affiliateProfiles} selectedId={affiliateProfileId} onSelect={setAffiliateProfileId} />
-            </section>
-
-            <section
-              aria-hidden={activeSegment !== "metadata"}
-              className="intake-segment-panel"
-              data-active={activeSegment === "metadata" ? "true" : undefined}
-            >
-              <ImagePreviewUploadCard
-                label="Screenshot Shopee"
-                name="shopee_screenshot"
-                emptyTitle="Tambah gambar"
-                previewAlt="Screenshot Shopee preview"
-                required
-                onSelectionChange={setShopeeScreenshot}
-              />
-              <ImagePreviewUploadCard
-                label="Screenshot TikTok"
-                name="tiktok_screenshot"
-                emptyTitle="Tambah gambar"
-                previewAlt="Screenshot TikTok preview"
-                required
-                onSelectionChange={setTiktokScreenshot}
-              />
-            </section>
-          </div>
-          {!hasMinimum ? (
-            <div className="error-box status-box" role="alert">
-              <AlertTriangle size={17} aria-hidden="true" />
-              <span>Unggah semua evidence dulu.</span>
-            </div>
-          ) : null}
-          <FormActions layout="single">
-            <PendingActionButton
-              activityDescription="Menunggu Gemini memproses evidence."
-              activityKind="analysis"
-              activityTitle="Menganalisis gambar"
-              className="button primary"
-              estimatedDurationMs={22000}
-              pendingLabel="Memproses"
-              disabled={!hasMinimum}
-            >
-              Analisis Gemini
-            </PendingActionButton>
-          </FormActions>
-        </form>
-      ) : savedSession ? (
-        <AnalysisReadyPanel
-          affiliateProfileId={affiliateProfileId}
-          currentWorkspaceName={currentWorkspaceName}
-          savedSession={savedSession}
-          showAllWorkspaces={showAllWorkspaces}
-          savedSessionWorkspaceName={savedSessionWorkspaceName}
-        />
-      ) : (
-        <EmptyState icon={WandSparkles} title="Belum ada analisis." description="Unggah evidence dulu." />
-      )}
+      {metadataPanel}
+      {!savedSession ? <DraftQueuePanel drafts={draftQueue} /> : null}
     </section>
   );
 }

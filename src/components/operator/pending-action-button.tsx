@@ -41,13 +41,21 @@ export function PendingActionButton({
   pendingLabel,
   pendingOverride,
   type = "submit",
+  name,
+  value,
   ...buttonProps
 }: PendingActionButtonProps) {
-  const { pending } = useFormStatus();
+  const { data, pending } = useFormStatus();
   const { registerActivity, clearActivity } = useActivityFeedback();
   const activityId = useId();
   const Icon = activityIcons[activityKind];
-  const isPending = pendingOverride ?? pending;
+  const submitterName = typeof name === "string" ? name : "";
+  const submitterValue = typeof value === "string" || typeof value === "number" ? String(value) : "";
+  const isMatchingSubmitter =
+    pending &&
+    (!submitterName || !submitterValue || (data?.get(submitterName) ?? null) === submitterValue);
+  const isPending = pendingOverride ?? isMatchingSubmitter;
+  const isDisabled = disabled || (pendingOverride === undefined ? pending : isPending);
 
   useEffect(() => {
     if (!isPending) {
@@ -76,9 +84,11 @@ export function PendingActionButton({
     <button
       {...buttonProps}
       formAction={formAction}
+      name={name}
       className={joinClassNames("button", className?.replace(/\bbutton\b/g, "").replace(/\s+/g, " ").trim())}
-      disabled={disabled || isPending}
+      disabled={isDisabled}
       type={type}
+      value={value}
     >
       {isPending ? <Loader2 size={16} aria-hidden="true" className="spin" /> : Icon ? <Icon size={16} aria-hidden="true" /> : null}
       {isPending ? pendingLabel ?? "Memproses" : children}
