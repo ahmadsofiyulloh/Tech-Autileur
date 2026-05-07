@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
+import { ArrowRight, ImageIcon, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
@@ -102,11 +102,59 @@ function isVisibleProfile(profile: AffiliateProfileRecord) {
   return profile.status !== "ARCHIVED";
 }
 
-function profileMobileMeta(profile: AffiliateProfileRecord) {
+function profileMobileMeta(lockSeedCharacter: boolean, lockEnvironment: boolean) {
   return [
-    profile.lock_seed_character ? "Character locked" : "Character open",
-    profile.lock_environment ? "Environment locked" : "Environment open",
+    lockSeedCharacter ? "Character locked" : "Character open",
+    lockEnvironment ? "Environment locked" : "Environment open",
   ].join(" - ");
+}
+
+function StatusSwitchRow({
+  checked,
+  description,
+  id,
+  label,
+  name,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  id: string;
+  label: string;
+  name?: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="settings-native-row settings-switch-row" htmlFor={id}>
+      <span className="settings-native-row__copy">
+        <strong>{label}</strong>
+        <span className="settings-card-meta-line">{description}</span>
+      </span>
+      <input
+        checked={checked}
+        className="settings-switch-row__toggle"
+        id={id}
+        name={name}
+        type="checkbox"
+        value="on"
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </label>
+  );
+}
+
+function AssetPreviewHidden({ label }: { label: string }) {
+  return (
+    <div className="affiliate-profile-asset-card__preview-empty muted-box stack-tight" role="status">
+      <span className="icon-frame" aria-hidden="true">
+        <ImageIcon size={16} />
+      </span>
+      <div className="stack-tight">
+        <strong>Preview disembunyikan</strong>
+        <span className="subtle">{label} tidak ditampilkan.</span>
+      </div>
+    </div>
+  );
 }
 
 function assetAnalysisBadgeLabel(state: AffiliateProfileAssetAnalysisState) {
@@ -237,6 +285,8 @@ export function AffiliateProfilesBoard({
   const [selectedProfileId, setSelectedProfileId] = useState(profiles.find(isVisibleProfile)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [assetLockEnabled, setAssetLockEnabled] = useState(true);
+  const requestedProfileId = searchParams.get("profile_id")?.trim() ?? "";
 
   const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE"), [workspaces]);
   const visibleProfiles = useMemo(() => profiles.filter(isVisibleProfile), [profiles]);
@@ -291,6 +341,26 @@ export function AffiliateProfilesBoard({
     }
   }, [filteredProfiles, selectedProfileId]);
 
+  useEffect(() => {
+    if (!requestedProfileId) {
+      return;
+    }
+
+    const requestedProfile = visibleProfiles.find((profile) => profile.id === requestedProfileId);
+
+    if (!requestedProfile) {
+      return;
+    }
+
+    setSelectedProfileId(requestedProfile.id);
+    setIsCreating(false);
+    setDrawerOpen(true);
+  }, [requestedProfileId, visibleProfiles]);
+
+  useEffect(() => {
+    setAssetLockEnabled(selectedProfile ? selectedProfile.lock_seed_character || selectedProfile.lock_environment : true);
+  }, [selectedProfile?.id, selectedProfile?.lock_seed_character, selectedProfile?.lock_environment, isCreating]);
+
   function openCreateDrawer() {
     setIsCreating(true);
     setDrawerOpen(true);
@@ -319,13 +389,15 @@ export function AffiliateProfilesBoard({
   const selectedSeedCharacterPreviewUrl = selectedSeedCharacterDriveItem?.previewUrl ?? null;
   const selectedEnvironmentPreviewUrl = selectedEnvironmentDriveItem?.previewUrl ?? null;
   const initialProfile = selectedProfile ?? null;
+  const lockSeedCharacter = assetLockEnabled;
+  const lockEnvironment = assetLockEnabled;
   const seedCharacterAnalysisState = getAffiliateProfileAssetAnalysisState({
-    locked: initialProfile?.lock_seed_character ?? true,
+    locked: lockSeedCharacter,
     driveItemRefId: initialProfile?.seed_character_drive_item_ref_id,
     analysisJson: initialProfile?.seed_character_analysis_json,
   });
   const environmentAnalysisState = getAffiliateProfileAssetAnalysisState({
-    locked: initialProfile?.lock_environment ?? true,
+    locked: lockEnvironment,
     driveItemRefId: initialProfile?.environment_drive_item_ref_id,
     analysisJson: initialProfile?.environment_analysis_json,
   });
@@ -433,7 +505,7 @@ export function AffiliateProfilesBoard({
                     <StatusBadge status={profile.status} />
                   </div>
                   <span className="subtle">{profile.niche?.trim() || "Niche belum diisi"}</span>
-                  <span className="settings-card-meta-line">{profileMobileMeta(profile)}</span>
+                  <span className="settings-card-meta-line">{profileMobileMeta(profile.lock_seed_character, profile.lock_environment)}</span>
                 </div>
               </div>
               <div className="mobile-card-actions">
@@ -473,7 +545,9 @@ export function AffiliateProfilesBoard({
           <div className="stack-tight">
             <span className="subtle">{isCreating ? "Profile baru" : "Detail"}</span>
             <strong>{isCreating ? "Buat profile affiliate" : selectedProfile?.profile_name ?? "Pilih profile"}</strong>
-            {!isCreating && initialProfile ? <span className="settings-card-meta-line">{profileMobileMeta(initialProfile)}</span> : null}
+            {!isCreating && initialProfile ? (
+              <span className="settings-card-meta-line">{profileMobileMeta(lockSeedCharacter, lockEnvironment)}</span>
+            ) : null}
           </div>
           <button className="button compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
             <X size={16} aria-hidden="true" />
@@ -496,6 +570,8 @@ export function AffiliateProfilesBoard({
               <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile?.environment_drive_item_ref_id ?? ""} />
               <input type="hidden" name="workspace_ids" value={namespaceWorkspaceId} />
               <input type="hidden" name="default_workspace_id" value={namespaceWorkspaceId} />
+              <input type="hidden" name="lock_seed_character" value={assetLockEnabled ? "true" : "false"} />
+              <input type="hidden" name="lock_environment" value={assetLockEnabled ? "true" : "false"} />
 
               <label className="stack auth-field" htmlFor="affiliate-profile-name">
                 <span>Profile name</span>
@@ -532,81 +608,79 @@ export function AffiliateProfilesBoard({
                 </div>
                 {!isCreating && initialProfile ? <AffiliateProfileAssetReanalysisPanel key={formKey} isCreating={isCreating} /> : null}
                 <div className="affiliate-profile-assets-grid">
-                  <section className="affiliate-profile-asset-card stack-tight">
-                    <ImagePreviewUploadCard
-                      clearName="clear_seed_character_drive_item_ref_id"
-                      className="affiliate-profile-asset-card__preview"
-                      emptyTitle="Belum ada karakter"
-                      removedTitle="Referensi dihapus"
-                      label="Character"
-                      name="seed_character_file"
-                      previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
-                      previewUrl={selectedSeedCharacterPreviewUrl}
-                      showStatusBadge={false}
+                  <div className="settings-native-card affiliate-profile-asset-card__lock affiliate-profile-asset-card__lock--combined stack-tight">
+                    <StatusSwitchRow
+                      checked={assetLockEnabled}
+                      description={assetLockEnabled ? "Preview terlihat" : "Preview disembunyikan"}
+                      id={`${formKey}-asset-lock`}
+                      label="Asset lock"
+                      onChange={setAssetLockEnabled}
                     />
-                    <div className="muted-box stack-tight">
-                      <label className="checkbox-row" htmlFor={`${formKey}-lock-seed-character`}>
-                        <input
-                          id={`${formKey}-lock-seed-character`}
-                          name="lock_seed_character"
-                          type="checkbox"
-                          defaultChecked={initialProfile ? initialProfile.lock_seed_character : true}
-                        />
-                        <span>Lock Character</span>
-                      </label>
-                      <span className="settings-card-meta-line">{assetAnalysisBadgeLabel(seedCharacterAnalysisState)}</span>
+                    <div className="affiliate-profile-asset-lock-list" aria-label="Status aset lock">
+                      <span>Character</span>
+                      <strong>{assetAnalysisBadgeLabel(seedCharacterAnalysisState)}</strong>
+                      <span>Environment</span>
+                      <strong>{assetAnalysisBadgeLabel(environmentAnalysisState)}</strong>
                     </div>
-                    <details className="stack-tight">
-                      <summary>Referensi Drive</summary>
-                      <RelationalPicker
-                        allowClear
-                        defaultValue={initialProfile?.seed_character_drive_item_ref_id}
-                        label="Referensi Character"
-                        name="seed_character_drive_item_ref_id"
-                        options={driveItemOptions}
-                        placeholder="Gunakan karakter kosong."
-                        searchPlaceholder="Cari Drive item"
-                      />
-                    </details>
-                  </section>
+                  </div>
 
-                  <section className="affiliate-profile-asset-card stack-tight">
-                    <ImagePreviewUploadCard
-                      clearName="clear_environment_drive_item_ref_id"
-                      className="affiliate-profile-asset-card__preview"
-                      emptyTitle="Belum ada environment"
-                      removedTitle="Referensi dihapus"
-                      label="Environment"
-                      name="environment_file"
-                      previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
-                      previewUrl={selectedEnvironmentPreviewUrl}
-                      showStatusBadge={false}
-                    />
-                    <div className="muted-box stack-tight">
-                      <label className="checkbox-row" htmlFor={`${formKey}-lock-environment`}>
-                        <input
-                          id={`${formKey}-lock-environment`}
-                          name="lock_environment"
-                          type="checkbox"
-                          defaultChecked={initialProfile ? initialProfile.lock_environment : true}
+                  {assetLockEnabled ? (
+                    <>
+                      <section className="affiliate-profile-asset-card stack-tight">
+                        <ImagePreviewUploadCard
+                          clearName="clear_seed_character_drive_item_ref_id"
+                          className="affiliate-profile-asset-card__preview"
+                          emptyTitle="Belum ada karakter"
+                          removedTitle="Referensi dihapus"
+                          label="Character"
+                          name="seed_character_file"
+                          previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
+                          previewUrl={selectedSeedCharacterPreviewUrl}
+                          showStatusBadge={false}
                         />
-                        <span>Lock Environment</span>
-                      </label>
-                      <span className="settings-card-meta-line">{assetAnalysisBadgeLabel(environmentAnalysisState)}</span>
-                    </div>
-                    <details className="stack-tight">
-                      <summary>Referensi Drive</summary>
-                      <RelationalPicker
-                        allowClear
-                        defaultValue={initialProfile?.environment_drive_item_ref_id}
-                        label="Referensi Environment"
-                        name="environment_drive_item_ref_id"
-                        options={driveItemOptions}
-                        placeholder="Gunakan environment otomatis."
-                        searchPlaceholder="Cari Drive item"
-                      />
-                    </details>
-                  </section>
+                        <details className="stack-tight">
+                          <summary>Referensi Drive</summary>
+                          <RelationalPicker
+                            allowClear
+                            defaultValue={initialProfile?.seed_character_drive_item_ref_id}
+                            label="Referensi Character"
+                            name="seed_character_drive_item_ref_id"
+                            options={driveItemOptions}
+                            placeholder="Gunakan karakter kosong."
+                            searchPlaceholder="Cari Drive item"
+                          />
+                        </details>
+                      </section>
+
+                      <section className="affiliate-profile-asset-card stack-tight">
+                        <ImagePreviewUploadCard
+                          clearName="clear_environment_drive_item_ref_id"
+                          className="affiliate-profile-asset-card__preview"
+                          emptyTitle="Belum ada environment"
+                          removedTitle="Referensi dihapus"
+                          label="Environment"
+                          name="environment_file"
+                          previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
+                          previewUrl={selectedEnvironmentPreviewUrl}
+                          showStatusBadge={false}
+                        />
+                        <details className="stack-tight">
+                          <summary>Referensi Drive</summary>
+                          <RelationalPicker
+                            allowClear
+                            defaultValue={initialProfile?.environment_drive_item_ref_id}
+                            label="Referensi Environment"
+                            name="environment_drive_item_ref_id"
+                            options={driveItemOptions}
+                            placeholder="Gunakan environment otomatis."
+                            searchPlaceholder="Cari Drive item"
+                          />
+                        </details>
+                      </section>
+                    </>
+                  ) : (
+                    <AssetPreviewHidden label="Character dan Environment preview" />
+                  )}
                 </div>
               </section>
 

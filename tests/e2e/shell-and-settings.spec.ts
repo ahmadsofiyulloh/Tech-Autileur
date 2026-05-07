@@ -133,6 +133,8 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
 
       const assetGrid = page.locator(".affiliate-profile-assets-grid");
       await expect(assetGrid).toBeVisible();
+      await expect(assetGrid.locator(".affiliate-profile-asset-card__lock--combined")).toHaveCount(1);
+      await expect(drawer.getByRole("checkbox", { name: /Asset lock/i })).toHaveCount(1);
 
       const assetCards = assetGrid.locator(".affiliate-profile-asset-card");
       await expect(assetCards).toHaveCount(2);
@@ -148,8 +150,8 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
           };
         }),
       );
-      expect(Math.abs(cardBoxes[0].top - cardBoxes[1].top)).toBeLessThan(10);
-      expect(Math.max(cardBoxes[0].width, cardBoxes[1].width)).toBeLessThan(220);
+      expect(cardBoxes[1].top).toBeGreaterThan(cardBoxes[0].top + 8);
+      expect(Math.min(cardBoxes[0].width, cardBoxes[1].width)).toBeGreaterThan(300);
 
       const previewFrames = assetGrid.locator(".image-preview-upload-card__frame");
       await expect(previewFrames).toHaveCount(2);

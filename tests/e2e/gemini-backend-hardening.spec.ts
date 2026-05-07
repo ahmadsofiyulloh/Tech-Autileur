@@ -28,6 +28,7 @@ import {
   isAffiliateProfilePromptReady,
 } from "../../src/lib/affiliate-profiles/readiness";
 import { assertUploadedImage, prepareGeminiCompatibleUploadImage } from "../../src/lib/intake/upload-validation";
+import { getPromptLaunchReadiness } from "../../src/lib/prompts/prompt-launch-readiness";
 import sharp from "sharp";
 
 type PromptPackFixtureOptions = {
@@ -493,6 +494,71 @@ test("affiliate profile prompt readiness rejects stale cached analysis", () => {
       },
     }),
   ).toBe(false);
+});
+
+test("prompt launch readiness enables create prompt when review and locks are complete", () => {
+  const readiness = getPromptLaunchReadiness({
+    productId: "product-1",
+    intakeSessionId: "intake-1",
+    affiliateProfileId: "affiliate-1",
+    hasReviewedMetadata: true,
+    sourceImageDriveItemRefId: "source-ref",
+    affiliateProfile: {
+      status: "ACTIVE",
+      workspace_ids: ["workspace-1"],
+      i2i_prompt_rules: "keep product shape",
+      i2v_prompt_rules: "keep continuity",
+      caption_rules: "short caption",
+      hashtag_rules: "#tag",
+      negative_prompt_rules: "avoid blur",
+      product_positioning_notes: "product-first",
+      lock_seed_character: true,
+      seed_character_drive_item_ref_id: "drive-character-2",
+      seed_character_analysis_json: {
+        drive_item_ref_id: "drive-character-2",
+      },
+      lock_environment: true,
+      environment_drive_item_ref_id: "drive-environment-1",
+      environment_analysis_json: {
+        drive_item_ref_id: "drive-environment-1",
+      },
+    },
+  });
+
+  expect(readiness.ready).toBe(true);
+  expect(readiness.blockers).toHaveLength(0);
+});
+
+test("prompt launch readiness lists blockers for missing review and source image", () => {
+  const readiness = getPromptLaunchReadiness({
+    productId: "product-1",
+    intakeSessionId: "intake-1",
+    affiliateProfileId: "affiliate-1",
+    hasReviewedMetadata: false,
+    sourceImageDriveItemRefId: null,
+    affiliateProfile: {
+      status: "ACTIVE",
+      workspace_ids: ["workspace-1"],
+      i2i_prompt_rules: "keep product shape",
+      i2v_prompt_rules: "keep continuity",
+      caption_rules: "short caption",
+      hashtag_rules: "#tag",
+      negative_prompt_rules: "avoid blur",
+      product_positioning_notes: "product-first",
+      lock_seed_character: false,
+      seed_character_drive_item_ref_id: null,
+      seed_character_analysis_json: null,
+      lock_environment: false,
+      environment_drive_item_ref_id: null,
+      environment_analysis_json: null,
+    },
+  });
+
+  expect(readiness.ready).toBe(false);
+  expect(readiness.blockers.map((blocker) => blocker.key)).toEqual(
+    expect.arrayContaining(["review_metadata", "source_image"]),
+  );
+  expect(readiness.blockers.some((blocker) => blocker.href.includes("/products/new?step=prompt"))).toBe(true);
 });
 
 test("intake upload validation accepts common JPG variants", () => {

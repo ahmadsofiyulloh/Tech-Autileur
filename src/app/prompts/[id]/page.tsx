@@ -6,7 +6,6 @@ import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { TopbarOverride } from "@/components/operator/topbar-context";
-import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { getProductById, listProductImages } from "@/lib/server/products";
@@ -156,25 +155,23 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
           </PendingActionButton>
         </form>
         <div className="mobile-action-set">
-          <OverflowActionMenu>
-            <form action={savePromptPack}>
-              <input type="hidden" name="id" value={promptPack.id} />
-              <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
-              <input type="hidden" name="product_id" value={promptPack.product_id} />
-              <PendingActionButton
-                activityDescription="Menyimpan prompt TXT ke Drive."
-                activityKind="prompt-export"
-                activityTitle="Menyimpan TXT Drive"
-                className="button compact"
-                estimatedDurationMs={8000}
-                pendingLabel="Menyimpan"
-                name="intent"
-                value="export_prompt_txt"
-              >
-                Simpan TXT Drive
-              </PendingActionButton>
-            </form>
-          </OverflowActionMenu>
+          <form action={savePromptPack}>
+            <input type="hidden" name="id" value={promptPack.id} />
+            <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
+            <input type="hidden" name="product_id" value={promptPack.product_id} />
+            <PendingActionButton
+              activityDescription="Menyimpan prompt TXT ke Drive."
+              activityKind="prompt-export"
+              activityTitle="Menyimpan TXT Drive"
+              className="button compact tertiary"
+              estimatedDurationMs={8000}
+              pendingLabel="Menyimpan"
+              name="intent"
+              value="export_prompt_txt"
+            >
+              Simpan TXT Drive
+            </PendingActionButton>
+          </form>
         </div>
       </SectionCard>
 

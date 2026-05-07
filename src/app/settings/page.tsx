@@ -115,6 +115,7 @@ function AffiliateProfileSwitchCard({
   avatarUrl: string | null;
 }) {
   const isCurrent = currentProfileId === profile.id;
+  const manageHref = `/settings/affiliate-profiles?profile_id=${encodeURIComponent(profile.id)}`;
 
   return (
     <article className="settings-affiliate-profile-card" data-active={isCurrent ? "true" : undefined}>
@@ -135,7 +136,7 @@ function AffiliateProfileSwitchCard({
             {isCurrent ? "Aktif" : "Pilih"}
           </button>
         </form>
-        <Link className="button compact tertiary desktop-action-set" href="/settings/affiliate-profiles">
+        <Link className="button compact tertiary desktop-action-set" href={manageHref}>
           <ChevronRight size={15} aria-hidden="true" />
           Kelola
         </Link>
@@ -149,12 +150,10 @@ function AffiliateProfileSwitchCard({
               {isCurrent ? "Aktif" : "Pilih"}
             </button>
           </form>
-          <OverflowActionMenu>
-            <Link className="button compact" href="/settings/affiliate-profiles">
-              <ChevronRight size={15} aria-hidden="true" />
-              Kelola
-            </Link>
-          </OverflowActionMenu>
+          <Link className="button compact tertiary" href={manageHref}>
+            <ChevronRight size={15} aria-hidden="true" />
+            Kelola
+          </Link>
         </div>
       </div>
     </article>

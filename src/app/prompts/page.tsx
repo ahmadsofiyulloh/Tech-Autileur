@@ -4,6 +4,7 @@ import { Clock3, Edit3, FileText, Package, Plus } from "lucide-react";
 import { savePromptPack } from "./actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
+import { PromptLaunchReadinessSummary } from "@/components/operator/prompt-launch-readiness-summary";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
@@ -14,7 +15,7 @@ import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductImages, listProducts } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
-import { isAffiliateProfilePromptReady } from "@/lib/affiliate-profiles/readiness";
+import { getPromptLaunchReadiness, type PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -48,17 +49,15 @@ function PromptPackCreateForm({
   intakeSession,
   affiliateProfile,
   sourceImage,
+  readiness,
 }: {
   product: ProductRecord;
   intakeSession: IntakeSessionRecord | null;
   affiliateProfile: AffiliateProfileRecord | null;
   sourceImage: ProductImageRecord | null;
+  readiness: PromptLaunchReadiness;
 }) {
-  const canCreate = Boolean(
-    (intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED") &&
-      sourceImage?.drive_item_ref_id &&
-      isAffiliateProfilePromptReady(affiliateProfile),
-  );
+  const readinessId = `prompt-launch-readiness-${product.id}`;
 
   return (
     <form className="prompt-list-card__action-form" action={savePromptPack}>
@@ -75,8 +74,9 @@ function PromptPackCreateForm({
         activityTitle="Membuat paket prompt"
         className="button compact primary"
         estimatedDurationMs={20000}
+        aria-describedby={!readiness.ready ? readinessId : undefined}
         pendingLabel="Membuat"
-        disabled={!canCreate}
+        disabled={!readiness.ready}
       >
         Buat Prompt
       </PendingActionButton>
@@ -110,6 +110,15 @@ function PromptRowCard({
   const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
   const affiliateProfileName = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
   const sourceImageLabel = sourceImageDriveItem?.name ?? sourceImage?.id ?? "Foto belum ada";
+  const promptLaunchReadiness = getPromptLaunchReadiness({
+    productId: product.id,
+    intakeSessionId: intakeSession?.id ?? null,
+    affiliateProfileId: affiliateProfile?.id ?? null,
+    hasReviewedMetadata: Boolean(intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED"),
+    sourceImageDriveItemRefId: sourceImage?.drive_item_ref_id ?? null,
+    affiliateProfile,
+  });
+  const readinessId = `prompt-launch-readiness-${product.id}`;
 
   return (
     <article className="prompt-list-card stack" data-open={isSelected ? "true" : undefined}>
@@ -162,12 +171,16 @@ function PromptRowCard({
                 affiliateProfile={affiliateProfile}
                 intakeSession={intakeSession}
                 product={product}
+                readiness={promptLaunchReadiness}
                 sourceImage={sourceImage}
               />
             ) : null}
           </>
         )}
       </div>
+      {!promptPack && intakeSession && !promptLaunchReadiness.ready ? (
+        <PromptLaunchReadinessSummary id={readinessId} readiness={promptLaunchReadiness} />
+      ) : null}
 
       <div className="mobile-card-actions prompt-list-card__mobile-actions">
         {promptPack ? (
@@ -197,6 +210,7 @@ function PromptRowCard({
                 affiliateProfile={affiliateProfile}
                 intakeSession={intakeSession}
                 product={product}
+                readiness={promptLaunchReadiness}
                 sourceImage={sourceImage}
               />
             ) : (
