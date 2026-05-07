@@ -49,7 +49,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Acceptance:** create/update sends one `workspace_ids` value and one `default_workspace_id`; no checkbox list of workspaces remains in the drawer.
 
 ### MT-REF-04 - Prompt readiness guards _(DONE)_
-**Goal:** Block prompt creation/generation/regeneration unless selected profile, internal namespace, reviewed metadata, source image, required rules, and locked asset analysis JSON are ready.
+**Goal:** Block prompt creation/generation/regeneration unless the active profile, internal namespace, reviewed metadata, source image, required rules, and locked asset analysis JSON are ready.
 **Owner:** Codex
 **Scope:** prompt server path and minimal prompt launcher status only.
 **Acceptance:** missing requirements fail with clear existing-style errors before Gemini request creation.
@@ -59,6 +59,54 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Owner:** Codex
 **Scope:** prompt contract parser/reader and targeted tests.
 **Acceptance:** invalid prompt JSON fails instead of creating empty `visual_references` or empty `prompt_rules`.
+
+### MT-INTAKE-00 - Intake metadata refactor contract
+**Goal:** Lock the 2026-05-07 save-vs-metadata lifecycle, active account behavior, drawer fallback, and mobile preview contract before runtime refactor.
+**Owner:** Codex
+**Scope:** docs only.
+**Acceptance:** `docs/intake-metadata-refactor-contract-2026-05-07.md` exists and core docs reference the separated `Simpan Produk` / `Analisis Metadata` lifecycle.
+
+### MT-INTAKE-01 - Durable product capture before metadata
+**Goal:** Let Intake save a recoverable `DRAFT` product with product image only, without requiring Gemini success.
+**Owner:** Codex
+**Scope:** Intake action/server path and Intake page state only.
+**Acceptance:** product capture persists before metadata analysis, Gemini failure does not discard the saved product, and metadata readiness is not inferred from `products.status`.
+
+### MT-INTAKE-02 - Unified mobile preview grid
+**Goal:** Replace the product/screenshot tab split with one upload/product/metadata surface and three equal mini preview cards.
+**Owner:** Codex
+**Scope:** `/products/new` Intake UI and reusable preview/skeleton components only.
+**Acceptance:** product, Shopee, and TikTok previews render in a compact responsive grid; saved Drive-backed previews display when available; no upload tabs remain.
+
+### MT-INTAKE-03 - Metadata analysis fallback and retry
+**Goal:** Make metadata pending, generating, ready, failed, and review states visible and retryable.
+**Owner:** Codex
+**Scope:** Intake metadata action state, skeleton loading, and failure UI only.
+**Acceptance:** analysis uses preview/product skeletons, failed metadata keeps the draft visible, retry is explicit, and success stays on Intake.
+
+### MT-INTAKE-04 - Active account card in Intake
+**Goal:** Replace the Intake profile carousel with a compact active Affiliate Account readiness card and edit shortcut.
+**Owner:** Codex
+**Scope:** Intake account context UI and existing drawer entry only.
+**Acceptance:** Intake does not expose profile switching, shows active account readiness, and opens the inline edit drawer from the card.
+
+### MT-INTAKE-05 - Affiliate drawer lock and reanalysis polish
+**Goal:** Align the drawer with conditional Character/Environment preview and robust reanalysis feedback.
+**Owner:** Codex
+**Scope:** Affiliate Profile drawer UI only.
+**Acceptance:** preview grids respect lock toggles, reanalysis pending/success/failure is inline, and drawer remains open after success.
+
+### MT-INTAKE-06 - Action placement and inline status polish
+**Goal:** Keep primary operator actions visible and prevent mobile inline status overlap.
+**Owner:** Codex
+**Scope:** Overview/profile action placement, prompt TXT action placement, and reusable product/intake card status patterns.
+**Acceptance:** primary actions are direct when space allows, overflow is secondary-only, and long card statuses truncate or line-clamp safely.
+
+### MT-INTAKE-07 - Intake refactor regression QA and progress sync _(DONE)_
+**Goal:** Verify the refactor with lint/typecheck/build and targeted smoke coverage, then update progress docs with evidence.
+**Owner:** Codex
+**Scope:** QA evidence and docs progress only after runtime tasks land.
+**Acceptance:** verification results are documented; product save, metadata retry/failure, prompt readiness, and drawer reanalysis are covered.
 
 ## VIS - Visual PWA Mobile-First Sync
 
@@ -78,6 +126,8 @@ These tasks document the visual implementation state after the 2026-05-04 Visual
 **Goal:** Align `/products/new` with the mobile visual reference using camera-style preview, upload cards, profile carousel, and Gemini skeleton/loading treatment.
 **Owner:** Codex
 **Acceptance:** affiliate profiles render from real profile data and selected profile handoff does not require a database migration.
+
+Superseded follow-up: MT-INTAKE-02 and MT-INTAKE-04 replace the upload tab/profile carousel pattern with a unified three-card preview grid and active account card.
 
 ### VIS-004 - Products and Prompts _(DONE visually)_
 **Goal:** Redesign Product and Prompt lists as mobile visual cards using real product/prompt data.
@@ -126,6 +176,8 @@ Known visual/backend gaps:
 **Goal:** `/products/new` requires `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok` upload cards before analysis.
 **Owner:** Codex
 **Acceptance:** no title/account/metadata fields are shown before `Analisis Gemini`.
+
+Superseded follow-up: MT-INTAKE-01 keeps upload-only intake but separates `Simpan Produk` from `Analisis Metadata`, allowing product capture with product image before screenshot evidence is complete.
 
 ### S2-002 - Real Drive upload _(DONE)_
 **Goal:** Store uploaded image/screenshot bytes in Google Drive and metadata in Supabase.

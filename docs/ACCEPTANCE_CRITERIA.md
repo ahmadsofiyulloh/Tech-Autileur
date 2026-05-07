@@ -22,11 +22,17 @@
 - `/products/new` is the intake workflow entrypoint.
 - `/products/[id]` shows `Metadata`, `Output`, and `History`.
 - Intake uses upload cards with local preview.
-- Intake requires at least 1 `Foto Produk Utama`, 1 `Screenshot Shopee`, and 1 `Screenshot TikTok`.
-- No product title/account/metadata field is required before Gemini analysis.
-- `Analisis Gemini` runs against uploaded image bytes for real E2E.
+- Intake can save a durable `DRAFT` product with at least 1 `Foto Produk Utama`.
+- Intake requires at least 1 `Foto Produk Utama`, 1 `Screenshot Shopee`, and 1 `Screenshot TikTok` before `Analisis Metadata`.
+- No product title/account/metadata field is required before metadata analysis.
+- `Simpan Produk` and `Analisis Metadata` are separate actions.
+- Metadata readiness is not inferred from `products.status`.
+- Gemini metadata failure keeps the saved product visible and retryable.
+- `Analisis Metadata` runs against uploaded image bytes for real E2E.
 - If image bytes are missing, the app does not claim visual parsing.
 - Intake inherits `current_workspace_id` when one is active.
+- Intake shows the active Affiliate Account context without a profile-switching carousel.
+- Intake preview uses three equal mini cards for product, Shopee, and TikTok evidence on mobile.
 - Loading, empty, and error states exist on tested intake surfaces.
 
 ## Metadata Review
@@ -42,7 +48,7 @@
 - Generated prompt fields are read-only, copy-ready, and grouped by collapsible clip section.
 - Required actions exist: `Buat Prompt` and `Buat Ulang`.
 - Prompt list row action for existing prompts opens `History`; prompt detail opens the generated output/editor route.
-- Prompt generation consumes the selected or workspace-default-linked Affiliate Profile and product context.
+- Prompt generation consumes the active Affiliate Profile and product context.
 - Character and environment locks come from Affiliate Profile only in Phase awal.
 - Prompt generation blocks when a locked Character or Environment reference is missing.
 - There is no separate background-reference profile asset in Phase awal.
@@ -100,6 +106,9 @@
 - Workspace settings use list + drawer CRUD with hidden auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
 - Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, archive, and explicit workspace links/default selection.
 - Affiliate Profile settings do not show `notes` fields.
+- Affiliate Profile drawer keeps Character preview hidden when `Lock Character` is OFF.
+- Affiliate Profile drawer keeps Environment preview hidden when `Lock Environment` is OFF.
+- Affiliate Profile reanalysis shows inline pending/success/failure feedback and does not auto-close the drawer on success.
 - Gemini settings expose a multi-key list-card CRUD surface with a workspace-style add button, no search, and create/edit/disable only.
 - Gemini settings do not expose editable quota fields; `RPM`, `RPD`, and `TPM` are saved from the selected model.
 - `/settings` shows compact Gemini usage versus quota using app-recorded calls, grouped by `project + model` when project metadata exists.

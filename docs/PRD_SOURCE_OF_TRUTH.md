@@ -37,6 +37,22 @@ Implementation constraints:
 - Do not add new explanatory UI copy, helper text, marketing text, or duplicate descriptions. Only labels explicitly documented here or already present in the app are allowed.
 - Each implementation micro-task must be small, independently verified, and must not refactor unrelated modules.
 
+## 0.2 2026-05-07 Intake Metadata Refactor Lock
+
+The Intake refactor is locked by `docs/intake-metadata-refactor-contract-2026-05-07.md`.
+
+Locked decisions:
+
+- `Simpan Produk` and `Analisis Metadata` are separate lifecycle actions.
+- Product capture must be durable before Gemini metadata analysis succeeds.
+- `Simpan Produk` is enabled with at least one `Foto Produk Utama`.
+- A newly captured product remains `DRAFT`; metadata readiness is not inferred from `products.status`.
+- Shopee and TikTok screenshots are required for metadata analysis, not for the first product save.
+- Gemini failure must leave the saved product recoverable with visible retry/failure state.
+- Intake stays on `/products/new` after save and after successful metadata analysis.
+- Intake does not expose Affiliate Profile switching. It shows the active Affiliate Account context and readiness only.
+- No schema migration is approved for the first implementation wave.
+
 ## 1. Locked App Flow and UX
 
 ### 1.1 Main Navigation
@@ -95,10 +111,12 @@ When `/controller` or `/flow` is opened during Phase 1, the app redirects the op
 ### 1.3 Required Step Order
 
 ```text
-Mobile intake upload
--> Analisis Gemini
+Mobile intake product capture
+-> Simpan Produk
+-> complete marketplace screenshot evidence
+-> Analisis Metadata
 -> Metadata review
--> Affiliate Profile selection / binding
+-> active Affiliate Account readiness binding
 -> Paket Prompt generated output/regenerate
 -> Drive visual asset review
 -> Output/history when available
@@ -106,7 +124,7 @@ Mobile intake upload
 
 ### 1.4 Intake UX
 
-Before Gemini analysis, intake is upload-only.
+Before metadata analysis, intake is upload-only.
 
 Required upload cards:
 
@@ -114,28 +132,39 @@ Required upload cards:
 - `Screenshot Shopee`: at least 1 Shopee marketplace screenshot.
 - `Screenshot TikTok`: at least 1 TikTok marketplace screenshot.
 
+Save and analysis lifecycle:
+
+- `Simpan Produk` is the first durable capture action and requires only `Foto Produk Utama`.
+- Saved products remain `DRAFT` until a later explicit workflow transition.
+- `Analisis Metadata` is a separate action and requires `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok`.
+- Metadata readiness is derived from intake session metadata/review state and action state, not from `products.status`.
+- If Gemini fails or is slow, the product remains visible and retryable.
+
 Optional uploads:
 
 - additional product images.
 - additional marketplace screenshots.
 - direct mobile camera capture for supported browsers.
 
-Forbidden before Gemini analysis:
+Forbidden before metadata analysis:
 
 - product title field.
 - marketplace account field.
 - manual product metadata fields.
 - claims that a marketplace link was visually parsed without image bytes.
 
-Main action:
+Primary actions:
 
 ```text
-Analisis Gemini
+Simpan Produk
+Analisis Metadata
 ```
 
 Live Gemini analysis is required for real E2E acceptance. Mock mode is allowed only as a clearly labeled development fallback.
 
 The upload UI must provide local image preview before submit. While Gemini is processing, loading state should use product-card or preview-card skeletons instead of only a small spinner.
+
+Mobile preview layout must use one unified upload/product/metadata surface. The upload cards for `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok` render as three equal mini preview cards without a tab split. Saved draft products can appear as a compact queue/drive-like surface while metadata is pending, generating, failed, or waiting for review.
 
 ### 1.5 Metadata Review
 
@@ -205,11 +234,11 @@ Character and environment are the only profile-owned image assets in Phase awal.
 
 There is no separate background-reference asset slot in MVP. Prompt pages must not create per-prompt overrides for character or environment locks in Phase awal. The prompt page may show which profile is active, but the source of personalization remains the Affiliate Profile.
 
-Prompt generation must always consume the selected Affiliate Profile, that profile's internal workspace namespace, the profile character/environment Drive references, and reviewed Gemini metadata inside the same namespace. If a profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, generation must block instead of falling back.
+Prompt generation must always consume the active Affiliate Profile, that profile's internal workspace namespace, the profile character/environment Drive references, and reviewed Gemini metadata inside the same namespace. If a profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, generation must block instead of falling back.
 
-If only one Affiliate Profile exists, it may be treated as the active profile. When multiple profiles exist, the selected profile or active profile is required.
+If only one Affiliate Profile exists, it may be treated as the active profile. When multiple profiles exist, the active profile must be resolved from the current namespace contract before prompt generation.
 
-During Phase 1 intake, the operator may explicitly choose an Affiliate Profile using a horizontal mobile-friendly selector. The selected profile is passed into the prompt handoff; no database migration is required solely for this selector unless a later task explicitly approves persistence changes.
+During Phase 1 intake, the operator does not switch Affiliate Profiles. Intake shows a compact active Affiliate Account card with avatar/readiness and an edit shortcut. The former horizontal carousel is removed from Intake because one active profile namespace is the working context.
 
 ### 1.8 Flow Control UX
 
@@ -455,7 +484,7 @@ MVP means the system can:
 - Upload or capture real product images and marketplace screenshots.
 - Run live Gemini analysis from uploaded image bytes.
 - Review and edit generated product metadata.
-- Select an Affiliate Profile for prompt handoff.
+- Use active Affiliate Account readiness for prompt handoff.
 - Generate, review copy-ready output, regenerate, persist, and version prompt packs.
 - Browse Google Drive metadata through a touch-friendly visual grid.
 - Review compact Gemini usage versus model quota from Settings.

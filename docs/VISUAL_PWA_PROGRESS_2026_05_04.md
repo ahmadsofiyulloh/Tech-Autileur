@@ -36,6 +36,8 @@ The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a 
 
 ## Current Follow-Up
 
+- `docs/intake-metadata-refactor-contract-2026-05-07.md` locks the next Intake refactor: product capture is separated from metadata readiness, upload tabs are removed, active account context replaces the carousel, and metadata fallback stays recoverable.
+- `MT-INTAKE-07` closed the refactor QA pass: lint, typecheck, build, prompt readiness smoke, drawer reanalysis smoke, and a synthetic metadata failure fallback smoke all passed. The live intake prompt-review smoke now skips the stored Gemini decrypt blocker after APP_ENCRYPTION_KEY rotation instead of reporting a false runtime regression.
 - `11efa04` reused the shared image preview upload card across intake and affiliate profile drawers.
 - `d7e86bc` hardened intake upload parsing and raised the server action upload limit for real file bodies.
 - `962b7b9` tightened affiliate drawer fallback UX and mobile preview density.
@@ -43,16 +45,16 @@ The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a 
 
 ## Verification Snapshot
 
-Last verification after the latest code pass and before this docs-only sync:
+Last verification after the latest code pass:
 
 - `npm run lint` passed.
 - `npm run typecheck` passed.
 - `npm run build` passed.
-- `npx playwright test tests/e2e/gemini-backend-hardening.spec.ts tests/e2e/shell-and-settings.spec.ts` passed.
-- Authenticated mobile smoke check passed for:
-  - `/products/new`: Settings gear visible, bottom nav visible.
-  - `/settings`: Settings gear hidden, grouped sections visible.
-  - `/drive`: grid visible, bottom sheet opens on item tap.
+- `npx playwright test tests/e2e/gemini-backend-hardening.spec.ts --grep "prompt launch readiness"` passed.
+- `npx playwright test tests/e2e/shell-and-settings.spec.ts --grep "affiliate profile reanalysis submits from the drawer"` passed.
+- `npx playwright test tests/e2e/intake-live.spec.ts` produced 2 passed tests and 1 skipped external blocker:
+  - `metadata failure fallback keeps retry visible` passed.
+  - `live intake upload can reach prompt review` skipped with `[GEMINI_BLOCKER] intake live: Stored Gemini keys could not be decrypted. Re-save Gemini keys in Settings after APP_ENCRYPTION_KEY rotation.`
 
 ## Backend And Data Status
 

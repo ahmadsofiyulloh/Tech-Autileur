@@ -80,8 +80,8 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 ## MVP Drive Operations
 
 - Create standard folders.
-- Upload product image bytes and store Drive metadata.
-- Upload marketplace screenshot bytes and store Drive metadata.
+- Upload product image bytes and store Drive metadata before Gemini metadata success when the operator uses `Simpan Produk`.
+- Upload marketplace screenshot bytes and store Drive metadata before `Analisis Metadata`.
 - Upload affiliate profile character and environment assets from the Affiliate Profile drawer into the profile-owned admin folders.
 - Store those profile assets as Drive metadata references that resolve back to the active Affiliate Profile or its linked workspace context.
 - Attach existing Drive file metadata by URL or picker when needed.
@@ -92,6 +92,8 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 - Match imported files to clip jobs using manifest data and prompt prefix.
 - Move unmatched metadata into manual attach state.
 - Copy Drive file and folder links.
+
+2026-05-07 Intake refactor lock: Drive-backed product image availability does not mean metadata is ready. Source image and screenshot evidence are stored as file metadata/relations first, then Gemini metadata readiness is tracked separately through intake review/action state.
 
 ## Drive Settings UI Lock
 

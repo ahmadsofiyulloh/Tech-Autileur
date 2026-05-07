@@ -29,26 +29,29 @@ The MVP is not a generic affiliate planner. It is an AI production control cente
 Core flow:
 
 1. `/products/new` Intake entrypoint.
-2. Mobile upload/capture for product image, Shopee screenshot, and TikTok screenshot.
-3. Affiliate Profile selection through the mobile carousel.
-4. Live Gemini analysis from uploaded image bytes.
-5. Metadata review.
-6. Produk list review.
-7. Paket Prompt generated output, copy-ready fields, regenerate, and history.
-8. Drive visual grid/gallery review with bottom-sheet preview.
-9. Output package and history when available.
-10. Pengaturan hub through the topbar Settings gear, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
-11. Controller/Flow and Windows Helper execution remain retained backend/desktop surfaces, but are not primary Phase 1 mobile navigation.
+2. Mobile upload/capture for product image, with product capture saved before metadata analysis.
+3. Shopee and TikTok screenshots complete the evidence required for Gemini metadata analysis.
+4. Active Affiliate Account readiness is shown in Intake without profile switching.
+5. Live Gemini analysis from uploaded image bytes.
+6. Metadata review.
+7. Produk list review.
+8. Paket Prompt generated output, copy-ready fields, regenerate, and history.
+9. Drive visual grid/gallery review with bottom-sheet preview.
+10. Output package and history when available.
+11. Pengaturan hub through the topbar Settings gear, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
+12. Controller/Flow and Windows Helper execution remain retained backend/desktop surfaces, but are not primary Phase 1 mobile navigation.
 
 ## Sprint Rule
 Do not start broad feature work. Start with the locked vertical slice:
 
 ```text
 /products/new Intake
--> upload Foto Produk Utama + Screenshot Shopee + Screenshot TikTok
--> Analisis Gemini
+-> upload Foto Produk Utama
+-> Simpan Produk as durable DRAFT capture
+-> complete Screenshot Shopee + Screenshot TikTok evidence
+-> Analisis Metadata with Gemini
 -> Metadata review
--> Affiliate Profile selector handoff
+-> active Affiliate Account readiness handoff
 -> /products visual card list
 -> /prompts Paket Prompt
 -> /drive visual grid/gallery

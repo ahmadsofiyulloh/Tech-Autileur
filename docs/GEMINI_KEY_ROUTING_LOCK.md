@@ -55,7 +55,7 @@ Usage calculation rules:
 
 ## Prompt Pack Context
 
-A prompt pack must consume UI-editable rules from the selected Affiliate Profile and must not hardcode i2i, i2v, caption, hashtag, or negative prompt logic in code.
+A prompt pack must consume UI-editable rules from the active Affiliate Profile and must not hardcode i2i, i2v, caption, hashtag, or negative prompt logic in code.
 
 Required context:
 

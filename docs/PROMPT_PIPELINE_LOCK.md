@@ -6,8 +6,10 @@ This lock defines how uploaded product evidence becomes generated prompt packs. 
 ## Locked Flow
 
 ```text
-/products/new upload
--> Analisis Gemini
+/products/new upload product image
+-> Simpan Produk
+-> complete Shopee + TikTok screenshot evidence
+-> Analisis Metadata
 -> Metadata review
 -> Buat Prompt
 -> Paket Prompt generated output
@@ -17,9 +19,13 @@ This lock defines how uploaded product evidence becomes generated prompt packs. 
 
 ## Required Intake Inputs
 
-Before `Analisis Gemini`, only upload evidence is required.
+Before `Simpan Produk`, only upload evidence is required and no manual metadata fields are shown.
 
-Required:
+Minimum for `Simpan Produk`:
+
+- `Foto Produk Utama`: at least 1 image byte upload.
+
+Minimum for `Analisis Metadata`:
 
 - `Foto Produk Utama`: at least 1 image byte upload.
 - `Screenshot Shopee`: at least 1 Shopee screenshot byte upload.
@@ -30,12 +36,19 @@ Optional:
 - additional product images.
 - additional marketplace screenshots.
 
-Forbidden before Gemini:
+Forbidden before metadata analysis:
 
 - product title field.
 - marketplace account field.
 - manual product metadata fields.
 - claiming visual analysis from links without image bytes.
+
+Lifecycle lock:
+
+- `Simpan Produk` persists a recoverable product/intake draft before Gemini success.
+- saved products remain `DRAFT` while metadata is pending, generating, failed, or waiting for review.
+- `Analisis Metadata` is retryable and must not discard the saved product on failure.
+- `Buat Prompt` is the first action blocked by Affiliate Profile readiness.
 
 ## Gemini Analysis Output
 
@@ -57,8 +70,8 @@ Prompt generation must consume:
 
 - reviewed product metadata.
 - uploaded product image and screenshot context when bytes are available.
-- selected Affiliate Profile.
-- the selected Affiliate Profile's internal workspace/folder namespace.
+- active Affiliate Profile.
+- the active Affiliate Profile's internal workspace/folder namespace.
 - Affiliate Profile i2i, i2v, caption, hashtag, and negative rules.
 - Affiliate Profile character lock.
 - Affiliate Profile environment lock.
@@ -68,15 +81,15 @@ Character and environment are profile-owned only in Phase awal. The environment 
 
 Character and environment assets are analyzed explicitly from the Settings drawer and their JSON metadata snapshots are cached on the affiliate profile. Save/update only stores the Drive refs and rules; prompt generation must reuse the cached JSON metadata snapshots until the asset reference changes, and the cached snapshot is only valid while its `drive_item_ref_id` still matches the current Drive reference.
 
-If a selected profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
+If an active profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
 
-Prompt generation must also consume reviewed Gemini output inside the selected Affiliate Profile namespace and must not invent any extra profile asset slot beyond character and environment.
+Prompt generation must also consume reviewed Gemini output inside the active Affiliate Profile namespace and must not invent any extra profile asset slot beyond character and environment.
 
 Retryable Gemini temporary-unavailable failures from intake and prompt actions should surface as warning redirects, not silent failures, so the operator can dismiss the message and retry from the same surface.
 
 2026-05-06 strict readiness guards before `Buat Prompt` or `Buat Ulang`:
 
-- selected Affiliate Profile is required.
+- active Affiliate Profile is required.
 - the profile's internal namespace must resolve.
 - source product image with Drive reference is required.
 - reviewed Gemini metadata is required.

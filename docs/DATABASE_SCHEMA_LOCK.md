@@ -216,6 +216,8 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
+2026-05-07 Intake refactor implementation note: the first UI/backend wave must not depend on `ai_tasks.product_id` or `ai_tasks.intake_session_id` for readiness display. Metadata readiness should be derived from existing product, image, intake session, and action state until the live schema contract is explicitly reconciled by a later approved schema task.
+
 ### `drive_items`
 
 Drive metadata only. No large asset bytes.
@@ -260,6 +262,8 @@ updated_at timestamptz
 
 `workflow_status_json` stores manual product management markers for the mobile `/products` surface. Prompt-ready remains derived from prompt packs, and final clip upload stays manual outside the app.
 
+2026-05-07 Intake refactor lock: a captured product saved from Intake remains `DRAFT` even when the product source image has been uploaded. `products.status` must not be used as the only proof that metadata analysis is ready. Source image availability is derived from `product_images` and Drive metadata, while metadata readiness is derived from `product_intake_sessions` and review/action state.
+
 ### `product_images`
 
 Keeps product image/screenshot references and analysis payloads.
@@ -275,6 +279,8 @@ status text
 created_at timestamptz
 updated_at timestamptz
 ```
+
+Intake capture may create or attach source image records before Gemini metadata analysis succeeds. The image/evidence relation is the source of truth for image availability; it does not imply metadata readiness.
 
 ### `product_intake_sessions`
 
@@ -294,6 +300,16 @@ prompt_ready_json jsonb
 created_at timestamptz
 updated_at timestamptz
 ```
+
+2026-05-07 lifecycle mapping:
+
+- `DRAFT`: product/source capture exists but metadata is not ready.
+- `SUBMITTED`: metadata analysis has been requested or evidence submitted.
+- `NEEDS_REVIEW`: parsed metadata exists and requires operator review.
+- `REVIEWED`: operator-reviewed metadata is ready for prompt generation.
+- `ERROR`: metadata analysis failed but the product remains recoverable.
+
+Do not require Gemini success before creating durable product/intake records.
 
 ### `product_marketplace_sources`
 

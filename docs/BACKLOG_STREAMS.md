@@ -26,10 +26,12 @@ S0 -> S1 -> S2 -> S3 -> S4 -> S5 -> S6 -> S7 -> S8
 Login
 -> /products/new Intake
 -> Produk list
--> /products/new upload Foto Produk Utama + Screenshot Shopee + Screenshot TikTok
--> Analisis Gemini
+-> /products/new upload Foto Produk Utama
+-> Simpan Produk as DRAFT capture
+-> complete Screenshot Shopee + Screenshot TikTok evidence
+-> Analisis Metadata
 -> Metadata review
--> Affiliate Profile selector
+-> active Affiliate Account readiness
 -> Paket Prompt
 -> Drive visual grid/gallery
 -> Pengaturan via topbar gear

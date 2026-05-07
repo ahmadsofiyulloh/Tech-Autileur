@@ -148,6 +148,8 @@ Drive Phase 1 UI: visual grid over all Drive item metadata
 
 Google Drive stores real uploaded product images, marketplace screenshots, prompt references, raw clips, final clips, batch manifests, and upload package assets.
 
+2026-05-07 Intake lifecycle lock: product capture and metadata analysis are separate. Intake may save a `DRAFT` product with the product image first, then run Gemini metadata analysis after Shopee and TikTok screenshot evidence is complete. Metadata readiness must not be inferred from `products.status`, and Gemini failure must keep the saved product recoverable.
+
 ## AI
 
 ```text
@@ -169,7 +171,7 @@ Gemini request usage is tracked server-side after a key is selected. The overvie
 
 Affiliate Profile is the visible top-level namespace and prompt persona for the private operator workflow. Each Affiliate Profile owns exactly one internal workspace/folder namespace during the 2026-05-06 refactor. Workspace remains internal storage/scope infrastructure and must not be expanded as a user-facing planning model.
 
-Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides. If a selected profile lock is enabled but the Drive reference or cached analysis JSON is missing, generation must block.
+Prompt packs persist structured output and version history. Prompt pages may show active profile context but must not introduce per-prompt character/environment overrides. If an active profile lock is enabled but the Drive reference or cached analysis JSON is missing, generation must block.
 
 The final lock keeps only character and environment as first-class profile assets. The environment asset carries the background-lock role.
 

@@ -30,7 +30,8 @@ In scope on mobile:
 
 - `/products/new` Intake as the primary entrypoint.
 - Produk list.
-- Gemini analysis trigger and metadata review.
+- durable product capture through `Simpan Produk`.
+- Gemini metadata analysis trigger and metadata review.
 - Paket Prompt generated output/regenerate/history.
 - Drive visual grid/gallery and bottom-sheet preview.
 - Output package review through product detail when available.
@@ -61,7 +62,11 @@ Mobile intake must support:
 - upload `Screenshot Shopee`.
 - upload `Screenshot TikTok`.
 - local preview before submit.
-- `Analisis Gemini` action.
+- `Simpan Produk` action with only product image required.
+- `Analisis Metadata` action after required screenshot evidence is complete.
+- recoverable failed/pending metadata state with retry.
+- three equal mini preview cards on mobile without a product/screenshot tab split.
+- active Affiliate Account readiness card without profile switching.
 - loading, empty, and error states.
 
 ## Mobile Prompt Contract
@@ -83,6 +88,6 @@ Mobile settings must keep `/settings` as the overview entrypoint, then open sect
 
 Mutable master lists use compact cards. Edit/create forms open as a full-screen drawer or bottom sheet. Mobile must not expose large desktop tables as the primary interaction.
 
-Affiliate Profile drawers on mobile keep Character and Environment preview cards compact in a two-column grid, use Drive-style preview tiles when image bytes exist, and show inline reanalysis pending or fallback feedback so the drawer does not go silent during retryable Gemini work.
+Affiliate Profile drawers on mobile keep Character and Environment preview cards compact, use Drive-style preview tiles when image bytes exist, and show inline reanalysis pending or fallback feedback so the drawer does not go silent during retryable Gemini work. Character preview is shown only when `Lock Character` is ON. Environment preview is shown only when `Lock Environment` is ON. Reanalysis success or failure must not close the drawer automatically.
 
 The Settings overview should read as a native grouped list. Account, Affiliate Profiles, Connected Services, Preferences, and System/Support groups may appear when backed by real app state.
