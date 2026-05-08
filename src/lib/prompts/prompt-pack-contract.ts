@@ -39,9 +39,17 @@ type PromptPackLockStateJson = {
 
 export type PromptPackVisualReferenceKind = "CHARACTER" | "ENVIRONMENT" | "PRODUCT";
 
+export type PromptPackVisualReferenceRole = "primary_subject" | "supporting_reference" | "background_anchor";
+
 export type PromptPackVisualReferenceJson = {
   kind: PromptPackVisualReferenceKind;
   label: string;
+  mention: string;
+  role: PromptPackVisualReferenceRole;
+  summary: string;
+  must_keep: string[];
+  must_avoid: string[];
+  instruction: string;
   drive_item_ref_id: string | null;
   drive_url: string | null;
   drive_path: string | null;
@@ -256,6 +264,228 @@ function resolveBooleanWithFallback(value: unknown, label: string, fallbackValue
   throw new Error(`${label} must be a boolean.`);
 }
 
+const PROMPT_RULE_TEXT_KEYS = [
+  "i2i_prompt_rules",
+  "i2v_prompt_rules",
+  "caption_rules",
+  "hashtag_rules",
+  "negative_prompt_rules",
+  "product_positioning_notes",
+  "must_keep",
+  "must_avoid",
+] as const;
+
+const PROMPT_REFERENCE_TEXT_KEYS = [
+  "mention",
+  "summary",
+  "instruction",
+  "prompt_text",
+  "text",
+  "value",
+  "label",
+  "name",
+  "subject",
+  "hero_direction",
+  "use_case",
+  "pain_point",
+  "selling_angle",
+  "target_viewer",
+  "drive_item_name",
+] as const;
+
+function compactText(value: unknown, maxLength = 220) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const compacted = value.replace(/\s+/g, " ").trim();
+
+  if (!compacted) {
+    return "";
+  }
+
+  return compacted.length > maxLength ? `${compacted.slice(0, Math.max(maxLength - 3, 0)).trimEnd()}...` : compacted;
+}
+
+function readJsonLikeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const flattened: string[] = value.flatMap((item) => readJsonLikeStringArray(item));
+    const joined = flattened.join("\n").trim();
+
+    if (
+      joined &&
+      ((joined.startsWith("{") && joined.endsWith("}")) || (joined.startsWith("[") && joined.endsWith("]")))
+    ) {
+      try {
+        return readJsonLikeStringArray(JSON.parse(joined));
+      } catch {
+        // Fall through to the flattened strings below.
+      }
+    }
+
+    return flattened.filter((item: string, index: number, items: string[]) => items.indexOf(item) === index);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        return readJsonLikeStringArray(JSON.parse(trimmed));
+      } catch {
+        // Fall through to line splitting.
+      }
+    }
+
+    return trimmed
+      .split(/\r?\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const collected: string[] = [...PROMPT_RULE_TEXT_KEYS, ...PROMPT_REFERENCE_TEXT_KEYS].flatMap((key) =>
+    readJsonLikeStringArray(value[key]),
+  );
+
+  return collected.filter((item: string, index: number, items: string[]) => items.indexOf(item) === index);
+}
+
+function normalizePromptReferenceRole(kind: PromptPackVisualReferenceKind): PromptPackVisualReferenceRole {
+  if (kind === "PRODUCT") {
+    return "primary_subject";
+  }
+
+  if (kind === "ENVIRONMENT") {
+    return "background_anchor";
+  }
+
+  return "supporting_reference";
+}
+
+function normalizePromptReferenceMention(value: unknown, fallbackLabel: string) {
+  const text = compactText(value, 160);
+
+  if (!text) {
+    return `@${fallbackLabel}`;
+  }
+
+  return text.startsWith("@") ? text : `@${text}`;
+}
+
+function readPromptReferenceName(record: Record<string, unknown> | null | undefined, fallbackLabel: string) {
+  if (!record) {
+    return fallbackLabel;
+  }
+
+  const mention = compactText(record.mention, 160);
+
+  if (mention) {
+    return mention.startsWith("@") ? mention : `@${mention}`;
+  }
+
+  const driveItemName = compactText(record.drive_item_name, 160);
+
+  if (driveItemName) {
+    return `@${driveItemName}`;
+  }
+
+  const nestedDriveItem = isRecord(record.drive_item) ? (record.drive_item as Record<string, unknown>) : null;
+  const nestedDriveItemName = compactText(nestedDriveItem?.name, 160);
+
+  if (nestedDriveItemName) {
+    return `@${nestedDriveItemName}`;
+  }
+
+  const label = compactText(record.label, 160) || fallbackLabel;
+  return label.startsWith("@") ? label : `@${label}`;
+}
+
+function readPromptReferenceSummary(
+  record: Record<string, unknown> | null | undefined,
+  fallbackValue: string,
+  extraValues: Array<string | null | undefined> = [],
+) {
+  const summaryCandidates = [
+    readStringFromRecord(record, "summary"),
+    readStringFromRecord(record, "prompt_text"),
+    readStringFromRecord(record, "text"),
+    readStringFromRecord(record, "value"),
+    readStringFromRecord(record, "subject"),
+  ];
+
+  if (isRecord(record?.analysis)) {
+    summaryCandidates.push(readStringFromRecord(record.analysis as Record<string, unknown>, "summary"));
+    summaryCandidates.push(readStringFromRecord(record.analysis as Record<string, unknown>, "subject"));
+  }
+
+  if (isRecord(record?.vision_analysis)) {
+    summaryCandidates.push(readStringFromRecord(record.vision_analysis as Record<string, unknown>, "summary"));
+    summaryCandidates.push(readStringFromRecord(record.vision_analysis as Record<string, unknown>, "hero_direction"));
+  }
+
+  if (isRecord(record?.analysis_json)) {
+    const analysisJson = record.analysis_json as Record<string, unknown>;
+    if (isRecord(analysisJson.analysis)) {
+      summaryCandidates.push(readStringFromRecord(analysisJson.analysis as Record<string, unknown>, "summary"));
+      summaryCandidates.push(readStringFromRecord(analysisJson.analysis as Record<string, unknown>, "subject"));
+    }
+    summaryCandidates.push(readStringFromRecord(analysisJson, "summary"));
+    summaryCandidates.push(readStringFromRecord(analysisJson, "drive_item_name"));
+  }
+
+  summaryCandidates.push(...extraValues.filter((item): item is string => typeof item === "string" && item.length > 0));
+
+  return compactText(summaryCandidates.find((item) => compactText(item)) || fallbackValue);
+}
+
+function readPromptReferenceRuleLines(record: Record<string, unknown> | null | undefined, key: "must_keep" | "must_avoid") {
+  if (!record) {
+    return [];
+  }
+
+  const promptRules = isRecord(record.prompt_rules) ? (record.prompt_rules as Record<string, unknown>) : null;
+  return readJsonLikeStringArray(promptRules?.[key]).slice(0, 6);
+}
+
+function readPromptReferenceInstruction(input: {
+  mention: string;
+  kind: PromptPackVisualReferenceKind;
+  role: PromptPackVisualReferenceRole;
+  summary: string;
+  mustKeep: string[];
+  mustAvoid: string[];
+}) {
+  const subjectPhrase =
+    input.role === "primary_subject"
+      ? "primary subject"
+      : input.role === "background_anchor"
+        ? "background anchor"
+        : "supporting reference";
+  const keepText = input.mustKeep.length ? `Keep ${input.mustKeep.slice(0, 3).join(", ")}.` : "";
+  const avoidText = input.mustAvoid.length ? `Avoid ${input.mustAvoid.slice(0, 3).join(", ")}.` : "";
+  const summaryText = input.summary ? `${input.summary}.` : "";
+
+  return compactText(
+    [
+      `Use ${input.mention} as the ${subjectPhrase} for ${input.kind.toLowerCase()}-driven image-to-image generation.`,
+      summaryText,
+      keepText,
+      avoidText,
+    ]
+      .filter((item) => item.length > 0)
+      .join(" "),
+    260,
+  );
+}
+
 function requireStringArray(value: unknown, label: string) {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim().length > 0)) {
     throw new Error(`${label} must be an array of non-empty strings.`);
@@ -265,20 +495,7 @@ function requireStringArray(value: unknown, label: string) {
 }
 
 function readLegacyStringArray(value: unknown) {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter((item) => item.length > 0);
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(/\r?\n+/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-  }
-
-  return [];
+  return readJsonLikeStringArray(value);
 }
 
 function readLegacyStringArrayFromRecord(record: Record<string, unknown> | null | undefined, key: string) {
@@ -441,8 +658,9 @@ function buildFallbackPromptText(input: {
   continuity?: { first_frame_hint: string; last_frame_hint: string };
 }) {
   const referenceLabel = input.visualReferences
-    .map((reference) => `${reference.kind.toLowerCase()}:${reference.label}`)
-    .join(", ");
+    .map((reference) => reference.instruction || `${reference.mention} (${reference.role})`)
+    .filter((item) => item.length > 0)
+    .join(" ");
   const ruleCount =
     input.kind === "I2I"
       ? input.rules.i2i_prompt_rules.length
@@ -450,10 +668,16 @@ function buildFallbackPromptText(input: {
   const ruleLabel = ruleCount ? `${ruleCount} rules` : "no account rules";
 
   if (input.kind === "I2I") {
-    return `${input.productName} ${input.promptCode} v${input.version} ${input.frame ?? "first_frame"}. Use ${referenceLabel} with ${ruleLabel}.`;
+    return compactText(
+      `${input.productName} ${input.promptCode} v${input.version} ${input.frame ?? "first_frame"}. ${referenceLabel} Follow ${ruleLabel}.`,
+      360,
+    );
   }
 
-  return `${input.productName} ${input.promptCode} v${input.version}. Use ${referenceLabel}; keep continuity ${input.continuity?.first_frame_hint || "first frame"} -> ${input.continuity?.last_frame_hint || "last frame"} with ${ruleLabel}.`;
+  return compactText(
+    `${input.productName} ${input.promptCode} v${input.version}. ${referenceLabel} Keep continuity ${input.continuity?.first_frame_hint || "first frame"} -> ${input.continuity?.last_frame_hint || "last frame"} with ${ruleLabel}.`,
+    360,
+  );
 }
 
 function buildPromptFramePromptJson(input: {
@@ -612,68 +836,195 @@ function readPromptRulesFromPersonalization(record: Record<string, unknown> | nu
   return readPromptRulesSnapshot(record);
 }
 
+function buildPromptReferenceCard(input: {
+  kind: PromptPackVisualReferenceKind;
+  label: string;
+  mention: string;
+  role?: PromptPackVisualReferenceRole;
+  summary?: string;
+  mustKeep?: string[];
+  mustAvoid?: string[];
+  instruction?: string;
+  driveItemRefId?: string | null;
+  driveUrl?: string | null;
+  drivePath?: string | null;
+  analysisJson?: JsonObject | null;
+}) {
+  const role = input.role ?? normalizePromptReferenceRole(input.kind);
+  const summary = compactText(input.summary, 260) || compactText(input.label, 260) || input.kind;
+  const mustKeep = (input.mustKeep ?? []).map((item) => compactText(item, 160)).filter((item) => item.length > 0).slice(0, 6);
+  const mustAvoid = (input.mustAvoid ?? []).map((item) => compactText(item, 160)).filter((item) => item.length > 0).slice(0, 6);
+  const instruction =
+    compactText(input.instruction, 260) ||
+    readPromptReferenceInstruction({
+      mention: input.mention,
+      kind: input.kind,
+      role,
+      summary,
+      mustKeep,
+      mustAvoid,
+    });
+
+  return {
+    kind: input.kind,
+    label: compactText(input.label, 120) || input.kind,
+    mention: normalizePromptReferenceMention(input.mention, input.label || input.kind.toLowerCase()),
+    role,
+    summary,
+    must_keep: mustKeep,
+    must_avoid: mustAvoid,
+    instruction,
+    drive_item_ref_id: input.driveItemRefId ?? null,
+    drive_url: input.driveUrl ?? null,
+    drive_path: input.drivePath ?? null,
+    analysis_json: input.analysisJson ?? null,
+  } satisfies PromptPackVisualReferenceJson;
+}
+
+function readPromptReferenceCardSnapshot(
+  value: unknown,
+  fallback: PromptPackVisualReferenceJson,
+): PromptPackVisualReferenceJson {
+  const record = readJsonObject(value) ?? {};
+  const cardRecord = record as Record<string, unknown>;
+  const mustKeep = readJsonLikeStringArray(cardRecord.must_keep).slice(0, 6);
+  const mustAvoid = readJsonLikeStringArray(cardRecord.must_avoid).slice(0, 6);
+
+  return buildPromptReferenceCard({
+    kind:
+      typeof cardRecord.kind === "string" && isPromptVisualReferenceKind(cardRecord.kind)
+        ? cardRecord.kind
+        : fallback.kind,
+    label: compactText(cardRecord.label, 120) || fallback.label,
+    mention: compactText(cardRecord.mention, 160) || fallback.mention,
+    role:
+      typeof cardRecord.role === "string" &&
+      ["primary_subject", "supporting_reference", "background_anchor"].includes(cardRecord.role)
+        ? (cardRecord.role as PromptPackVisualReferenceRole)
+        : fallback.role,
+    summary: compactText(cardRecord.summary, 260) || fallback.summary,
+    mustKeep: mustKeep.length ? mustKeep : fallback.must_keep,
+    mustAvoid: mustAvoid.length ? mustAvoid : fallback.must_avoid,
+    instruction: compactText(cardRecord.instruction, 260) || fallback.instruction,
+    driveItemRefId:
+      typeof cardRecord.drive_item_ref_id === "string" && cardRecord.drive_item_ref_id.trim().length > 0
+        ? cardRecord.drive_item_ref_id.trim()
+        : fallback.drive_item_ref_id,
+    driveUrl: readStringFromRecord(cardRecord, "drive_url") || fallback.drive_url,
+    drivePath: readStringFromRecord(cardRecord, "drive_path") || fallback.drive_path,
+    analysisJson: readJsonObject(cardRecord.analysis_json) ?? fallback.analysis_json,
+  });
+}
+
+function buildPromptReferenceCardsFromRawContext(context: JsonObject | null) {
+  const affiliateProfile = isRecord(context?.affiliate_profile) ? (context.affiliate_profile as Record<string, unknown>) : null;
+  const seedCharacter = isRecord(affiliateProfile?.seed_character) ? (affiliateProfile.seed_character as Record<string, unknown>) : null;
+  const environment = isRecord(affiliateProfile?.environment) ? (affiliateProfile.environment as Record<string, unknown>) : null;
+  const sourceImage = isRecord(context?.source_image) ? (context.source_image as Record<string, unknown>) : null;
+  const reviewedPromptEssentials = isRecord(context?.reviewed_gemini_metadata)
+    ? (context.reviewed_gemini_metadata as Record<string, unknown>)
+    : null;
+  const product = isRecord(context?.product) ? (context.product as Record<string, unknown>) : null;
+  const seedCharacterAnalysis = isRecord(seedCharacter?.analysis_json) ? (seedCharacter.analysis_json as Record<string, unknown>) : null;
+  const environmentAnalysis = isRecord(environment?.analysis_json) ? (environment.analysis_json as Record<string, unknown>) : null;
+
+  const characterMention = readPromptReferenceName(seedCharacter, "character");
+  const environmentMention = readPromptReferenceName(environment, "environment");
+  const sourceImageMention = readPromptReferenceName(sourceImage, "product");
+  const productSummary =
+    readStringFromRecord(reviewedPromptEssentials, "deskripsi_visual") ||
+    readStringFromRecord(reviewedPromptEssentials, "nama_produk") ||
+    readStringFromRecord(product, "product_name") ||
+    "Product reference";
+  const productMustKeep = [
+    readStringFromRecord(reviewedPromptEssentials, "nama_produk") || readStringFromRecord(product, "product_name"),
+    readStringFromRecord(reviewedPromptEssentials, "keyword_cari_etalase"),
+    readStringFromRecord(reviewedPromptEssentials, "deskripsi_visual"),
+  ].filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+
+  return [
+    buildPromptReferenceCard({
+      kind: "CHARACTER",
+      label: "Character",
+      mention: characterMention,
+      role: "supporting_reference",
+      summary:
+        readPromptReferenceSummary(seedCharacterAnalysis, "Character reference", [
+          readStringFromRecord(seedCharacterAnalysis, "summary"),
+          readStringFromRecord(seedCharacterAnalysis, "subject"),
+          readStringFromRecord(seedCharacter, "notes"),
+        ]) || "Character reference",
+      mustKeep: readPromptReferenceRuleLines(seedCharacter, "must_keep"),
+      mustAvoid: readPromptReferenceRuleLines(seedCharacter, "must_avoid"),
+      driveItemRefId: readStringFromRecord(seedCharacter, "drive_item_ref_id") || null,
+      driveUrl: null,
+      drivePath: null,
+      analysisJson: null,
+    }),
+    buildPromptReferenceCard({
+      kind: "ENVIRONMENT",
+      label: "Environment",
+      mention: environmentMention,
+      role: "background_anchor",
+      summary:
+        readPromptReferenceSummary(environmentAnalysis, "Environment reference", [
+          readStringFromRecord(environmentAnalysis, "summary"),
+          readStringFromRecord(environmentAnalysis, "subject"),
+          readStringFromRecord(environment, "notes"),
+        ]) || "Environment reference",
+      mustKeep: readPromptReferenceRuleLines(environment, "must_keep"),
+      mustAvoid: readPromptReferenceRuleLines(environment, "must_avoid"),
+      driveItemRefId: readStringFromRecord(environment, "drive_item_ref_id") || null,
+      driveUrl: null,
+      drivePath: null,
+      analysisJson: null,
+    }),
+    buildPromptReferenceCard({
+      kind: "PRODUCT",
+      label: "Product",
+      mention: sourceImageMention,
+      role: "primary_subject",
+      summary: productSummary,
+      mustKeep: productMustKeep.slice(0, 6),
+      mustAvoid: readPromptReferenceRuleLines(sourceImage, "must_avoid"),
+      instruction: readPromptReferenceInstruction({
+        mention: sourceImageMention,
+        kind: "PRODUCT",
+        role: "primary_subject",
+        summary: productSummary,
+        mustKeep: productMustKeep.slice(0, 3),
+        mustAvoid: readPromptReferenceRuleLines(sourceImage, "must_avoid"),
+      }),
+      driveItemRefId: readStringFromRecord(sourceImage, "drive_item_ref_id") || null,
+      driveUrl: null,
+      drivePath: null,
+      analysisJson: null,
+    }),
+  ] satisfies PromptPackVisualReferenceJson[];
+}
+
+export function buildPromptReferenceCardsFromContext(context: JsonObject | null) {
+  const fallbackCards = buildPromptReferenceCardsFromRawContext(context);
+  const explicitCards = Array.isArray(context?.reference_cards) ? (context.reference_cards as unknown[]) : null;
+
+  if (!explicitCards) {
+    return fallbackCards;
+  }
+
+  return PROMPT_VISUAL_REFERENCE_ORDER.map((kind, index) =>
+    readPromptReferenceCardSnapshot(
+      explicitCards[index],
+      fallbackCards[index] ?? fallbackCards.find((item) => item.kind === kind) ?? fallbackCards[0],
+    ),
+  );
+}
+
 function isPromptVisualReferenceKind(value: string): value is PromptPackVisualReferenceKind {
   return (PROMPT_VISUAL_REFERENCE_ORDER as readonly string[]).includes(value);
 }
 
-function readVisualReferenceSnapshot(
-  value: unknown,
-  fallback: {
-    kind: PromptPackVisualReferenceKind;
-    label: string;
-    driveItemRefId?: string | null;
-    driveUrl?: string | null;
-    drivePath?: string | null;
-    analysisJson?: JsonObject | null;
-  },
-): PromptPackVisualReferenceJson {
-  const record = readJsonObject(value) ?? {};
-
-  return {
-    kind: (typeof record.kind === "string" && isPromptVisualReferenceKind(record.kind) ? record.kind : fallback.kind) as PromptPackVisualReferenceKind,
-    label: readStringFromRecord(record, "label") || fallback.label,
-    drive_item_ref_id:
-      typeof record.drive_item_ref_id === "string" && record.drive_item_ref_id.trim().length > 0
-        ? record.drive_item_ref_id.trim()
-        : fallback.driveItemRefId ?? null,
-    drive_url: readStringFromRecord(record, "drive_url") || fallback.driveUrl || null,
-    drive_path: readStringFromRecord(record, "drive_path") || fallback.drivePath || null,
-    analysis_json: readJsonObject(record.analysis_json) ?? fallback.analysisJson ?? null,
-  };
-}
-
 function readPromptVisualReferencesFromContext(context: JsonObject | null) {
-  const affiliateProfile = isRecord(context?.affiliate_profile) ? (context.affiliate_profile as Record<string, unknown>) : null;
-  const seedCharacter = isRecord(affiliateProfile?.seed_character) ? (affiliateProfile?.seed_character as Record<string, unknown>) : null;
-  const environment = isRecord(affiliateProfile?.environment) ? (affiliateProfile?.environment as Record<string, unknown>) : null;
-  const sourceImage = isRecord(context?.source_image) ? (context.source_image as Record<string, unknown>) : null;
-
-  return [
-    readVisualReferenceSnapshot(seedCharacter, {
-      kind: "CHARACTER",
-      label: "Character",
-      driveItemRefId: readStringFromRecord(seedCharacter, "drive_item_ref_id"),
-      driveUrl: readStringFromRecord(seedCharacter, "drive_url"),
-      drivePath: readStringFromRecord(seedCharacter, "drive_path"),
-      analysisJson: readJsonObject(seedCharacter?.analysis_json),
-    }),
-    readVisualReferenceSnapshot(environment, {
-      kind: "ENVIRONMENT",
-      label: "Environment",
-      driveItemRefId: readStringFromRecord(environment, "drive_item_ref_id"),
-      driveUrl: readStringFromRecord(environment, "drive_url"),
-      drivePath: readStringFromRecord(environment, "drive_path"),
-      analysisJson: readJsonObject(environment?.analysis_json),
-    }),
-    readVisualReferenceSnapshot(sourceImage, {
-      kind: "PRODUCT",
-      label: "Product",
-      driveItemRefId: readStringFromRecord(sourceImage, "drive_item_ref_id"),
-      driveUrl: readStringFromRecord(sourceImage, "drive_url"),
-      drivePath: readStringFromRecord(sourceImage, "drive_path"),
-      analysisJson: readJsonObject(sourceImage?.analysis_json),
-    }),
-  ] satisfies PromptPackVisualReferenceJson[];
+  return buildPromptReferenceCardsFromContext(context);
 }
 
 function readPromptVisualReferencesSnapshot(
@@ -684,14 +1035,24 @@ function readPromptVisualReferencesSnapshot(
     return PROMPT_VISUAL_REFERENCE_ORDER.map((kind, index) => {
       const nextValue = value[index];
       const record = isRecord(nextValue) ? nextValue : {};
-      return readVisualReferenceSnapshot(record, {
-        kind,
-        label: kind.charAt(0) + kind.slice(1).toLowerCase(),
-        driveItemRefId: typeof record.drive_item_ref_id === "string" ? record.drive_item_ref_id : fallback[index]?.drive_item_ref_id ?? null,
-        driveUrl: fallback[index]?.drive_url ?? null,
-        drivePath: fallback[index]?.drive_path ?? null,
-        analysisJson: readJsonObject(record.analysis_json) ?? fallback[index]?.analysis_json ?? null,
-      });
+      const fallbackCard =
+        fallback[index] ??
+        buildPromptReferenceCard({
+          kind,
+          label: kind.charAt(0) + kind.slice(1).toLowerCase(),
+          mention: `@${kind.charAt(0) + kind.slice(1).toLowerCase()}`,
+          role: normalizePromptReferenceRole(kind),
+          summary: kind.charAt(0) + kind.slice(1).toLowerCase(),
+          mustKeep: [],
+          mustAvoid: [],
+          instruction: "",
+          driveItemRefId: null,
+          driveUrl: null,
+          drivePath: null,
+          analysisJson: null,
+        });
+
+      return readPromptReferenceCardSnapshot(record, fallbackCard);
     });
   }
 
@@ -718,13 +1079,25 @@ function readPromptRulesSnapshotFromValue(value: unknown, fallback: PromptPackPr
 function requirePromptRulesJson(value: unknown, label: string) {
   const record = requireRecord(value, label);
 
+  function requireNormalizedRuleArray(ruleValue: unknown, ruleLabel: string, maxLength: number) {
+    const items = readJsonLikeStringArray(ruleValue)
+      .map((item) => compactText(item, maxLength))
+      .filter((item): item is string => item.length > 0);
+
+    if (!items.length) {
+      throw new Error(`${ruleLabel} must be an array of non-empty strings.`);
+    }
+
+    return items;
+  }
+
   return {
-    i2i_prompt_rules: requireStringArray(record.i2i_prompt_rules, `${label}.i2i_prompt_rules`),
-    i2v_prompt_rules: requireStringArray(record.i2v_prompt_rules, `${label}.i2v_prompt_rules`),
-    caption_rules: requireStringArray(record.caption_rules, `${label}.caption_rules`),
-    hashtag_rules: requireStringArray(record.hashtag_rules, `${label}.hashtag_rules`),
-    negative_prompt_rules: requireStringArray(record.negative_prompt_rules, `${label}.negative_prompt_rules`),
-    product_positioning_notes: requireStringArray(record.product_positioning_notes, `${label}.product_positioning_notes`),
+    i2i_prompt_rules: requireNormalizedRuleArray(record.i2i_prompt_rules, `${label}.i2i_prompt_rules`, 240),
+    i2v_prompt_rules: requireNormalizedRuleArray(record.i2v_prompt_rules, `${label}.i2v_prompt_rules`, 240),
+    caption_rules: requireNormalizedRuleArray(record.caption_rules, `${label}.caption_rules`, 240),
+    hashtag_rules: requireNormalizedRuleArray(record.hashtag_rules, `${label}.hashtag_rules`, 120),
+    negative_prompt_rules: requireNormalizedRuleArray(record.negative_prompt_rules, `${label}.negative_prompt_rules`, 240),
+    product_positioning_notes: requireNormalizedRuleArray(record.product_positioning_notes, `${label}.product_positioning_notes`, 240),
   } satisfies PromptPackPromptRulesJson;
 }
 
@@ -736,14 +1109,27 @@ function requirePromptVisualReferenceJson(value: unknown, label: string, expecte
     throw new Error(`${label}.kind must equal ${expectedKind}.`);
   }
 
-  return {
+  const fallbackLabel = requireString(record.label, `${label}.label`);
+  const mention = readStringFromRecord(record, "mention") || `@${fallbackLabel}`;
+  const role =
+    typeof record.role === "string" && ["primary_subject", "supporting_reference", "background_anchor"].includes(record.role)
+      ? (record.role as PromptPackVisualReferenceRole)
+      : normalizePromptReferenceRole(expectedKind);
+
+  return buildPromptReferenceCard({
     kind,
-    label: requireString(record.label, `${label}.label`),
-    drive_item_ref_id: readStringFromRecord(record, "drive_item_ref_id") || null,
-    drive_url: readStringFromRecord(record, "drive_url") || null,
-    drive_path: readStringFromRecord(record, "drive_path") || null,
-    analysis_json: readJsonObject(record.analysis_json),
-  } satisfies PromptPackVisualReferenceJson;
+    label: fallbackLabel,
+    mention,
+    role,
+    summary: readStringFromRecord(record, "summary") || fallbackLabel,
+    mustKeep: readJsonLikeStringArray(record.must_keep),
+    mustAvoid: readJsonLikeStringArray(record.must_avoid),
+    instruction: readStringFromRecord(record, "instruction"),
+    driveItemRefId: readStringFromRecord(record, "drive_item_ref_id") || null,
+    driveUrl: readStringFromRecord(record, "drive_url") || null,
+    drivePath: readStringFromRecord(record, "drive_path") || null,
+    analysisJson: readJsonObject(record.analysis_json),
+  });
 }
 
 function requirePromptVisualReferencesJson(value: unknown, label: string) {
@@ -1148,30 +1534,45 @@ function buildPromptSetVisualReferences(personalization: Record<string, unknown>
   const environment = readLockState(personalization?.environment);
 
   return [
-    {
-      kind: "CHARACTER" as const,
+    buildPromptReferenceCard({
+      kind: "CHARACTER",
       label: "Character",
-      drive_item_ref_id: seedCharacter.drive_item_ref_id,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: null,
-    },
-    {
-      kind: "ENVIRONMENT" as const,
+      mention: "@Character",
+      role: "supporting_reference",
+      summary: "Character reference",
+      mustKeep: [],
+      mustAvoid: [],
+      driveItemRefId: seedCharacter.drive_item_ref_id,
+      driveUrl: null,
+      drivePath: null,
+      analysisJson: null,
+    }),
+    buildPromptReferenceCard({
+      kind: "ENVIRONMENT",
       label: "Environment",
-      drive_item_ref_id: environment.drive_item_ref_id,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: null,
-    },
-    {
-      kind: "PRODUCT" as const,
+      mention: "@Environment",
+      role: "background_anchor",
+      summary: "Environment reference",
+      mustKeep: [],
+      mustAvoid: [],
+      driveItemRefId: environment.drive_item_ref_id,
+      driveUrl: null,
+      drivePath: null,
+      analysisJson: null,
+    }),
+    buildPromptReferenceCard({
+      kind: "PRODUCT",
       label: "Product",
-      drive_item_ref_id: null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: null,
-    },
+      mention: "@Product",
+      role: "primary_subject",
+      summary: "Product reference",
+      mustKeep: [],
+      mustAvoid: [],
+      driveItemRefId: null,
+      driveUrl: null,
+      drivePath: null,
+      analysisJson: null,
+    }),
   ] satisfies PromptPackVisualReferenceJson[];
 }
 

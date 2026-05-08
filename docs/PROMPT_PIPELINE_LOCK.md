@@ -81,7 +81,7 @@ Character and environment are profile-owned only in Phase awal. The environment 
 
 Character and environment assets are analyzed explicitly from the Settings drawer and their JSON metadata snapshots are cached on the affiliate profile. Save/update only stores the Drive refs and rules; prompt generation must reuse the cached JSON metadata snapshots until the asset reference changes, and the cached snapshot is only valid while its `drive_item_ref_id` still matches the current Drive reference.
 
-Create prompt and regenerate prompt must read the same cached analysis JSON from `prompt_context` and the affiliate profile snapshots. `drive_url` and `drive_path` are display metadata only for visual references; they must not be required for regeneration, and legacy empty values must be accepted as null-equivalent.
+Create prompt and regenerate prompt must read the same cached analysis JSON from `prompt_context.reference_cards` and the affiliate profile snapshots. `drive_url` and `drive_path` are display metadata only for visual references; prompt-facing cards must be compact mention-based JSON built from `@original_file_name`, not raw analysis blobs, and legacy empty values must be accepted as null-equivalent.
 
 If an active profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
 
@@ -118,7 +118,7 @@ Tags
 Target Marketplace
 ```
 
-Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. The UI surface stays the same; only the copied value changes.
+Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. The UI surface stays the same; only the copied value changes. Their `visual_references` arrays must use compact mention cards, not raw `analysis_json` dumps.
 
 Editable regeneration field:
 
@@ -166,7 +166,9 @@ Prompt generation must persist structured JSON with at least:
       "status": ""
     }
   },
-  "prompt_context": {},
+  "prompt_context": {
+    "reference_cards": []
+  },
   "i2i_prompts": {
     "clip_1": {
       "first_frame": {
@@ -241,7 +243,9 @@ When a source product image exists, `product_analysis.source_image` must echo th
 
 `prompt_context` must be persisted in `prompt_packs.personalization_json`.
 
-Prompt pack editor round-trips must not fail when legacy visual references lack `drive_url` or `drive_path`, as long as the cached analysis JSON and reference IDs are available.
+`prompt_context.reference_cards` must be present for generated prompt packs. Each card must carry `mention`, `role`, `summary`, `must_keep`, `must_avoid`, `instruction`, and nullable Drive metadata. `analysis_json` stays server-side cache only and must not be copied into prompt-facing visual references.
+
+Prompt pack editor round-trips must not fail when legacy visual references lack `drive_url` or `drive_path`, as long as the cached analysis JSON and reference IDs are available. Prompt rules must also be normalized from JSON-like blobs into clean string arrays before persistence.
 
 ## Prompt Rule Locks
 

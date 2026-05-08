@@ -14,6 +14,9 @@ import {
   parsePromptPackGenerationOutput,
   readPromptPackEditorPromptSet,
   type PromptPackGenerationOutput,
+  type PromptPackVisualReferenceJson,
+  type PromptPackVisualReferenceKind,
+  type PromptPackVisualReferenceRole,
   type JsonObject,
 } from "../../src/lib/prompts/prompt-pack-contract";
 import {
@@ -46,40 +49,72 @@ type PromptPackFixtureOptions = {
     | null;
 };
 
+function buildCompactReferenceCard(
+  kind: PromptPackVisualReferenceKind,
+  label: string,
+  mention: string,
+  role: PromptPackVisualReferenceRole,
+  summary: string,
+  mustKeep: string[],
+  mustAvoid: string[],
+  driveItemRefId: string,
+): PromptPackVisualReferenceJson {
+  return {
+    kind,
+    label,
+    mention,
+    role,
+    summary,
+    must_keep: mustKeep,
+    must_avoid: mustAvoid,
+    instruction: `${mention} is the ${role.replace(/_/g, " ")} for ${kind.toLowerCase()}-driven image-to-image generation.`,
+    drive_item_ref_id: driveItemRefId,
+    drive_url: null,
+    drive_path: null,
+    analysis_json: null,
+  };
+}
+
 function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
   const sharedVisualReferences = [
-    {
-      kind: "CHARACTER",
-      label: "Character",
-      drive_item_ref_id: "character-ref",
-      drive_url: "https://example.com/character.png",
-      drive_path: "/assets/character.png",
-      analysis_json: null,
-    },
-    {
-      kind: "ENVIRONMENT",
-      label: "Environment",
-      drive_item_ref_id: "environment-ref",
-      drive_url: "https://example.com/environment.png",
-      drive_path: "/assets/environment.png",
-      analysis_json: null,
-    },
-    {
-      kind: "PRODUCT",
-      label: "Product",
-      drive_item_ref_id: "product-ref",
-      drive_url: "https://example.com/product.png",
-      drive_path: "/assets/product.png",
-      analysis_json: null,
-    },
+    buildCompactReferenceCard(
+      "CHARACTER",
+      "Character",
+      "@character.png",
+      "supporting_reference",
+      "Young East Asian man portrait used only as a supporting identity anchor.",
+      ["young East Asian man", "dark wavy hair", "dark grey hoodie", "neutral expression"],
+      ["smiling", "accessories", "complex background", "other people", "dynamic pose"],
+      "character-ref",
+    ),
+    buildCompactReferenceCard(
+      "ENVIRONMENT",
+      "Environment",
+      "@environment.png",
+      "background_anchor",
+      "Industrial room with concrete walls and warm accent lighting.",
+      ["black mannequin", "black t-shirt", "industrial background", "concrete walls", "warm accent lighting"],
+      ["bright colors", "cluttered background", "outdoor setting", "people", "other clothing items"],
+      "environment-ref",
+    ),
+    buildCompactReferenceCard(
+      "PRODUCT",
+      "Product",
+      "@product.png",
+      "primary_subject",
+      "Apparel product reference for the front-facing garment.",
+      ["keep product shape", "keep garment readable", "keep product-first composition"],
+      ["extra props", "extra text", "identity drift", "cluttered scene"],
+      "product-ref",
+    ),
   ] satisfies PromptPackGenerationOutput["i2i_prompts"]["clip_1"]["first_frame"]["visual_references"];
   const sharedPromptRules = {
-    i2i_prompt_rules: ["keep product shape"],
-    i2v_prompt_rules: ["keep motion smooth"],
-    caption_rules: ["short caption"],
-    hashtag_rules: ["#tas"],
-    negative_prompt_rules: ["no extra props"],
-    product_positioning_notes: ["highlight the bag silhouette"],
+    i2i_prompt_rules: ["{", '"i2i_prompt_rules": ["keep product shape"]', "}"],
+    i2v_prompt_rules: ["{", '"i2v_prompt_rules": ["keep motion smooth"]', "}"],
+    caption_rules: ["{", '"caption_rules": ["short caption"]', "}"],
+    hashtag_rules: ["{", '"hashtag_rules": ["#tas"]', "}"],
+    negative_prompt_rules: ["{", '"negative_prompt_rules": ["no extra props"]', "}"],
+    product_positioning_notes: ["{", '"product_positioning_notes": ["highlight the bag silhouette"]', "}"],
   } satisfies PromptPackGenerationOutput["i2i_prompts"]["clip_1"]["first_frame"]["prompt_rules"];
 
   return {
@@ -110,6 +145,7 @@ function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
     },
     prompt_context: {
       mode: "server_injected",
+      reference_cards: sharedVisualReferences,
     },
     i2i_prompts: {
       clip_1: {
@@ -180,8 +216,49 @@ function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
 }
 
 function buildPromptPackServerContextFixture(): JsonObject {
+  const sharedReferenceCards = [
+    buildCompactReferenceCard(
+      "CHARACTER",
+      "Character",
+      "@character.png",
+      "supporting_reference",
+      "Young East Asian man portrait used only as a supporting identity anchor.",
+      ["young East Asian man", "dark wavy hair", "dark grey hoodie", "neutral expression"],
+      ["smiling", "accessories", "complex background", "other people", "dynamic pose"],
+      "character-ref",
+    ),
+    buildCompactReferenceCard(
+      "ENVIRONMENT",
+      "Environment",
+      "@environment.png",
+      "background_anchor",
+      "Industrial room with concrete walls and warm accent lighting.",
+      ["black mannequin", "black t-shirt", "industrial background", "concrete walls", "warm accent lighting"],
+      ["bright colors", "cluttered background", "outdoor setting", "people", "other clothing items"],
+      "environment-ref",
+    ),
+    buildCompactReferenceCard(
+      "PRODUCT",
+      "Product",
+      "@product.png",
+      "primary_subject",
+      "Apparel product reference for the front-facing garment.",
+      ["keep product shape", "keep garment readable", "keep product-first composition"],
+      ["extra props", "extra text", "identity drift", "cluttered scene"],
+      "product-ref",
+    ),
+  ] satisfies PromptPackGenerationOutput["i2i_prompts"]["clip_1"]["first_frame"]["visual_references"];
+
   return {
     mode: "server_injected",
+    reference_cards: sharedReferenceCards,
+    prompt_writing_contract: {
+      mode: "I2I_JSON",
+      mention_format: "@original_file_name",
+      subject_priority: ["PRODUCT", "ENVIRONMENT", "CHARACTER"],
+      max_prompt_sentences: 2,
+      no_raw_analysis_json: true,
+    },
     product: {
       id: "product-id",
       product_code: "PROD-1",
@@ -193,12 +270,12 @@ function buildPromptPackServerContextFixture(): JsonObject {
     },
     affiliate_profile: {
       rules: {
-        i2i_prompt_rules: ["keep product shape"],
-        i2v_prompt_rules: ["keep motion smooth"],
-        caption_rules: ["short caption"],
-        hashtag_rules: ["#tas"],
-        negative_prompt_rules: ["no extra props"],
-        product_positioning_notes: ["highlight the bag silhouette"],
+        i2i_prompt_rules: ["{", '"i2i_prompt_rules": ["keep product shape"]', "}"],
+        i2v_prompt_rules: ["{", '"i2v_prompt_rules": ["keep motion smooth"]', "}"],
+        caption_rules: ["{", '"caption_rules": ["short caption"]', "}"],
+        hashtag_rules: ["{", '"hashtag_rules": ["#tas"]', "}"],
+        negative_prompt_rules: ["{", '"negative_prompt_rules": ["no extra props"]', "}"],
+        product_positioning_notes: ["{", '"product_positioning_notes": ["highlight the bag silhouette"]', "}"],
       },
       seed_character: {
         locked: true,
@@ -796,14 +873,23 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
     notes: "Use the default background.",
     drive_item_ref_id: "environment-ref",
   });
+  expect(parsed.prompt_context.reference_cards).toHaveLength(3);
   expect(parsed.i2i_prompts.clip_1.first_frame.visual_references.map((reference) => reference.kind)).toEqual([
     "CHARACTER",
     "ENVIRONMENT",
     "PRODUCT",
   ]);
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[0].drive_url).toBe("https://example.com/character.png");
+  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references.map((reference) => reference.analysis_json)).toEqual([
+    null,
+    null,
+    null,
+  ]);
+  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[0].mention).toBe("@character.png");
+  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[0].role).toBe("supporting_reference");
+  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[2].mention).toBe("@product.png");
+  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[2].role).toBe("primary_subject");
   expect(parsed.i2i_prompts.clip_1.first_frame.prompt_rules.i2i_prompt_rules).toEqual(["keep product shape"]);
-  expect(parsed.i2v_prompts.clip_2.visual_references[2].drive_path).toBe("/assets/product.png");
+  expect(parsed.i2v_prompts.clip_2.visual_references[2].drive_path).toBeNull();
   expect(parsed.i2v_prompts.clip_2.prompt_rules.caption_rules).toEqual(["short caption"]);
 });
 
@@ -813,9 +899,7 @@ test("prompt pack parser accepts legacy Gemini output contract", () => {
     serverPromptContext: buildPromptPackServerContextFixture(),
   });
 
-  expect(parsed.prompt_context).toEqual({
-    mode: "server_injected",
-  });
+  expect(parsed.prompt_context).toEqual(buildPromptPackServerContextFixture());
   expect(parsed.target_marketplace).toBe("Shopee + TikTok");
   expect(parsed.seed_character).toEqual({
     locked: false,

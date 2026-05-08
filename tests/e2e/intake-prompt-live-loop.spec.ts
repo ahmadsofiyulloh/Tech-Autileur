@@ -331,12 +331,21 @@ async function assertPromptTaskState(
   const promptRules = readRecord(promptAffiliateProfile?.rules);
   const reviewedGeminiMetadata = readRecord(promptContext?.reviewed_gemini_metadata);
   const promptSourceImage = readRecord(promptContext?.source_image);
+  const promptReferenceCards = Array.isArray(promptContext?.reference_cards) ? promptContext.reference_cards.map(readRecord) : [];
   const productAnalysis = readRecord(promptPack.product_analysis_json);
   const productAnalysisProduct = readRecord(productAnalysis?.product);
   const sourceImage = readRecord(productAnalysis?.source_image);
 
   expect(promptContext?.visual_parsing_mode).toBe("CACHED_JSON_METADATA");
   expect(promptContext?.image_bytes_available).toBe(false);
+  expect(promptReferenceCards).toHaveLength(3);
+  expect(promptReferenceCards.map((reference) => reference?.analysis_json)).toEqual([null, null, null]);
+  expect(promptReferenceCards.map((reference) => readText(reference?.mention).startsWith("@"))).toEqual([true, true, true]);
+  expect(promptReferenceCards.map((reference) => reference?.role)).toEqual([
+    "supporting_reference",
+    "background_anchor",
+    "primary_subject",
+  ]);
   expect(promptAffiliateProfile?.profile_code).toBe(state.affiliate_profile.code);
   expect(promptSeedCharacter?.locked).toBe(true);
   expect(promptEnvironment?.locked).toBe(true);
@@ -686,6 +695,14 @@ async function runLiveSmokeIteration(input: {
     const promptPackV1EditorSet = readPromptPackEditorPromptSet(promptPackV1.data);
     const promptPackV1Clip1 = promptPackV1EditorSet.clips.clip_1;
     const promptPackV1Clip2 = promptPackV1EditorSet.clips.clip_2;
+    const promptPackV1Clip1FirstFrame = readRecord(promptPackV1Clip1?.i2i_first_frame_json);
+    const promptPackV1Clip1FirstFrameReferences = Array.isArray(promptPackV1Clip1FirstFrame?.visual_references)
+      ? promptPackV1Clip1FirstFrame.visual_references.map(readRecord)
+      : [];
+    const promptPackV1Clip1FirstFramePromptRules = readRecord(promptPackV1Clip1FirstFrame?.prompt_rules);
+    const promptPackV1Clip1FirstFramePromptRuleLines = Array.isArray(promptPackV1Clip1FirstFramePromptRules?.i2i_prompt_rules)
+      ? promptPackV1Clip1FirstFramePromptRules.i2i_prompt_rules
+      : [];
     const promptContext = readRecord(promptPackV1Personalization?.prompt_context);
     const promptAffiliateProfile = readRecord(promptContext?.affiliate_profile);
     const promptRules = readRecord(promptAffiliateProfile?.rules);
@@ -716,6 +733,15 @@ async function runLiveSmokeIteration(input: {
     assertNonEmptyText("promptPackV1 clip_2 i2i_first_frame", promptPackV1Clip2.i2i_first_frame);
     assertNonEmptyText("promptPackV1 clip_2 i2i_last_frame", promptPackV1Clip2.i2i_last_frame);
     assertNonEmptyText("promptPackV1 clip_2 i2v_prompt", promptPackV1Clip2.i2v_prompt);
+    expect(promptPackV1Clip1FirstFrameReferences).toHaveLength(3);
+    expect(promptPackV1Clip1FirstFrameReferences.map((reference) => reference?.analysis_json)).toEqual([null, null, null]);
+    expect(promptPackV1Clip1FirstFrameReferences.map((reference) => readText(reference?.mention).startsWith("@"))).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(promptPackV1Clip1FirstFramePromptRuleLines.some((line: string) => line.includes("{"))).toBe(false);
+    expect(promptPackV1Clip1FirstFramePromptRuleLines.some((line: string) => line.includes("}"))).toBe(false);
 
     const promptTask = await client
       .from("ai_tasks")
@@ -735,10 +761,13 @@ async function runLiveSmokeIteration(input: {
     const promptInput = readRecord(promptTask.data.input_json);
     const promptTaskContext = readRecord(promptInput?.prompt_context);
     const promptTaskAffiliateProfile = readRecord(promptTaskContext?.affiliate_profile);
+    const promptTaskReferenceCards = Array.isArray(promptTaskContext?.reference_cards) ? promptTaskContext.reference_cards.map(readRecord) : [];
 
     expect(promptInput?.mode).toBe("gemini");
     expect(promptTaskContext?.visual_parsing_mode).toBe("CACHED_JSON_METADATA");
     expect(promptTaskContext?.image_bytes_available).toBe(false);
+    expect(promptTaskReferenceCards).toHaveLength(3);
+    expect(promptTaskReferenceCards.map((reference) => reference?.analysis_json)).toEqual([null, null, null]);
     expect(promptTaskAffiliateProfile?.profile_code).toBe(state.affiliate_profile.code);
     expect(readText(promptInput?.revision_instruction)).toBe("");
 
@@ -872,15 +901,26 @@ async function runLiveSmokeIteration(input: {
     const promptTaskContext = readRecord(promptInput?.prompt_context);
     const promptTaskAffiliateProfile = readRecord(promptTaskContext?.affiliate_profile);
     const promptTaskSourceImage = readRecord(promptTaskContext?.source_image);
+    const promptTaskReferenceCards = Array.isArray(promptTaskContext?.reference_cards) ? promptTaskContext.reference_cards.map(readRecord) : [];
     const promptTaskSet = readRecord(promptInput?.prompt_set);
     const promptTaskSetClips = readRecord(promptTaskSet?.clips);
     const promptTaskSetClip1 = readRecord(promptTaskSetClips?.clip_1);
     const promptTaskSetClip2 = readRecord(promptTaskSetClips?.clip_2);
+    const promptTaskSetClip1FirstFrame = readRecord(promptTaskSetClip1?.i2i_first_frame_json);
+    const promptTaskSetClip1FirstFrameReferences = Array.isArray(promptTaskSetClip1FirstFrame?.visual_references)
+      ? promptTaskSetClip1FirstFrame.visual_references.map(readRecord)
+      : [];
+    const promptTaskSetClip1FirstFramePromptRules = readRecord(promptTaskSetClip1FirstFrame?.prompt_rules);
+    const promptTaskSetClip1FirstFramePromptRuleLines = Array.isArray(promptTaskSetClip1FirstFramePromptRules?.i2i_prompt_rules)
+      ? promptTaskSetClip1FirstFramePromptRules.i2i_prompt_rules
+      : [];
 
     expect(promptInput?.mode).toBe("gemini");
     expect(readText(promptInput?.revision_instruction)).toBe(revisionInstruction);
     expect(promptTaskContext?.visual_parsing_mode).toBe("CACHED_JSON_METADATA");
     expect(promptTaskContext?.image_bytes_available).toBe(false);
+    expect(promptTaskReferenceCards).toHaveLength(3);
+    expect(promptTaskReferenceCards.map((reference) => reference?.analysis_json)).toEqual([null, null, null]);
     expect(promptTaskAffiliateProfile?.profile_code).toBe(state.affiliate_profile.code);
     expect(promptTaskSourceImage?.drive_item).toBeUndefined();
     expect(readText(promptTaskSet?.caption)).not.toBe("");
@@ -890,6 +930,15 @@ async function runLiveSmokeIteration(input: {
     expect(readText(promptTaskSetClip2?.i2i_first_frame)).not.toBe("");
     expect(readText(promptTaskSetClip2?.i2i_last_frame)).not.toBe("");
     expect(readText(promptTaskSetClip2?.i2v_prompt)).not.toBe("");
+    expect(promptTaskSetClip1FirstFrameReferences).toHaveLength(3);
+    expect(promptTaskSetClip1FirstFrameReferences.map((reference) => reference?.analysis_json)).toEqual([null, null, null]);
+    expect(promptTaskSetClip1FirstFrameReferences.map((reference) => readText(reference?.mention).startsWith("@"))).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(promptTaskSetClip1FirstFramePromptRuleLines.some((line: string) => line.includes("{"))).toBe(false);
+    expect(promptTaskSetClip1FirstFramePromptRuleLines.some((line: string) => line.includes("}"))).toBe(false);
 
     const promptUsage = await client
       .from("gemini_api_usage_events")

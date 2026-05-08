@@ -42,6 +42,7 @@ import {
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
   readPromptPackEditorPromptSet,
+  buildPromptReferenceCardsFromContext,
   type JsonObject,
   type PromptPackPromptRulesJson,
   type PromptPackStoragePayload,
@@ -49,6 +50,7 @@ import {
   type PromptPackVisualReferenceJson,
 } from "@/lib/prompts/prompt-pack-contract";
 import { getCurrentWorkspace, getWorkspaceById } from "@/lib/server/workspaces";
+import { getDriveItemById } from "@/lib/server/drive-items";
 import {
   getAffiliateProfileById,
   getDefaultAffiliateProfileForWorkspace,
@@ -93,6 +95,7 @@ type PromptPackSourceImageSnapshot = {
   status: string;
   source_type: string;
   drive_item_ref_id: string;
+  drive_item_name: string | null;
   analysis_json: JsonObject | null;
 };
 
@@ -177,6 +180,8 @@ type MockPromptContext = {
   latestAnchor: ProductAnchorRecord | null;
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
+  sourceProductImageDriveItemName: string | null;
+  promptContext: JsonObject;
 };
 
 type PromptPackGenerationMode = "mock" | "gemini";
@@ -193,6 +198,7 @@ type PromptPackGenerationContext = {
   latestAnchor: ProductAnchorRecord | null;
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
+  sourceProductImageDriveItemName: string | null;
   promptContext: JsonObject;
 };
 
@@ -445,6 +451,7 @@ function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
 
 function buildPromptSourceImageSnapshot(
   image: ProductImageRecord | null,
+  driveItemName: string | null,
 ): PromptPackSourceImageSnapshot | null {
   if (!image) {
     return null;
@@ -456,6 +463,7 @@ function buildPromptSourceImageSnapshot(
     status: image.status,
     source_type: image.source_type,
     drive_item_ref_id: image.drive_item_ref_id,
+    drive_item_name: driveItemName,
     analysis_json: image.analysis_json,
   };
 }
@@ -468,10 +476,10 @@ function buildPromptContextSnapshot(context: {
   latestAnchor: ProductAnchorRecord | null;
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
+  sourceProductImageDriveItemName: string | null;
 }) {
   const visualParsingMode = "CACHED_JSON_METADATA";
-
-  return {
+  const promptContext = {
     workspace: buildWorkspaceSnapshot(context.currentWorkspace),
     product: buildProductSnapshot(context.product),
     intake_session: buildIntakeSessionSnapshot(context.intakeSession),
@@ -479,10 +487,22 @@ function buildPromptContextSnapshot(context: {
     affiliate_profile: buildAffiliateProfileSnapshot(context.affiliateProfile),
     latest_anchor: buildProductAnchorSnapshot(context.latestAnchor),
     marketplace_sources: context.marketplaceSources.map(buildMarketplaceSourceSnapshot),
-    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage),
+    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage, context.sourceProductImageDriveItemName),
     visual_parsing_mode: visualParsingMode,
     image_bytes_available: false,
     source_fallback_reason: "Use cached JSON metadata and reference IDs; do not claim live visual parsing from links.",
+  } satisfies JsonObject;
+
+  return {
+    ...promptContext,
+    reference_cards: buildPromptReferenceCardsFromContext(promptContext),
+    prompt_writing_contract: {
+      mode: "I2I_JSON",
+      mention_format: "@original_file_name",
+      subject_priority: ["PRODUCT", "ENVIRONMENT", "CHARACTER"],
+      max_prompt_sentences: 2,
+      no_raw_analysis_json: true,
+    },
   } satisfies JsonObject;
 }
 
@@ -525,6 +545,9 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
           .maybeSingle()
       ).data ?? null
     : await getPrimaryProductImageForPromptPack(promptPack.product_id);
+
+  const sourceProductImageDriveItem = sourceProductImage ? await getDriveItemById(sourceProductImage.drive_item_ref_id) : null;
+  const sourceProductImageDriveItemName = readText(sourceProductImageDriveItem?.name) || null;
 
   if (promptPack.source_product_image_id && !sourceProductImage) {
     throw new Error("Source product image not found.");
@@ -602,6 +625,7 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     latestAnchor,
     marketplaceSources: marketplaceSourceContext.sources,
     sourceProductImage: sourceProductImage as ProductImageRecord | null,
+    sourceProductImageDriveItemName,
   });
 
   const promptPackReferenceUpdates: Partial<Pick<PromptPackRecord, "intake_session_id" | "affiliate_profile_id">> = {};
@@ -655,6 +679,7 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     latestAnchor,
     marketplaceSources: marketplaceSourceContext.sources,
     sourceProductImage: sourceProductImage as ProductImageRecord | null,
+    sourceProductImageDriveItemName,
     promptContext,
   };
 }
@@ -711,11 +736,71 @@ function buildPromptPackAnalysis(context: MockPromptContext): PromptPackGenerati
   };
 }
 
-function splitRuleText(value: string | null | undefined) {
+function splitRuleText(value: string | null | undefined): string[] {
   const trimmed = readText(value);
 
   if (!trimmed) {
     return [];
+  }
+
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (Array.isArray(parsed)) {
+        if (
+          parsed.every((item) => typeof item === "string") &&
+          ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}")))
+        ) {
+          const joined = parsed.map((item) => item.trim()).filter(Boolean).join("\n").trim();
+
+          if (
+            joined &&
+            ((joined.startsWith("{") && joined.endsWith("}")) || (joined.startsWith("[") && joined.endsWith("]")))
+          ) {
+            try {
+              return splitRuleText(JSON.stringify(JSON.parse(joined)));
+            } catch {
+              // Fall through to the flattened array below.
+            }
+          }
+        }
+
+        const flattened: string[] = parsed.flatMap((item) => splitRuleText(typeof item === "string" ? item : JSON.stringify(item)));
+        return flattened.filter((line: string, index: number, items: string[]) => items.indexOf(line) === index);
+      }
+
+      if (parsed && typeof parsed === "object") {
+        const record = parsed as Record<string, unknown>;
+        const preferredKeys = [
+          "i2i_prompt_rules",
+          "i2v_prompt_rules",
+          "caption_rules",
+          "hashtag_rules",
+          "negative_prompt_rules",
+          "product_positioning_notes",
+          "must_keep",
+          "must_avoid",
+        ];
+
+        const collected: string[] = preferredKeys.flatMap((key) => {
+          const item = record[key];
+          if (Array.isArray(item)) {
+            return item.flatMap((nested) => splitRuleText(typeof nested === "string" ? nested : JSON.stringify(nested)));
+          }
+          if (typeof item === "string") {
+            return splitRuleText(item);
+          }
+          return [];
+        });
+
+        if (collected.length > 0) {
+          return collected.filter((line: string, index: number, items: string[]) => items.indexOf(line) === index);
+        }
+      }
+    } catch {
+      // Fall through to line splitting below.
+    }
   }
 
   return trimmed
@@ -780,40 +865,13 @@ function assertAffiliateProfileReadyForPromptGeneration(profile: AffiliateProfil
 }
 
 function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2i_prompts"] {
-  const { promptPack, product, sourceProductImage, affiliateProfile, latestAnchor } = context;
-
-  const sourceLabel = sourceProductImage
-    ? `source image row ${sourceProductImage.id}`
-    : "an attached source image row";
-  const anchorLabel = latestAnchor ? `anchor ${latestAnchor.anchor_code} v${latestAnchor.version}` : "the latest available anchor";
-  const profileLabel = affiliateProfile ? `affiliate profile ${affiliateProfile.profile_code}` : "no affiliate profile";
-  const promptRules = buildAffiliateRulePack(affiliateProfile);
-  const visualReferences = [
-    {
-      kind: "CHARACTER",
-      label: "Character",
-      drive_item_ref_id: affiliateProfile?.seed_character_drive_item_ref_id ?? null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: affiliateProfile?.seed_character_analysis_json ?? null,
-    },
-    {
-      kind: "ENVIRONMENT",
-      label: "Environment",
-      drive_item_ref_id: affiliateProfile?.environment_drive_item_ref_id ?? null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: affiliateProfile?.environment_analysis_json ?? null,
-    },
-    {
-      kind: "PRODUCT",
-      label: "Product",
-      drive_item_ref_id: sourceProductImage?.drive_item_ref_id ?? null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: sourceProductImage?.analysis_json ?? null,
-    },
-  ] satisfies PromptPackVisualReferenceJson[];
+  const { promptPack, product, latestAnchor, promptContext, affiliateProfile } = context;
+  const visualReferences = buildPromptReferenceCardsFromContext(promptContext);
+  const promptRules = normalizePromptRulePack(buildAffiliateRulePack(affiliateProfile));
+  const baseInstruction = visualReferences.map((reference) => reference.instruction).filter(Boolean).join(" ");
+  const continuityInstruction = latestAnchor
+    ? `Keep continuity with anchor ${latestAnchor.anchor_code} v${latestAnchor.version}.`
+    : "Keep continuity with the latest product reference.";
 
   return {
     clip_1: {
@@ -821,54 +879,22 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
       first_frame: {
         slot: "clip_1",
         frame: "first_frame",
-        prompt_text: `Mock I2I First Frame Clip 1 untuk ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}). Gunakan ${sourceLabel}, ${anchorLabel}, dan ${profileLabel}.`,
+        prompt_text: compactText(
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} ${continuityInstruction}`,
+          420,
+        ),
         visual_references: visualReferences,
-        prompt_rules: {
-          i2i_prompt_rules: Array.isArray(promptRules?.i2i_prompt_rules)
-            ? promptRules.i2i_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          i2v_prompt_rules: Array.isArray(promptRules?.i2v_prompt_rules)
-            ? promptRules.i2v_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          caption_rules: Array.isArray(promptRules?.caption_rules)
-            ? promptRules.caption_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          hashtag_rules: Array.isArray(promptRules?.hashtag_rules)
-            ? promptRules.hashtag_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          negative_prompt_rules: Array.isArray(promptRules?.negative_prompt_rules)
-            ? promptRules.negative_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          product_positioning_notes: Array.isArray(promptRules?.product_positioning_notes)
-            ? promptRules.product_positioning_notes.filter((item): item is string => typeof item === "string")
-            : [],
-        },
+        prompt_rules: promptRules,
       },
       last_frame: {
         slot: "clip_1",
         frame: "last_frame",
-        prompt_text: `Mock I2I Last Frame Clip 1 untuk ${product.product_name}. Jaga siluet produk, anchor, dan persona affiliate tetap sama.`,
+        prompt_text: compactText(
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} Keep the same subject, composition, and visual identity through the last frame.`,
+          420,
+        ),
         visual_references: visualReferences,
-        prompt_rules: {
-          i2i_prompt_rules: Array.isArray(promptRules?.i2i_prompt_rules)
-            ? promptRules.i2i_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          i2v_prompt_rules: Array.isArray(promptRules?.i2v_prompt_rules)
-            ? promptRules.i2v_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          caption_rules: Array.isArray(promptRules?.caption_rules)
-            ? promptRules.caption_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          hashtag_rules: Array.isArray(promptRules?.hashtag_rules)
-            ? promptRules.hashtag_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          negative_prompt_rules: Array.isArray(promptRules?.negative_prompt_rules)
-            ? promptRules.negative_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          product_positioning_notes: Array.isArray(promptRules?.product_positioning_notes)
-            ? promptRules.product_positioning_notes.filter((item): item is string => typeof item === "string")
-            : [],
-        },
+        prompt_rules: promptRules,
       },
     },
     clip_2: {
@@ -876,128 +902,58 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
       first_frame: {
         slot: "clip_2",
         frame: "first_frame",
-        prompt_text: `Mock I2I First Frame Clip 2 untuk ${product.product_name}. Produk tetap terbaca, anchor tetap dipakai, dan ${profileLabel} tetap konsisten.`,
+        prompt_text: compactText(
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} PRODUCT stays primary and readable.`,
+          420,
+        ),
         visual_references: visualReferences,
-        prompt_rules: {
-          i2i_prompt_rules: Array.isArray(promptRules?.i2i_prompt_rules)
-            ? promptRules.i2i_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          i2v_prompt_rules: Array.isArray(promptRules?.i2v_prompt_rules)
-            ? promptRules.i2v_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          caption_rules: Array.isArray(promptRules?.caption_rules)
-            ? promptRules.caption_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          hashtag_rules: Array.isArray(promptRules?.hashtag_rules)
-            ? promptRules.hashtag_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          negative_prompt_rules: Array.isArray(promptRules?.negative_prompt_rules)
-            ? promptRules.negative_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          product_positioning_notes: Array.isArray(promptRules?.product_positioning_notes)
-            ? promptRules.product_positioning_notes.filter((item): item is string => typeof item === "string")
-            : [],
-        },
+        prompt_rules: promptRules,
       },
       last_frame: {
         slot: "clip_2",
         frame: "last_frame",
-        prompt_text: `Mock I2I Last Frame Clip 2 untuk ${product.product_name}. Akhiri dengan komposisi bersih dan kesinambungan dengan ${anchorLabel}.`,
+        prompt_text: compactText(
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} End with a clean, product-first composition.`,
+          420,
+        ),
         visual_references: visualReferences,
-        prompt_rules: {
-          i2i_prompt_rules: Array.isArray(promptRules?.i2i_prompt_rules)
-            ? promptRules.i2i_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          i2v_prompt_rules: Array.isArray(promptRules?.i2v_prompt_rules)
-            ? promptRules.i2v_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          caption_rules: Array.isArray(promptRules?.caption_rules)
-            ? promptRules.caption_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          hashtag_rules: Array.isArray(promptRules?.hashtag_rules)
-            ? promptRules.hashtag_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          negative_prompt_rules: Array.isArray(promptRules?.negative_prompt_rules)
-            ? promptRules.negative_prompt_rules.filter((item): item is string => typeof item === "string")
-            : [],
-          product_positioning_notes: Array.isArray(promptRules?.product_positioning_notes)
-            ? promptRules.product_positioning_notes.filter((item): item is string => typeof item === "string")
-            : [],
-        },
+        prompt_rules: promptRules,
       },
     },
   } as PromptPackGenerationOutput["i2i_prompts"];
 }
 
 function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2v_prompts"] {
-  const { promptPack, product, sourceProductImage, affiliateProfile, latestAnchor } = context;
-  const sourceLabel = sourceProductImage ? `source image row ${sourceProductImage.id}` : "the product reference";
-  const anchorLabel = latestAnchor ? `anchor ${latestAnchor.anchor_code}` : "the latest anchor";
-  const profileLabel = affiliateProfile ? `affiliate profile ${affiliateProfile.profile_code}` : "default workspace personalization";
-  const promptRules = buildAffiliateRulePack(affiliateProfile);
-  const visualReferences = [
-    {
-      kind: "CHARACTER",
-      label: "Character",
-      drive_item_ref_id: affiliateProfile?.seed_character_drive_item_ref_id ?? null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: affiliateProfile?.seed_character_analysis_json ?? null,
-    },
-    {
-      kind: "ENVIRONMENT",
-      label: "Environment",
-      drive_item_ref_id: affiliateProfile?.environment_drive_item_ref_id ?? null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: affiliateProfile?.environment_analysis_json ?? null,
-    },
-    {
-      kind: "PRODUCT",
-      label: "Product",
-      drive_item_ref_id: sourceProductImage?.drive_item_ref_id ?? null,
-      drive_url: null,
-      drive_path: null,
-      analysis_json: sourceProductImage?.analysis_json ?? null,
-    },
-  ] satisfies PromptPackVisualReferenceJson[];
-  const promptRulesJson = {
-    i2i_prompt_rules: Array.isArray(promptRules?.i2i_prompt_rules)
-      ? promptRules.i2i_prompt_rules.filter((item): item is string => typeof item === "string")
-      : [],
-    i2v_prompt_rules: Array.isArray(promptRules?.i2v_prompt_rules)
-      ? promptRules.i2v_prompt_rules.filter((item): item is string => typeof item === "string")
-      : [],
-    caption_rules: Array.isArray(promptRules?.caption_rules)
-      ? promptRules.caption_rules.filter((item): item is string => typeof item === "string")
-      : [],
-    hashtag_rules: Array.isArray(promptRules?.hashtag_rules)
-      ? promptRules.hashtag_rules.filter((item): item is string => typeof item === "string")
-      : [],
-    negative_prompt_rules: Array.isArray(promptRules?.negative_prompt_rules)
-      ? promptRules.negative_prompt_rules.filter((item): item is string => typeof item === "string")
-      : [],
-    product_positioning_notes: Array.isArray(promptRules?.product_positioning_notes)
-      ? promptRules.product_positioning_notes.filter((item): item is string => typeof item === "string")
-      : [],
-  } satisfies PromptPackPromptRulesJson;
+  const { promptPack, product, latestAnchor, promptContext, affiliateProfile } = context;
+  const visualReferences = buildPromptReferenceCardsFromContext(promptContext);
+  const promptRules = normalizePromptRulePack(buildAffiliateRulePack(affiliateProfile));
+  const baseInstruction = visualReferences.map((reference) => reference.instruction).filter(Boolean).join(" ");
+  const continuityHint = latestAnchor
+    ? `Keep continuity with anchor ${latestAnchor.anchor_code} v${latestAnchor.version}.`
+    : "Keep continuity with the latest product reference.";
 
   return {
     clip_1: {
       slot: "clip_1",
-      prompt_text: `Mock I2V Prompt Clip 1 untuk ${product.product_name} (${promptPack.prompt_code} v${promptPack.version}). Gunakan ${sourceLabel}, ${anchorLabel}, dan ${profileLabel}.`,
+      prompt_text: compactText(
+        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} ${continuityHint}`,
+        420,
+      ),
       visual_references: visualReferences,
-      prompt_rules: promptRulesJson,
+      prompt_rules: promptRules,
       continuity: {
-        first_frame_hint: "Start with a stable product-first opening.",
-        last_frame_hint: "End with continuity toward the product reveal.",
+        first_frame_hint: "Start with the product as the primary anchor.",
+        last_frame_hint: "End with the same product identity and composition.",
       },
     },
     clip_2: {
       slot: "clip_2",
-      prompt_text: `Mock I2V Prompt Clip 2 untuk ${product.product_name}. Lanjutkan identitas produk, kontinuitas anchor, dan aturan personalisasi yang sama.`,
+      prompt_text: compactText(
+        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} Continue with the same product identity, background anchor, and reference order.`,
+        420,
+      ),
       visual_references: visualReferences,
-      prompt_rules: promptRulesJson,
+      prompt_rules: promptRules,
       continuity: {
         first_frame_hint: "Continue from the previous frame with the same character and environment references.",
         last_frame_hint: "Resolve with the same product identity and affiliate style constraints.",
@@ -1142,10 +1098,10 @@ function compactText(value: unknown, maxLength = 480) {
   return compacted.length > maxLength ? `${compacted.slice(0, Math.max(maxLength - 3, 0)).trimEnd()}...` : compacted;
 }
 
-function compactRuleLines(value: string | null | undefined, maxLines = 8, maxLength = 220) {
+function compactRuleLines(value: string | null | undefined, maxLines = 8, maxLength = 220): string[] {
   return splitRuleText(value)
     .map((line) => compactText(line, maxLength))
-    .filter(Boolean)
+    .filter((line): line is string => Boolean(line))
     .slice(0, maxLines);
 }
 
@@ -1164,6 +1120,29 @@ function buildAffiliateRulePack(profile: AffiliateProfileRecord | null) {
   } satisfies JsonObject;
 }
 
+function normalizePromptRulePack(promptRules: JsonObject | null | undefined): PromptPackPromptRulesJson {
+  return {
+    i2i_prompt_rules: Array.isArray(promptRules?.i2i_prompt_rules)
+      ? promptRules.i2i_prompt_rules.filter((item): item is string => typeof item === "string")
+      : [],
+    i2v_prompt_rules: Array.isArray(promptRules?.i2v_prompt_rules)
+      ? promptRules.i2v_prompt_rules.filter((item): item is string => typeof item === "string")
+      : [],
+    caption_rules: Array.isArray(promptRules?.caption_rules)
+      ? promptRules.caption_rules.filter((item): item is string => typeof item === "string")
+      : [],
+    hashtag_rules: Array.isArray(promptRules?.hashtag_rules)
+      ? promptRules.hashtag_rules.filter((item): item is string => typeof item === "string")
+      : [],
+    negative_prompt_rules: Array.isArray(promptRules?.negative_prompt_rules)
+      ? promptRules.negative_prompt_rules.filter((item): item is string => typeof item === "string")
+      : [],
+    product_positioning_notes: Array.isArray(promptRules?.product_positioning_notes)
+      ? promptRules.product_positioning_notes.filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
 function buildReviewedPromptEssentials(context: PromptPackGenerationContext) {
   const metadata = (context.intakeSession?.reviewed_metadata_json ?? {}) as JsonObject;
 
@@ -1180,6 +1159,20 @@ function buildReviewedPromptEssentials(context: PromptPackGenerationContext) {
 
 function buildPromptContextForModel(context: PromptPackGenerationContext) {
   const profile = context.affiliateProfile;
+  const promptRules = buildAffiliateRulePack(profile);
+  const negativePromptRules = buildNegativePromptRules(context);
+  const consistencyRules = buildConsistencyRules(context);
+  const referenceCards = buildPromptReferenceCardsFromContext(context.promptContext);
+  const sourceImage = context.sourceProductImage
+    ? {
+        id: context.sourceProductImage.id,
+        is_primary: context.sourceProductImage.is_primary,
+        status: context.sourceProductImage.status,
+        source_type: context.sourceProductImage.source_type,
+        drive_item_ref_id: context.sourceProductImage.drive_item_ref_id,
+        drive_item_name: context.sourceProductImageDriveItemName,
+      }
+    : null;
 
   return {
     product: {
@@ -1200,6 +1193,17 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
         }
       : null,
     reviewed_prompt_essentials: buildReviewedPromptEssentials(context),
+    prompt_rules: promptRules,
+    negative_prompt_rules: negativePromptRules,
+    consistency_rules: consistencyRules,
+    reference_cards: referenceCards,
+    prompt_writing_contract: {
+      mode: "I2I_JSON",
+      mention_format: "@original_file_name",
+      subject_priority: ["PRODUCT", "ENVIRONMENT", "CHARACTER"],
+      max_prompt_sentences: 2,
+      no_raw_analysis_json: true,
+    },
     affiliate_profile: profile
       ? {
           id: profile.id,
@@ -1209,22 +1213,20 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
           account_label: profile.account_label,
           niche: profile.niche,
           affiliate_url: profile.affiliate_url,
-          rules: buildAffiliateRulePack(profile),
+          rules: promptRules,
           seed_character: {
             locked: profile.lock_seed_character,
             notes: compactText(profile.seed_character_notes),
             drive_item_ref_id: profile.seed_character_drive_item_ref_id,
-            analysis_json: profile.seed_character_analysis_json,
           },
           environment: {
             locked: profile.lock_environment,
             notes: compactText(profile.environment_notes),
             drive_item_ref_id: profile.environment_drive_item_ref_id,
-            analysis_json: profile.environment_analysis_json,
           },
         }
       : null,
-    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage),
+    source_image: sourceImage,
     marketplace_sources: context.marketplaceSources.slice(0, 6).map((source) => ({
       platform: source.platform,
       title: compactText(source.title, 180),
@@ -1243,7 +1245,7 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
       : null,
     visual_parsing_mode: "CACHED_JSON_METADATA",
     image_bytes_available: false,
-    source_fallback_reason: "Prompt generation uses reviewed metadata, cached asset JSON, and Drive references only; do not claim fresh visual parsing from links.",
+    source_fallback_reason: "Prompt generation uses reviewed metadata, cached asset JSON, reference cards, and Drive reference IDs only; do not claim fresh visual parsing from links.",
   } satisfies JsonObject;
 }
 
@@ -1257,8 +1259,12 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "You are generating a structured prompt pack for a single-owner affiliate content workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
     "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
-    "Do not emit prompt_context, target_marketplace, seed_character, environment, prompt_rules, or visual_references. The server injects those after validation.",
+    "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, or visual_references. The server injects those after validation.",
     "If image_bytes_available is false, use cached JSON metadata only and do not claim live visual parsing from links.",
+    "Use prompt_context_for_model.reference_cards as the canonical visual guide.",
+    "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Reuse the instruction almost verbatim and keep prompt_text short.",
+    "reference_cards are ordered CHARACTER, ENVIRONMENT, PRODUCT. PRODUCT is the primary subject. CHARACTER is support only. ENVIRONMENT is the background anchor.",
+    "Write each prompt_text as a short, direct image-to-image instruction. Use the mention values exactly as written and keep the text compact. Do not copy raw JSON blocks into prompt_text.",
     "Apply affiliate rules explicitly; they are validated as mandatory before generation:",
     "- i2i_prompt_rules must shape every i2i_prompts.clip_n.first_frame.prompt_text and i2i_prompts.clip_n.last_frame.prompt_text.",
     "- i2v_prompt_rules must shape every i2v_prompts.clip_n.prompt_text.",
@@ -1273,7 +1279,7 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "Each i2v clip object must include slot, prompt_text, and continuity.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
     "product_analysis.product must echo the source product fields from prompt_context_for_model.product and must copy product.status exactly from the source product record.",
-    "product_analysis.source_image must echo the source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, source_image.drive_item_ref_id, and source_image.analysis_json exactly.",
+    "product_analysis.source_image must echo the compact source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, and source_image.drive_item_ref_id exactly. Do not expand source_image.analysis_json; the server restores cached analysis JSON.",
     "caption must be a shared caption string.",
     "tags must be one compact hashtag string.",
     "negative_prompt_rules and consistency_rules must each be arrays of strings.",
@@ -1313,7 +1319,9 @@ function buildPromptPackRepairPrompt(
     "You are repairing a Gemini prompt-pack response into the compact JSON contract.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
     "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
-    "Do not emit prompt_context, target_marketplace, seed_character, or environment.",
+    "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, or visual_references.",
+    "Keep the repaired output compact and image-to-image ready. Use mention-based references and avoid raw JSON analysis blocks.",
+    "Use prompt_context_for_model.reference_cards as the visual reference source when repairing prompt text.",
     "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
     "Use the provided context to normalize structure; do not invent new assets or rules.",
     `Repair reason: ${repairReason || "schema mismatch"}.`,
@@ -1481,6 +1489,8 @@ export async function completePromptPackFromMockTask(promptPackId: string, taskI
     latestAnchor: context.latestAnchor,
     marketplaceSources: context.marketplaceSources,
     sourceProductImage: context.sourceProductImage,
+    sourceProductImageDriveItemName: context.sourceProductImageDriveItemName,
+    promptContext: context.promptContext,
   };
 
   const outputJson = {
@@ -1669,7 +1679,10 @@ async function repairPromptPackGenerationOutput(input: {
       return {
         outputJson: parsePromptPackGenerationOutput(response.text, {
           fallbackProductStatus: input.context.product.status,
-          fallbackSourceImage: buildPromptSourceImageSnapshot(input.context.sourceProductImage),
+          fallbackSourceImage: buildPromptSourceImageSnapshot(
+            input.context.sourceProductImage,
+            input.context.sourceProductImageDriveItemName,
+          ),
           serverPromptContext: input.context.promptContext,
         }),
         selectedKeySelection: selection,
@@ -1824,7 +1837,10 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
       try {
         outputJson = parsePromptPackGenerationOutput(response.text, {
           fallbackProductStatus: context.product.status,
-          fallbackSourceImage: buildPromptSourceImageSnapshot(context.sourceProductImage),
+          fallbackSourceImage: buildPromptSourceImageSnapshot(
+            context.sourceProductImage,
+            context.sourceProductImageDriveItemName,
+          ),
           serverPromptContext: context.promptContext,
         });
       } catch (parseError) {
