@@ -1,4 +1,5 @@
 import { INTAKE_VISION_PROMPT_VERSION, INTAKE_VISION_SCHEMA_VERSION } from "@/lib/intake/vision-contract";
+import { PROMPT_PACK_I2V_TIMELINE_WINDOWS } from "@/lib/prompts/prompt-pack-contract";
 
 type JsonSchema = {
   type: string | readonly string[];
@@ -322,13 +323,42 @@ function buildCompactI2IClipPromptSchema(slot: "clip_1" | "clip_2") {
   } as const satisfies JsonSchema;
 }
 
+const compactI2VTimelineSegmentSchema = {
+  type: "object",
+  required: ["time", "action"],
+  properties: {
+    time: {
+      type: "string",
+      enum: PROMPT_PACK_I2V_TIMELINE_WINDOWS,
+    },
+    action: stringSchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
 function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2") {
   return {
     type: "object",
-    required: ["slot", "prompt_text", "continuity"],
+    required: [
+      "slot",
+      "prompt_text",
+      "duration_seconds",
+      "timeline",
+      "motion_prompt",
+      "camera_motion",
+      "continuity",
+      "negative_prompt",
+    ],
     properties: {
       slot: { type: "string", enum: [slot] },
       prompt_text: stringSchema,
+      duration_seconds: { type: "number" },
+      timeline: {
+        type: "array",
+        items: compactI2VTimelineSegmentSchema,
+      },
+      motion_prompt: stringSchema,
+      camera_motion: stringSchema,
       continuity: {
         type: "object",
         required: ["first_frame_hint", "last_frame_hint"],
@@ -338,6 +368,7 @@ function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2") {
         },
         additionalProperties: false,
       },
+      negative_prompt: stringSchema,
     },
     additionalProperties: false,
   } as const satisfies JsonSchema;

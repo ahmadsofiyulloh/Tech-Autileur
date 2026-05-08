@@ -65,12 +65,34 @@ export type PromptPackPromptRulesJson = {
   product_positioning_notes: string[];
 };
 
+export const PROMPT_PACK_COPY_SCHEMA_VERSION = "prompt_pack_v2" as const;
+
+export const PROMPT_PACK_I2V_DURATION_SECONDS = 8 as const;
+
+export const PROMPT_PACK_I2V_TIMELINE_WINDOWS = [
+  "00:00-00:02",
+  "00:02-00:04",
+  "00:04-00:06",
+  "00:06-00:08",
+] as const;
+
+export type PromptPackI2IStage = "i2i_first_frame" | "i2i_last_frame";
+
+export type PromptPackI2VTimelineWindow = (typeof PROMPT_PACK_I2V_TIMELINE_WINDOWS)[number];
+
+export type PromptPackI2VTimelineSegmentJson = {
+  time: PromptPackI2VTimelineWindow;
+  action: string;
+};
+
 export type PromptPackI2IFramePromptJson = {
+  schema_version: typeof PROMPT_PACK_COPY_SCHEMA_VERSION;
   slot: PromptClipKey;
-  frame: "first_frame" | "last_frame";
+  stage: PromptPackI2IStage;
+  image_inputs: string[];
   prompt_text: string;
-  visual_references: PromptPackVisualReferenceJson[];
-  prompt_rules: PromptPackPromptRulesJson;
+  must_keep: string[];
+  must_avoid: string[];
 };
 
 export type PromptPackI2IClipJson = {
@@ -80,14 +102,17 @@ export type PromptPackI2IClipJson = {
 };
 
 export type PromptPackI2VPromptJson = {
+  schema_version: typeof PROMPT_PACK_COPY_SCHEMA_VERSION;
   slot: PromptClipKey;
+  stage: "i2v";
+  duration_seconds: typeof PROMPT_PACK_I2V_DURATION_SECONDS;
+  frame_inputs: ["@firstframe", "@lastframe"];
+  timeline: PromptPackI2VTimelineSegmentJson[];
+  motion_prompt: string;
+  camera_motion: string;
   prompt_text: string;
-  visual_references: PromptPackVisualReferenceJson[];
-  prompt_rules: PromptPackPromptRulesJson;
-  continuity: {
-    first_frame_hint: string;
-    last_frame_hint: string;
-  };
+  continuity: string;
+  negative_prompt: string;
 };
 
 export type PromptPackGenerationOutput = {
@@ -119,10 +144,15 @@ type PromptPackCompactI2IClipJson = {
 type PromptPackCompactI2VPromptJson = {
   slot: PromptClipKey;
   prompt_text: string;
+  duration_seconds: typeof PROMPT_PACK_I2V_DURATION_SECONDS;
+  timeline: PromptPackI2VTimelineSegmentJson[];
+  motion_prompt: string;
+  camera_motion: string;
   continuity: {
     first_frame_hint: string;
     last_frame_hint: string;
   };
+  negative_prompt: string;
 };
 
 type PromptPackCompactGenerationOutput = {
@@ -657,27 +687,184 @@ function buildFallbackPromptText(input: {
   rules: PromptPackPromptRulesJson;
   continuity?: { first_frame_hint: string; last_frame_hint: string };
 }) {
-  const referenceLabel = input.visualReferences
-    .map((reference) => reference.instruction || `${reference.mention} (${reference.role})`)
-    .filter((item) => item.length > 0)
-    .join(" ");
-  const ruleCount =
-    input.kind === "I2I"
-      ? input.rules.i2i_prompt_rules.length
-      : input.rules.i2v_prompt_rules.length;
-  const ruleLabel = ruleCount ? `${ruleCount} rules` : "no account rules";
+  const productReference = input.visualReferences.find((reference) => reference.kind === "PRODUCT");
+  const productLabel = productReference?.summary || input.productName;
+  const clipObjective = buildClipObjective(input.clipKey);
 
   if (input.kind === "I2I") {
     return compactText(
-      `${input.productName} ${input.promptCode} v${input.version} ${input.frame ?? "first_frame"}. ${referenceLabel} Follow ${ruleLabel}.`,
+      `${input.productName} ${input.promptCode} v${input.version} ${input.frame ?? "first_frame"}. ${clipObjective}. Show ${productLabel} clearly with locked character, outfit, lighting, and industrial warm-orange room continuity.`,
       360,
     );
   }
 
   return compactText(
-    `${input.productName} ${input.promptCode} v${input.version}. ${referenceLabel} Keep continuity ${input.continuity?.first_frame_hint || "first frame"} -> ${input.continuity?.last_frame_hint || "last frame"} with ${ruleLabel}.`,
+    `${input.productName} ${input.promptCode} v${input.version}. ${clipObjective}. Animate only from @firstframe to @lastframe for 8 seconds, preserving product graphics, character identity, lighting, and background continuity.`,
     360,
   );
+}
+
+function dedupeCompactList(items: string[], maxItems: number, maxLength = 160) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const item of items) {
+    const compacted = compactText(item, maxLength);
+
+    if (!compacted || seen.has(compacted.toLowerCase())) {
+      continue;
+    }
+
+    seen.add(compacted.toLowerCase());
+    result.push(compacted);
+
+    if (result.length >= maxItems) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+function buildClipObjective(clipKey: PromptClipKey) {
+  return clipKey === "clip_1"
+    ? "Clip 1 hook/hero look: relaxed confident full outfit reveal"
+    : "Clip 2 detail/benefit/use-case look: emphasize polo fit, fabric, and readable front graphic";
+}
+
+function readReferenceByKind(
+  visualReferences: PromptPackVisualReferenceJson[],
+  kind: PromptPackVisualReferenceKind,
+) {
+  return visualReferences.find((reference) => reference.kind === kind) ?? null;
+}
+
+function readProductMention(visualReferences: PromptPackVisualReferenceJson[]) {
+  return readString(readReferenceByKind(visualReferences, "PRODUCT")?.mention) || "@product";
+}
+
+function buildI2IImageInputs(frame: "first_frame" | "last_frame", visualReferences: PromptPackVisualReferenceJson[]) {
+  if (frame === "last_frame") {
+    return ["@firstframe"];
+  }
+
+  return ["@character", "@environment", readProductMention(visualReferences)];
+}
+
+function buildI2IMustKeep(input: {
+  clipKey: PromptClipKey;
+  frame: "first_frame" | "last_frame";
+  visualReferences: PromptPackVisualReferenceJson[];
+  productName: string;
+}) {
+  const productReference = readReferenceByKind(input.visualReferences, "PRODUCT");
+  const environmentReference = readReferenceByKind(input.visualReferences, "ENVIRONMENT");
+  const characterReference = readReferenceByKind(input.visualReferences, "CHARACTER");
+  const frameInstruction =
+    input.frame === "first_frame"
+      ? "Use @character, @environment, and the product reference together in one coherent fashion frame."
+      : "Use only @firstframe as the visual source; adjust pose/framing lightly without redesigning identity or outfit.";
+
+  return dedupeCompactList(
+    [
+      frameInstruction,
+      buildClipObjective(input.clipKey),
+      `Primary product must remain ${productReference?.summary || input.productName}.`,
+      ...(productReference?.must_keep ?? []),
+      characterReference?.summary ? `Preserve character identity: ${characterReference.summary}.` : "",
+      environmentReference?.summary ? `Preserve environment mood: ${environmentReference.summary}.` : "",
+      "Keep product color, collar shape, short sleeves, fabric texture, and front graphic placement stable.",
+    ],
+    8,
+  );
+}
+
+function buildI2IMustAvoid(input: {
+  frame: "first_frame" | "last_frame";
+  visualReferences: PromptPackVisualReferenceJson[];
+}) {
+  return dedupeCompactList(
+    [
+      ...(input.visualReferences.flatMap((reference) => reference.must_avoid) ?? []),
+      "Do not change the person, hairstyle, body proportions, product color, logo/text placement, room layout, or warm-orange lighting.",
+      input.frame === "last_frame" ? "Do not introduce new image references beyond @firstframe." : "",
+      "Avoid blurry output, warped hands, distorted face, floating limbs, duplicate body parts, and unreadable product graphics.",
+    ],
+    6,
+  );
+}
+
+function buildContinuityText(continuity?: { first_frame_hint: string; last_frame_hint: string }) {
+  const firstHint = readString(continuity?.first_frame_hint) || "first frame";
+  const lastHint = readString(continuity?.last_frame_hint) || "last frame";
+
+  return compactText(`Start at @firstframe (${firstHint}) and end at @lastframe (${lastHint}) with no identity, outfit, product, lighting, or background drift.`, 320);
+}
+
+function buildNegativePrompt(rules: PromptPackPromptRulesJson, override?: string | null) {
+  return compactText(
+    dedupeCompactList(
+      [
+        readString(override),
+        ...rules.negative_prompt_rules,
+        "low quality, blurry, distorted face, identity drift, different person, wrong garment, altered product text, bad anatomy, extra fingers, warped body, flicker, sudden background change",
+      ],
+      8,
+      220,
+    ).join(", "),
+    520,
+  );
+}
+
+function normalizeTimelineAction(value: unknown, fallback: string) {
+  return compactText(readPromptField(value) || fallback, 180);
+}
+
+function buildFallbackTimeline(input: {
+  clipKey: PromptClipKey;
+  continuity?: { first_frame_hint: string; last_frame_hint: string };
+}) {
+  const firstHint = input.continuity?.first_frame_hint || "hold @firstframe composition";
+  const lastHint = input.continuity?.last_frame_hint || "arrive at @lastframe composition";
+  const objective = buildClipObjective(input.clipKey);
+
+  return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => {
+    const action =
+      index === 0
+        ? `Begin from @firstframe: ${firstHint}.`
+        : index === 1
+          ? `${objective}; add subtle model posture shift while preserving product details.`
+          : index === 2
+            ? "Use a controlled slow push-in or slight parallax; keep garment graphics readable."
+            : `Settle into @lastframe: ${lastHint}.`;
+
+    return { time, action: compactText(action, 180) } satisfies PromptPackI2VTimelineSegmentJson;
+  });
+}
+
+function readTimeline(value: unknown, input: {
+  clipKey: PromptClipKey;
+  continuity?: { first_frame_hint: string; last_frame_hint: string };
+}) {
+  const fallback = buildFallbackTimeline(input);
+
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => {
+    const segment = isRecord(value[index]) ? (value[index] as Record<string, unknown>) : {};
+    const providedTime = readString(segment.time);
+
+    if (providedTime && providedTime !== time) {
+      throw new Error(`i2v timeline segment ${index + 1} must use time ${time}.`);
+    }
+
+    return {
+      time,
+      action: normalizeTimelineAction(segment.action, fallback[index].action),
+    } satisfies PromptPackI2VTimelineSegmentJson;
+  });
 }
 
 function buildPromptFramePromptJson(input: {
@@ -690,21 +877,33 @@ function buildPromptFramePromptJson(input: {
   promptCode: string;
   version: number;
 }) {
-  return {
-    slot: input.clipKey,
+  const promptText = readString(input.promptText) || buildFallbackPromptText({
+    kind: "I2I",
+    clipKey: input.clipKey,
     frame: input.frame,
-    prompt_text: readString(input.promptText) || buildFallbackPromptText({
-      kind: "I2I",
+    productName: input.productName,
+    promptCode: input.promptCode,
+    version: input.version,
+    visualReferences: input.visualReferences,
+    rules: input.rules,
+  });
+
+  return {
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot: input.clipKey,
+    stage: input.frame === "first_frame" ? "i2i_first_frame" : "i2i_last_frame",
+    image_inputs: buildI2IImageInputs(input.frame, input.visualReferences),
+    prompt_text: promptText,
+    must_keep: buildI2IMustKeep({
       clipKey: input.clipKey,
       frame: input.frame,
-      productName: input.productName,
-      promptCode: input.promptCode,
-      version: input.version,
       visualReferences: input.visualReferences,
-      rules: input.rules,
+      productName: input.productName,
     }),
-    visual_references: input.visualReferences,
-    prompt_rules: input.rules,
+    must_avoid: buildI2IMustAvoid({
+      frame: input.frame,
+      visualReferences: input.visualReferences,
+    }),
   } satisfies PromptPackI2IFramePromptJson;
 }
 
@@ -717,22 +916,40 @@ function buildPromptI2VPromptJson(input: {
   promptCode: string;
   version: number;
   continuity?: { first_frame_hint: string; last_frame_hint: string };
+  timeline?: PromptPackI2VTimelineSegmentJson[] | null;
+  motionPrompt?: string | null;
+  cameraMotion?: string | null;
+  negativePrompt?: string | null;
 }) {
+  const promptText = readString(input.promptText) || buildFallbackPromptText({
+    kind: "I2V",
+    clipKey: input.clipKey,
+    productName: input.productName,
+    promptCode: input.promptCode,
+    version: input.version,
+    visualReferences: input.visualReferences,
+    rules: input.rules,
+    continuity: input.continuity,
+  });
+  const continuity = buildContinuityText(input.continuity);
+
   return {
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
     slot: input.clipKey,
-    prompt_text: readString(input.promptText) || buildFallbackPromptText({
-      kind: "I2V",
+    stage: "i2v",
+    duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+    frame_inputs: ["@firstframe", "@lastframe"],
+    timeline: readTimeline(input.timeline, {
       clipKey: input.clipKey,
-      productName: input.productName,
-      promptCode: input.promptCode,
-      version: input.version,
-      visualReferences: input.visualReferences,
-      rules: input.rules,
       continuity: input.continuity,
     }),
-    visual_references: input.visualReferences,
-    prompt_rules: input.rules,
-    continuity: input.continuity ?? { first_frame_hint: "", last_frame_hint: "" },
+    motion_prompt: readString(input.motionPrompt) || promptText,
+    camera_motion:
+      readString(input.cameraMotion) ||
+      "Natural slow push-in with subtle handheld parallax; no hard cuts, no fast zoom, no scene jump.",
+    prompt_text: promptText,
+    continuity,
+    negative_prompt: buildNegativePrompt(input.rules, input.negativePrompt),
   } satisfies PromptPackI2VPromptJson;
 }
 
@@ -1253,11 +1470,28 @@ function requireCompactI2VPromptJson(
   version: number,
 ) {
   const record = requireRecord(value, label);
-  requireExactKeys(record, ["slot", "prompt_text", "continuity"], label);
+  requireExactKeys(
+    record,
+    [
+      "slot",
+      "prompt_text",
+      "duration_seconds",
+      "timeline",
+      "motion_prompt",
+      "camera_motion",
+      "continuity",
+      "negative_prompt",
+    ],
+    label,
+  );
   const slot = requirePromptClipKey(record.slot, `${label}.slot`);
 
   if (slot !== clipKey) {
     throw new Error(`${label}.slot must equal ${clipKey}.`);
+  }
+
+  if (requireNumber(record.duration_seconds, `${label}.duration_seconds`) !== PROMPT_PACK_I2V_DURATION_SECONDS) {
+    throw new Error(`${label}.duration_seconds must equal ${PROMPT_PACK_I2V_DURATION_SECONDS}.`);
   }
 
   const continuity = isRecord(record.continuity) ? (record.continuity as Record<string, unknown>) : {};
@@ -1274,6 +1508,16 @@ function requireCompactI2VPromptJson(
       first_frame_hint: requireString(continuity.first_frame_hint, `${label}.continuity.first_frame_hint`),
       last_frame_hint: requireString(continuity.last_frame_hint, `${label}.continuity.last_frame_hint`),
     },
+    timeline: readTimeline(record.timeline, {
+      clipKey,
+      continuity: {
+        first_frame_hint: requireString(continuity.first_frame_hint, `${label}.continuity.first_frame_hint`),
+        last_frame_hint: requireString(continuity.last_frame_hint, `${label}.continuity.last_frame_hint`),
+      },
+    }),
+    motionPrompt: requireString(record.motion_prompt, `${label}.motion_prompt`),
+    cameraMotion: requireString(record.camera_motion, `${label}.camera_motion`),
+    negativePrompt: requireString(record.negative_prompt, `${label}.negative_prompt`),
   });
 }
 
@@ -1335,6 +1579,68 @@ function requireCompactI2VPromptMap(
   );
 }
 
+function requireCopySchemaVersion(value: unknown, label: string) {
+  const schemaVersion = requireString(value, label);
+
+  if (schemaVersion !== PROMPT_PACK_COPY_SCHEMA_VERSION) {
+    throw new Error(`${label} must equal ${PROMPT_PACK_COPY_SCHEMA_VERSION}.`);
+  }
+
+  return schemaVersion;
+}
+
+function requireI2IStageForFrame(value: unknown, label: string, frame: "first_frame" | "last_frame") {
+  const stage = requireString(value, label);
+  const expected = frame === "first_frame" ? "i2i_first_frame" : "i2i_last_frame";
+
+  if (stage !== expected) {
+    throw new Error(`${label} must equal ${expected}.`);
+  }
+
+  return stage as PromptPackI2IStage;
+}
+
+function requireI2IImageInputs(value: unknown, label: string, frame: "first_frame" | "last_frame") {
+  const imageInputs = requireStringArray(value, label);
+
+  if (frame === "last_frame") {
+    if (imageInputs.length !== 1 || imageInputs[0] !== "@firstframe") {
+      throw new Error(`${label} must contain exactly @firstframe for i2i_last_frame.`);
+    }
+
+    return imageInputs;
+  }
+
+  if (
+    imageInputs.length !== 3 ||
+    imageInputs[0] !== "@character" ||
+    imageInputs[1] !== "@environment" ||
+    !imageInputs[2].startsWith("@")
+  ) {
+    throw new Error(`${label} must contain @character, @environment, and one product mention for i2i_first_frame.`);
+  }
+
+  return imageInputs;
+}
+
+function requireI2VFrameInputs(value: unknown, label: string): ["@firstframe", "@lastframe"] {
+  const frameInputs = requireStringArray(value, label);
+
+  if (frameInputs.length !== 2 || frameInputs[0] !== "@firstframe" || frameInputs[1] !== "@lastframe") {
+    throw new Error(`${label} must contain exactly @firstframe and @lastframe.`);
+  }
+
+  return ["@firstframe", "@lastframe"];
+}
+
+function requireI2VTimeline(value: unknown, label: string, clipKey: PromptClipKey) {
+  if (!Array.isArray(value) || value.length !== PROMPT_PACK_I2V_TIMELINE_WINDOWS.length) {
+    throw new Error(`${label} must contain exactly ${PROMPT_PACK_I2V_TIMELINE_WINDOWS.length} timeline segments.`);
+  }
+
+  return readTimeline(value, { clipKey });
+}
+
 function requireI2IFramePromptJson(value: unknown, label: string, clipKey: PromptClipKey, frame: "first_frame" | "last_frame") {
   const record = requireRecord(value, label);
   const slot = requirePromptClipKey(record.slot, `${label}.slot`);
@@ -1343,19 +1649,43 @@ function requireI2IFramePromptJson(value: unknown, label: string, clipKey: Promp
     throw new Error(`${label}.slot must equal ${clipKey}.`);
   }
 
+  if (record.schema_version === PROMPT_PACK_COPY_SCHEMA_VERSION) {
+    requireExactKeys(
+      record,
+      ["schema_version", "slot", "stage", "image_inputs", "prompt_text", "must_keep", "must_avoid"],
+      label,
+    );
+
+    return {
+      schema_version: requireCopySchemaVersion(record.schema_version, `${label}.schema_version`),
+      slot,
+      stage: requireI2IStageForFrame(record.stage, `${label}.stage`, frame),
+      image_inputs: requireI2IImageInputs(record.image_inputs, `${label}.image_inputs`, frame),
+      prompt_text: requireString(record.prompt_text, `${label}.prompt_text`),
+      must_keep: requireStringArray(record.must_keep, `${label}.must_keep`),
+      must_avoid: requireStringArray(record.must_avoid, `${label}.must_avoid`),
+    } satisfies PromptPackI2IFramePromptJson;
+  }
+
   const nextFrame = requireString(record.frame, `${label}.frame`);
 
   if (nextFrame !== frame) {
     throw new Error(`${label}.frame must equal ${frame}.`);
   }
 
-  return {
-    slot,
+  const visualReferences = requirePromptVisualReferencesJson(record.visual_references, `${label}.visual_references`);
+  const rules = requirePromptRulesJson(record.prompt_rules, `${label}.prompt_rules`);
+
+  return buildPromptFramePromptJson({
+    clipKey,
     frame: nextFrame,
-    prompt_text: requireString(record.prompt_text, `${label}.prompt_text`),
-    visual_references: requirePromptVisualReferencesJson(record.visual_references, `${label}.visual_references`),
-    prompt_rules: requirePromptRulesJson(record.prompt_rules, `${label}.prompt_rules`),
-  } satisfies PromptPackI2IFramePromptJson;
+    promptText: requireString(record.prompt_text, `${label}.prompt_text`),
+    visualReferences,
+    rules,
+    productName: readReferenceByKind(visualReferences, "PRODUCT")?.summary || "",
+    promptCode: "",
+    version: 1,
+  });
 }
 
 function requireI2IPromptJson(value: unknown, label: string, clipKey: PromptClipKey) {
@@ -1381,18 +1711,67 @@ function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClip
     throw new Error(`${label}.slot must equal ${clipKey}.`);
   }
 
-  const continuity = isRecord(record.continuity) ? (record.continuity as Record<string, unknown>) : {};
+  if (record.schema_version === PROMPT_PACK_COPY_SCHEMA_VERSION) {
+    requireExactKeys(
+      record,
+      [
+        "schema_version",
+        "slot",
+        "stage",
+        "duration_seconds",
+        "frame_inputs",
+        "timeline",
+        "motion_prompt",
+        "camera_motion",
+        "prompt_text",
+        "continuity",
+        "negative_prompt",
+      ],
+      label,
+    );
 
-  return {
-    slot,
-    prompt_text: requireString(record.prompt_text, `${label}.prompt_text`),
-    visual_references: requirePromptVisualReferencesJson(record.visual_references, `${label}.visual_references`),
-    prompt_rules: requirePromptRulesJson(record.prompt_rules, `${label}.prompt_rules`),
+    const stage = requireString(record.stage, `${label}.stage`);
+
+    if (stage !== "i2v") {
+      throw new Error(`${label}.stage must equal i2v.`);
+    }
+
+    if (requireNumber(record.duration_seconds, `${label}.duration_seconds`) !== PROMPT_PACK_I2V_DURATION_SECONDS) {
+      throw new Error(`${label}.duration_seconds must equal ${PROMPT_PACK_I2V_DURATION_SECONDS}.`);
+    }
+
+    return {
+      schema_version: requireCopySchemaVersion(record.schema_version, `${label}.schema_version`),
+      slot,
+      stage,
+      duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+      frame_inputs: requireI2VFrameInputs(record.frame_inputs, `${label}.frame_inputs`),
+      timeline: requireI2VTimeline(record.timeline, `${label}.timeline`, clipKey),
+      motion_prompt: requireString(record.motion_prompt, `${label}.motion_prompt`),
+      camera_motion: requireString(record.camera_motion, `${label}.camera_motion`),
+      prompt_text: requireString(record.prompt_text, `${label}.prompt_text`),
+      continuity: requireString(record.continuity, `${label}.continuity`),
+      negative_prompt: requireString(record.negative_prompt, `${label}.negative_prompt`),
+    } satisfies PromptPackI2VPromptJson;
+  }
+
+  const continuity = isRecord(record.continuity) ? (record.continuity as Record<string, unknown>) : {};
+  const visualReferences = requirePromptVisualReferencesJson(record.visual_references, `${label}.visual_references`);
+  const rules = requirePromptRulesJson(record.prompt_rules, `${label}.prompt_rules`);
+
+  return buildPromptI2VPromptJson({
+    clipKey,
+    promptText: requireString(record.prompt_text, `${label}.prompt_text`),
+    visualReferences,
+    rules,
+    productName: readReferenceByKind(visualReferences, "PRODUCT")?.summary || "",
+    promptCode: "",
+    version: 1,
     continuity: {
       first_frame_hint: requireString(continuity.first_frame_hint, `${label}.continuity.first_frame_hint`),
       last_frame_hint: requireString(continuity.last_frame_hint, `${label}.continuity.last_frame_hint`),
     },
-  } satisfies PromptPackI2VPromptJson;
+  });
 }
 
 function requireI2IPromptMap(value: unknown) {
@@ -1595,6 +1974,10 @@ function readPromptFrameSnapshot(
   const record = parseRecordValue(value);
 
   if (record) {
+    if (record.schema_version === PROMPT_PACK_COPY_SCHEMA_VERSION) {
+      return requireI2IFramePromptJson(record, `${fallback.clipKey}.${fallback.frame}`, fallback.clipKey, fallback.frame);
+    }
+
     const promptText =
       readPromptField(record.prompt_text) ||
       readPromptField(record.prompt) ||
@@ -1643,6 +2026,10 @@ function readPromptI2VSnapshot(
   const record = parseRecordValue(value);
 
   if (record) {
+    if (record.schema_version === PROMPT_PACK_COPY_SCHEMA_VERSION) {
+      return requireI2VPromptJson(record, `${fallback.clipKey}.i2v_prompt`, fallback.clipKey);
+    }
+
     const promptText = readPromptField(record.prompt_text) || readPromptField(record.prompt);
     const visualReferences = readPromptVisualReferencesSnapshot(record.visual_references, fallback.visualReferences);
     const rules = readPromptRulesSnapshotFromValue(record.prompt_rules, fallback.rules);

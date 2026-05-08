@@ -39,6 +39,9 @@ import {
   isGeminiTransientFailure,
 } from "@/lib/server/gemini-failure-policy";
 import {
+  PROMPT_PACK_COPY_SCHEMA_VERSION,
+  PROMPT_PACK_I2V_DURATION_SECONDS,
+  PROMPT_PACK_I2V_TIMELINE_WINDOWS,
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
   readPromptPackEditorPromptSet,
@@ -497,11 +500,22 @@ function buildPromptContextSnapshot(context: {
     ...promptContext,
     reference_cards: buildPromptReferenceCardsFromContext(promptContext),
     prompt_writing_contract: {
-      mode: "I2I_JSON",
-      mention_format: "@original_file_name",
-      subject_priority: ["PRODUCT", "ENVIRONMENT", "CHARACTER"],
-      max_prompt_sentences: 2,
+      mode: "FLOW_I2I_I2V_PROMPT_PACK_V2",
+      schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+      first_frame_image_inputs: ["@character", "@environment", "@product"],
+      last_frame_image_inputs: ["@firstframe"],
+      i2v_frame_inputs: ["@firstframe", "@lastframe"],
+      i2v_duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+      i2v_timeline_windows: [...PROMPT_PACK_I2V_TIMELINE_WINDOWS],
+      clip_roles: {
+        clip_1: "hook/hero look",
+        clip_2: "detail/benefit/use-case look",
+      },
+      mention_format: "@original_file_name for product, @character and @environment for locked profile references",
+      subject_priority: ["PRODUCT", "CHARACTER", "ENVIRONMENT"],
+      max_prompt_sentences: 3,
       no_raw_analysis_json: true,
+      no_raw_prompt_rules_in_output: true,
     },
   } satisfies JsonObject;
 }
@@ -864,100 +878,207 @@ function assertAffiliateProfileReadyForPromptGeneration(profile: AffiliateProfil
   }
 }
 
+function buildMockClipObjective(clipKey: "clip_1" | "clip_2") {
+  return clipKey === "clip_1"
+    ? "hook/hero look with relaxed confident full outfit reveal"
+    : "detail/benefit/use-case look focused on polo fit, fabric, and readable front graphic";
+}
+
+function readProductReference(visualReferences: PromptPackVisualReferenceJson[]) {
+  return visualReferences.find((reference) => reference.kind === "PRODUCT") ?? null;
+}
+
+function readProductMentionForPrompt(visualReferences: PromptPackVisualReferenceJson[]) {
+  return readText(readProductReference(visualReferences)?.mention) || "@product";
+}
+
+function buildMockI2IMustKeep(input: {
+  clipKey: "clip_1" | "clip_2";
+  frame: "first_frame" | "last_frame";
+  productName: string;
+  visualReferences: PromptPackVisualReferenceJson[];
+}) {
+  const productReference = readProductReference(input.visualReferences);
+  const frameRule =
+    input.frame === "first_frame"
+      ? "Use @character, @environment, and the product reference together in one coherent fashion image."
+      : "Use only @firstframe as the visual source and change only the final pose/framing endpoint.";
+
+  return [
+    frameRule,
+    buildMockClipObjective(input.clipKey),
+    `Keep the product accurate: ${productReference?.summary || input.productName}.`,
+    ...((productReference?.must_keep ?? []).slice(0, 3)),
+    "Preserve character identity, product color, collar, short sleeves, fabric texture, front graphic placement, warm-orange lighting, and industrial room continuity.",
+  ];
+}
+
+function buildMockI2IMustAvoid(frame: "first_frame" | "last_frame") {
+  return [
+    "Do not change the person, hairstyle, body proportions, product color, front graphic placement, room layout, or warm-orange lighting.",
+    frame === "last_frame" ? "Do not introduce @character, @environment, or product reference images again; use @firstframe only." : "Do not ignore any of the three required image inputs.",
+    "Avoid blurry output, distorted face, warped hands, duplicate limbs, and unreadable product graphics.",
+  ];
+}
+
+function buildMockTimeline(clipKey: "clip_1" | "clip_2") {
+  const objective = buildMockClipObjective(clipKey);
+
+  return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => {
+    const action =
+      index === 0
+        ? `Begin from @firstframe and hold the established character, outfit, lighting, and room.`
+        : index === 1
+          ? `${objective}; add a subtle posture shift without changing product details.`
+          : index === 2
+            ? "Use slow controlled camera movement with slight parallax; keep the polo graphic readable."
+            : "Settle naturally into @lastframe with the same identity, product, and background.";
+
+    return { time, action };
+  });
+}
+
+function buildMockNegativePrompt(promptRules: PromptPackPromptRulesJson) {
+  const base = [
+    ...promptRules.negative_prompt_rules,
+    "low quality, blurry, distorted face, identity drift, different person, wrong garment, altered product text, bad anatomy, extra fingers, flicker, scene jump",
+  ];
+
+  return base.filter(Boolean).join(", ");
+}
+
 function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2i_prompts"] {
   const { promptPack, product, latestAnchor, promptContext, affiliateProfile } = context;
   const visualReferences = buildPromptReferenceCardsFromContext(promptContext);
   const promptRules = normalizePromptRulePack(buildAffiliateRulePack(affiliateProfile));
-  const baseInstruction = visualReferences.map((reference) => reference.instruction).filter(Boolean).join(" ");
   const continuityInstruction = latestAnchor
     ? `Keep continuity with anchor ${latestAnchor.anchor_code} v${latestAnchor.version}.`
     : "Keep continuity with the latest product reference.";
+  const productMention = readProductMentionForPrompt(visualReferences);
 
   return {
     clip_1: {
       slot: "clip_1",
       first_frame: {
+        schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
         slot: "clip_1",
-        frame: "first_frame",
+        stage: "i2i_first_frame",
+        image_inputs: ["@character", "@environment", productMention],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} ${continuityInstruction}`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Create a ${buildMockClipObjective("clip_1")} in the locked industrial warm-orange room. ${continuityInstruction}`,
           420,
         ),
-        visual_references: visualReferences,
-        prompt_rules: promptRules,
+        must_keep: buildMockI2IMustKeep({
+          clipKey: "clip_1",
+          frame: "first_frame",
+          productName: product.product_name,
+          visualReferences,
+        }),
+        must_avoid: buildMockI2IMustAvoid("first_frame"),
       },
       last_frame: {
+        schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
         slot: "clip_1",
-        frame: "last_frame",
+        stage: "i2i_last_frame",
+        image_inputs: ["@firstframe"],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} Keep the same subject, composition, and visual identity through the last frame.`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use @firstframe only and create the ending pose for the ${buildMockClipObjective("clip_1")}; keep identity, product, lighting, and room stable.`,
           420,
         ),
-        visual_references: visualReferences,
-        prompt_rules: promptRules,
+        must_keep: buildMockI2IMustKeep({
+          clipKey: "clip_1",
+          frame: "last_frame",
+          productName: product.product_name,
+          visualReferences,
+        }),
+        must_avoid: buildMockI2IMustAvoid("last_frame"),
       },
     },
     clip_2: {
       slot: "clip_2",
       first_frame: {
+        schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
         slot: "clip_2",
-        frame: "first_frame",
+        stage: "i2i_first_frame",
+        image_inputs: ["@character", "@environment", productMention],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} PRODUCT stays primary and readable.`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Create a ${buildMockClipObjective("clip_2")} in the same locked industrial warm-orange room. PRODUCT stays primary and readable.`,
           420,
         ),
-        visual_references: visualReferences,
-        prompt_rules: promptRules,
+        must_keep: buildMockI2IMustKeep({
+          clipKey: "clip_2",
+          frame: "first_frame",
+          productName: product.product_name,
+          visualReferences,
+        }),
+        must_avoid: buildMockI2IMustAvoid("first_frame"),
       },
       last_frame: {
+        schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
         slot: "clip_2",
-        frame: "last_frame",
+        stage: "i2i_last_frame",
+        image_inputs: ["@firstframe"],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} End with a clean, product-first composition.`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use @firstframe only and end with a clean product-first composition for the ${buildMockClipObjective("clip_2")}.`,
           420,
         ),
-        visual_references: visualReferences,
-        prompt_rules: promptRules,
+        must_keep: buildMockI2IMustKeep({
+          clipKey: "clip_2",
+          frame: "last_frame",
+          productName: product.product_name,
+          visualReferences,
+        }),
+        must_avoid: buildMockI2IMustAvoid("last_frame"),
       },
     },
   } as PromptPackGenerationOutput["i2i_prompts"];
 }
 
 function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2v_prompts"] {
-  const { promptPack, product, latestAnchor, promptContext, affiliateProfile } = context;
-  const visualReferences = buildPromptReferenceCardsFromContext(promptContext);
+  const { promptPack, product, latestAnchor, affiliateProfile } = context;
   const promptRules = normalizePromptRulePack(buildAffiliateRulePack(affiliateProfile));
-  const baseInstruction = visualReferences.map((reference) => reference.instruction).filter(Boolean).join(" ");
   const continuityHint = latestAnchor
     ? `Keep continuity with anchor ${latestAnchor.anchor_code} v${latestAnchor.version}.`
     : "Keep continuity with the latest product reference.";
 
   return {
     clip_1: {
+      schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       slot: "clip_1",
-      prompt_text: compactText(
-        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} ${continuityHint}`,
+      stage: "i2v",
+      duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+      frame_inputs: ["@firstframe", "@lastframe"],
+      timeline: buildMockTimeline("clip_1"),
+      motion_prompt: compactText(
+        `Animate the ${buildMockClipObjective("clip_1")} from @firstframe to @lastframe with a subtle confident posture shift. ${continuityHint}`,
         420,
       ),
-      visual_references: visualReferences,
-      prompt_rules: promptRules,
-      continuity: {
-        first_frame_hint: "Start with the product as the primary anchor.",
-        last_frame_hint: "End with the same product identity and composition.",
-      },
+      camera_motion: "Natural slow push-in with subtle handheld parallax; no hard cuts, no fast zoom, no scene jump.",
+      prompt_text: compactText(
+        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use only @firstframe and @lastframe as anchors for an 8-second ${buildMockClipObjective("clip_1")}.`,
+        420,
+      ),
+      continuity: "Start at @firstframe and end at @lastframe with no identity, outfit, product, lighting, or background drift.",
+      negative_prompt: buildMockNegativePrompt(promptRules),
     },
     clip_2: {
+      schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       slot: "clip_2",
-      prompt_text: compactText(
-        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${baseInstruction} Continue with the same product identity, background anchor, and reference order.`,
+      stage: "i2v",
+      duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+      frame_inputs: ["@firstframe", "@lastframe"],
+      timeline: buildMockTimeline("clip_2"),
+      motion_prompt: compactText(
+        `Animate the ${buildMockClipObjective("clip_2")} from @firstframe to @lastframe with restrained movement that keeps product details readable. ${continuityHint}`,
         420,
       ),
-      visual_references: visualReferences,
-      prompt_rules: promptRules,
-      continuity: {
-        first_frame_hint: "Continue from the previous frame with the same character and environment references.",
-        last_frame_hint: "Resolve with the same product identity and affiliate style constraints.",
-      },
+      camera_motion: "Controlled slow push-in or slight lateral parallax; keep the shirt graphic readable throughout.",
+      prompt_text: compactText(
+        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use only @firstframe and @lastframe as anchors for an 8-second ${buildMockClipObjective("clip_2")}.`,
+        420,
+      ),
+      continuity: "Start at @firstframe and end at @lastframe with no identity, outfit, product, lighting, or background drift.",
+      negative_prompt: buildMockNegativePrompt(promptRules),
     },
   } as PromptPackGenerationOutput["i2v_prompts"];
 }
@@ -1198,11 +1319,22 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
     consistency_rules: consistencyRules,
     reference_cards: referenceCards,
     prompt_writing_contract: {
-      mode: "I2I_JSON",
-      mention_format: "@original_file_name",
-      subject_priority: ["PRODUCT", "ENVIRONMENT", "CHARACTER"],
-      max_prompt_sentences: 2,
+      mode: "FLOW_I2I_I2V_PROMPT_PACK_V2",
+      schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+      first_frame_image_inputs: ["@character", "@environment", "@product"],
+      last_frame_image_inputs: ["@firstframe"],
+      i2v_frame_inputs: ["@firstframe", "@lastframe"],
+      i2v_duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+      i2v_timeline_windows: [...PROMPT_PACK_I2V_TIMELINE_WINDOWS],
+      clip_roles: {
+        clip_1: "hook/hero look",
+        clip_2: "detail/benefit/use-case look",
+      },
+      mention_format: "@original_file_name for product, @character and @environment for locked profile references",
+      subject_priority: ["PRODUCT", "CHARACTER", "ENVIRONMENT"],
+      max_prompt_sentences: 3,
       no_raw_analysis_json: true,
+      no_raw_prompt_rules_in_output: true,
     },
     affiliate_profile: profile
       ? {
@@ -1259,15 +1391,16 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "You are generating a structured prompt pack for a single-owner affiliate content workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
     "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
-    "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, or visual_references. The server injects those after validation.",
+    "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, visual_references, image_inputs, frame_inputs, schema_version, or stage. The server compiles clean prompt-pack v2 copy JSON after validation.",
     "If image_bytes_available is false, use cached JSON metadata only and do not claim live visual parsing from links.",
     "Use prompt_context_for_model.reference_cards as the canonical visual guide.",
-    "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Reuse the instruction almost verbatim and keep prompt_text short.",
+    "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Use it as writing guidance, but do not copy raw reference_cards or prompt_rules into output objects.",
     "reference_cards are ordered CHARACTER, ENVIRONMENT, PRODUCT. PRODUCT is the primary subject. CHARACTER is support only. ENVIRONMENT is the background anchor.",
-    "Write each prompt_text as a short, direct image-to-image instruction. Use the mention values exactly as written and keep the text compact. Do not copy raw JSON blocks into prompt_text.",
-    "Apply affiliate rules explicitly; they are validated as mandatory before generation:",
+    "Output compact Gemini fields only; the server will map them into final v2 JSON with I2I First Frame = @character + @environment + product mention, I2I Last Frame = @firstframe only, and I2V = @firstframe + @lastframe only.",
+    "Clip roles are locked: clip_1 is a hook/hero look; clip_2 is a detail/benefit/use-case look. Make prompt_text meaningfully different between clips.",
+    "Apply affiliate rules internally as policy, not as raw copied prompt_rules:",
     "- i2i_prompt_rules must shape every i2i_prompts.clip_n.first_frame.prompt_text and i2i_prompts.clip_n.last_frame.prompt_text.",
-    "- i2v_prompt_rules must shape every i2v_prompts.clip_n.prompt_text.",
+    "- i2v_prompt_rules must shape every i2v_prompts.clip_n.prompt_text, motion_prompt, camera_motion, timeline, continuity, and negative_prompt.",
     "- caption_rules must shape caption.",
     "- hashtag_rules must shape tags.",
     "- negative_prompt_rules must populate negative_prompt_rules.",
@@ -1276,7 +1409,9 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "- i2i_prompts: clip_1 and clip_2",
     "- i2v_prompts: clip_1 and clip_2",
     "Each i2i clip object must include slot, first_frame, and last_frame, and each frame must include slot, frame, and prompt_text.",
-    "Each i2v clip object must include slot, prompt_text, and continuity.",
+    "Each i2v clip object must include slot, prompt_text, duration_seconds, timeline, motion_prompt, camera_motion, continuity, and negative_prompt.",
+    "For every i2v clip, duration_seconds must be 8 and timeline must contain exactly four segments with these time values in order: 00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08.",
+    "I2V prompt text must describe movement from the generated @firstframe to generated @lastframe only. Do not ask I2V to use the three original reference images.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
     "product_analysis.product must echo the source product fields from prompt_context_for_model.product and must copy product.status exactly from the source product record.",
     "product_analysis.source_image must echo the compact source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, and source_image.drive_item_ref_id exactly. Do not expand source_image.analysis_json; the server restores cached analysis JSON.",
@@ -1319,9 +1454,11 @@ function buildPromptPackRepairPrompt(
     "You are repairing a Gemini prompt-pack response into the compact JSON contract.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
     "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
-    "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, or visual_references.",
-    "Keep the repaired output compact and image-to-image ready. Use mention-based references and avoid raw JSON analysis blocks.",
+    "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, visual_references, image_inputs, frame_inputs, schema_version, or stage.",
+    "Keep the repaired output compact. The server compiles final v2 copy JSON after validation, so do not copy raw rules into any output object.",
     "Use prompt_context_for_model.reference_cards as the visual reference source when repairing prompt text.",
+    "Keep clip_1 as a hook/hero look and clip_2 as a detail/benefit/use-case look.",
+    "Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, and negative_prompt.",
     "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
     "Use the provided context to normalize structure; do not invent new assets or rules.",
     `Repair reason: ${repairReason || "schema mismatch"}.`,
