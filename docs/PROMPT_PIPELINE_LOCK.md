@@ -118,7 +118,7 @@ Tags
 Target Marketplace
 ```
 
-Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. The UI surface stays the same; only the copied value changes. Their `visual_references` arrays must use compact mention cards, not raw `analysis_json` dumps.
+Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. The UI surface stays the same; only the copied value changes. Generated copy fields use `schema_version: "prompt_pack_v2"` and must not expose raw `visual_references` or raw `prompt_rules`.
 
 Editable regeneration field:
 
@@ -140,8 +140,11 @@ Prompt set structure:
 - `/prompts/[id]/history` is the prompt-only generation history surface, grouped by `prompt_code`.
 - Prompt Clip 1 and Prompt Clip 2 are separate collapsed clip panels that can expand.
 - Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready JSON fields.
-- `I2I First Frame` and `I2I Last Frame` are the two frame anchors for the clip-specific image-to-image prompt path and must include ordered visual references.
-- `I2V Prompt` is the clip-specific image-to-video JSON payload and must include ordered visual references plus first/last frame continuity hints.
+- `I2I First Frame` must use three image inputs: `@character`, `@environment`, and the product mention from the source product image/reference card.
+- `I2I Last Frame` must use only `@firstframe`; it must not repeat the original three reference images.
+- `I2V Prompt` must use only `@firstframe` and `@lastframe`; it must not include character/environment/product reference images again.
+- I2V duration is locked to `8` seconds with four timeline windows: `00:00-00:02`, `00:02-00:04`, `00:04-00:06`, `00:06-00:08`.
+- Clip 1 is the hook/hero look. Clip 2 is the detail/benefit/use-case look.
 - Caption is shared across the prompt set and is read-only copy-ready after generation.
 - Tags are stored and rendered as a hashtag string and are read-only copy-ready after generation.
 - Target Marketplace is a fixed read-only chip for `Shopee + TikTok`.
@@ -172,49 +175,81 @@ Prompt generation must persist structured JSON with at least:
   "i2i_prompts": {
     "clip_1": {
       "first_frame": {
+        "schema_version": "prompt_pack_v2",
         "slot": "clip_1",
-        "frame": "first_frame",
+        "stage": "i2i_first_frame",
+        "image_inputs": ["@character", "@environment", "@product"],
         "prompt_text": "",
-        "visual_references": [],
-        "prompt_rules": {}
+        "must_keep": [],
+        "must_avoid": []
       },
       "last_frame": {
+        "schema_version": "prompt_pack_v2",
         "slot": "clip_1",
-        "frame": "last_frame",
+        "stage": "i2i_last_frame",
+        "image_inputs": ["@firstframe"],
         "prompt_text": "",
-        "visual_references": [],
-        "prompt_rules": {}
+        "must_keep": [],
+        "must_avoid": []
       }
     },
     "clip_2": {
       "first_frame": {
+        "schema_version": "prompt_pack_v2",
         "slot": "clip_2",
-        "frame": "first_frame",
+        "stage": "i2i_first_frame",
+        "image_inputs": ["@character", "@environment", "@product"],
         "prompt_text": "",
-        "visual_references": [],
-        "prompt_rules": {}
+        "must_keep": [],
+        "must_avoid": []
       },
       "last_frame": {
+        "schema_version": "prompt_pack_v2",
         "slot": "clip_2",
-        "frame": "last_frame",
+        "stage": "i2i_last_frame",
+        "image_inputs": ["@firstframe"],
         "prompt_text": "",
-        "visual_references": [],
-        "prompt_rules": {}
+        "must_keep": [],
+        "must_avoid": []
       }
     }
   },
   "i2v_prompts": {
     "clip_1": {
+      "schema_version": "prompt_pack_v2",
+      "slot": "clip_1",
+      "stage": "i2v",
+      "duration_seconds": 8,
+      "frame_inputs": ["@firstframe", "@lastframe"],
+      "timeline": [
+        { "time": "00:00-00:02", "action": "" },
+        { "time": "00:02-00:04", "action": "" },
+        { "time": "00:04-00:06", "action": "" },
+        { "time": "00:06-00:08", "action": "" }
+      ],
+      "motion_prompt": "",
+      "camera_motion": "",
       "prompt_text": "",
-      "visual_references": [],
-      "prompt_rules": {},
-      "continuity": {}
+      "continuity": "",
+      "negative_prompt": ""
     },
     "clip_2": {
+      "schema_version": "prompt_pack_v2",
+      "slot": "clip_2",
+      "stage": "i2v",
+      "duration_seconds": 8,
+      "frame_inputs": ["@firstframe", "@lastframe"],
+      "timeline": [
+        { "time": "00:00-00:02", "action": "" },
+        { "time": "00:02-00:04", "action": "" },
+        { "time": "00:04-00:06", "action": "" },
+        { "time": "00:06-00:08", "action": "" }
+      ],
+      "motion_prompt": "",
+      "camera_motion": "",
       "prompt_text": "",
-      "visual_references": [],
-      "prompt_rules": {},
-      "continuity": {}
+      "continuity": "",
+      "negative_prompt": ""
     }
   },
   "caption": "",
@@ -243,14 +278,15 @@ When a source product image exists, `product_analysis.source_image` must echo th
 
 `prompt_context` must be persisted in `prompt_packs.personalization_json`.
 
-`prompt_context.reference_cards` must be present for generated prompt packs. Each card must carry `mention`, `role`, `summary`, `must_keep`, `must_avoid`, `instruction`, and nullable Drive metadata. `analysis_json` stays server-side cache only and must not be copied into prompt-facing visual references.
+`prompt_context.reference_cards` must be present in `personalization_json` for generated prompt packs. Each card must carry `mention`, `role`, `summary`, `must_keep`, `must_avoid`, `instruction`, and nullable Drive metadata. `analysis_json` stays server-side cache only and must not be copied into prompt-facing copy JSON.
 
-Prompt pack editor round-trips must not fail when legacy visual references lack `drive_url` or `drive_path`, as long as the cached analysis JSON and reference IDs are available. Prompt rules must also be normalized from JSON-like blobs into clean string arrays before persistence.
+Prompt pack editor round-trips must not fail when legacy prompt JSON contains older `visual_references`/`prompt_rules` fields or when legacy visual references lack `drive_url` or `drive_path`. Legacy JSON must be readable and converted to v2 copy payloads during read/save. Prompt rules are internal generation policy and must be normalized from JSON-like blobs before use; they must not be copied as raw `prompt_rules` into I2I/I2V output fields.
 
 ## Prompt Rule Locks
 
 - i2i, i2v, caption, hashtag, and negative prompt rules must be editable in Affiliate Profile UI.
 - Prompt rules must not be hardcoded in JSX, HTML, route handlers, or inline strings.
+- Prompt rules are internal policy inputs for generation. They may shape `prompt_text`, `must_keep`, `must_avoid`, `timeline`, `motion_prompt`, `camera_motion`, `continuity`, `negative_prompt`, caption, and tags, but must not be emitted as raw `prompt_rules` in copy-ready prompt fields.
 - Do not claim visual parsing from links when image bytes are missing.
 - Use cached JSON metadata snapshots instead of re-running OCR/vision on every prompt generation.
 - Do not add a third background-reference asset slot in Phase awal.

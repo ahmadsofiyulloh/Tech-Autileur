@@ -131,18 +131,20 @@ local_output_folder/
 
 1. Operator pindah ke mode `i2i` di ekstensi.
 2. Operator memuat `clip_1_i2i.txt` dan `clip_2_i2i.txt`.
-3. Operator mengunggah staging images yang dibutuhkan untuk frame generation.
-4. Operator menjalankan proses generate.
-5. Sistem menghasilkan 4 image output total untuk 2 clip: `StartFrame` dan `LastFrame` per clip.
-6. Helper atau operator mencocokkan hasil per `clip_code`.
+3. Untuk `I2I First Frame`, operator mengunggah tiga staging image: `@character`, `@environment`, dan product reference.
+4. Untuk `I2I Last Frame`, operator memakai hasil First Frame sebagai satu-satunya input `@firstframe`; jangan unggah ulang tiga reference awal.
+5. Operator menjalankan proses generate.
+6. Sistem menghasilkan 4 image output total untuk 2 clip: `StartFrame` dan `LastFrame` per clip.
+7. Helper atau operator mencocokkan hasil per `clip_code`.
 
 ### E. Stage i2v
 
 1. Operator pindah ke mode `i2v` di ekstensi.
 2. Operator memuat `clip_1_i2v.txt` dan `clip_2_i2v.txt`.
-3. Operator mengunggah 4 frame hasil i2i sebagai anchor per clip.
+3. Operator mengunggah dua frame hasil i2i per clip: `@firstframe` dan `@lastframe`.
 4. Operator menjalankan proses generate.
-5. Sistem menghasilkan 2 video final, satu per clip.
+5. Setiap prompt i2v adalah 8 detik dengan 4 segmen timeline: `00:00-00:02`, `00:02-00:04`, `00:04-00:06`, `00:06-00:08`.
+6. Sistem menghasilkan 2 video final, satu per clip.
 
 ### F. Import output
 
@@ -165,6 +167,9 @@ local_output_folder/
 ## Kontrak Prompt File
 
 - `i2i` dan `i2v` dipisah karena tujuan operasionalnya berbeda.
+- `clip_x_i2i.txt` harus memisahkan instruksi First Frame dan Last Frame. First Frame memakai `@character`, `@environment`, dan product reference; Last Frame memakai `@firstframe` saja.
+- `clip_x_i2v.txt` hanya boleh merujuk `@firstframe` dan `@lastframe`; jangan mencantumkan tiga reference image awal sebagai input i2v.
+- Prompt rules dari Affiliate Profile adalah policy internal generator, bukan blok mentah yang disalin ke file prompt.
 - File yang terpisah memudahkan retry per clip.
 - File yang terpisah juga mencegah prompt image generation dan video generation tercampur.
 - Jika satu clip gagal, ulangi hanya file mode dan clip itu.

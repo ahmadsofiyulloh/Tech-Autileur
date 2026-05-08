@@ -60,6 +60,12 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Scope:** prompt contract parser/reader and targeted tests.
 **Acceptance:** invalid prompt JSON fails instead of creating empty `visual_references` or empty `prompt_rules`.
 
+### MT-PROMPT-QUALITY-01 - Prompt pack v2 copy contract _(DONE)_
+**Goal:** Refactor generated prompt copy JSON so I2I/I2V outputs are explicit operator instructions instead of raw rule/reference dumps.
+**Owner:** Codex
+**Scope:** prompt generation contract, Gemini schema, parser/reader, targeted tests, and prompt/Flow lock docs only.
+**Acceptance:** new generation emits v2 copy JSON; I2I First Frame uses `@character`, `@environment`, and product reference; I2I Last Frame uses `@firstframe`; I2V uses `@firstframe` and `@lastframe` with 8-second 4-part timeline; legacy prompt packs remain readable.
+
 ### MT-INTAKE-00 - Intake metadata refactor contract
 **Goal:** Lock the 2026-05-07 save-vs-metadata lifecycle, active account behavior, drawer fallback, and mobile preview contract before runtime refactor.
 **Owner:** Codex
