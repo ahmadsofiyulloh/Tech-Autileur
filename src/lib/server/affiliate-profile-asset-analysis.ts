@@ -13,10 +13,13 @@ import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/l
 import {
   getGeminiQuotaGroupKey,
   listQuotaAwareGeminiKeys,
+  markGeminiKeyError,
   markGeminiKeySuccess,
+  markGeminiQuotaGroupError,
   markGeminiQuotaGroupCooldown,
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
+import { getGeminiFailureDisposition } from "@/lib/server/gemini-failure-policy";
 import type { JsonObject } from "@/lib/affiliate-profiles/validation";
 import {
   canonicalizeAffiliateProfileAssetAnalysisJson,
@@ -58,11 +61,13 @@ async function selectGeminiVisionAnalysisKey(
   serviceClient: SupabaseServiceClient,
   userId: string,
   excludedQuotaGroups: ReadonlySet<string> = new Set(),
+  excludedKeyIds: ReadonlySet<string> = new Set(),
 ) {
   const keys = await listQuotaAwareGeminiKeys({
     userId,
     purpose: "VISION_ANALYSIS",
     excludedQuotaGroups,
+    excludedKeyIds,
     serviceClient,
   });
   let sawSecretDecryptionFailure = false;
@@ -149,6 +154,7 @@ async function analyzeAssetWithKey(input: {
   kind: AffiliateProfileAssetKind;
   driveItemId: string;
   excludedQuotaGroups: Set<string>;
+  excludedKeyIds: Set<string>;
 }) {
   const driveItem = await getDriveItemById(input.driveItemId);
 
@@ -175,7 +181,12 @@ async function analyzeAssetWithKey(input: {
     label: `${input.kind} asset`,
   });
 
-  const selection = await selectGeminiVisionAnalysisKey(input.serviceClient, input.userId, input.excludedQuotaGroups);
+  const selection = await selectGeminiVisionAnalysisKey(
+    input.serviceClient,
+    input.userId,
+    input.excludedQuotaGroups,
+    input.excludedKeyIds,
+  );
 
   if (!selection) {
     throw new Error("No Gemini vision key is available for asset analysis.");
@@ -234,7 +245,7 @@ async function analyzeAssetWithKey(input: {
     }).catch(() => undefined);
     return canonicalizeAffiliateProfileAssetAnalysisJson(outputJson, input.driveItemId);
   } catch (error) {
-    if (error instanceof GeminiClientError && (error.status === 429 || error.status >= 500)) {
+    if (error instanceof GeminiClientError && (error.status === 429 || error.status === 408 || error.status >= 500 || error.status === 401 || error.status === 403 || error.status === 404)) {
       console.warn("[affiliate-profile-asset-analysis] Gemini upstream error", {
         profileCode: input.profileCode,
         kind: input.kind,
@@ -246,19 +257,33 @@ async function analyzeAssetWithKey(input: {
       });
     }
 
-    if (error instanceof GeminiClientError && error.status === 429) {
-      const retryAfterSeconds = error.retryAfterSeconds ?? 900;
-      const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
-      const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+    if (error instanceof GeminiClientError) {
+      const disposition = getGeminiFailureDisposition(error);
 
-      input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
-      await markGeminiQuotaGroupCooldown({
-        serviceClient: input.serviceClient,
-        userId: input.userId,
-        key: selection.key,
-        nextStatus,
-        cooldownUntil,
-      }).catch(() => undefined);
+      if (disposition.markKeyError) {
+        input.excludedKeyIds.add(selection.key.id);
+        await markGeminiKeyError({
+          serviceClient: input.serviceClient,
+          userId: input.userId,
+          keyId: selection.key.id,
+        }).catch(() => undefined);
+      } else if (disposition.markGroupError) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        await markGeminiQuotaGroupError({
+          serviceClient: input.serviceClient,
+          userId: input.userId,
+          key: selection.key,
+        }).catch(() => undefined);
+      } else if (disposition.markGroupCooldown) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        await markGeminiQuotaGroupCooldown({
+          serviceClient: input.serviceClient,
+          userId: input.userId,
+          key: selection.key,
+          nextStatus: disposition.nextStatus ?? "RATE_LIMITED",
+          cooldownUntil: disposition.cooldownUntil,
+        }).catch(() => undefined);
+      }
     }
 
     const message = sanitizeGeminiFailureMessage(error);
@@ -279,6 +304,7 @@ export async function analyzeAffiliateProfileAsset(input: {
   const { userId } = await requireCurrentUserId();
   const serviceClient = createSupabaseServiceRoleClient();
   const excludedQuotaGroups = new Set<string>();
+  const excludedKeyIds = new Set<string>();
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -290,11 +316,12 @@ export async function analyzeAffiliateProfileAsset(input: {
         kind: input.kind,
         driveItemId: input.driveItemId,
         excludedQuotaGroups,
+        excludedKeyIds,
       });
     } catch (error) {
       lastError = error;
 
-      if (error instanceof GeminiClientError && error.status === 429) {
+      if (error instanceof GeminiClientError && (error.status === 429 || error.status === 408 || error.status >= 500 || error.status === 401 || error.status === 403 || error.status === 404)) {
         continue;
       }
 

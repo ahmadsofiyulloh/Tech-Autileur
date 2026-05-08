@@ -184,6 +184,7 @@ export async function listQuotaAwareGeminiKeys(input: {
   userId: string;
   purpose: GeminiRoutingPurpose;
   excludedQuotaGroups?: ReadonlySet<string>;
+  excludedKeyIds?: ReadonlySet<string>;
   serviceClient?: SupabaseServiceClient;
   now?: Date;
 }) {
@@ -225,6 +226,10 @@ export async function listQuotaAwareGeminiKeys(input: {
 
   return rawKeys
     .filter((key) => {
+      if (input.excludedKeyIds?.has(key.id)) {
+        return false;
+      }
+
       const groupKey = getGeminiQuotaGroupKey(key);
       const keysInGroup = groupedKeys.get(groupKey) ?? [key];
       const usage = groupedUsage.get(groupKey) ?? emptyUsageBucket();
@@ -315,6 +320,65 @@ export async function markGeminiQuotaGroupCooldown(input: {
     .update({
       status: input.nextStatus,
       cooldown_until: input.cooldownUntil,
+    })
+    .eq("user_id", input.userId)
+    .in("id", ids.length ? ids : [input.key.id]);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+}
+
+export async function markGeminiKeyError(input: {
+  serviceClient: SupabaseServiceClient;
+  userId: string;
+  keyId: string;
+}) {
+  const { error } = await input.serviceClient
+    .from("gemini_api_keys")
+    .update({
+      status: "ERROR",
+      cooldown_until: null,
+    })
+    .eq("user_id", input.userId)
+    .eq("id", input.keyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function markGeminiQuotaGroupError(input: {
+  serviceClient: SupabaseServiceClient;
+  userId: string;
+  key: GeminiRoutableKey;
+}) {
+  const { data, error } = await input.serviceClient
+    .from("gemini_api_keys")
+    .select("id, project_label, model_name")
+    .eq("user_id", input.userId)
+    .eq("model_name", input.key.model_name);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const targetGroup = getGeminiQuotaGroupKey(input.key);
+  const ids = (data ?? [])
+    .filter((key) =>
+      getGeminiQuotaGroupKey({
+        id: key.id,
+        model_name: key.model_name,
+        project_label: key.project_label,
+      }) === targetGroup,
+    )
+    .map((key) => key.id);
+
+  const { error: updateError } = await input.serviceClient
+    .from("gemini_api_keys")
+    .update({
+      status: "ERROR",
+      cooldown_until: null,
     })
     .eq("user_id", input.userId)
     .in("id", ids.length ? ids : [input.key.id]);

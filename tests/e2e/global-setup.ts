@@ -345,9 +345,25 @@ async function seedSmokeData(userId: string) {
       lock_seed_character: true,
       seed_character_notes: "Smoke seed character reference.",
       seed_character_drive_item_ref_id: seedCharacter.id,
+      seed_character_analysis_json: {
+        drive_item_ref_id: seedCharacter.id,
+        analysis_mode: "SMOKE_SEED",
+        asset_kind: "CHARACTER",
+        subject: "Smoke Character",
+        style_keywords: ["smoke", "clean", "locked"],
+        prompt_rules: ["Keep the locked character consistent."],
+      },
       lock_environment: true,
       environment_notes: "Smoke environment reference.",
       environment_drive_item_ref_id: environment.id,
+      environment_analysis_json: {
+        drive_item_ref_id: environment.id,
+        analysis_mode: "SMOKE_SEED",
+        asset_kind: "ENVIRONMENT",
+        subject: "Smoke Environment",
+        style_keywords: ["smoke", "studio", "locked"],
+        prompt_rules: ["Keep the locked environment consistent."],
+      },
       status: "ACTIVE",
     },
   );
@@ -509,23 +525,6 @@ async function seedSmokeData(userId: string) {
 
 async function seedSmokeGeminiKeys(userId: string) {
   const client = createSmokeServiceClient();
-  const { data: existingSmokeKey, error: existingSmokeKeyError } = await client
-    .from("gemini_api_keys")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("status", "ACTIVE")
-    .eq("role", "VISION_ANALYSIS")
-    .limit(1)
-    .maybeSingle();
-
-  if (existingSmokeKeyError) {
-    throw new Error(existingSmokeKeyError.message);
-  }
-
-  if (existingSmokeKey) {
-    return;
-  }
-
   const { data: sourceKey, error: sourceKeyError } = await client
     .from("gemini_api_keys")
     .select("user_id")
@@ -554,6 +553,10 @@ async function seedSmokeGeminiKeys(userId: string) {
 
   if (sourceKeysError) {
     throw new Error(sourceKeysError.message);
+  }
+
+  if (!sourceKeys?.length) {
+    throw new Error("No Gemini key source rows were found for smoke setup.");
   }
 
   const { data: sourceSecrets, error: sourceSecretsError } = await client

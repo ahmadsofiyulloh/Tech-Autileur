@@ -51,6 +51,7 @@ Keep `.env.local` out of git and store real secrets only in your local environme
 - `npm run typecheck`
 - `npm run build`
 - `npm run smoke:e2e`
+- `npm run smoke:e2e:live-loop`
 - `npm run smoke:e2e:headed`
 - `npm run smoke:e2e:report`
 - `npm run audit:colors`

@@ -81,6 +81,8 @@ Character and environment are profile-owned only in Phase awal. The environment 
 
 Character and environment assets are analyzed explicitly from the Settings drawer and their JSON metadata snapshots are cached on the affiliate profile. Save/update only stores the Drive refs and rules; prompt generation must reuse the cached JSON metadata snapshots until the asset reference changes, and the cached snapshot is only valid while its `drive_item_ref_id` still matches the current Drive reference.
 
+Create prompt and regenerate prompt must read the same cached analysis JSON from `prompt_context` and the affiliate profile snapshots. `drive_url` and `drive_path` are display metadata only for visual references; they must not be required for regeneration, and legacy empty values must be accepted as null-equivalent.
+
 If an active profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, prompt generation must fail instead of falling back to another profile or an unlocked asset.
 
 Prompt generation must also consume reviewed Gemini output inside the active Affiliate Profile namespace and must not invent any extra profile asset slot beyond character and environment.
@@ -238,6 +240,8 @@ Prompt generation must persist structured JSON with at least:
 When a source product image exists, `product_analysis.source_image` must echo the source image record and include `id`, `is_primary`, `status`, `source_type`, and `drive_item_ref_id`. The server may backfill missing source_image fields from the source image record, but mismatched values are contract errors.
 
 `prompt_context` must be persisted in `prompt_packs.personalization_json`.
+
+Prompt pack editor round-trips must not fail when legacy visual references lack `drive_url` or `drive_path`, as long as the cached analysis JSON and reference IDs are available.
 
 ## Prompt Rule Locks
 

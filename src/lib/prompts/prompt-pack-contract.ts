@@ -22,21 +22,12 @@ type PromptPackProductRecord = {
   status: string;
 };
 
-type PromptPackSourceDriveItemRecord = {
-  id: string;
-  name: string;
-  drive_path: string;
-  drive_url: string;
-  mime_type: string | null;
-};
-
 type PromptPackSourceImageRecord = {
   id: string;
   is_primary: boolean;
   status: string;
   source_type: string;
   drive_item_ref_id: string;
-  drive_item: PromptPackSourceDriveItemRecord | null;
   analysis_json: JsonObject | null;
 };
 
@@ -351,7 +342,6 @@ function requireMaybeSourceImage(
       `${label}.drive_item_ref_id`,
       fallback?.drive_item_ref_id,
     ),
-    drive_item: fallback?.drive_item ?? requireMaybeDriveItem(record.drive_item, `${label}.drive_item`),
     analysis_json: readJsonObject(record.analysis_json) ?? fallback?.analysis_json ?? null,
   };
 }
@@ -423,22 +413,6 @@ function readStringFromRecord(record: Record<string, unknown> | null | undefined
   }
 
   return readOptionalString(record[key]);
-}
-
-function readDriveItemSnapshot(value: unknown) {
-  const record = readJsonObject(value);
-
-  if (!record) {
-    return null;
-  }
-
-  return {
-    id: readStringFromRecord(record, "id"),
-    name: readStringFromRecord(record, "name"),
-    drive_path: readStringFromRecord(record, "drive_path"),
-    drive_url: readStringFromRecord(record, "drive_url"),
-    mime_type: typeof record.mime_type === "string" && record.mime_type.trim().length > 0 ? record.mime_type.trim() : null,
-  } satisfies PromptPackSourceDriveItemRecord | null;
 }
 
 function buildPromptRulesFromContext(context: JsonObject | null) {
@@ -648,12 +622,12 @@ function readVisualReferenceSnapshot(
     kind: PromptPackVisualReferenceKind;
     label: string;
     driveItemRefId?: string | null;
-    driveItem?: PromptPackSourceDriveItemRecord | null;
+    driveUrl?: string | null;
+    drivePath?: string | null;
     analysisJson?: JsonObject | null;
   },
 ): PromptPackVisualReferenceJson {
   const record = readJsonObject(value) ?? {};
-  const driveItem = readDriveItemSnapshot(record.drive_item) ?? fallback.driveItem ?? null;
 
   return {
     kind: (typeof record.kind === "string" && isPromptVisualReferenceKind(record.kind) ? record.kind : fallback.kind) as PromptPackVisualReferenceKind,
@@ -662,8 +636,8 @@ function readVisualReferenceSnapshot(
       typeof record.drive_item_ref_id === "string" && record.drive_item_ref_id.trim().length > 0
         ? record.drive_item_ref_id.trim()
         : fallback.driveItemRefId ?? null,
-    drive_url: readStringFromRecord(record, "drive_url") || driveItem?.drive_url || null,
-    drive_path: readStringFromRecord(record, "drive_path") || driveItem?.drive_path || null,
+    drive_url: readStringFromRecord(record, "drive_url") || fallback.driveUrl || null,
+    drive_path: readStringFromRecord(record, "drive_path") || fallback.drivePath || null,
     analysis_json: readJsonObject(record.analysis_json) ?? fallback.analysisJson ?? null,
   };
 }
@@ -674,30 +648,29 @@ function readPromptVisualReferencesFromContext(context: JsonObject | null) {
   const environment = isRecord(affiliateProfile?.environment) ? (affiliateProfile?.environment as Record<string, unknown>) : null;
   const sourceImage = isRecord(context?.source_image) ? (context.source_image as Record<string, unknown>) : null;
 
-  const productDriveItem = readDriveItemSnapshot(sourceImage?.drive_item);
-  const characterDriveItem = readDriveItemSnapshot(seedCharacter?.drive_item);
-  const environmentDriveItem = readDriveItemSnapshot(environment?.drive_item);
-
   return [
     readVisualReferenceSnapshot(seedCharacter, {
       kind: "CHARACTER",
       label: "Character",
       driveItemRefId: readStringFromRecord(seedCharacter, "drive_item_ref_id"),
-      driveItem: characterDriveItem,
+      driveUrl: readStringFromRecord(seedCharacter, "drive_url"),
+      drivePath: readStringFromRecord(seedCharacter, "drive_path"),
       analysisJson: readJsonObject(seedCharacter?.analysis_json),
     }),
     readVisualReferenceSnapshot(environment, {
       kind: "ENVIRONMENT",
       label: "Environment",
       driveItemRefId: readStringFromRecord(environment, "drive_item_ref_id"),
-      driveItem: environmentDriveItem,
+      driveUrl: readStringFromRecord(environment, "drive_url"),
+      drivePath: readStringFromRecord(environment, "drive_path"),
       analysisJson: readJsonObject(environment?.analysis_json),
     }),
     readVisualReferenceSnapshot(sourceImage, {
       kind: "PRODUCT",
       label: "Product",
       driveItemRefId: readStringFromRecord(sourceImage, "drive_item_ref_id"),
-      driveItem: productDriveItem,
+      driveUrl: readStringFromRecord(sourceImage, "drive_url"),
+      drivePath: readStringFromRecord(sourceImage, "drive_path"),
       analysisJson: readJsonObject(sourceImage?.analysis_json),
     }),
   ] satisfies PromptPackVisualReferenceJson[];
@@ -715,15 +688,8 @@ function readPromptVisualReferencesSnapshot(
         kind,
         label: kind.charAt(0) + kind.slice(1).toLowerCase(),
         driveItemRefId: typeof record.drive_item_ref_id === "string" ? record.drive_item_ref_id : fallback[index]?.drive_item_ref_id ?? null,
-        driveItem: fallback[index]
-          ? {
-              id: fallback[index].drive_item_ref_id ?? "",
-              name: fallback[index].label,
-              drive_path: fallback[index].drive_path ?? "",
-              drive_url: fallback[index].drive_url ?? "",
-              mime_type: null,
-            }
-          : null,
+        driveUrl: fallback[index]?.drive_url ?? null,
+        drivePath: fallback[index]?.drive_path ?? null,
         analysisJson: readJsonObject(record.analysis_json) ?? fallback[index]?.analysis_json ?? null,
       });
     });
@@ -773,12 +739,9 @@ function requirePromptVisualReferenceJson(value: unknown, label: string, expecte
   return {
     kind,
     label: requireString(record.label, `${label}.label`),
-    drive_item_ref_id:
-      record.drive_item_ref_id === null
-        ? null
-        : requireString(record.drive_item_ref_id, `${label}.drive_item_ref_id`),
-    drive_url: record.drive_url === null ? null : requireString(record.drive_url, `${label}.drive_url`),
-    drive_path: record.drive_path === null ? null : requireString(record.drive_path, `${label}.drive_path`),
+    drive_item_ref_id: readStringFromRecord(record, "drive_item_ref_id") || null,
+    drive_url: readStringFromRecord(record, "drive_url") || null,
+    drive_path: readStringFromRecord(record, "drive_path") || null,
     analysis_json: readJsonObject(record.analysis_json),
   } satisfies PromptPackVisualReferenceJson;
 }
@@ -1189,24 +1152,24 @@ function buildPromptSetVisualReferences(personalization: Record<string, unknown>
       kind: "CHARACTER" as const,
       label: "Character",
       drive_item_ref_id: seedCharacter.drive_item_ref_id,
-      drive_url: "",
-      drive_path: "",
+      drive_url: null,
+      drive_path: null,
       analysis_json: null,
     },
     {
       kind: "ENVIRONMENT" as const,
       label: "Environment",
       drive_item_ref_id: environment.drive_item_ref_id,
-      drive_url: "",
-      drive_path: "",
+      drive_url: null,
+      drive_path: null,
       analysis_json: null,
     },
     {
       kind: "PRODUCT" as const,
       label: "Product",
       drive_item_ref_id: null,
-      drive_url: "",
-      drive_path: "",
+      drive_url: null,
+      drive_path: null,
       analysis_json: null,
     },
   ] satisfies PromptPackVisualReferenceJson[];
@@ -1505,6 +1468,10 @@ export function parsePromptPackGenerationOutput(
 
   if (hasExactKeys(record, PROMPT_PACK_COMPACT_OUTPUT_KEYS)) {
     return parseCompactPromptPackGenerationOutput(record, options);
+  }
+
+  if (hasExactKeys(record, PROMPT_PACK_OUTPUT_KEYS)) {
+    return parseLegacyPromptPackGenerationOutput(record, options);
   }
 
   throw new Error("Gemini output must use the compact prompt-pack JSON contract.");

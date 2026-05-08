@@ -38,10 +38,13 @@ import { GEMINI_INTAKE_VISION_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas"
 import {
   getGeminiQuotaGroupKey,
   listQuotaAwareGeminiKeys,
+  markGeminiKeyError,
   markGeminiKeySuccess,
+  markGeminiQuotaGroupError,
   markGeminiQuotaGroupCooldown,
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
+import { getGeminiFailureDisposition } from "@/lib/server/gemini-failure-policy";
 import { createDriveItem, getDriveItemById } from "@/lib/server/drive-items";
 import {
   attachProductSourceImage,
@@ -925,12 +928,17 @@ async function syncMarketplaceSourceMetadata(
   );
 }
 
-async function selectGeminiKeyForIntake(userId: string, excludedQuotaGroups: ReadonlySet<string> = new Set()) {
+async function selectGeminiKeyForIntake(
+  userId: string,
+  excludedQuotaGroups: ReadonlySet<string> = new Set(),
+  excludedKeyIds: ReadonlySet<string> = new Set(),
+) {
   const serviceClient = createSupabaseServiceRoleClient();
   const geminiKeys = await listQuotaAwareGeminiKeys({
     userId,
     purpose: "VISION_ANALYSIS",
     excludedQuotaGroups,
+    excludedKeyIds,
     serviceClient,
   });
   let sawSecretDecryptionFailure = false;
@@ -967,12 +975,14 @@ async function listGeminiRepairKeySelections(
   userId: string,
   fallbackSelection: GeminiKeySelection,
   excludedQuotaGroups: ReadonlySet<string> = new Set(),
+  excludedKeyIds: ReadonlySet<string> = new Set(),
 ) {
   const serviceClient = createSupabaseServiceRoleClient();
   const geminiKeys = await listQuotaAwareGeminiKeys({
     userId,
     purpose: "PROMPT_REPAIR",
     excludedQuotaGroups,
+    excludedKeyIds,
     serviceClient,
   });
   const selections: GeminiKeySelection[] = [];
@@ -995,7 +1005,7 @@ async function listGeminiRepairKeySelections(
     seenKeyIds.add(geminiKey.id);
   }
 
-  if (!seenKeyIds.has(fallbackSelection.key.id)) {
+  if (!seenKeyIds.has(fallbackSelection.key.id) && !excludedKeyIds.has(fallbackSelection.key.id)) {
     selections.push(fallbackSelection);
   }
 
@@ -1013,8 +1023,14 @@ async function repairIntakeVisionOutput(input: {
   taskId: string;
   fallbackSelection: GeminiKeySelection;
   excludedQuotaGroups: Set<string>;
+  excludedKeyIds: Set<string>;
 }) {
-  const repairSelections = await listGeminiRepairKeySelections(input.userId, input.fallbackSelection, input.excludedQuotaGroups);
+  const repairSelections = await listGeminiRepairKeySelections(
+    input.userId,
+    input.fallbackSelection,
+    input.excludedQuotaGroups,
+    input.excludedKeyIds,
+  );
   let lastError: unknown = null;
 
   for (const selection of repairSelections) {
@@ -1043,19 +1059,42 @@ async function repairIntakeVisionOutput(input: {
     } catch (error) {
       lastError = error;
 
-      if (error instanceof GeminiClientError && error.status === 429) {
-        const retryAfterSeconds = error.retryAfterSeconds ?? 900;
-        const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
-        const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+      const disposition = getGeminiFailureDisposition(error);
 
+      if (disposition.markKeyError) {
+        input.excludedKeyIds.add(selection.key.id);
+        await markGeminiKeyError({
+          serviceClient: createSupabaseServiceRoleClient(),
+          userId: input.userId,
+          keyId: selection.key.id,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (disposition.markGroupError) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        await markGeminiQuotaGroupError({
+          serviceClient: createSupabaseServiceRoleClient(),
+          userId: input.userId,
+          key: selection.key,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (disposition.markGroupCooldown) {
         input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
         await markGeminiQuotaGroupCooldown({
           serviceClient: createSupabaseServiceRoleClient(),
           userId: input.userId,
           key: selection.key,
-          nextStatus,
-          cooldownUntil,
+          nextStatus: disposition.nextStatus ?? "RATE_LIMITED",
+          cooldownUntil: disposition.cooldownUntil,
         }).catch(() => undefined);
+        continue;
+      }
+
+      if (disposition.excludeQuotaGroup) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
         continue;
       }
 
@@ -1535,11 +1574,12 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     await markTaskRunning(createdTask.id);
 
     const excludedQuotaGroups = new Set<string>();
+    const excludedKeyIds = new Set<string>();
     let responseText: string | null = null;
     let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
     while (!responseText) {
-      const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups);
+      const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups, excludedKeyIds);
 
       if (!selectedKey) {
         const message = "No Gemini key is ready for live intake analysis.";
@@ -1592,20 +1632,45 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
         selectedKeySelectionForSuccess = selectedKey;
         responseText = response.text;
       } catch (error) {
-        if (error instanceof GeminiClientError && error.status === 429) {
-          const retryAfterSeconds = error.retryAfterSeconds ?? 900;
-          const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
-          const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+        if (error instanceof GeminiClientError) {
+          const disposition = getGeminiFailureDisposition(error);
 
-          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
-          await markGeminiQuotaGroupCooldown({
-            serviceClient: createSupabaseServiceRoleClient(),
-            userId: user.id,
-            key: selectedKey.key,
-            nextStatus,
-            cooldownUntil,
-          }).catch(() => undefined);
-          continue;
+          if (disposition.markKeyError) {
+            excludedKeyIds.add(selectedKey.key.id);
+            await markGeminiKeyError({
+              serviceClient: createSupabaseServiceRoleClient(),
+              userId: user.id,
+              keyId: selectedKey.key.id,
+            }).catch(() => undefined);
+            continue;
+          }
+
+          if (disposition.markGroupError) {
+            excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+            await markGeminiQuotaGroupError({
+              serviceClient: createSupabaseServiceRoleClient(),
+              userId: user.id,
+              key: selectedKey.key,
+            }).catch(() => undefined);
+            continue;
+          }
+
+          if (disposition.markGroupCooldown) {
+            excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+            await markGeminiQuotaGroupCooldown({
+              serviceClient: createSupabaseServiceRoleClient(),
+              userId: user.id,
+              key: selectedKey.key,
+              nextStatus: disposition.nextStatus ?? "RATE_LIMITED",
+              cooldownUntil: disposition.cooldownUntil,
+            }).catch(() => undefined);
+            continue;
+          }
+
+          if (disposition.excludeQuotaGroup) {
+            excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+            continue;
+          }
         }
 
         throw error;
@@ -1626,6 +1691,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
           taskId: createdTask.id,
           fallbackSelection: selectedKeySelectionForSuccess,
           excludedQuotaGroups,
+          excludedKeyIds,
         });
 
         selectedKeySelectionForSuccess = repairResult.selectedKeySelection;
@@ -2154,11 +2220,12 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok"),
     ]);
     const excludedQuotaGroups = new Set<string>();
+    const excludedKeyIds = new Set<string>();
     let responseText: string | null = null;
     let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
     while (!responseText) {
-      const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups);
+      const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups, excludedKeyIds);
 
       if (!selectedKey) {
         const message = "No Gemini key is ready for live intake analysis.";
@@ -2211,32 +2278,57 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
         selectedKeySelectionForSuccess = selectedKey;
         responseText = response.text;
       } catch (error) {
-        if (error instanceof GeminiClientError && error.status >= 500) {
-          console.warn("[intake.parseIntakeWithGemini] Gemini upstream unavailable", {
-            taskId: createdTask.id,
-            userId: user.id,
-            geminiApiKeyId: selectedKey.key.id,
-            modelName: selectedKey.key.model_name,
-            status: error.status,
-            retryAfterSeconds: error.retryAfterSeconds,
-            message: error.message,
-          });
-        }
+        if (error instanceof GeminiClientError) {
+          if (error.status >= 500) {
+            console.warn("[intake.parseIntakeWithGemini] Gemini upstream unavailable", {
+              taskId: createdTask.id,
+              userId: user.id,
+              geminiApiKeyId: selectedKey.key.id,
+              modelName: selectedKey.key.model_name,
+              status: error.status,
+              retryAfterSeconds: error.retryAfterSeconds,
+              message: error.message,
+            });
+          }
 
-        if (error instanceof GeminiClientError && error.status === 429) {
-          const retryAfterSeconds = error.retryAfterSeconds ?? 900;
-          const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
-          const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
+          const disposition = getGeminiFailureDisposition(error);
 
-          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
-          await markGeminiQuotaGroupCooldown({
-            serviceClient: createSupabaseServiceRoleClient(),
-            userId: user.id,
-            key: selectedKey.key,
-            nextStatus,
-            cooldownUntil,
-          }).catch(() => undefined);
-          continue;
+          if (disposition.markKeyError) {
+            excludedKeyIds.add(selectedKey.key.id);
+            await markGeminiKeyError({
+              serviceClient: createSupabaseServiceRoleClient(),
+              userId: user.id,
+              keyId: selectedKey.key.id,
+            }).catch(() => undefined);
+            continue;
+          }
+
+          if (disposition.markGroupError) {
+            excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+            await markGeminiQuotaGroupError({
+              serviceClient: createSupabaseServiceRoleClient(),
+              userId: user.id,
+              key: selectedKey.key,
+            }).catch(() => undefined);
+            continue;
+          }
+
+          if (disposition.markGroupCooldown) {
+            excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+            await markGeminiQuotaGroupCooldown({
+              serviceClient: createSupabaseServiceRoleClient(),
+              userId: user.id,
+              key: selectedKey.key,
+              nextStatus: disposition.nextStatus ?? "RATE_LIMITED",
+              cooldownUntil: disposition.cooldownUntil,
+            }).catch(() => undefined);
+            continue;
+          }
+
+          if (disposition.excludeQuotaGroup) {
+            excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey.key));
+            continue;
+          }
         }
 
         throw error;
@@ -2257,6 +2349,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
           taskId: createdTask.id,
           fallbackSelection: selectedKeySelectionForSuccess,
           excludedQuotaGroups,
+          excludedKeyIds,
         });
 
         selectedKeySelectionForSuccess = repairResult.selectedKeySelection;

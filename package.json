@@ -12,6 +12,7 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "smoke:e2e": "playwright test",
+    "smoke:e2e:live-loop": "playwright test tests/e2e/intake-prompt-live-loop.spec.ts",
     "smoke:e2e:headed": "playwright test --headed",
     "smoke:e2e:report": "playwright show-report"
   },

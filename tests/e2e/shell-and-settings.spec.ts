@@ -87,10 +87,12 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     const affiliateDetailButton = page.getByRole("button", { name: "Detail" });
     if (await affiliateDetailButton.count()) {
       await affiliateDetailButton.first().click();
+      const drawer = page.getByRole("complementary", { name: "Detail akun affiliate" });
       await expect(page.locator(".image-preview-upload-card__frame")).toHaveCount(2);
       await expect(page.getByText("Upload / replace character image")).toHaveCount(0);
       await expect(page.getByText("Upload / replace environment image")).toHaveCount(0);
       await expect(page.getByText("Hapus referensi")).toHaveCount(0);
+      await expect(drawer.locator('textarea[name="product_positioning_notes"]')).toHaveCount(1);
       await page.keyboard.press("Escape");
     }
 
@@ -130,6 +132,7 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
       await expect(page.locator(".product-drawer__header .product-status-stack")).toHaveCount(0);
       await expect(drawer.locator(".status-badge")).toHaveCount(0);
       await expect(drawer.getByRole("button", { name: "Analisis ulang aset" })).toHaveCount(1);
+      await expect(drawer.locator('textarea[name="product_positioning_notes"]')).toHaveCount(1);
 
       const assetGrid = page.locator(".affiliate-profile-assets-grid");
       await expect(assetGrid).toBeVisible();

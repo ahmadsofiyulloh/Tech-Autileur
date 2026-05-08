@@ -29,6 +29,7 @@ import {
 } from "../../src/lib/affiliate-profiles/readiness";
 import { assertUploadedImage, prepareGeminiCompatibleUploadImage } from "../../src/lib/intake/upload-validation";
 import { getPromptLaunchReadiness } from "../../src/lib/prompts/prompt-launch-readiness";
+import { getGeminiFailureDisposition } from "../../src/lib/server/gemini-failure-policy";
 import sharp from "sharp";
 
 type PromptPackFixtureOptions = {
@@ -40,7 +41,6 @@ type PromptPackFixtureOptions = {
         status: string;
         source_type: string;
         drive_item_ref_id: string;
-        drive_item: null;
         analysis_json: JsonObject | null;
       }
     | null;
@@ -657,6 +657,56 @@ test("prompt pack editor storage rejects prose prompt fields", () => {
   ).toThrow("clip_1.i2i_first_frame must be valid copy prompt JSON.");
 });
 
+test("prompt pack editor storage round-trips legacy prompts without drive_url", () => {
+  const legacyPack = {
+    i2i_prompts_json: {
+      clip_1: {
+        first_frame: { prompt_text: "Legacy first frame 1" },
+        last_frame: { prompt_text: "Legacy last frame 1" },
+      },
+      clip_2: {
+        first_frame: { prompt_text: "Legacy first frame 2" },
+        last_frame: { prompt_text: "Legacy last frame 2" },
+      },
+    },
+    i2v_prompts_json: {
+      clip_1: { prompt_text: "Legacy clip 1" },
+      clip_2: { prompt_text: "Legacy clip 2" },
+    },
+    personalization_json: {
+      caption: "Legacy caption",
+      tags: "#legacy #tas",
+      seed_character: {
+        locked: true,
+        notes: "Keep character locked",
+        drive_item_ref_id: "character-ref",
+      },
+      environment: {
+        locked: true,
+        notes: "Keep environment locked",
+        drive_item_ref_id: "environment-ref",
+      },
+    },
+  };
+
+  const promptSet = readPromptPackEditorPromptSet(legacyPack);
+
+  expect(promptSet.clips.clip_1.i2i_first_frame_json.visual_references[0].drive_url).toBeNull();
+  expect(promptSet.clips.clip_1.i2i_first_frame_json.visual_references[0].drive_path).toBeNull();
+  expect(promptSet.clips.clip_1.i2v_prompt_json.visual_references[2].drive_url).toBeNull();
+
+  expect(() =>
+    buildPromptPackEditorStoragePayload(
+      {
+        clips: promptSet.clips,
+        caption: promptSet.caption,
+        tags: promptSet.tags,
+      },
+      legacyPack.personalization_json,
+    ),
+  ).not.toThrow();
+});
+
 test("prompt pack parser rejects missing product status", () => {
   const output = buildPromptPackCompactFixture() as any;
   delete output.product_analysis.product.status;
@@ -683,29 +733,27 @@ test("prompt pack parser rejects mismatched source image echo", () => {
     parsePromptPackGenerationOutput(
       JSON.stringify(
         buildPromptPackCompactFixture({
-          sourceImage: {
-            id: "source-image-id",
-            is_primary: true,
-            status: "DETACHED",
-            source_type: "GOOGLE_DRIVE",
-            drive_item_ref_id: "drive-item-id",
-            drive_item: null,
-            analysis_json: null,
-          },
-        }),
+        sourceImage: {
+          id: "source-image-id",
+          is_primary: true,
+          status: "DETACHED",
+          source_type: "GOOGLE_DRIVE",
+          drive_item_ref_id: "drive-item-id",
+          analysis_json: null,
+        },
+      }),
       ),
       {
         fallbackProductStatus: "IMAGE_ANALYZED",
         serverPromptContext: buildPromptPackServerContextFixture(),
-        fallbackSourceImage: {
-          id: "source-image-id",
-          is_primary: true,
-          status: "ATTACHED",
-          source_type: "GOOGLE_DRIVE",
-          drive_item_ref_id: "drive-item-id",
-          drive_item: null,
-          analysis_json: null,
-        },
+      fallbackSourceImage: {
+        id: "source-image-id",
+        is_primary: true,
+        status: "ATTACHED",
+        source_type: "GOOGLE_DRIVE",
+        drive_item_ref_id: "drive-item-id",
+        analysis_json: null,
+      },
       },
     ),
   ).toThrow("product_analysis.source_image.status must match the source image value (ATTACHED).");
@@ -757,6 +805,52 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
   expect(parsed.i2i_prompts.clip_1.first_frame.prompt_rules.i2i_prompt_rules).toEqual(["keep product shape"]);
   expect(parsed.i2v_prompts.clip_2.visual_references[2].drive_path).toBe("/assets/product.png");
   expect(parsed.i2v_prompts.clip_2.prompt_rules.caption_rules).toEqual(["short caption"]);
+});
+
+test("prompt pack parser accepts legacy Gemini output contract", () => {
+  const parsed = parsePromptPackGenerationOutput(JSON.stringify(buildPromptPackFixture()), {
+    fallbackProductStatus: "IMAGE_ANALYZED",
+    serverPromptContext: buildPromptPackServerContextFixture(),
+  });
+
+  expect(parsed.prompt_context).toEqual({
+    mode: "server_injected",
+  });
+  expect(parsed.target_marketplace).toBe("Shopee + TikTok");
+  expect(parsed.seed_character).toEqual({
+    locked: false,
+    notes: "",
+    drive_item_ref_id: null,
+  });
+});
+
+test("Gemini failure policy separates retryable and quarantined statuses", () => {
+  const rateLimited = getGeminiFailureDisposition(Object.assign(new Error("Gemini rate limit reached."), {
+    status: 429,
+    retryAfterSeconds: 12,
+  }));
+  expect(rateLimited.kind).toBe("RATE_LIMITED");
+  expect(rateLimited.retryableTask).toBe(true);
+  expect(rateLimited.markGroupCooldown).toBe(true);
+  expect(rateLimited.excludeQuotaGroup).toBe(true);
+  expect(rateLimited.nextStatus).toBe("COOLDOWN");
+
+  const authFailure = getGeminiFailureDisposition(Object.assign(new Error("Gemini access denied."), { status: 403 }));
+  expect(authFailure.kind).toBe("AUTH_MISCONFIG");
+  expect(authFailure.markKeyError).toBe(true);
+  expect(authFailure.excludeKeyId).toBe(true);
+  expect(authFailure.retryableTask).toBe(false);
+
+  const modelFailure = getGeminiFailureDisposition(Object.assign(new Error("Gemini model was not found."), { status: 404 }));
+  expect(modelFailure.kind).toBe("MODEL_NOT_FOUND");
+  expect(modelFailure.markGroupError).toBe(true);
+  expect(modelFailure.excludeQuotaGroup).toBe(true);
+  expect(modelFailure.retryableTask).toBe(false);
+
+  const upstreamFailure = getGeminiFailureDisposition(Object.assign(new Error("Gemini request timed out."), { status: 408 }));
+  expect(upstreamFailure.kind).toBe("TRANSIENT_UPSTREAM");
+  expect(upstreamFailure.retryableTask).toBe(true);
+  expect(upstreamFailure.excludeQuotaGroup).toBe(true);
 });
 
 test("Gemini error sanitizer preserves upstream invalid argument message", () => {

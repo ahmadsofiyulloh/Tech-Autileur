@@ -84,6 +84,7 @@ function profileMatchesQuery(profile: AffiliateProfileRecord, query: string) {
     profile.niche,
     profile.affiliate_url,
     profile.status,
+    profile.product_positioning_notes,
     profile.workspace_ids.join(" "),
   ]
     .join(" ")
@@ -730,6 +731,16 @@ export function AffiliateProfilesBoard({
                   <label className="stack auth-field" htmlFor="affiliate-negative-rules">
                     <span>Negative prompt rules</span>
                     <textarea id="affiliate-negative-rules" name="negative_prompt_rules" rows={4} placeholder="Editable rules" defaultValue={initialProfile?.negative_prompt_rules ?? ""} />
+                  </label>
+                  <label className="stack auth-field" htmlFor="affiliate-product-positioning-notes">
+                    <span>Product positioning notes</span>
+                    <textarea
+                      id="affiliate-product-positioning-notes"
+                      name="product_positioning_notes"
+                      rows={4}
+                      placeholder="Editable rules"
+                      defaultValue={initialProfile?.product_positioning_notes ?? ""}
+                    />
                   </label>
                 </div>
               </details>

@@ -28,10 +28,16 @@ import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events"
 import {
   getGeminiQuotaGroupKey,
   listQuotaAwareGeminiKeys,
+  markGeminiKeyError,
   markGeminiKeySuccess,
+  markGeminiQuotaGroupError,
   markGeminiQuotaGroupCooldown,
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
+import {
+  getGeminiFailureDisposition,
+  isGeminiTransientFailure,
+} from "@/lib/server/gemini-failure-policy";
 import {
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
@@ -81,14 +87,6 @@ type ProductImageRecord = {
   updated_at: string;
 };
 
-type PromptPackSourceDriveItemSnapshot = {
-  id: string;
-  name: string;
-  drive_path: string;
-  drive_url: string;
-  mime_type: string | null;
-};
-
 type PromptPackSourceImageSnapshot = {
   id: string;
   is_primary: boolean;
@@ -96,7 +94,6 @@ type PromptPackSourceImageSnapshot = {
   source_type: string;
   drive_item_ref_id: string;
   analysis_json: JsonObject | null;
-  drive_item: PromptPackSourceDriveItemSnapshot | null;
 };
 
 type PromptPackRecord = {
@@ -180,7 +177,6 @@ type MockPromptContext = {
   latestAnchor: ProductAnchorRecord | null;
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
-  sourceDriveItem: { id: string; name: string; drive_path: string; drive_url: string; mime_type: string | null } | null;
 };
 
 type PromptPackGenerationMode = "mock" | "gemini";
@@ -197,7 +193,6 @@ type PromptPackGenerationContext = {
   latestAnchor: ProductAnchorRecord | null;
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
-  sourceDriveItem: { id: string; name: string; drive_path: string; drive_url: string; mime_type: string | null } | null;
   promptContext: JsonObject;
 };
 
@@ -308,41 +303,6 @@ async function requireOwnedPromptPack(id: string) {
   }
 
   return { supabase, user, promptPack: data as PromptPackRecord };
-}
-
-type DriveItemRecord = {
-  id: string;
-  user_id: string;
-  item_type: string;
-  drive_item_id: string | null;
-  parent_id: string | null;
-  parent_drive_item_id: string | null;
-  name: string;
-  drive_url: string;
-  drive_path: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  purpose: string;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-function buildDriveItemSnapshot(
-  item: PromptPackSourceDriveItemSnapshot | null,
-): PromptPackSourceDriveItemSnapshot | null {
-  if (!item) {
-    return null;
-  }
-
-  return {
-    id: item.id,
-    name: item.name,
-    drive_path: item.drive_path,
-    drive_url: item.drive_url,
-    mime_type: item.mime_type,
-  };
 }
 
 function buildProductSnapshot(product: ProductRecord) {
@@ -483,27 +443,8 @@ function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
   } satisfies JsonObject;
 }
 
-function buildSourceImageSnapshot(image: ProductImageRecord | null, driveItem: DriveItemRecord | null) {
-  if (!image) {
-    return null;
-  }
-
-  return {
-    id: image.id,
-    product_id: image.product_id,
-    drive_item_ref_id: image.drive_item_ref_id,
-    source_type: image.source_type,
-    is_primary: image.is_primary,
-    analysis_json: image.analysis_json,
-    status: image.status,
-    notes: image.notes,
-    drive_item: buildDriveItemSnapshot(driveItem),
-  } satisfies JsonObject;
-}
-
 function buildPromptSourceImageSnapshot(
   image: ProductImageRecord | null,
-  driveItem: PromptPackSourceDriveItemSnapshot | null,
 ): PromptPackSourceImageSnapshot | null {
   if (!image) {
     return null;
@@ -516,7 +457,6 @@ function buildPromptSourceImageSnapshot(
     source_type: image.source_type,
     drive_item_ref_id: image.drive_item_ref_id,
     analysis_json: image.analysis_json,
-    drive_item: buildDriveItemSnapshot(driveItem),
   };
 }
 
@@ -528,7 +468,6 @@ function buildPromptContextSnapshot(context: {
   latestAnchor: ProductAnchorRecord | null;
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
-  sourceDriveItem: DriveItemRecord | null;
 }) {
   const visualParsingMode = "CACHED_JSON_METADATA";
 
@@ -540,10 +479,10 @@ function buildPromptContextSnapshot(context: {
     affiliate_profile: buildAffiliateProfileSnapshot(context.affiliateProfile),
     latest_anchor: buildProductAnchorSnapshot(context.latestAnchor),
     marketplace_sources: context.marketplaceSources.map(buildMarketplaceSourceSnapshot),
-    source_image: buildSourceImageSnapshot(context.sourceProductImage, context.sourceDriveItem),
+    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage),
     visual_parsing_mode: visualParsingMode,
     image_bytes_available: false,
-    source_fallback_reason: "Use cached JSON metadata and Drive references; do not claim live visual parsing from links.",
+    source_fallback_reason: "Use cached JSON metadata and reference IDs; do not claim live visual parsing from links.",
   } satisfies JsonObject;
 }
 
@@ -593,21 +532,6 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
 
   if (!sourceProductImage) {
     throw new Error("Source product image is required before prompt generation.");
-  }
-
-  const sourceDriveItem = sourceProductImage
-    ? (
-        await supabase
-          .from("drive_items")
-          .select("id, user_id, item_type, drive_item_id, parent_id, parent_drive_item_id, name, drive_url, drive_path, mime_type, size_bytes, purpose, status, notes, created_at, updated_at")
-          .eq("id", sourceProductImage.drive_item_ref_id)
-          .eq("user_id", user.id)
-          .maybeSingle()
-      ).data ?? null
-    : null;
-
-  if (!sourceDriveItem) {
-    throw new Error("Source product image Drive reference is required before prompt generation.");
   }
 
   const intakeSession =
@@ -678,7 +602,6 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     latestAnchor,
     marketplaceSources: marketplaceSourceContext.sources,
     sourceProductImage: sourceProductImage as ProductImageRecord | null,
-    sourceDriveItem: sourceDriveItem as DriveItemRecord | null,
   });
 
   const promptPackReferenceUpdates: Partial<Pick<PromptPackRecord, "intake_session_id" | "affiliate_profile_id">> = {};
@@ -732,13 +655,12 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     latestAnchor,
     marketplaceSources: marketplaceSourceContext.sources,
     sourceProductImage: sourceProductImage as ProductImageRecord | null,
-    sourceDriveItem: sourceDriveItem as DriveItemRecord | null,
     promptContext,
   };
 }
 
 function buildPromptPackAnalysis(context: MockPromptContext): PromptPackGenerationOutput["product_analysis"] {
-  const { promptPack, product, sourceProductImage, sourceDriveItem } = context;
+  const { promptPack, product, sourceProductImage } = context;
 
   return {
     mode: "mock",
@@ -758,11 +680,10 @@ function buildPromptPackAnalysis(context: MockPromptContext): PromptPackGenerati
           id: sourceProductImage.id,
           is_primary: sourceProductImage.is_primary,
           status: sourceProductImage.status,
-          source_type: sourceProductImage.source_type,
-          drive_item_ref_id: sourceProductImage.drive_item_ref_id,
-          analysis_json: sourceProductImage.analysis_json,
-          drive_item: sourceDriveItem,
-        }
+        source_type: sourceProductImage.source_type,
+        drive_item_ref_id: sourceProductImage.drive_item_ref_id,
+        analysis_json: sourceProductImage.analysis_json,
+      }
       : null,
     coverage: {
       vision_analysis: 1,
@@ -859,7 +780,7 @@ function assertAffiliateProfileReadyForPromptGeneration(profile: AffiliateProfil
 }
 
 function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2i_prompts"] {
-  const { promptPack, product, sourceProductImage, sourceDriveItem, affiliateProfile, latestAnchor } = context;
+  const { promptPack, product, sourceProductImage, affiliateProfile, latestAnchor } = context;
 
   const sourceLabel = sourceProductImage
     ? `source image row ${sourceProductImage.id}`
@@ -871,25 +792,25 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
     {
       kind: "CHARACTER",
       label: "Character",
-      drive_item_ref_id: affiliateProfile?.seed_character_drive_item_ref_id ?? "",
-      drive_url: "",
-      drive_path: "",
+      drive_item_ref_id: affiliateProfile?.seed_character_drive_item_ref_id ?? null,
+      drive_url: null,
+      drive_path: null,
       analysis_json: affiliateProfile?.seed_character_analysis_json ?? null,
     },
     {
       kind: "ENVIRONMENT",
       label: "Environment",
-      drive_item_ref_id: affiliateProfile?.environment_drive_item_ref_id ?? "",
-      drive_url: "",
-      drive_path: "",
+      drive_item_ref_id: affiliateProfile?.environment_drive_item_ref_id ?? null,
+      drive_url: null,
+      drive_path: null,
       analysis_json: affiliateProfile?.environment_analysis_json ?? null,
     },
     {
       kind: "PRODUCT",
       label: "Product",
-      drive_item_ref_id: sourceProductImage?.drive_item_ref_id ?? "",
-      drive_url: sourceDriveItem?.drive_url ?? "",
-      drive_path: sourceDriveItem?.drive_path ?? "",
+      drive_item_ref_id: sourceProductImage?.drive_item_ref_id ?? null,
+      drive_url: null,
+      drive_path: null,
       analysis_json: sourceProductImage?.analysis_json ?? null,
     },
   ] satisfies PromptPackVisualReferenceJson[];
@@ -1009,7 +930,7 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
 }
 
 function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2v_prompts"] {
-  const { promptPack, product, sourceProductImage, sourceDriveItem, affiliateProfile, latestAnchor } = context;
+  const { promptPack, product, sourceProductImage, affiliateProfile, latestAnchor } = context;
   const sourceLabel = sourceProductImage ? `source image row ${sourceProductImage.id}` : "the product reference";
   const anchorLabel = latestAnchor ? `anchor ${latestAnchor.anchor_code}` : "the latest anchor";
   const profileLabel = affiliateProfile ? `affiliate profile ${affiliateProfile.profile_code}` : "default workspace personalization";
@@ -1018,25 +939,25 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
     {
       kind: "CHARACTER",
       label: "Character",
-      drive_item_ref_id: affiliateProfile?.seed_character_drive_item_ref_id ?? "",
-      drive_url: "",
-      drive_path: "",
+      drive_item_ref_id: affiliateProfile?.seed_character_drive_item_ref_id ?? null,
+      drive_url: null,
+      drive_path: null,
       analysis_json: affiliateProfile?.seed_character_analysis_json ?? null,
     },
     {
       kind: "ENVIRONMENT",
       label: "Environment",
-      drive_item_ref_id: affiliateProfile?.environment_drive_item_ref_id ?? "",
-      drive_url: "",
-      drive_path: "",
+      drive_item_ref_id: affiliateProfile?.environment_drive_item_ref_id ?? null,
+      drive_url: null,
+      drive_path: null,
       analysis_json: affiliateProfile?.environment_analysis_json ?? null,
     },
     {
       kind: "PRODUCT",
       label: "Product",
-      drive_item_ref_id: sourceProductImage?.drive_item_ref_id ?? "",
-      drive_url: sourceDriveItem?.drive_url ?? "",
-      drive_path: sourceDriveItem?.drive_path ?? "",
+      drive_item_ref_id: sourceProductImage?.drive_item_ref_id ?? null,
+      drive_url: null,
+      drive_path: null,
       analysis_json: sourceProductImage?.analysis_json ?? null,
     },
   ] satisfies PromptPackVisualReferenceJson[];
@@ -1303,7 +1224,7 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
           },
         }
       : null,
-    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage, context.sourceDriveItem),
+    source_image: buildPromptSourceImageSnapshot(context.sourceProductImage),
     marketplace_sources: context.marketplaceSources.slice(0, 6).map((source) => ({
       platform: source.platform,
       title: compactText(source.title, 180),
@@ -1382,6 +1303,44 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
   ].join("\n");
 }
 
+function buildPromptPackRepairPrompt(
+  context: PromptPackGenerationContext,
+  selectedGeminiKey: { id: string; label: string; model_name: string; role: string },
+  rawText: string,
+  repairReason: string,
+) {
+  return [
+    "You are repairing a Gemini prompt-pack response into the compact JSON contract.",
+    "Return JSON only. Do not use markdown, code fences, or commentary.",
+    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
+    "Do not emit prompt_context, target_marketplace, seed_character, or environment.",
+    "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
+    "Use the provided context to normalize structure; do not invent new assets or rules.",
+    `Repair reason: ${repairReason || "schema mismatch"}.`,
+    "",
+    "Context:",
+    JSON.stringify(
+      {
+        prompt_pack: {
+          id: context.promptPack.id,
+          prompt_code: context.promptPack.prompt_code,
+          version: context.promptPack.version,
+          status: context.promptPack.status,
+        },
+        prompt_context_for_model: buildPromptContextForModel(context),
+        generation_policy: {
+          model_name: selectedGeminiKey.model_name,
+          key_label: selectedGeminiKey.label,
+          key_role: selectedGeminiKey.role,
+        },
+        previous_output: rawText,
+      },
+      null,
+      2,
+    ),
+  ].join("\n");
+}
+
 export async function getPrimaryProductImageForPromptPack(productId: string) {
   const { supabase, user } = await requireUser();
   const { data, error } = await supabase
@@ -1418,8 +1377,10 @@ async function updatePromptPackGenerationResult(
   taskId: string,
   outputJson: PromptPackGenerationOutput,
 ) {
+  const existingPersonalization = (context.promptPack.personalization_json ?? {}) as JsonObject;
   const storagePayload = buildPromptPackStoragePayload(outputJson, context.promptContext);
   storagePayload.personalization_json = {
+    ...existingPersonalization,
     ...storagePayload.personalization_json,
     prompt_context: context.promptContext,
   };
@@ -1520,7 +1481,6 @@ export async function completePromptPackFromMockTask(promptPackId: string, taskI
     latestAnchor: context.latestAnchor,
     marketplaceSources: context.marketplaceSources,
     sourceProductImage: context.sourceProductImage,
-    sourceDriveItem: context.sourceDriveItem,
   };
 
   const outputJson = {
@@ -1585,11 +1545,13 @@ function buildGeminiKeySelectionLabel(key: GeminiSelectedKey) {
 async function selectPromptPackGeminiKey(
   context: PromptPackGenerationContext,
   excludedQuotaGroups: ReadonlySet<string>,
+  excludedKeyIds: ReadonlySet<string> = new Set(),
 ) {
   const keys = await listQuotaAwareGeminiKeys({
     userId: context.user.id,
     purpose: "PROMPT_PACK_GENERATION",
     excludedQuotaGroups,
+    excludedKeyIds,
     serviceClient: context.serviceClient,
   });
   let sawSecretDecryptionFailure = false;
@@ -1613,6 +1575,151 @@ async function selectPromptPackGeminiKey(
   }
 
   return null;
+}
+
+async function listPromptPackRepairKeySelections(
+  context: PromptPackGenerationContext,
+  fallbackSelection: GeminiSelectedKey,
+  excludedQuotaGroups: ReadonlySet<string>,
+  excludedKeyIds: ReadonlySet<string>,
+) {
+  const keys = await listQuotaAwareGeminiKeys({
+    userId: context.user.id,
+    purpose: "PROMPT_REPAIR",
+    excludedQuotaGroups,
+    excludedKeyIds,
+    serviceClient: context.serviceClient,
+  });
+  const selections: { key: GeminiSelectedKey; secret: string; role: string }[] = [];
+  const seenKeyIds = new Set<string>();
+  let sawSecretDecryptionFailure = false;
+
+  for (const geminiKey of keys) {
+    const secretResult = await readGeminiSecretForKey(context.serviceClient, context.user.id, geminiKey.id);
+    sawSecretDecryptionFailure ||= secretResult.decryptFailed;
+
+    if (!secretResult.secret || seenKeyIds.has(geminiKey.id)) {
+      continue;
+    }
+
+    selections.push({
+      key: geminiKey,
+      secret: secretResult.secret,
+      role: geminiKey.role,
+    });
+    seenKeyIds.add(geminiKey.id);
+  }
+
+  if (!seenKeyIds.has(fallbackSelection.id) && !excludedKeyIds.has(fallbackSelection.id)) {
+    const secretResult = await readGeminiSecretForKey(context.serviceClient, context.user.id, fallbackSelection.id);
+    sawSecretDecryptionFailure ||= secretResult.decryptFailed;
+
+    if (secretResult.secret) {
+      selections.push({
+        key: fallbackSelection,
+        secret: secretResult.secret,
+        role: fallbackSelection.role,
+      });
+      seenKeyIds.add(fallbackSelection.id);
+    }
+  }
+
+  if (!selections.length && sawSecretDecryptionFailure) {
+    throw new Error(getGeminiSecretRotationErrorMessage());
+  }
+
+  return selections;
+}
+
+async function repairPromptPackGenerationOutput(input: {
+  context: PromptPackGenerationContext;
+  taskId: string;
+  rawText: string;
+  repairReason: string;
+  fallbackSelection: GeminiSelectedKey;
+  excludedQuotaGroups: Set<string>;
+  excludedKeyIds: Set<string>;
+}) {
+  const repairSelections = await listPromptPackRepairKeySelections(
+    input.context,
+    input.fallbackSelection,
+    input.excludedQuotaGroups,
+    input.excludedKeyIds,
+  );
+  let lastError: unknown = null;
+
+  for (const selection of repairSelections) {
+    try {
+      const response = await generateTrackedGeminiJsonText({
+        aiTaskId: input.taskId,
+        geminiApiKey: selection.key,
+        taskType: "PROMPT_REPAIR",
+        userId: input.context.user.id,
+        request: {
+          modelName: selection.key.model_name as GeminiModelName,
+          apiKey: selection.secret,
+          prompt: buildPromptPackRepairPrompt(input.context, selection.key, input.rawText, input.repairReason),
+          temperature: 0,
+          maxOutputTokens: 4096,
+          timeoutMs: 120_000,
+          responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+        },
+      });
+
+      return {
+        outputJson: parsePromptPackGenerationOutput(response.text, {
+          fallbackProductStatus: input.context.product.status,
+          fallbackSourceImage: buildPromptSourceImageSnapshot(input.context.sourceProductImage),
+          serverPromptContext: input.context.promptContext,
+        }),
+        selectedKeySelection: selection,
+      };
+    } catch (error) {
+      lastError = error;
+      const disposition = getGeminiFailureDisposition(error);
+
+      if (disposition.markKeyError) {
+        input.excludedKeyIds.add(selection.key.id);
+        await markGeminiKeyError({
+          serviceClient: input.context.serviceClient,
+          userId: input.context.user.id,
+          keyId: selection.key.id,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (disposition.markGroupError) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        await markGeminiQuotaGroupError({
+          serviceClient: input.context.serviceClient,
+          userId: input.context.user.id,
+          key: selection.key,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (disposition.markGroupCooldown) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        await markGeminiQuotaGroupCooldown({
+          serviceClient: input.context.serviceClient,
+          userId: input.context.user.id,
+          key: selection.key,
+          nextStatus: disposition.nextStatus ?? "RATE_LIMITED",
+          cooldownUntil: disposition.cooldownUntil,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (isGeminiTransientFailure(error) || !disposition.retryableTask) {
+        input.excludedQuotaGroups.add(getGeminiQuotaGroupKey(selection.key));
+        continue;
+      }
+
+      break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Unable to repair prompt-pack Gemini output.");
 }
 
 async function markPromptPackWaitingForGeminiKey(
@@ -1647,9 +1754,12 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
   const context = await loadPromptPackGenerationContext(promptPackId);
   await markTaskRunning(taskId);
   const excludedQuotaGroups = new Set<string>();
+  const excludedKeyIds = new Set<string>();
+  let lastFailureDisposition: ReturnType<typeof getGeminiFailureDisposition> | null = null;
+  let lastError: unknown = null;
 
   while (true) {
-    const selected = await selectPromptPackGeminiKey(context, excludedQuotaGroups);
+    const selected = await selectPromptPackGeminiKey(context, excludedQuotaGroups, excludedKeyIds);
 
     if (!selected) {
       return markPromptPackWaitingForGeminiKey(
@@ -1669,11 +1779,11 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
       .eq("id", taskId)
       .eq("user_id", context.user.id);
 
-    if (taskKeyUpdateError) {
-      const message = sanitizeGeminiFailureMessage(new Error(taskKeyUpdateError.message));
-      await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
-      throw new Error(message);
-    }
+      if (taskKeyUpdateError) {
+        const message = sanitizeGeminiFailureMessage(new Error(taskKeyUpdateError.message));
+        await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
+        throw new Error(message);
+      }
 
     const { error: generatingUpdateError } = await context.supabase
       .from("prompt_packs")
@@ -1690,6 +1800,9 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
       await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
       throw new Error(message);
     }
+
+    let outputJson: PromptPackGenerationOutput | null = null;
+    let selectedKeySelectionForSuccess: GeminiSelectedKey = selected.key;
 
     try {
       const response = await generateTrackedGeminiJsonText({
@@ -1708,74 +1821,127 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
         },
       });
 
-      const outputJson = parsePromptPackGenerationOutput(response.text, {
-        fallbackProductStatus: context.product.status,
-        fallbackSourceImage: buildPromptSourceImageSnapshot(context.sourceProductImage, context.sourceDriveItem),
-        serverPromptContext: context.promptContext,
-      });
-      const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
-      const task = await markTaskSuccess(taskId, outputJson);
-
-      await markGeminiKeySuccess({
-        serviceClient: context.serviceClient,
-        userId: context.user.id,
-        key: selectedKey,
-      }).catch(() => undefined);
-
-      return {
-        task,
-        promptPack,
-        message: `Prompt pack generated with Gemini using ${buildGeminiKeySelectionLabel(selectedKey)}.`,
-      };
-    } catch (error) {
-      if (error instanceof GeminiClientError && error.status >= 500) {
-        console.warn("[prompt-packs.runRealPromptPackTask] Gemini upstream unavailable", {
-          promptPackId,
-          taskId,
-          userId: context.user.id,
-          geminiApiKeyId: selectedKey.id,
-          modelName: selectedKey.model_name,
-          status: error.status,
-          retryAfterSeconds: error.retryAfterSeconds,
-          message: error.message,
+      try {
+        outputJson = parsePromptPackGenerationOutput(response.text, {
+          fallbackProductStatus: context.product.status,
+          fallbackSourceImage: buildPromptSourceImageSnapshot(context.sourceProductImage),
+          serverPromptContext: context.promptContext,
         });
+      } catch (parseError) {
+        const repaired = await repairPromptPackGenerationOutput({
+          context,
+          taskId,
+          rawText: response.text,
+          repairReason: parseError instanceof Error ? parseError.message : "Prompt-pack schema mismatch.",
+          fallbackSelection: selectedKey,
+          excludedQuotaGroups,
+          excludedKeyIds,
+        });
+        outputJson = repaired.outputJson;
+        selectedKeySelectionForSuccess = repaired.selectedKeySelection.key;
+      }
+    } catch (error) {
+      lastError = error;
+
+      if (!(error instanceof GeminiClientError)) {
+        lastFailureDisposition = null;
+        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+        continue;
       }
 
-      if (error instanceof GeminiClientError && error.status === 429) {
-        const retryAfterSeconds = error.retryAfterSeconds ?? 900;
-        const cooldownUntil = retryAfterSeconds > 0 ? new Date(Date.now() + retryAfterSeconds * 1000).toISOString() : null;
-        const nextStatus = retryAfterSeconds > 0 ? "COOLDOWN" : "RATE_LIMITED";
-        const quotaGroup = getGeminiQuotaGroupKey(selectedKey);
+      lastFailureDisposition = getGeminiFailureDisposition(error);
 
+      if (lastFailureDisposition.markKeyError) {
+        excludedKeyIds.add(selectedKey.id);
+        await markGeminiKeyError({
+          serviceClient: context.serviceClient,
+          userId: context.user.id,
+          keyId: selectedKey.id,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (lastFailureDisposition.markGroupError) {
+        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+        await markGeminiQuotaGroupError({
+          serviceClient: context.serviceClient,
+          userId: context.user.id,
+          key: selectedKey,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (lastFailureDisposition.markGroupCooldown) {
+        const quotaGroup = getGeminiQuotaGroupKey(selectedKey);
         excludedQuotaGroups.add(quotaGroup);
 
         await markGeminiQuotaGroupCooldown({
           serviceClient: context.serviceClient,
           userId: context.user.id,
           key: selectedKey,
-          nextStatus,
-          cooldownUntil,
+          nextStatus: lastFailureDisposition.nextStatus ?? "RATE_LIMITED",
+          cooldownUntil: lastFailureDisposition.cooldownUntil,
         }).catch(() => undefined);
-
         continue;
       }
 
-      const message = sanitizeGeminiFailureMessage(error);
-      const failedTask = await markTaskFailed(taskId, message, { retryable: false });
-
-      try {
-        await updatePromptPackGenerationFailure(context, taskId, message);
-      } catch {
-        // Preserve the original failure if prompt pack update also fails.
+      if (lastFailureDisposition.excludeQuotaGroup) {
+        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+        continue;
       }
 
+      if (lastFailureDisposition.excludeKeyId) {
+        excludedKeyIds.add(selectedKey.id);
+        continue;
+      }
+
+      break;
+    }
+
+    if (!outputJson) {
+      lastError = new Error("Prompt pack output was not generated.");
+      lastFailureDisposition = null;
+      break;
+    }
+
+    try {
+      const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
+      const task = await markTaskSuccess(taskId, outputJson);
+
+      await markGeminiKeySuccess({
+        serviceClient: context.serviceClient,
+        userId: context.user.id,
+        key: selectedKeySelectionForSuccess,
+      }).catch(() => undefined);
+
       return {
-        task: failedTask,
-        promptPack: context.promptPack,
-        message,
+        task,
+        promptPack,
+        message: `Prompt pack generated with Gemini using ${buildGeminiKeySelectionLabel(selectedKeySelectionForSuccess)}.`,
       };
+    } catch (error) {
+      lastError = error;
+      lastFailureDisposition = null;
+      break;
     }
   }
+
+  const message = sanitizeGeminiFailureMessage(lastError);
+  const failedTask = await markTaskFailed(taskId, message, {
+    retryable: lastFailureDisposition?.retryableTask ?? false,
+  });
+
+  try {
+    await updatePromptPackGenerationFailure(context, taskId, message);
+  } catch {
+    // Preserve the original failure if prompt pack update also fails.
+  }
+
+  return {
+    task: failedTask,
+    promptPack: context.promptPack,
+    message,
+  };
 }
 
 export async function createMockPromptPackOutput(id: string) {
