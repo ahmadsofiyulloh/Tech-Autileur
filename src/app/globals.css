@@ -2061,66 +2061,6 @@ summary::marker {
   color: var(--text);
 }
 
-.activity-banner {
-  display: grid;
-  gap: var(--space-2);
-  border: 1px solid var(--color-floating-border);
-  border-radius: var(--radius);
-  background: var(--color-floating-surface);
-  box-shadow: var(--shadow-soft);
-  color: var(--text);
-  padding: 12px;
-  backdrop-filter: blur(16px);
-}
-
-.activity-banner__header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.activity-banner__copy {
-  min-width: 0;
-}
-
-.activity-banner__copy strong {
-  color: var(--text);
-  font-size: var(--type-body-sm-size);
-  line-height: var(--type-body-sm-line);
-}
-
-.activity-banner__copy .subtle {
-  display: block;
-  font-size: var(--type-control-sm-size);
-  line-height: var(--type-control-sm-line);
-}
-
-.activity-banner__percent {
-  color: var(--muted-strong);
-  font-size: var(--type-control-size);
-  font-variant-numeric: var(--type-numeric-tabular);
-  font-weight: var(--type-control-strong-weight);
-}
-
-.activity-banner__bar {
-  position: relative;
-  display: block;
-  height: 7px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--color-progress-track);
-}
-
-.activity-banner__bar > span {
-  display: block;
-  width: var(--activity-fill, 0%);
-  height: 100%;
-  border-radius: inherit;
-  background: var(--color-progress-fill);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent-strong) 22%, transparent);
-}
-
 .skeleton {
   display: block;
   height: 16px;
@@ -5404,10 +5344,26 @@ body:has(.operator-shell) {
   gap: 8px;
 }
 
+.intake-action-slot {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
 .intake-workflow .form-actions .button.primary {
   width: 100%;
   min-height: 38px;
   justify-content: center;
+}
+
+.intake-inline-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--muted-strong);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
 }
 
 @media (max-width: 860px) {

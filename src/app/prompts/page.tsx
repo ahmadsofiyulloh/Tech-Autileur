@@ -69,11 +69,7 @@ function PromptPackCreateForm({
       <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
       <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
       <PendingActionButton
-        activityDescription="Menunggu Gemini membuat paket prompt."
-        activityKind="prompt-create"
-        activityTitle="Membuat paket prompt"
         className="button compact primary"
-        estimatedDurationMs={20000}
         aria-describedby={!readiness.ready ? readinessId : undefined}
         pendingLabel="Membuat"
         disabled={!readiness.ready}

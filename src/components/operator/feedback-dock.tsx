@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense } from "react";
-import { ActivityFeedbackHost } from "./activity-feedback-host";
 import { RouteToaster } from "./route-toaster";
 
 export function FeedbackDock() {
@@ -10,7 +9,6 @@ export function FeedbackDock() {
       <Suspense fallback={null}>
         <RouteToaster />
       </Suspense>
-      <ActivityFeedbackHost />
     </div>
   );
 }

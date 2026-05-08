@@ -260,9 +260,6 @@ function AffiliateProfileAssetReanalysisPanel({ isCreating }: { isCreating: bool
 
       {!isCreating ? (
         <PendingActionButton
-          activityDescription="Membaca bytes Drive dan menyimpan JSON Character + Environment."
-          activityKind="analysis"
-          activityTitle="Menganalisis aset affiliate"
           className="button compact tertiary affiliate-profile-asset-card__reanalyse"
           formAction={formAction}
           pendingLabel="Menganalisis..."
@@ -747,11 +744,7 @@ export function AffiliateProfilesBoard({
 
             <FormActions layout="single">
               <PendingActionButton
-                activityDescription="Menyimpan metadata profile, rules, lock, dan Drive ref."
-                activityKind="generic"
-                activityTitle={isCreating ? "Membuat profile affiliate" : "Menyimpan profile affiliate"}
                 className="primary"
-                estimatedDurationMs={12000}
                 pendingLabel={isCreating ? "Membuat..." : "Menyimpan..."}
               >
                 {isCreating ? "Buat profile" : "Simpan profile"}

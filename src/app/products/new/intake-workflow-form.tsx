@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import {
   AlertTriangle,
   FileText,
   Link2,
+  Loader2,
 } from "lucide-react";
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
@@ -19,6 +21,7 @@ import type { JsonRecord } from "@/lib/intake/validation";
 import type { PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 
 type IntakeWorkflowStep = "intake" | "prompt";
+type IntakeSubmitIntent = "save_product_capture" | "analyze_metadata" | null;
 
 export type IntakeWorkflowSession = {
   id: string;
@@ -106,6 +109,40 @@ function promptHref(productId: string, intakeId: string, affiliateProfileId?: st
   }
 
   return `/prompts?${searchParams.toString()}`;
+}
+
+function readSubmitIntent(event: FormEvent<HTMLFormElement>): IntakeSubmitIntent {
+  const submitter = (event.nativeEvent as SubmitEvent).submitter;
+
+  if (!(submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement)) {
+    return null;
+  }
+
+  if (submitter.name !== "intent") {
+    return null;
+  }
+
+  if (submitter.value === "save_product_capture" || submitter.value === "analyze_metadata") {
+    return submitter.value;
+  }
+
+  return null;
+}
+
+function IntakePendingIntentBridge({
+  onPendingIntentChange,
+  submittedIntent,
+}: {
+  onPendingIntentChange: (intent: IntakeSubmitIntent) => void;
+  submittedIntent: IntakeSubmitIntent;
+}) {
+  const { pending } = useFormStatus();
+
+  useEffect(() => {
+    onPendingIntentChange(pending ? submittedIntent : null);
+  }, [onPendingIntentChange, pending, submittedIntent]);
+
+  return null;
 }
 
 function affiliateInitials(profileName: string) {
@@ -413,11 +450,7 @@ function AnalysisReadyPanel({
 
         <FormActions layout="triple">
           <PendingActionButton
-            activityDescription="Menyimpan metadata yang sudah direview."
-            activityKind="generic"
-            activityTitle="Menyimpan review"
             className="button primary"
-            estimatedDurationMs={7000}
             pendingLabel="Menyimpan"
             disabled={!savedSession.id}
           >
@@ -465,6 +498,8 @@ export function IntakeWorkflowForm({
   const [shopeeScreenshot, setShopeeScreenshot] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
   const [tiktokScreenshot, setTiktokScreenshot] = useState<ImagePreviewSelectionState>({ selected: false, fileName: null, previewUrl: null });
   const [affiliateProfileId, setAffiliateProfileId] = useState(selectedAffiliateProfileId ?? affiliateProfiles[0]?.id ?? "");
+  const [submittedIntent, setSubmittedIntent] = useState<IntakeSubmitIntent>(null);
+  const [activePendingIntent, setActivePendingIntent] = useState<IntakeSubmitIntent>(null);
 
   useEffect(() => {
     setStep(initialStep);
@@ -487,8 +522,12 @@ export function IntakeWorkflowForm({
   const sessionHasMetadata = savedSession ? hasSessionMetadata(savedSession) : false;
   const isMetadataPending = Boolean(savedSession && (savedSession.status === "DRAFT" || savedSession.status === "SUBMITTED") && !sessionHasMetadata);
   const isMetadataFailed = Boolean(savedSession && savedSession.status === "ERROR" && !sessionHasMetadata);
+  const isSavingProduct = activePendingIntent === "save_product_capture";
+  const isAnalyzingMetadata = activePendingIntent === "analyze_metadata";
 
-  const metadataPanel = !savedSession ? (
+  const metadataPanel = isAnalyzingMetadata ? (
+    <IntakeMetadataPendingPanel status="SUBMITTED" />
+  ) : !savedSession ? (
     <IntakeMetadataEmptyPanel />
   ) : isMetadataPending ? (
     <IntakeMetadataPendingPanel status={savedSession.status} />
@@ -507,7 +546,13 @@ export function IntakeWorkflowForm({
 
   return (
     <section className={`intake-workflow stack${step === "prompt" ? " intake-workflow--prompt" : ""}`}>
-      <form action={saveIntake} className="stack">
+      <form
+        action={saveIntake}
+        className="stack"
+        onSubmit={(event) => {
+          setSubmittedIntent(readSubmitIntent(event));
+        }}
+      >
         <input type="hidden" name="workspace_scope" value={showAllWorkspaces ? "all" : ""} />
         <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId} />
         {savedSession?.id ? <input type="hidden" name="id" value={savedSession.id} /> : null}
@@ -546,33 +591,34 @@ export function IntakeWorkflowForm({
           />
         </div>
         <FormActions layout="pair">
-          <PendingActionButton
-            name="intent"
-            value="save_product_capture"
-            activityDescription="Menyimpan foto produk ke Drive dan membuat draft produk."
-            activityKind="generic"
-            activityTitle="Menyimpan produk"
-            className="button primary"
-            estimatedDurationMs={14000}
-            pendingLabel="Menyimpan"
-            disabled={!canSaveProduct}
-          >
-            Simpan Produk
-          </PendingActionButton>
+          <div className="intake-action-slot">
+            <PendingActionButton
+              name="intent"
+              value="save_product_capture"
+              className="button primary"
+              pendingLabel="Menyimpan"
+              disabled={!canSaveProduct}
+            >
+              Simpan Produk
+            </PendingActionButton>
+            {isSavingProduct ? (
+              <span className="intake-inline-status" role="status" aria-live="polite">
+                <Loader2 size={14} aria-hidden="true" className="spin" />
+                Menyimpan produk...
+              </span>
+            ) : null}
+          </div>
           <PendingActionButton
             name="intent"
             value="analyze_metadata"
-            activityDescription="Menunggu Gemini memproses evidence."
-            activityKind="analysis"
-            activityTitle="Menganalisis metadata"
             className="button tertiary"
-            estimatedDurationMs={22000}
             pendingLabel="Memproses"
             disabled={!canAnalyzeMetadata}
           >
             Analisis Metadata
           </PendingActionButton>
         </FormActions>
+        <IntakePendingIntentBridge submittedIntent={submittedIntent} onPendingIntentChange={setActivePendingIntent} />
       </form>
 
       {metadataPanel}

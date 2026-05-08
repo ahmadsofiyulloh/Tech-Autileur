@@ -9,11 +9,15 @@ import {
 } from "../../src/lib/gemini/json-schemas";
 import { parseIntakeVisionOutput } from "../../src/lib/intake/vision-contract";
 import {
+  PROMPT_PACK_COPY_SCHEMA_VERSION,
+  PROMPT_PACK_I2V_DURATION_SECONDS,
+  PROMPT_PACK_I2V_TIMELINE_WINDOWS,
   buildPromptPackEditorStoragePayload,
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
   readPromptPackEditorPromptSet,
   type PromptPackGenerationOutput,
+  type PromptPackPromptRulesJson,
   type PromptPackVisualReferenceJson,
   type PromptPackVisualReferenceKind,
   type PromptPackVisualReferenceRole,
@@ -75,6 +79,48 @@ function buildCompactReferenceCard(
   };
 }
 
+function buildTestI2VTimeline() {
+  return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => ({
+    time,
+    action: index === 0 ? "start at @firstframe" : index === 3 ? "end at @lastframe" : "keep smooth product motion",
+  }));
+}
+
+function buildTestI2IFrame<TSlot extends "clip_1" | "clip_2">(input: {
+  slot: TSlot;
+  frame: "first_frame" | "last_frame";
+  promptText: string;
+}): PromptPackGenerationOutput["i2i_prompts"][TSlot]["first_frame"] {
+  return {
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot: input.slot,
+    stage: input.frame === "first_frame" ? "i2i_first_frame" : "i2i_last_frame",
+    image_inputs: input.frame === "first_frame" ? ["@character", "@environment", "@product.png"] : ["@firstframe"],
+    prompt_text: input.promptText,
+    must_keep: ["keep product shape"],
+    must_avoid: ["no extra props"],
+  } as PromptPackGenerationOutput["i2i_prompts"][TSlot]["first_frame"];
+}
+
+function buildTestI2VPrompt<TSlot extends "clip_1" | "clip_2">(
+  slot: TSlot,
+  promptText: string,
+): PromptPackGenerationOutput["i2v_prompts"][TSlot] {
+  return {
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot,
+    stage: "i2v",
+    duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+    frame_inputs: ["@firstframe", "@lastframe"],
+    timeline: buildTestI2VTimeline(),
+    motion_prompt: `${promptText} motion`,
+    camera_motion: "slow push-in",
+    prompt_text: promptText,
+    continuity: "start at @firstframe and end at @lastframe",
+    negative_prompt: "no extra props",
+  } as PromptPackGenerationOutput["i2v_prompts"][TSlot];
+}
+
 function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
   const sharedVisualReferences = [
     buildCompactReferenceCard(
@@ -107,16 +153,7 @@ function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
       ["extra props", "extra text", "identity drift", "cluttered scene"],
       "product-ref",
     ),
-  ] satisfies PromptPackGenerationOutput["i2i_prompts"]["clip_1"]["first_frame"]["visual_references"];
-  const sharedPromptRules = {
-    i2i_prompt_rules: ["{", '"i2i_prompt_rules": ["keep product shape"]', "}"],
-    i2v_prompt_rules: ["{", '"i2v_prompt_rules": ["keep motion smooth"]', "}"],
-    caption_rules: ["{", '"caption_rules": ["short caption"]', "}"],
-    hashtag_rules: ["{", '"hashtag_rules": ["#tas"]', "}"],
-    negative_prompt_rules: ["{", '"negative_prompt_rules": ["no extra props"]', "}"],
-    product_positioning_notes: ["{", '"product_positioning_notes": ["highlight the bag silhouette"]', "}"],
-  } satisfies PromptPackGenerationOutput["i2i_prompts"]["clip_1"]["first_frame"]["prompt_rules"];
-
+  ] satisfies PromptPackVisualReferenceJson[];
   return {
     product_analysis: {
       mode: "gemini",
@@ -150,60 +187,18 @@ function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
     i2i_prompts: {
       clip_1: {
         slot: "clip_1",
-        first_frame: {
-          slot: "clip_1",
-          frame: "first_frame",
-          prompt_text: "first",
-          visual_references: sharedVisualReferences,
-          prompt_rules: sharedPromptRules,
-        },
-        last_frame: {
-          slot: "clip_1",
-          frame: "last_frame",
-          prompt_text: "last",
-          visual_references: sharedVisualReferences,
-          prompt_rules: sharedPromptRules,
-        },
+        first_frame: buildTestI2IFrame({ slot: "clip_1", frame: "first_frame", promptText: "first" }),
+        last_frame: buildTestI2IFrame({ slot: "clip_1", frame: "last_frame", promptText: "last" }),
       },
       clip_2: {
         slot: "clip_2",
-        first_frame: {
-          slot: "clip_2",
-          frame: "first_frame",
-          prompt_text: "first",
-          visual_references: sharedVisualReferences,
-          prompt_rules: sharedPromptRules,
-        },
-        last_frame: {
-          slot: "clip_2",
-          frame: "last_frame",
-          prompt_text: "last",
-          visual_references: sharedVisualReferences,
-          prompt_rules: sharedPromptRules,
-        },
+        first_frame: buildTestI2IFrame({ slot: "clip_2", frame: "first_frame", promptText: "first" }),
+        last_frame: buildTestI2IFrame({ slot: "clip_2", frame: "last_frame", promptText: "last" }),
       },
     },
     i2v_prompts: {
-      clip_1: {
-        slot: "clip_1",
-        prompt_text: "motion one",
-        visual_references: sharedVisualReferences,
-        prompt_rules: sharedPromptRules,
-        continuity: {
-          first_frame_hint: "start",
-          last_frame_hint: "end",
-        },
-      },
-      clip_2: {
-        slot: "clip_2",
-        prompt_text: "motion two",
-        visual_references: sharedVisualReferences,
-        prompt_rules: sharedPromptRules,
-        continuity: {
-          first_frame_hint: "start",
-          last_frame_hint: "end",
-        },
-      },
+      clip_1: buildTestI2VPrompt("clip_1", "motion one"),
+      clip_2: buildTestI2VPrompt("clip_2", "motion two"),
     },
     caption: "Caption",
     tags: "#tas #shopee",
@@ -247,17 +242,28 @@ function buildPromptPackServerContextFixture(): JsonObject {
       ["extra props", "extra text", "identity drift", "cluttered scene"],
       "product-ref",
     ),
-  ] satisfies PromptPackGenerationOutput["i2i_prompts"]["clip_1"]["first_frame"]["visual_references"];
+  ] satisfies PromptPackVisualReferenceJson[];
 
   return {
     mode: "server_injected",
     reference_cards: sharedReferenceCards,
     prompt_writing_contract: {
-      mode: "I2I_JSON",
-      mention_format: "@original_file_name",
-      subject_priority: ["PRODUCT", "ENVIRONMENT", "CHARACTER"],
-      max_prompt_sentences: 2,
+      mode: "FLOW_I2I_I2V_PROMPT_PACK_V2",
+      schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+      first_frame_image_inputs: ["@character", "@environment", "@product"],
+      last_frame_image_inputs: ["@firstframe"],
+      i2v_frame_inputs: ["@firstframe", "@lastframe"],
+      i2v_duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+      i2v_timeline_windows: [...PROMPT_PACK_I2V_TIMELINE_WINDOWS],
+      clip_roles: {
+        clip_1: "hook/hero look",
+        clip_2: "detail/benefit/use-case look",
+      },
+      mention_format: "@original_file_name for product, @character and @environment for locked profile references",
+      subject_priority: ["PRODUCT", "CHARACTER", "ENVIRONMENT"],
+      max_prompt_sentences: 3,
       no_raw_analysis_json: true,
+      no_raw_prompt_rules_in_output: true,
     },
     product: {
       id: "product-id",
@@ -359,24 +365,107 @@ function buildPromptPackCompactFixture(options?: PromptPackFixtureOptions) {
       clip_1: {
         slot: "clip_1",
         prompt_text: "motion one",
+        duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+        timeline: buildTestI2VTimeline(),
+        motion_prompt: "motion one from @firstframe to @lastframe",
+        camera_motion: "slow push-in",
         continuity: {
           first_frame_hint: "start",
           last_frame_hint: "end",
         },
+        negative_prompt: "no extra props",
       },
       clip_2: {
         slot: "clip_2",
         prompt_text: "motion two",
+        duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+        timeline: buildTestI2VTimeline(),
+        motion_prompt: "motion two from @firstframe to @lastframe",
+        camera_motion: "slow push-in",
         continuity: {
           first_frame_hint: "start",
           last_frame_hint: "end",
         },
+        negative_prompt: "no extra props",
       },
     },
     caption: "Caption",
     tags: "#tas #shopee",
     negative_prompt_rules: ["no extra props"],
     consistency_rules: ["same product silhouette"],
+  };
+}
+
+function buildLegacyPromptPackFixture(options?: PromptPackFixtureOptions) {
+  const base = buildPromptPackFixture(options);
+  const serverContext = buildPromptPackServerContextFixture() as {
+    reference_cards: PromptPackVisualReferenceJson[];
+    affiliate_profile: { rules: PromptPackPromptRulesJson };
+  };
+  const visualReferences = serverContext.reference_cards;
+  const promptRules = serverContext.affiliate_profile.rules;
+
+  return {
+    ...base,
+    prompt_context: serverContext,
+    i2i_prompts: {
+      clip_1: {
+        slot: "clip_1",
+        first_frame: {
+          slot: "clip_1",
+          frame: "first_frame",
+          prompt_text: "legacy first",
+          visual_references: visualReferences,
+          prompt_rules: promptRules,
+        },
+        last_frame: {
+          slot: "clip_1",
+          frame: "last_frame",
+          prompt_text: "legacy last",
+          visual_references: visualReferences,
+          prompt_rules: promptRules,
+        },
+      },
+      clip_2: {
+        slot: "clip_2",
+        first_frame: {
+          slot: "clip_2",
+          frame: "first_frame",
+          prompt_text: "legacy first two",
+          visual_references: visualReferences,
+          prompt_rules: promptRules,
+        },
+        last_frame: {
+          slot: "clip_2",
+          frame: "last_frame",
+          prompt_text: "legacy last two",
+          visual_references: visualReferences,
+          prompt_rules: promptRules,
+        },
+      },
+    },
+    i2v_prompts: {
+      clip_1: {
+        slot: "clip_1",
+        prompt_text: "legacy motion one",
+        visual_references: visualReferences,
+        prompt_rules: promptRules,
+        continuity: {
+          first_frame_hint: "legacy start",
+          last_frame_hint: "legacy end",
+        },
+      },
+      clip_2: {
+        slot: "clip_2",
+        prompt_text: "legacy motion two",
+        visual_references: visualReferences,
+        prompt_rules: promptRules,
+        continuity: {
+          first_frame_hint: "legacy start two",
+          last_frame_hint: "legacy end two",
+        },
+      },
+    },
   };
 }
 
@@ -437,7 +526,12 @@ test("Gemini response schemas are strict at the top level", () => {
   expect(GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.i2v_prompts?.properties?.clip_1?.required).toEqual([
     "slot",
     "prompt_text",
+    "duration_seconds",
+    "timeline",
+    "motion_prompt",
+    "camera_motion",
     "continuity",
+    "negative_prompt",
   ]);
   expect(GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.product_analysis?.properties?.product?.required).toContain("status");
 });
@@ -768,9 +862,17 @@ test("prompt pack editor storage round-trips legacy prompts without drive_url", 
 
   const promptSet = readPromptPackEditorPromptSet(legacyPack);
 
-  expect(promptSet.clips.clip_1.i2i_first_frame_json.visual_references[0].drive_url).toBeNull();
-  expect(promptSet.clips.clip_1.i2i_first_frame_json.visual_references[0].drive_path).toBeNull();
-  expect(promptSet.clips.clip_1.i2v_prompt_json.visual_references[2].drive_url).toBeNull();
+  expect(promptSet.clips.clip_1.i2i_first_frame_json.schema_version).toBe(PROMPT_PACK_COPY_SCHEMA_VERSION);
+  expect(promptSet.clips.clip_1.i2i_first_frame_json.image_inputs).toEqual([
+    "@character",
+    "@environment",
+    "@Product",
+  ]);
+  expect(promptSet.clips.clip_1.i2i_last_frame_json.image_inputs).toEqual(["@firstframe"]);
+  expect(promptSet.clips.clip_1.i2v_prompt_json.frame_inputs).toEqual(["@firstframe", "@lastframe"]);
+  expect(promptSet.clips.clip_1.i2v_prompt_json.duration_seconds).toBe(PROMPT_PACK_I2V_DURATION_SECONDS);
+  expect(promptSet.clips.clip_1.i2v_prompt).not.toContain("visual_references");
+  expect(promptSet.clips.clip_1.i2v_prompt).not.toContain("prompt_rules");
 
   expect(() =>
     buildPromptPackEditorStoragePayload(
@@ -874,27 +976,36 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
     drive_item_ref_id: "environment-ref",
   });
   expect(parsed.prompt_context.reference_cards).toHaveLength(3);
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references.map((reference) => reference.kind)).toEqual([
-    "CHARACTER",
-    "ENVIRONMENT",
-    "PRODUCT",
+  expect(parsed.i2i_prompts.clip_1.first_frame.schema_version).toBe(PROMPT_PACK_COPY_SCHEMA_VERSION);
+  expect(parsed.i2i_prompts.clip_1.first_frame.stage).toBe("i2i_first_frame");
+  expect(parsed.i2i_prompts.clip_1.first_frame.image_inputs).toEqual([
+    "@character",
+    "@environment",
+    "@product.png",
   ]);
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references.map((reference) => reference.analysis_json)).toEqual([
-    null,
-    null,
-    null,
+  expect(parsed.i2i_prompts.clip_1.first_frame.must_keep).toEqual(expect.arrayContaining([
+    expect.stringContaining("Use @character, @environment"),
+    expect.stringContaining("keep product shape"),
+  ]));
+  expect(parsed.i2i_prompts.clip_1.first_frame.must_avoid.length).toBeGreaterThan(0);
+  expect(parsed.i2i_prompts.clip_1.first_frame.must_avoid.join(" ")).not.toContain("{");
+  expect(parsed.i2i_prompts.clip_1.last_frame.image_inputs).toEqual(["@firstframe"]);
+  expect(parsed.i2v_prompts.clip_2.schema_version).toBe(PROMPT_PACK_COPY_SCHEMA_VERSION);
+  expect(parsed.i2v_prompts.clip_2.frame_inputs).toEqual(["@firstframe", "@lastframe"]);
+  expect(parsed.i2v_prompts.clip_2.duration_seconds).toBe(PROMPT_PACK_I2V_DURATION_SECONDS);
+  expect(parsed.i2v_prompts.clip_2.timeline.map((segment) => segment.time)).toEqual([
+    "00:00-00:02",
+    "00:02-00:04",
+    "00:04-00:06",
+    "00:06-00:08",
   ]);
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[0].mention).toBe("@character.png");
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[0].role).toBe("supporting_reference");
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[2].mention).toBe("@product.png");
-  expect(parsed.i2i_prompts.clip_1.first_frame.visual_references[2].role).toBe("primary_subject");
-  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_rules.i2i_prompt_rules).toEqual(["keep product shape"]);
-  expect(parsed.i2v_prompts.clip_2.visual_references[2].drive_path).toBeNull();
-  expect(parsed.i2v_prompts.clip_2.prompt_rules.caption_rules).toEqual(["short caption"]);
+  expect(parsed.i2v_prompts.clip_2.negative_prompt).toContain("no extra props");
+  expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("visual_references");
+  expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("prompt_rules");
 });
 
 test("prompt pack parser accepts legacy Gemini output contract", () => {
-  const parsed = parsePromptPackGenerationOutput(JSON.stringify(buildPromptPackFixture()), {
+  const parsed = parsePromptPackGenerationOutput(JSON.stringify(buildLegacyPromptPackFixture()), {
     fallbackProductStatus: "IMAGE_ANALYZED",
     serverPromptContext: buildPromptPackServerContextFixture(),
   });
@@ -964,6 +1075,7 @@ test("route toaster replays identical toasts after dismissal", async ({ page }) 
   await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
   await saveHashButton.click();
   await expect(successToast).toContainText("App API Token saved");
+  await expect(page.locator(".activity-banner")).toHaveCount(0);
   await page.getByRole("button", { name: "Tutup notifikasi" }).click();
   await expect(successToast).toHaveCount(0);
 

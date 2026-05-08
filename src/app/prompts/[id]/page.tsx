@@ -142,11 +142,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
           <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
           <input type="hidden" name="product_id" value={promptPack.product_id} />
           <PendingActionButton
-            activityDescription="Menyimpan prompt TXT ke Drive."
-            activityKind="prompt-export"
-            activityTitle="Menyimpan TXT Drive"
             className="button compact tertiary"
-            estimatedDurationMs={8000}
             pendingLabel="Menyimpan"
             name="intent"
             value="export_prompt_txt"
@@ -160,11 +156,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
             <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
             <input type="hidden" name="product_id" value={promptPack.product_id} />
             <PendingActionButton
-              activityDescription="Menyimpan prompt TXT ke Drive."
-              activityKind="prompt-export"
-              activityTitle="Menyimpan TXT Drive"
               className="button compact tertiary"
-              estimatedDurationMs={8000}
               pendingLabel="Menyimpan"
               name="intent"
               value="export_prompt_txt"
@@ -197,11 +189,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
               History
             </Link>
             <PendingActionButton
-              activityDescription="Menunggu Gemini meregenerasi paket prompt."
-              activityKind="prompt-regenerate"
-              activityTitle="Meregenerasi prompt"
               className="button primary"
-              estimatedDurationMs={20000}
               pendingLabel="Meregenerasi"
               name="intent"
               value="regenerate"

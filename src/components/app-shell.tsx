@@ -4,7 +4,6 @@ import { Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, type ReactNode } from "react";
-import { ActivityFeedbackProvider } from "@/components/operator/activity-feedback-context";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
 import { ShellPullToRefresh } from "@/components/operator/shell-pull-to-refresh";
@@ -16,20 +15,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (isPublicRoute) {
     return (
-      <ActivityFeedbackProvider>
-        <div className="public-shell">
-          <FeedbackDock />
-          <main className="public-main">{children}</main>
-        </div>
-      </ActivityFeedbackProvider>
+      <div className="public-shell">
+        <FeedbackDock />
+        <main className="public-main">{children}</main>
+      </div>
     );
   }
 
   return (
     <TopbarProvider>
-      <ActivityFeedbackProvider>
-        <OperatorShellContent>{children}</OperatorShellContent>
-      </ActivityFeedbackProvider>
+      <OperatorShellContent>{children}</OperatorShellContent>
     </TopbarProvider>
   );
 }
