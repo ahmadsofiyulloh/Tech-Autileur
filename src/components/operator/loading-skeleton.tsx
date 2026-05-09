@@ -73,23 +73,6 @@ export function SkeletonUploadCard() {
   );
 }
 
-export function SkeletonIntakeActiveAffiliateCard() {
-  return (
-    <section className="intake-active-affiliate-card loading-skeleton-static" aria-hidden="true">
-      <span className="settings-affiliate-profile-card__avatar skeleton-avatar" />
-      <span className="intake-active-affiliate-card__copy">
-        <span className="intake-active-affiliate-card__title-row">
-          <SkeletonLine size="medium" />
-          <span className="skeleton-pill" />
-        </span>
-        <SkeletonLine size="short" />
-        <SkeletonLine size="short" />
-      </span>
-      <SkeletonButton />
-    </section>
-  );
-}
-
 export function SkeletonIntakeStepper() {
   return (
     <section className="intake-stepper loading-skeleton-static" aria-hidden="true">
@@ -423,7 +406,7 @@ export function SkeletonDriveGrid({ count = 8 }: SkeletonCountProps) {
 }
 
 export function SkeletonSettingsNativeList() {
-  const groups = [1, 1, 2, 2];
+  const groups = [1, 1, 1, 2];
 
   return (
     <section className="settings-native-list loading-skeleton-static" aria-hidden="true">
@@ -557,6 +540,24 @@ export function SkeletonSettingsShortcutCard() {
           <span className="skeleton-pill" />
         </div>
       </div>
+    </section>
+  );
+}
+
+export function SkeletonSettingsProfileHero() {
+  return (
+    <section className="settings-native-card settings-profile-hero settings-profile-hero--overview loading-skeleton-static" aria-hidden="true">
+      <span className="settings-profile-hero__avatar skeleton-avatar skeleton-avatar--xl" />
+      <span className="settings-profile-hero__copy">
+        <SkeletonLine size="short" />
+        <SkeletonLine size="long" />
+        <div className="settings-profile-hero__meta">
+          <SkeletonLine size="short" />
+        </div>
+        <div className="settings-profile-hero__footer">
+          <SkeletonButton />
+        </div>
+      </span>
     </section>
   );
 }

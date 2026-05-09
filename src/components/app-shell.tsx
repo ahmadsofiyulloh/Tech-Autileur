@@ -1,15 +1,16 @@
 "use client";
 
-import { Settings, Workflow } from "lucide-react";
+import { UserRound, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
+import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
 import { ShellPullToRefresh } from "@/components/operator/shell-pull-to-refresh";
 import { TopbarProvider, useTopbar } from "@/components/operator/topbar-context";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, shellContext }: { children: ReactNode; shellContext: OperatorShellContext }) {
   const pathname = usePathname();
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
@@ -24,14 +25,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <TopbarProvider>
-      <OperatorShellContent>{children}</OperatorShellContent>
+      <OperatorShellContent shellContext={shellContext}>{children}</OperatorShellContent>
     </TopbarProvider>
   );
 }
 
-function OperatorShellContent({ children }: { children: ReactNode }) {
+function OperatorShellContent({ children, shellContext }: { children: ReactNode; shellContext: OperatorShellContext }) {
   const pathname = usePathname();
   const shellMainRef = useRef<HTMLElement | null>(null);
+  const [profileAvatarFailed, setProfileAvatarFailed] = useState(false);
   const activeRoute =
     routeTitles
       .slice()
@@ -41,7 +43,13 @@ function OperatorShellContent({ children }: { children: ReactNode }) {
   const activeTitle = override?.title ?? activeRoute?.label ?? "Operator";
   const activeSubtitle = override?.subtitle ?? activeRoute?.subtitle ?? "Content OS.";
   const ActiveIcon = activeRoute?.icon ?? Workflow;
+  const currentAffiliateProfile = shellContext.currentAffiliateProfile;
   const showSettingsGear = !pathname.startsWith("/settings") && !override?.hideSettingsLink;
+  const showProfileAvatar = Boolean(currentAffiliateProfile?.avatarUrl) && !profileAvatarFailed;
+
+  useEffect(() => {
+    setProfileAvatarFailed(false);
+  }, [currentAffiliateProfile?.avatarUrl]);
 
   function isActive(href: string) {
     if (href === "/products/new" && pathname.startsWith("/intake")) {
@@ -104,9 +112,26 @@ function OperatorShellContent({ children }: { children: ReactNode }) {
           </div>
           <div className="topbar-tools">
             {showSettingsGear ? (
-              <Link className="topbar-action topbar-settings-link" href="/settings" aria-label="Pengaturan">
-                <Settings size={18} aria-hidden="true" />
-                <span>Pengaturan</span>
+              <Link
+                aria-label="Pengaturan"
+                className="topbar-profile-link"
+                href="/settings"
+                title={currentAffiliateProfile?.profileName ?? "Pengaturan"}
+              >
+                <span
+                  className={`topbar-profile-link__avatar${showProfileAvatar ? "" : " topbar-profile-link__avatar--fallback"}`}
+                  aria-hidden="true"
+                >
+                  {showProfileAvatar ? (
+                    <img
+                      alt=""
+                      src={currentAffiliateProfile?.avatarUrl ?? ""}
+                      onError={() => setProfileAvatarFailed(true)}
+                    />
+                  ) : (
+                    <UserRound size={18} aria-hidden="true" />
+                  )}
+                </span>
               </Link>
             ) : null}
           </div>

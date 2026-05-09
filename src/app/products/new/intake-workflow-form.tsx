@@ -77,8 +77,6 @@ type IntakeWorkflowFormProps = {
   }>;
 };
 
-type IntakeAffiliateProfile = IntakeWorkflowFormProps["affiliateProfiles"][number];
-
 function readReviewValue(metadata: JsonRecord | null, key: string, fallbackKey?: string) {
   if (!metadata) {
     return "";
@@ -220,91 +218,6 @@ function ReviewPendingIntentBridge({
   }, [onPendingIntentChange, pending, submittedIntent]);
 
   return null;
-}
-
-function affiliateInitials(profileName: string) {
-  const parts = profileName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2);
-
-  return parts.map((part) => part[0]?.toUpperCase()).join("") || "A";
-}
-
-function affiliateNicheLabel(profile: IntakeWorkflowFormProps["affiliateProfiles"][number]) {
-  return profile.niche?.trim() || "Niche belum diisi";
-}
-
-function affiliatePlatformLabel(platform: string) {
-  const normalized = platform.trim().toUpperCase();
-
-  if (!normalized) {
-    return "Platform belum diisi";
-  }
-
-  if (normalized === "TIKTOK") {
-    return "TikTok";
-  }
-
-  if (normalized === "SHOPEE") {
-    return "Shopee";
-  }
-
-  if (normalized === "INSTAGRAM") {
-    return "Instagram";
-  }
-
-  if (normalized === "FACEBOOK") {
-    return "Facebook";
-  }
-
-  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
-}
-
-function ActiveAffiliateProfileCard({ profile }: { profile: IntakeAffiliateProfile | null }) {
-  if (!profile) {
-    return (
-      <EmptyState
-        action={
-          <Link className="button compact primary" href="/settings/affiliate-profiles">
-            <Link2 size={16} aria-hidden="true" />
-            Buka pengaturan
-          </Link>
-        }
-        icon={FileText}
-        title="Belum ada Akun Affiliate aktif."
-        description="Atur Akun Affiliate dulu."
-      />
-    );
-  }
-
-  const manageHref = `/settings/affiliate-profiles?profile_id=${encodeURIComponent(profile.id)}`;
-  const accountLabel = profile.account_label?.trim() || "Label akun belum diisi";
-
-  return (
-    <section className="intake-active-affiliate-card" aria-label="Akun Affiliate aktif">
-      <span className="settings-affiliate-profile-card__avatar" aria-hidden="true">
-        {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <span>{affiliateInitials(profile.profile_name)}</span>}
-      </span>
-      <div className="intake-active-affiliate-card__copy">
-        <div className="intake-active-affiliate-card__title-row">
-          <strong>{profile.profile_name}</strong>
-          <StatusBadge status={profile.status} />
-        </div>
-        <span className="settings-card-meta-line">{accountLabel}</span>
-        <span className="settings-card-meta-line">
-          {affiliatePlatformLabel(profile.platform)}
-          {" | "}
-          {affiliateNicheLabel(profile)}
-        </span>
-      </div>
-      <Link className="button compact intake-active-affiliate-card__action" href={manageHref}>
-        <Link2 size={16} aria-hidden="true" />
-        Kelola
-      </Link>
-    </section>
-  );
 }
 
 function IntakeMetadataPendingPanel({ status }: { status: string }) {
@@ -530,7 +443,7 @@ function AnalysisReadyPanel({
         />
       </div>
 
-      <FormActions layout="triple">
+      <FormActions layout="pair" className="intake-review-panel__actions">
         <PendingActionButton
           className="button primary"
           form={reviewFormId}
@@ -540,14 +453,8 @@ function AnalysisReadyPanel({
           pendingOverride={isSavingReview}
           disabled={!savedSession.id}
         >
-          Simpan Review
+          Simpan
         </PendingActionButton>
-        {promptProductId ? (
-          <Link className="button primary" href={promptHref(promptProductId, savedSession.id, affiliateProfileId)}>
-            <FileText size={16} aria-hidden="true" />
-            Buat Prompt
-          </Link>
-        ) : null}
         {savedSession.product_id ? (
           <Link className="button tertiary" href={`/products/${savedSession.product_id}`}>
             <Link2 size={16} aria-hidden="true" />
@@ -555,6 +462,14 @@ function AnalysisReadyPanel({
           </Link>
         ) : null}
       </FormActions>
+      {promptProductId ? (
+        <div className="intake-review-panel__launch-action">
+          <Link className="button primary" href={promptHref(promptProductId, savedSession.id, affiliateProfileId)}>
+            <FileText size={16} aria-hidden="true" />
+            Buat Prompt
+          </Link>
+        </div>
+      ) : null}
       {promptLaunchReadiness && !promptLaunchReadiness.ready ? (
         <PromptLaunchReadinessSummary readiness={promptLaunchReadiness} />
       ) : null}
@@ -597,7 +512,6 @@ export function IntakeWorkflowForm({
     setAnalysisClientContextJson(JSON.stringify(collectIntakeClientContext()));
   }, []);
 
-  const activeAffiliateProfile = affiliateProfiles.find((profile) => profile.id === affiliateProfileId) ?? affiliateProfiles[0] ?? null;
   const hasSavedProductPreview = Boolean(savedSessionEvidencePreviewUrls?.productImage);
   const hasSavedShopeePreview = Boolean(savedSessionEvidencePreviewUrls?.shopeeScreenshot);
   const hasSavedTiktokPreview = Boolean(savedSessionEvidencePreviewUrls?.tiktokScreenshot);
@@ -849,7 +763,6 @@ export function IntakeWorkflowForm({
         <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId} />
         <input type="hidden" name="analysis_client_context" value={analysisClientContextJson} />
         {savedSession?.id ? <input type="hidden" name="id" value={savedSession.id} /> : null}
-        <ActiveAffiliateProfileCard profile={activeAffiliateProfile} />
         <IntakeStepper
           ariaLabel="Tahapan intake produk"
           defaultExpandedStepId={defaultExpandedStepId}

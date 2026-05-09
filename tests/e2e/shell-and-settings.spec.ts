@@ -1,5 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { classifySmokeError } from "./support/blockers";
+
+async function readThemeCookie(page: Page) {
+  const cookies = await page.context().cookies();
+  return cookies.find((cookie) => cookie.name === "aicos_theme")?.value ?? null;
+}
 
 test("operator shell and settings surfaces stay reachable", async ({ page }) => {
   try {
@@ -17,10 +22,19 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(desktopSidebar).not.toContainText("Flow Control");
     await expect(desktopSidebar).not.toContainText("Pengaturan");
     await expect(page.getByRole("link", { name: "Pengaturan" })).toBeVisible();
+    await expect(page.locator('.topbar-profile-link[href="/settings"]')).toBeVisible();
+    await expect(page.locator(".topbar-settings-link")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toBeVisible();
 
     await page.goto("/settings");
     await expect(page.locator('a.settings-native-row[href="/settings"]')).toHaveCount(0);
+    await expect(page.locator('.settings-native-row[href*="/dashboard"]')).toHaveCount(0);
+    await expect(page.locator(".settings-affiliate-overview")).toHaveCount(0);
+    await expect(page.locator(".settings-profile-hero--overview")).toBeVisible();
+    await expect(page.locator(".settings-profile-hero .status-badge")).toHaveCount(0);
+
+    await page.goto("/products/new", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".intake-active-affiliate-card")).toHaveCount(0);
 
     await page.goto("/settings/account");
     await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
@@ -109,6 +123,48 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(page.locator(".tab-nav")).toHaveCount(0);
   } catch (error) {
     throw classifySmokeError("shell and settings", error);
+  }
+});
+
+test("settings theme preference supports light dark and system modes", async ({ page }) => {
+  try {
+    await page.setViewportSize({ width: 1280, height: 1600 });
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/settings", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Pengaturan", level: 1 })).toBeVisible();
+
+    const themeTrigger = page.locator(".theme-mode-picker .relational-picker__trigger");
+    await expect(themeTrigger).toContainText("Terang");
+    await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
+    await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("light");
+
+    await themeTrigger.click();
+    await page.getByRole("option", { name: "Gelap" }).click();
+    await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
+    await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("dark");
+    await expect.poll(() => readThemeCookie(page)).toBe("dark");
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
+    await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("dark");
+
+    await page.emulateMedia({ colorScheme: "dark" });
+    await themeTrigger.click();
+    await page.getByRole("option", { name: "Ikuti Sistem" }).click();
+    await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("system");
+    await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
+    await expect.poll(() => readThemeCookie(page)).toBe("system");
+
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
+
+    await themeTrigger.click();
+    await page.getByRole("option", { name: "Terang" }).click();
+    await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
+    await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("light");
+    await expect.poll(() => readThemeCookie(page)).toBe("light");
+  } catch (error) {
+    throw classifySmokeError("settings theme preference", error);
   }
 });
 

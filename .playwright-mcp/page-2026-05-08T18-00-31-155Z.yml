@@ -1,0 +1,39 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - heading "Dashboard" [level=1] [ref=e7]
+          - paragraph [ref=e8]: Metrik operasional.
+        - link "Pengaturan" [ref=e10] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e11]
+          - generic [ref=e14]: Pengaturan
+      - main [ref=e15]:
+        - generic [ref=e16]:
+          - region "Memuat ringkasan Gemini" [ref=e17]
+          - region "Memuat live cycle Gemini" [ref=e18]
+    - navigation "Mobile operator navigation" [ref=e19]:
+      - link "Dashboard" [ref=e20] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e21]
+        - generic [ref=e26]: Dashboard
+      - link "Intake" [ref=e27] [cursor=pointer]:
+        - /url: /products/new
+        - img [ref=e28]
+        - generic [ref=e31]: Intake
+      - link "Produk" [ref=e32] [cursor=pointer]:
+        - /url: /products
+        - img [ref=e33]
+        - generic [ref=e37]: Produk
+      - link "Prompt" [ref=e38] [cursor=pointer]:
+        - /url: /prompts
+        - img [ref=e39]
+        - generic [ref=e42]: Prompt
+      - link "Drive" [ref=e43] [cursor=pointer]:
+        - /url: /drive
+        - img [ref=e44]
+        - generic [ref=e46]: Drive
+  - button "Open Next.js Dev Tools" [ref=e52] [cursor=pointer]:
+    - img [ref=e53]
+  - alert [ref=e56]

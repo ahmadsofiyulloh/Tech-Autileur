@@ -1,5 +1,4 @@
 import {
-  SkeletonIntakeActiveAffiliateCard,
   SkeletonPwaInstallCard,
   SkeletonIntakeStepper,
 } from "@/components/operator/loading-skeleton";
@@ -10,7 +9,6 @@ export default function NewProductLoading() {
       <SkeletonPwaInstallCard />
       <section className="intake-native-surface" aria-label="Memuat workflow intake produk">
         <section className="intake-workflow stack loading-skeleton-static">
-          <SkeletonIntakeActiveAffiliateCard />
           <SkeletonIntakeStepper />
         </section>
       </section>

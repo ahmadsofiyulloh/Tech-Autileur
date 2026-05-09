@@ -1,9 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Inter } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
+import { getOperatorShellContext } from "@/lib/server/operator-shell";
+import {
+  DEFAULT_RESOLVED_THEME,
+  THEME_COOKIE_NAME,
+  type ResolvedTheme,
+  readThemePreference,
+  resolveThemePreference,
+} from "@/lib/theme-preference";
 import "./globals.css";
 
 const inter = Inter({
@@ -138,14 +147,71 @@ const beforeInstallPromptBridgeScript = String.raw`
 })();
 `;
 
+const themePreferenceScript = String.raw`
+(() => {
+  const themePreferenceValues = new Set(["light", "dark", "system"]);
+  const systemQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function readPreference() {
+    const fromDataset = document.documentElement.dataset.themeMode;
+    if (themePreferenceValues.has(fromDataset)) {
+      return fromDataset;
+    }
+
+    return "light";
+  }
+
+  function resolvePreference(preference) {
+    if (preference === "system") {
+      return systemQuery.matches ? "dark" : "light";
+    }
+
+    return preference === "dark" ? "dark" : "light";
+  }
+
+  function updateThemeColor() {
+    const themeColor = window.getComputedStyle(document.documentElement).getPropertyValue("--color-shell-canvas").trim();
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+
+    if (themeColor && themeColorMeta) {
+      themeColorMeta.setAttribute("content", themeColor);
+    }
+  }
+
+  function applyPreference() {
+    const preference = readPreference();
+    document.documentElement.dataset.themeMode = preference;
+    document.documentElement.dataset.theme = resolvePreference(preference);
+    requestAnimationFrame(updateThemeColor);
+  }
+
+  applyPreference();
+  systemQuery.addEventListener("change", applyPreference);
+})();
+`;
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
+  const [cookieStore, shellContext] = await Promise.all([cookies(), getOperatorShellContext()]);
+  const themePreference = readThemePreference(cookieStore.get(THEME_COOKIE_NAME)?.value);
+  const initialResolvedTheme: ResolvedTheme = resolveThemePreference(themePreference, DEFAULT_RESOLVED_THEME);
+
   return (
-    <html lang="id" suppressHydrationWarning>
+    <html
+      lang="id"
+      data-theme={initialResolvedTheme}
+      data-theme-mode={themePreference}
+      suppressHydrationWarning
+    >
       <body className={`${inter.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+        <Script
+          id="theme-preference"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themePreferenceScript }}
+        />
         <Script
           id="hydration-extension-attribute-cleaner"
           strategy="beforeInteractive"
@@ -156,7 +222,7 @@ export default async function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: beforeInstallPromptBridgeScript }}
         />
-        <AppShell>{children}</AppShell>
+        <AppShell shellContext={shellContext}>{children}</AppShell>
       </body>
     </html>
   );

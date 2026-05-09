@@ -19,6 +19,40 @@ function fieldValue(value: string | null | undefined) {
   return value && value.length > 0 ? value : "Belum ada";
 }
 
+function resolveIntakeStatusBadge(status: string) {
+  const normalized = status.toUpperCase();
+
+  if (normalized === "DRAFT") {
+    return { status: "Draft", tone: "info" as const };
+  }
+
+  if (normalized === "SUBMITTED") {
+    return { status: "Masuk", tone: "info" as const };
+  }
+
+  if (normalized === "NEEDS_REVIEW") {
+    return { status: "Verif", tone: "warning" as const };
+  }
+
+  if (normalized === "REVIEWED") {
+    return { status: "Cek", tone: "success" as const };
+  }
+
+  if (normalized === "ANCHOR_READY") {
+    return { status: "Siap", tone: "success" as const };
+  }
+
+  if (normalized === "ARCHIVED") {
+    return { status: "Arsip", tone: "neutral" as const };
+  }
+
+  if (normalized === "ERROR") {
+    return { status: "Error", tone: "danger" as const };
+  }
+
+  return { status: status.replaceAll("_", " "), tone: "info" as const };
+}
+
 function matchesQuery(product: ProductListRow, query: string) {
   const value = query.trim().toLowerCase();
 
@@ -217,7 +251,9 @@ export function ProductList({ products }: ProductListProps) {
                     <div className="stack-tight">
                       <div className="product-status-stack">
                         <StatusBadge status={product.primary_status_label} />
-                        {product.intake_status ? <StatusBadge status={product.intake_status} tone="info" /> : null}
+                        {product.intake_status ? (
+                          <StatusBadge {...resolveIntakeStatusBadge(product.intake_status)} />
+                        ) : null}
                       </div>
                       {product.status_context_label ? (
                         <span className="settings-card-meta-line product-card-status-line" title={product.status_context_label}>

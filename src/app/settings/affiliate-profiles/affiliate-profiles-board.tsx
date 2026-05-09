@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { ArrowRight, ImageIcon, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { AffiliateProfileHero } from "@/components/operator/affiliate-profile-hero";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
@@ -315,6 +316,7 @@ export function AffiliateProfilesBoard({
         filteredProfiles[0] ??
         visibleProfiles.find((profile) => profile.id === selectedProfileId) ??
         null;
+  const heroProfile = selectedProfile ?? visibleProfiles.find((profile) => profile.status === "ACTIVE") ?? visibleProfiles[0] ?? null;
 
   const driveItemOptions = useMemo<DriveItemOption[]>(
     () =>
@@ -405,6 +407,35 @@ export function AffiliateProfilesBoard({
   return (
     <section className="product-master settings-manager settings-manager--affiliate" aria-label="Akun Affiliate">
       <div className="product-master__list stack">
+        {heroProfile ? (
+          <AffiliateProfileHero
+            accountLabel={heroProfile.account_label?.trim() || null}
+            actions={
+              <button className="button compact tertiary" type="button" onClick={() => openEditDrawer(heroProfile.id)}>
+                <PanelRightOpen size={15} aria-hidden="true" />
+                Kelola
+              </button>
+            }
+            avatarUrl={heroProfile.avatarUrl}
+            eyebrow="Profile terpilih"
+            nicheLabel={heroProfile.niche?.trim() || null}
+            statusLabel={heroProfile.status === "ACTIVE" ? "Aktif" : heroProfile.status}
+            statusTone={heroProfile.status === "ACTIVE" ? "success" : undefined}
+            title={heroProfile.profile_name}
+          />
+        ) : (
+          <AffiliateProfileHero
+            actions={
+              <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+                <Plus size={15} aria-hidden="true" />
+                Profile baru
+              </button>
+            }
+            avatarUrl={null}
+            eyebrow="Akun Affiliate"
+            title="Belum ada profile affiliate."
+          />
+        )}
         <div className="settings-list-toolbar">
           <label className="product-search" htmlFor="affiliate-profile-search">
             <Search size={16} aria-hidden="true" />
@@ -524,7 +555,7 @@ export function AffiliateProfilesBoard({
           ))}
         </div>
 
-        {!filteredProfiles.length ? (
+        {!filteredProfiles.length && visibleProfiles.length ? (
           <div className="muted-box stack">
             <strong>Belum ada profile affiliate.</strong>
             <span className="subtle">Buat profile pertama.</span>

@@ -1,0 +1,245 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - heading "Dashboard" [level=1] [ref=e7]
+          - paragraph [ref=e8]: Metrik operasional.
+        - link "Pengaturan" [ref=e10] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e11]
+          - generic [ref=e14]: Pengaturan
+      - main [ref=e15]:
+        - generic [ref=e16]:
+          - region "Ringkasan Gemini" [ref=e17]:
+            - generic [ref=e18]:
+              - img [ref=e20]
+              - heading "Ringkasan Gemini" [level=2] [ref=e23]
+            - generic [ref=e24]:
+              - generic [ref=e25]:
+                - generic [ref=e26]: Task total
+                - strong [ref=e27]: "38"
+              - generic [ref=e29]:
+                - generic [ref=e30]: Aktif
+                - strong [ref=e31]: "2"
+              - generic [ref=e33]:
+                - generic [ref=e34]: Sukses
+                - strong [ref=e35]: "18"
+              - generic [ref=e37]:
+                - generic [ref=e38]: Issue
+                - strong [ref=e39]: "18"
+          - region "Live cycle Gemini" [ref=e41]:
+            - generic [ref=e42]:
+              - img [ref=e44]
+              - heading "Live cycle Gemini" [level=2] [ref=e47]
+            - generic [ref=e48]:
+              - generic [ref=e49]:
+                - generic [ref=e50]: Total 38
+                - generic [ref=e51]: Aktif 2
+                - generic [ref=e52]: Issue 18
+              - generic "Rincian status Gemini" [ref=e55]:
+                - generic [ref=e56]:
+                  - generic [ref=e58]: Menunggu
+                  - generic [ref=e59]: 0 (0%)
+                - generic [ref=e60]:
+                  - generic [ref=e62]: Berjalan
+                  - generic [ref=e63]: 1 (2,6%)
+                - generic [ref=e64]:
+                  - generic [ref=e66]: Sukses
+                  - generic [ref=e67]: 18 (47,4%)
+                - generic [ref=e68]:
+                  - generic [ref=e70]: Gagal
+                  - generic [ref=e71]: 18 (47,4%)
+                - generic [ref=e72]:
+                  - generic [ref=e74]: Retry
+                  - generic [ref=e75]: 0 (0%)
+                - generic [ref=e76]:
+                  - generic [ref=e78]: Menunggu key
+                  - generic [ref=e79]: 1 (2,6%)
+                - generic [ref=e80]:
+                  - generic [ref=e82]: Dibatalkan
+                  - generic [ref=e83]: 0 (0%)
+          - region "Penggunaan Gemini" [ref=e84]:
+            - generic [ref=e85]:
+              - heading "Penggunaan Gemini" [level=2] [ref=e86]
+              - generic [ref=e87]: 7 key
+            - generic [ref=e90]:
+              - generic [ref=e93]:
+                - generic "Penggunaan Fallback" [ref=e94]
+                - generic [ref=e96]:
+                  - generic [ref=e98]:
+                    - strong [ref=e99]: Fallback
+                    - generic [ref=e100]: gemini-2.5-flash-lite
+                    - generic [ref=e101]: ACTIVE
+                    - generic [ref=e102]: FALLBACK
+                  - generic [ref=e103]:
+                    - generic [ref=e104]:
+                      - generic [ref=e106]: RPD
+                      - generic [ref=e107]: 10 / 1.000
+                      - generic [ref=e108]: 1%
+                    - generic [ref=e109]:
+                      - generic [ref=e111]: RPM
+                      - generic [ref=e112]: 0 / 15
+                      - generic [ref=e113]: 0%
+                    - generic [ref=e114]:
+                      - generic [ref=e116]: TPM
+                      - generic [ref=e117]: 0 / 250.000
+                      - generic [ref=e118]: 0%
+              - generic [ref=e121]:
+                - generic "Penggunaan Repair" [ref=e122]
+                - generic [ref=e124]:
+                  - generic [ref=e126]:
+                    - strong [ref=e127]: Repair
+                    - generic [ref=e128]: gemini-2.5-flash
+                    - generic [ref=e129]: ACTIVE
+                    - generic [ref=e130]: PROMPT REPAIR
+                  - generic [ref=e131]:
+                    - generic [ref=e132]:
+                      - generic [ref=e134]: RPD
+                      - generic [ref=e135]: 3 / 250
+                      - generic [ref=e136]: 1%
+                    - generic [ref=e137]:
+                      - generic [ref=e139]: RPM
+                      - generic [ref=e140]: 0 / 10
+                      - generic [ref=e141]: 0%
+                    - generic [ref=e142]:
+                      - generic [ref=e144]: TPM
+                      - generic [ref=e145]: 0 / 250.000
+                      - generic [ref=e146]: 0%
+              - generic [ref=e149]:
+                - generic "Penggunaan I2I Prompt" [ref=e150]
+                - generic [ref=e152]:
+                  - generic [ref=e154]:
+                    - strong [ref=e155]: I2I Prompt
+                    - generic [ref=e156]: gemini-2.5-flash
+                    - generic [ref=e157]: ACTIVE
+                    - generic [ref=e158]: I2I PROMPT
+                  - generic [ref=e159]:
+                    - generic [ref=e160]:
+                      - generic [ref=e162]: RPD
+                      - generic [ref=e163]: 2 / 250
+                      - generic [ref=e164]: 1%
+                    - generic [ref=e165]:
+                      - generic [ref=e167]: RPM
+                      - generic [ref=e168]: 0 / 10
+                      - generic [ref=e169]: 0%
+                    - generic [ref=e170]:
+                      - generic [ref=e172]: TPM
+                      - generic [ref=e173]: 0 / 250.000
+                      - generic [ref=e174]: 0%
+              - generic [ref=e177]:
+                - generic "Penggunaan Check" [ref=e178]
+                - generic [ref=e180]:
+                  - generic [ref=e182]:
+                    - strong [ref=e183]: Check
+                    - generic [ref=e184]: gemini-2.5-flash
+                    - generic [ref=e185]: ACTIVE
+                    - generic [ref=e186]: CONSISTENCY CHECK
+                  - generic [ref=e187]:
+                    - generic [ref=e188]:
+                      - generic [ref=e190]: RPD
+                      - generic [ref=e191]: 2 / 250
+                      - generic [ref=e192]: 1%
+                    - generic [ref=e193]:
+                      - generic [ref=e195]: RPM
+                      - generic [ref=e196]: 0 / 10
+                      - generic [ref=e197]: 0%
+                    - generic [ref=e198]:
+                      - generic [ref=e200]: TPM
+                      - generic [ref=e201]: 0 / 250.000
+                      - generic [ref=e202]: 0%
+              - generic [ref=e205]:
+                - generic "Penggunaan Vision" [ref=e206]
+                - generic [ref=e208]:
+                  - generic [ref=e210]:
+                    - strong [ref=e211]: Vision
+                    - generic [ref=e212]: gemini-2.5-flash
+                    - generic [ref=e213]: ACTIVE
+                    - generic [ref=e214]: VISION ANALYSIS
+                  - generic [ref=e215]:
+                    - generic [ref=e216]:
+                      - generic [ref=e218]: RPD
+                      - generic [ref=e219]: 3 / 250
+                      - generic [ref=e220]: 1%
+                    - generic [ref=e221]:
+                      - generic [ref=e223]: RPM
+                      - generic [ref=e224]: 0 / 10
+                      - generic [ref=e225]: 0%
+                    - generic [ref=e226]:
+                      - generic [ref=e228]: TPM
+                      - generic [ref=e229]: 0 / 250.000
+                      - generic [ref=e230]: 0%
+              - generic [ref=e233]:
+                - generic "Penggunaan I2V Prompt" [ref=e234]
+                - generic [ref=e236]:
+                  - generic [ref=e238]:
+                    - strong [ref=e239]: I2V Prompt
+                    - generic [ref=e240]: gemini-2.5-flash
+                    - generic [ref=e241]: ACTIVE
+                    - generic [ref=e242]: I2V PROMPT
+                  - generic [ref=e243]:
+                    - generic [ref=e244]:
+                      - generic [ref=e246]: RPD
+                      - generic [ref=e247]: 3 / 250
+                      - generic [ref=e248]: 1%
+                    - generic [ref=e249]:
+                      - generic [ref=e251]: RPM
+                      - generic [ref=e252]: 0 / 10
+                      - generic [ref=e253]: 0%
+                    - generic [ref=e254]:
+                      - generic [ref=e256]: TPM
+                      - generic [ref=e257]: 0 / 250.000
+                      - generic [ref=e258]: 0%
+              - generic [ref=e261]:
+                - generic "Penggunaan Primary" [ref=e262]
+                - generic [ref=e264]:
+                  - generic [ref=e266]:
+                    - strong [ref=e267]: Primary
+                    - generic [ref=e268]: gemini-2.5-pro
+                    - generic [ref=e269]: DISABLED
+                    - generic [ref=e270]: VISION ANALYSIS
+                  - generic [ref=e271]:
+                    - generic [ref=e272]:
+                      - generic [ref=e274]: RPD
+                      - generic [ref=e275]: 0 / -
+                      - generic [ref=e276]: "-"
+                    - generic [ref=e277]:
+                      - generic [ref=e279]: RPM
+                      - generic [ref=e280]: 0 / 0
+                      - generic [ref=e281]: 100%
+                    - generic [ref=e282]:
+                      - generic [ref=e284]: TPM
+                      - generic [ref=e285]: 0 / 0
+                      - generic [ref=e286]: 100%
+            - generic "Gemini key" [ref=e287]:
+              - button "Fallback" [pressed] [ref=e288] [cursor=pointer]
+              - button "Repair" [ref=e289] [cursor=pointer]
+              - button "I2I Prompt" [ref=e290] [cursor=pointer]
+              - button "Check" [ref=e291] [cursor=pointer]
+              - button "Vision" [ref=e292] [cursor=pointer]
+              - button "I2V Prompt" [ref=e293] [cursor=pointer]
+              - button "Primary" [ref=e294] [cursor=pointer]
+    - navigation "Mobile operator navigation" [ref=e295]:
+      - link "Dashboard" [ref=e296] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e297]
+        - generic [ref=e302]: Dashboard
+      - link "Intake" [ref=e303] [cursor=pointer]:
+        - /url: /products/new
+        - img [ref=e304]
+        - generic [ref=e307]: Intake
+      - link "Produk" [ref=e308] [cursor=pointer]:
+        - /url: /products
+        - img [ref=e309]
+        - generic [ref=e313]: Produk
+      - link "Prompt" [ref=e314] [cursor=pointer]:
+        - /url: /prompts
+        - img [ref=e315]
+        - generic [ref=e318]: Prompt
+      - link "Drive" [ref=e319] [cursor=pointer]:
+        - /url: /drive
+        - img [ref=e320]
+        - generic [ref=e322]: Drive
+  - button "Open Next.js Dev Tools" [ref=e328] [cursor=pointer]:
+    - img [ref=e329]
+  - alert [ref=e332]

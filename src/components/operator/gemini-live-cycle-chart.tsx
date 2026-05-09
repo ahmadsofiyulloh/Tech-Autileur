@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { ChartTooltip } from "@/components/ui/chart";
 
 type GeminiLiveCycleRow = {
   status: string;
@@ -38,38 +37,6 @@ function formatCount(value: number) {
 
 function formatPercentRatio(value: number) {
   return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value * 100)}%`;
-}
-
-function GeminiLiveCycleTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload?: GeminiLiveCycleRow }>;
-}) {
-  if (!active || !payload?.length) {
-    return null;
-  }
-
-  const row = payload[0]?.payload;
-
-  if (!row) {
-    return null;
-  }
-
-  return (
-    <div className="dashboard-analysis-chart__tooltip">
-      <div className="dashboard-analysis-chart__tooltip-header">
-        <StatusBadge status={row.label} tone={row.tone} />
-      </div>
-      <div className="dashboard-analysis-chart__tooltip-stats">
-        <span>
-          <strong>{formatCount(row.count)}</strong> task
-        </span>
-        <span>{formatPercentRatio(row.share)}</span>
-      </div>
-    </div>
-  );
 }
 
 function GeminiLiveCycleLegend({ rows }: { rows: GeminiLiveCycleRow[] }) {
@@ -163,7 +130,6 @@ export function GeminiLiveCycleChart({ rows, summary }: GeminiLiveCycleChartProp
                 width={112}
                 tick={{ fill: "var(--muted)", fontSize: 12, fontWeight: 600 }}
               />
-              <ChartTooltip content={<GeminiLiveCycleTooltip />} cursor={false} />
               <Bar dataKey="count" radius={[0, 999, 999, 0]} barSize={14}>
                 {rows.map((entry) => (
                   <Cell fill={GEMINI_LIVE_CYCLE_COLORS[entry.status] ?? "var(--muted)"} key={entry.status} />

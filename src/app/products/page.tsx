@@ -122,6 +122,40 @@ function normalizeStatusLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function normalizeCompactStatusLabel(value: string) {
+  const normalized = value.toUpperCase();
+
+  if (normalized === "DRAFT") {
+    return "Draf";
+  }
+
+  if (normalized === "IMAGE_ATTACHED") {
+    return "Foto";
+  }
+
+  if (normalized === "IMAGE_ANALYZED") {
+    return "Analisis";
+  }
+
+  if (normalized === "PROMPT_READY") {
+    return "Prompt";
+  }
+
+  if (normalized === "READY_FOR_UPLOAD" || normalized === "IN_PRODUCTION") {
+    return "Video";
+  }
+
+  if (normalized === "UPLOADED") {
+    return "Keduanya";
+  }
+
+  if (normalized === "ARCHIVED") {
+    return "Arsip";
+  }
+
+  return normalizeStatusLabel(value);
+}
+
 function isCompletedPromptPack(status: string) {
   const normalized = status.toUpperCase();
   return normalized === "GENERATED" || normalized === "APPROVED";
@@ -195,22 +229,30 @@ function resolvePrimaryStatusLabel(productStatus: string, workflowStage: Product
   }
 
   if (uploadScope === "both") {
-    return "Uploaded Keduanya";
+    return "Keduanya";
   }
 
   if (uploadScope === "shopee") {
-    return "Uploaded Shopee";
+    return "Shopee";
   }
 
   if (uploadScope === "tiktok") {
-    return "Uploaded TikTok";
+    return "TikTok";
   }
 
   if (workflowStage === "video") {
-    return "Video generated";
+    return "Video";
   }
 
-  return normalizeStatusLabel(productStatus);
+  if (workflowStage === "prompt") {
+    return "Prompt";
+  }
+
+  if (workflowStage === "analysis") {
+    return "Analisis";
+  }
+
+  return normalizeCompactStatusLabel(productStatus);
 }
 
 function resolveStatusContextLabel(params: {
@@ -220,23 +262,23 @@ function resolveStatusContextLabel(params: {
   workflowStage: ProductWorkflowStage;
 }) {
   if (params.workflowStage === "draft") {
-    return params.hasDraftPromptPack ? "Prompt draft" : "Metadata belum diverifikasi";
+    return params.hasDraftPromptPack ? "Draft" : "Verif";
   }
 
   if (params.workflowStage === "analysis") {
-    return params.hasVerifiedIntake ? "Prompt belum dibuat" : "Metadata belum diverifikasi";
+    return params.hasVerifiedIntake ? "Prompt" : "Verif";
   }
 
   if (params.workflowStage === "prompt") {
-    return "Prompt generated";
+    return "Jadi";
   }
 
   if (params.workflowStage === "video") {
-    return params.promptReady ? "Prompt generated" : "Prompt belum dibuat";
+    return params.promptReady ? "Jadi" : "Prompt";
   }
 
   if (params.workflowStage === "upload") {
-    return "Video generated";
+    return "Upload";
   }
 
   return null;
