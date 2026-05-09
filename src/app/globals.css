@@ -3035,9 +3035,9 @@ summary::marker {
 
   .bottom-nav {
     position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: var(--space-3);
+    bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+    left: var(--space-3);
     z-index: 50;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -4605,60 +4605,107 @@ details,
 
 .theme-mode-toggle {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 0;
+  padding: 0;
+}
+
+.theme-mode-toggle__label {
+  display: flex;
   min-width: 0;
-  min-inline-size: 0;
-  gap: var(--space-2);
-  border: 0;
-  margin: 0;
-  padding: 0;
+  align-items: center;
+  gap: var(--space-3);
+  align-self: stretch;
+  min-height: 40px;
+  color: var(--color-text-primary);
 }
 
-.theme-mode-toggle legend {
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption-size);
-  font-weight: var(--type-label-weight);
-  line-height: var(--type-caption-line);
-  padding: 0;
+.theme-mode-toggle__label-text {
+  color: var(--color-text-primary);
+  font-size: var(--type-body-size);
+  font-weight: var(--type-weight-700);
+  line-height: var(--type-body-line);
 }
 
-.theme-mode-toggle__options {
+.theme-mode-toggle__label-icon {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+}
+
+.theme-mode-toggle__switch {
+  justify-self: end;
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
+  inline-size: min(100%, 180px);
+  min-inline-size: 156px;
+  padding: 3px;
   border: 1px solid var(--color-border-standard);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--color-surface-muted-soft);
-  padding: 4px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+}
+
+.theme-mode-toggle__indicator {
+  position: absolute;
+  inset-block: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
+  border-radius: 999px;
+  background: var(--color-surface-base);
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
 .theme-mode-toggle__option {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
   min-width: 0;
-  min-height: 38px;
+  min-height: 32px;
   border: 0;
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: 999px;
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  font: inherit;
-  font-size: var(--type-control-size);
-  font-weight: var(--type-control-weight);
-  line-height: var(--type-control-line);
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1);
   transition:
-    background-color 160ms ease,
     color 160ms ease,
-    box-shadow 160ms ease;
+    transform 160ms ease;
 }
 
 .theme-mode-toggle__option[data-active="true"] {
-  background: var(--color-surface-base);
-  color: var(--color-text-primary);
-  box-shadow: var(--shadow-soft);
+  color: var(--color-primary);
 }
 
 .theme-mode-toggle__option:hover,
 .theme-mode-toggle__option:focus-visible {
-  color: var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.theme-mode-toggle__option:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 34%, transparent);
+  outline-offset: 2px;
+}
+
+.theme-mode-toggle__option-icon {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 520px) {
+  .theme-mode-toggle {
+    gap: var(--space-1);
+  }
+
+  .theme-mode-toggle__switch {
+    inline-size: min(100%, 172px);
+  }
 }
 
 .settings-profile-hero {
@@ -5473,7 +5520,7 @@ details,
   --shell-sidebar-active-rail-width: 3px;
   --shell-sidebar-active-rail-height: 22px;
   --shell-bottom-nav-min-height: 72px;
-  --shell-bottom-nav-link-min-height: 58px;
+  --shell-bottom-nav-link-min-height: 50px;
   --shell-bottom-nav-padding-x: 8px;
   --shell-bottom-nav-padding-y: 8px;
   --shell-bottom-nav-compact-padding-x: 6px;
@@ -5484,7 +5531,7 @@ details,
   --shell-bottom-nav-link-padding-block-start: 5px;
   --shell-bottom-nav-link-padding-block-end: 6px;
   --shell-bottom-nav-link-padding-inline: 2px;
-  --shell-bottom-nav-content-offset: 108px;
+  --shell-bottom-nav-content-offset: 116px;
   --shell-bottom-nav-shadow: 0 -14px 34px color-mix(in srgb, var(--color-text-primary) 10%, transparent);
   --shell-pull-to-refresh-meter-height: 3px;
   --theme-dark-color-primary: #007aff;
@@ -7378,15 +7425,18 @@ body:has(.operator-shell) {
   height: var(--shell-sidebar-icon-size);
 }
 
-.bottom-nav {
+  .bottom-nav {
   min-height: calc(var(--shell-bottom-nav-min-height) + env(safe-area-inset-bottom));
   align-items: end;
-  gap: var(--shell-bottom-nav-gap);
-  border-top-color: color-mix(in srgb, var(--color-primary) 10%, var(--color-border-standard));
-  background: color-mix(in srgb, var(--color-surface-bottom-nav) 86%, var(--color-surface-base));
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--color-border-standard) 82%, var(--color-primary) 18%);
+  border-radius: 30px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-base) 8%, transparent), transparent 62%),
+    color-mix(in srgb, var(--color-surface-bottom-nav) 84%, var(--color-surface-base));
   box-shadow: var(--shell-bottom-nav-shadow);
-  padding: var(--shell-bottom-nav-padding-y) var(--shell-bottom-nav-padding-x)
-    calc(var(--shell-bottom-nav-padding-y) + env(safe-area-inset-bottom));
+  padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
+  backdrop-filter: blur(18px);
 }
 
 .bottom-nav__link {
@@ -7398,6 +7448,8 @@ body:has(.operator-shell) {
   font-size: var(--type-label-size);
   font-weight: var(--type-label-weight);
   line-height: var(--type-label-line);
+  border-radius: 20px;
+  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
@@ -7420,11 +7472,61 @@ body:has(.operator-shell) {
   color: var(--color-primary);
 }
 
+.bottom-nav__link--center {
+  align-self: end;
+  justify-self: center;
+  min-width: 0;
+  min-height: 60px;
+  margin-top: -6px;
+  padding: 6px;
+  border-radius: 28px;
+  border-color: color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: var(--color-primary);
+  box-shadow: var(--color-button-primary-shadow);
+  color: var(--color-button-primary-text);
+  gap: 0;
+}
+
+.bottom-nav__link--center[data-active="true"] {
+  background: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-button-primary-text) 22%, transparent);
+  box-shadow:
+    var(--color-button-primary-shadow),
+    0 0 0 1px color-mix(in srgb, var(--color-button-primary-text) 14%, transparent);
+}
+
+.bottom-nav__link--center[data-active="true"] .bottom-nav__center-icon,
+.bottom-nav__link--center .bottom-nav__center-icon {
+  color: var(--color-button-primary-text);
+}
+
+.bottom-nav__center-iconWrap {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-button-primary-text) 10%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-button-primary-text) 14%, transparent);
+}
+
+.bottom-nav__center-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.bottom-nav__spacer {
+  display: block;
+  min-width: 1px;
+  min-height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 860px) {
   .bottom-nav {
     min-height: calc(var(--shell-bottom-nav-min-height) + env(safe-area-inset-bottom));
-    padding: var(--shell-bottom-nav-padding-y) var(--shell-bottom-nav-padding-x)
-      calc(var(--shell-bottom-nav-padding-y) + env(safe-area-inset-bottom));
+    padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
   }
 
   .bottom-nav__link {
@@ -7451,8 +7553,8 @@ body:has(.operator-shell) {
 
   .bottom-nav {
     gap: var(--shell-bottom-nav-compact-gap);
-    padding-right: var(--shell-bottom-nav-compact-padding-x);
-    padding-left: var(--shell-bottom-nav-compact-padding-x);
+    padding-right: 8px;
+    padding-left: 8px;
   }
 
   .bottom-nav__link {
@@ -7463,6 +7565,17 @@ body:has(.operator-shell) {
   .bottom-nav__icon {
     width: 18px;
     height: 18px;
+  }
+
+  .bottom-nav__link--center {
+    min-height: 58px;
+    margin-top: -6px;
+    padding: 6px;
+  }
+
+  .bottom-nav__center-iconWrap {
+    width: 42px;
+    height: 42px;
   }
 }
 

@@ -46,6 +46,11 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   const currentAffiliateProfile = shellContext.currentAffiliateProfile;
   const showSettingsGear = !pathname.startsWith("/settings") && !override?.hideSettingsLink;
   const showProfileAvatar = Boolean(currentAffiliateProfile?.avatarUrl) && !profileAvatarFailed;
+  const mobileCenterNavItem =
+    mobileNavItems.find((item) => item.href === "/products/new") ?? mobileNavItems[0] ?? null;
+  const mobileSideNavItems = mobileNavItems.filter((item) => item.href !== mobileCenterNavItem?.href);
+  const mobileLeftNavItems = mobileSideNavItems.slice(0, 2);
+  const mobileRightNavItems = mobileSideNavItems.slice(2);
 
   useEffect(() => {
     setProfileAvatarFailed(false);
@@ -143,7 +148,38 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
       </div>
 
       <nav className="bottom-nav" aria-label="Mobile operator navigation">
-        {mobileNavItems.map((item) => {
+        {mobileLeftNavItems.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <Link
+              aria-current={isActive(item.href) ? "page" : undefined}
+              className="bottom-nav__link"
+              data-active={isActive(item.href) ? "true" : undefined}
+              href={item.href}
+              key={item.href}
+            >
+              <Icon className="bottom-nav__icon" aria-hidden="true" size={19} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        {mobileCenterNavItem ? (
+          <Link
+            aria-label={mobileCenterNavItem.label}
+            aria-current={isActive(mobileCenterNavItem.href) ? "page" : undefined}
+            className="bottom-nav__link bottom-nav__link--center"
+            data-active={isActive(mobileCenterNavItem.href) ? "true" : undefined}
+            href={mobileCenterNavItem.href}
+            key={mobileCenterNavItem.href}
+          >
+            <span className="bottom-nav__center-iconWrap" aria-hidden="true">
+              <mobileCenterNavItem.icon className="bottom-nav__icon bottom-nav__center-icon" aria-hidden="true" size={22} />
+            </span>
+          </Link>
+        ) : null}
+        {mobileRightNavItems.length === 1 ? <span className="bottom-nav__spacer" aria-hidden="true" /> : null}
+        {mobileRightNavItems.map((item) => {
           const Icon = item.icon;
 
           return (
