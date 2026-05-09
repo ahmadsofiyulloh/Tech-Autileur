@@ -1,14 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Moon, Monitor, Sun, type LucideIcon } from "lucide-react";
 import {
   THEME_COOKIE_MAX_AGE,
   THEME_COOKIE_NAME,
-  THEME_PICKER_OPTIONS,
   type ResolvedTheme,
   type ThemePreference,
   resolveThemePreference,
 } from "@/lib/theme-preference";
+
+type ThemeToggleOption = {
+  value: ThemePreference;
+  ariaLabel: string;
+  Icon: LucideIcon;
+};
+
+const THEME_TOGGLE_OPTIONS: ThemeToggleOption[] = [
+  { value: "light", ariaLabel: "Light theme", Icon: Sun },
+  { value: "system", ariaLabel: "System theme", Icon: Monitor },
+  { value: "dark", ariaLabel: "Dark theme", Icon: Moon },
+];
 
 function systemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -34,37 +46,73 @@ function applyThemePreference(preference: ThemePreference) {
   requestAnimationFrame(updateThemeColor);
 }
 
-export function ThemeModePicker({ defaultValue }: { defaultValue: ThemePreference }) {
-  const [selectedTheme, setSelectedTheme] = useState(defaultValue);
+export type ThemeToggleProps = {
+  initialTheme?: ThemePreference;
+  onThemeChange?: (theme: ThemePreference) => void;
+};
+
+export function ThemeToggle({ initialTheme = "system", onThemeChange }: ThemeToggleProps) {
+  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(initialTheme);
 
   useEffect(() => {
-    setSelectedTheme(defaultValue);
-    applyThemePreference(defaultValue);
-  }, [defaultValue]);
+    setSelectedTheme(initialTheme);
+    applyThemePreference(initialTheme);
+  }, [initialTheme]);
 
   function selectTheme(nextTheme: ThemePreference) {
+    if (nextTheme === selectedTheme) {
+      return;
+    }
+
     setSelectedTheme(nextTheme);
     persistThemePreference(nextTheme);
     applyThemePreference(nextTheme);
+    onThemeChange?.(nextTheme);
   }
 
-  return (
-    <fieldset className="theme-mode-toggle">
-      <legend>Tema</legend>
-      <div className="theme-mode-toggle__options" role="group" aria-label="Tema">
-        {THEME_PICKER_OPTIONS.map((option) => (
-          <button
-            aria-pressed={selectedTheme === option.value}
-            className="theme-mode-toggle__option"
-            data-active={selectedTheme === option.value ? "true" : undefined}
-            key={option.value}
-            type="button"
-            onClick={() => selectTheme(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </fieldset>
+  const activeIndex = Math.max(
+    0,
+    THEME_TOGGLE_OPTIONS.findIndex((option) => option.value === selectedTheme),
   );
+
+  return (
+    <div className="theme-mode-toggle">
+      <div className="theme-mode-toggle__label">
+        <span aria-hidden="true" className="theme-mode-toggle__label-icon settings-native-row__icon">
+          <Moon size={18} />
+        </span>
+        <span className="theme-mode-toggle__label-text">Mode Tema</span>
+      </div>
+
+      <div className="theme-mode-toggle__switch" role="group" aria-label="Pilih tema">
+        <span
+          className="theme-mode-toggle__indicator"
+          style={{ transform: `translateX(${activeIndex * 100}%)` }}
+          aria-hidden="true"
+        />
+        {THEME_TOGGLE_OPTIONS.map((option) => {
+          const isActive = selectedTheme === option.value;
+          const Icon = option.Icon;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-label={option.ariaLabel}
+              aria-pressed={isActive}
+              className="theme-mode-toggle__option"
+              data-active={isActive ? "true" : undefined}
+              onClick={() => selectTheme(option.value)}
+            >
+              <Icon aria-hidden="true" className="theme-mode-toggle__option-icon" size={14} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function ThemeModePicker({ defaultValue }: { defaultValue: ThemePreference }) {
+  return <ThemeToggle initialTheme={defaultValue} />;
 }

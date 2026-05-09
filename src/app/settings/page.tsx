@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { disconnectGoogleDrive } from "./actions";
-import { ThemeModePicker } from "./theme-mode-picker";
+import { ThemeToggle } from "./theme-mode-picker";
 import {
   getDefaultAffiliateProfileForWorkspace,
   type AffiliateProfileRecord,
@@ -101,7 +101,7 @@ function ThemePreferenceGroup({ themePreference }: { themePreference: ThemePrefe
     <section className="settings-native-group">
       <h2>Preferensi</h2>
       <div className="settings-native-card settings-preference-card">
-        <ThemeModePicker defaultValue={themePreference} />
+        <ThemeToggle initialTheme={themePreference} />
       </div>
     </section>
   );
