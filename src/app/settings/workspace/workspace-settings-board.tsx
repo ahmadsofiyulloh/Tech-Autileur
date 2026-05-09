@@ -7,6 +7,7 @@ import { FormActions } from "@/components/operator/form-actions";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveWorkspace } from "../actions";
 import { WORKSPACE_STATUSES } from "@/lib/workspaces/validation";
@@ -150,10 +151,10 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
 
         <div className="settings-inline-summary">
           <span>{activeWorkspaceCount} workspace aktif</span>
-          <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+          <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
             <Plus size={15} aria-hidden="true" />
             Workspace baru
-          </button>
+          </NativeButton>
         </div>
 
         {filteredWorkspaces.length ? (
@@ -187,10 +188,10 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                       <td>{workspaceDetail(workspace)}</td>
                       <td>
                         <div className="product-row-actions">
-                          <button className="button compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
+                          <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
                             <PanelRightOpen size={15} aria-hidden="true" />
                             Kelola
-                          </button>
+                          </NativeButton>
                           <form action={saveWorkspace}>
                             <input type="hidden" name="intent" value="archive_workspace" />
                             <input type="hidden" name="return_to" value="/settings/workspace" />
@@ -220,10 +221,10 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                   </div>
                   <span className="settings-card-meta-line">{workspaceMobileMeta(workspace, currentWorkspaceId)}</span>
                   <div className="mobile-card-actions">
-                    <button className="button compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
+                    <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
                       <PanelRightOpen size={15} aria-hidden="true" />
                       Kelola
-                    </button>
+                    </NativeButton>
                     <OverflowActionMenu>
                       <form action={saveWorkspace}>
                         <input type="hidden" name="intent" value="archive_workspace" />
@@ -246,10 +247,10 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
             title="Belum ada workspace."
             description="Buat workspace pertama."
             action={
-              <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+              <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
                 <Plus size={15} aria-hidden="true" />
                 Workspace baru
-              </button>
+              </NativeButton>
             }
           />
         )}
@@ -268,9 +269,9 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
               {isCurrent ? <StatusBadge status="Aktif" tone="info" /> : null}
             </div>
           </div>
-          <button className="button compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
+          <NativeButton className="compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
             <X size={16} aria-hidden="true" />
-          </button>
+          </NativeButton>
         </div>
 
         {drawerOpen ? (
@@ -347,13 +348,13 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
               </label>
 
               <FormActions layout="pair">
-                <button className="button primary" type="submit">
+                <NativeButton className="primary" type="submit">
                   <Save size={16} aria-hidden="true" />
                   {isCreating ? "Buat workspace" : "Simpan workspace"}
-                </button>
-                <button className="button tertiary" type="button" onClick={closeDrawer}>
+                </NativeButton>
+                <NativeButton className="tertiary" type="button" onClick={closeDrawer}>
                   Batal
-                </button>
+                </NativeButton>
               </FormActions>
             </form>
 
@@ -365,25 +366,25 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                     <input type="hidden" name="intent" value="set_current_workspace" />
                     <input type="hidden" name="return_to" value="/settings/workspace" />
                     <input type="hidden" name="current_workspace_id" value={initialWorkspace.id} />
-                    <button className="button compact tertiary" type="submit" disabled={!isActive || isCurrent}>
+                    <NativeButton className="compact tertiary" type="submit" disabled={!isActive || isCurrent}>
                       {isCurrent ? "Workspace aktif" : "Jadikan aktif"}
-                    </button>
+                    </NativeButton>
                   </form>
                   <form action={saveWorkspace}>
                     <input type="hidden" name="intent" value="set_default_workspace" />
                     <input type="hidden" name="return_to" value="/settings/workspace" />
                     <input type="hidden" name="id" value={initialWorkspace.id} />
-                    <button className="button compact tertiary" type="submit" disabled={!isActive || initialWorkspace.is_default}>
+                    <NativeButton className="compact tertiary" type="submit" disabled={!isActive || initialWorkspace.is_default}>
                       Default
-                    </button>
+                    </NativeButton>
                   </form>
                   <form action={saveWorkspace}>
                     <input type="hidden" name="intent" value="provision_workspace_drive" />
                     <input type="hidden" name="return_to" value="/settings/workspace" />
                     <input type="hidden" name="id" value={initialWorkspace.id} />
-                    <button className="button compact primary" type="submit" disabled={!isActive}>
+                    <NativeButton className="compact primary" type="submit" disabled={!isActive}>
                       {initialWorkspace.drive_root_folder_ref_id ? "Sinkronkan Folder Drive" : "Buat Folder Drive"}
-                    </button>
+                    </NativeButton>
                   </form>
                   <form action={saveWorkspace}>
                     <input type="hidden" name="intent" value="archive_workspace" />

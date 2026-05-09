@@ -8,6 +8,7 @@ import { saveIntake } from "@/app/intake/actions";
 import { OperatorBottomSheet } from "@/components/operator/bottom-sheet";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { NativeButton } from "@/components/ui/native-button";
 
 type PostSaveDecisionSurfaceProps = {
   affiliateProfileId: string | null;
@@ -83,10 +84,10 @@ function DecisionContent({
         <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId ?? ""} />
 
         <div className="intake-save-decision__actions">
-          <button className="button primary" type="button" onClick={onContinue}>
+          <NativeButton className="primary" type="button" onClick={onContinue}>
             {continueButtonLabel}
-          </button>
-          <PendingActionButton className="button tertiary" pendingLabel="Memproses" type="submit">
+          </NativeButton>
+          <PendingActionButton className="tertiary" pendingLabel="Memproses" type="submit">
             {createButtonLabel}
           </PendingActionButton>
         </div>

@@ -3,6 +3,7 @@
 import { HardDrive } from "lucide-react";
 import { FormActions } from "@/components/operator/form-actions";
 import { EmptyState } from "@/components/operator/empty-state";
+import { NativeButton } from "@/components/ui/native-button";
 
 export default function DriveError({
   error,
@@ -15,9 +16,9 @@ export default function DriveError({
     <div className="stack">
       <EmptyState icon={HardDrive} title="Unable to load Drive." description={error.message} />
       <FormActions layout="single">
-        <button className="button primary" type="button" onClick={reset}>
+        <NativeButton className="primary" type="button" onClick={reset}>
           Retry
-        </button>
+        </NativeButton>
       </FormActions>
     </div>
   );

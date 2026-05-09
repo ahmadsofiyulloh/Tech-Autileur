@@ -2,6 +2,7 @@
 
 import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
+import { NativeButton } from "@/components/ui/native-button";
 
 export default function SettingsError({
   error,
@@ -13,9 +14,9 @@ export default function SettingsError({
   return (
     <SectionCard title="Unable to load settings." description={error.message}>
       <FormActions layout="single">
-        <button className="button primary" type="button" onClick={reset}>
+        <NativeButton className="primary" type="button" onClick={reset}>
           Retry
-        </button>
+        </NativeButton>
       </FormActions>
     </SectionCard>
   );

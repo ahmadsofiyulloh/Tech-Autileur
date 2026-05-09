@@ -3,6 +3,7 @@
 import { Inbox, RotateCcw } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
+import { NativeButton } from "@/components/ui/native-button";
 
 export default function IntakeError({ reset }: { reset: () => void }) {
   return (
@@ -12,10 +13,10 @@ export default function IntakeError({ reset }: { reset: () => void }) {
           icon={Inbox}
           title="Try again."
           action={
-            <button className="button" type="button" onClick={reset}>
+            <NativeButton type="button" onClick={reset}>
               <RotateCcw size={16} aria-hidden="true" />
               Retry
-            </button>
+            </NativeButton>
           }
         />
       </SectionCard>

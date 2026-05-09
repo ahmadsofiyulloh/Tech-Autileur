@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Clock3, FileText, RefreshCcw } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
@@ -7,6 +6,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { PromptGenerationMonitor } from "@/components/operator/prompt-generation-monitor";
 import { TopbarOverride } from "@/components/operator/topbar-context";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { getProductById, listProductImages } from "@/lib/server/products";
@@ -149,12 +149,12 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
           <>
             <SkeletonPromptDetailContent />
             <div className="section-card__actions desktop-action-set">
-              <PendingActionButton className="button compact tertiary" pendingLabel="Menyimpan" disabled>
+              <PendingActionButton className="compact tertiary" pendingLabel="Menyimpan" disabled>
                 Simpan TXT Drive
               </PendingActionButton>
             </div>
             <div className="mobile-action-set">
-              <PendingActionButton className="button compact tertiary" pendingLabel="Menyimpan" disabled>
+              <PendingActionButton className="compact tertiary" pendingLabel="Menyimpan" disabled>
                 Simpan TXT Drive
               </PendingActionButton>
             </div>
@@ -167,7 +167,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
               <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
               <input type="hidden" name="product_id" value={promptPack.product_id} />
               <PendingActionButton
-                className="button compact tertiary"
+                className="compact tertiary"
                 pendingLabel="Menyimpan"
                 name="intent"
                 value="export_prompt_txt"
@@ -181,7 +181,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
                 <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
                 <input type="hidden" name="product_id" value={promptPack.product_id} />
                 <PendingActionButton
-                  className="button compact tertiary"
+                  className="compact tertiary"
                   pendingLabel="Menyimpan"
                   name="intent"
                   value="export_prompt_txt"
@@ -214,12 +214,12 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
             </label>
 
             <FormActions layout="pair">
-              <Link className="button tertiary" href={`/prompts/${promptPack.id}/history`}>
+              <NativeLinkButton className="tertiary" href={`/prompts/${promptPack.id}/history`}>
                 <Clock3 size={16} aria-hidden="true" />
                 History
-              </Link>
+              </NativeLinkButton>
               <PendingActionButton
-                className="button primary"
+                className="primary"
                 pendingLabel="Meregenerasi"
                 name="intent"
                 value="regenerate"

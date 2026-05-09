@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { ChevronRight, UserRound } from "lucide-react";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import type { ReactNode } from "react";
 
 type StatusTone = "neutral" | "info" | "success" | "warning" | "danger";
@@ -33,10 +33,10 @@ export function AffiliateProfileHero({
   variant = "default",
 }: AffiliateProfileHeroProps) {
   const heroActions = actions ?? (href ? (
-    <Link className="button compact tertiary" href={href}>
+    <NativeLinkButton className="compact tertiary" href={href}>
       <ChevronRight size={15} aria-hidden="true" />
       {actionLabel}
-    </Link>
+    </NativeLinkButton>
   ) : null);
 
   return (

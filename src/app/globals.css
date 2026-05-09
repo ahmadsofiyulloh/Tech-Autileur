@@ -1085,6 +1085,16 @@ details {
   opacity: 0.56;
 }
 
+/* Native Feel Feedback - Haptic/Visual active state */
+.native-button {
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+}
+
+.native-button:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
 .button svg {
   flex: 0 0 auto;
 }

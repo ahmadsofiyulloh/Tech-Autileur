@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { NativeButton } from "@/components/ui/native-button";
 
 type OperatorBottomSheetProps = {
   open: boolean;
@@ -129,9 +130,9 @@ export function OperatorBottomSheet({ open, onClose, ariaLabel, title, subtitle,
             <strong>{title}</strong>
             {subtitle ? <span className="operator-bottom-sheet__subtitle">{subtitle}</span> : null}
           </div>
-          <button className="button compact operator-bottom-sheet__close" type="button" aria-label="Tutup" onClick={onClose}>
+          <NativeButton className="compact operator-bottom-sheet__close" type="button" aria-label="Tutup" onClick={onClose}>
             <X size={16} aria-hidden="true" />
-          </button>
+          </NativeButton>
         </div>
         <div className="operator-bottom-sheet__body">{children}</div>
       </aside>

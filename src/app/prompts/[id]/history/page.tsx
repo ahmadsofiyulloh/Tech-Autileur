@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Edit3, FileText, History } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { TopbarOverride } from "@/components/operator/topbar-context";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
@@ -140,23 +140,23 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
 
       <div className="surface-toolbar">
         <div className="surface-toolbar__actions action-rail action-rail--pair desktop-action-set">
-          <Link className="button compact" href={`/prompts/${selectedPromptPack.id}`}>
+          <NativeLinkButton className="compact" href={`/prompts/${selectedPromptPack.id}`}>
             <ArrowLeft size={16} aria-hidden="true" />
             Editor
-          </Link>
-          <Link className="button compact tertiary" href="/prompts">
+          </NativeLinkButton>
+          <NativeLinkButton className="compact tertiary" href="/prompts">
             Prompt
-          </Link>
+          </NativeLinkButton>
         </div>
         <div className="surface-toolbar__actions mobile-action-set">
-          <Link className="button compact primary" href={`/prompts/${selectedPromptPack.id}`}>
+          <NativeLinkButton className="compact primary" href={`/prompts/${selectedPromptPack.id}`}>
             <ArrowLeft size={16} aria-hidden="true" />
             Editor
-          </Link>
+          </NativeLinkButton>
           <OverflowActionMenu>
-            <Link className="button compact" href="/prompts">
+            <NativeLinkButton className="compact" href="/prompts">
               Prompt
-            </Link>
+            </NativeLinkButton>
           </OverflowActionMenu>
         </div>
       </div>
@@ -178,10 +178,10 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
                     {pack.error_message ? <span className="error-box">{pack.error_message}</span> : null}
                     {task?.error_message ? <span className="error-box">{task.error_message}</span> : null}
                   </div>
-                  <Link className="button compact primary prompt-history-row__action" href={`/prompts/${pack.id}`}>
+                  <NativeLinkButton className="compact primary prompt-history-row__action" href={`/prompts/${pack.id}`}>
                     <Edit3 size={15} aria-hidden="true" />
                     Buka
-                  </Link>
+                  </NativeLinkButton>
                 </li>
               );
             })}

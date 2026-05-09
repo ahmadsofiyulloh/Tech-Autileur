@@ -2,6 +2,7 @@
 
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
+import { NativeButton } from "@/components/ui/native-button";
 
 type CopyButtonProps = {
   text: string;
@@ -28,9 +29,9 @@ export function CopyButton({ text, label = "Copy", className, disabled = false }
   }
 
   return (
-    <button className={`button compact ${className ?? ""}`.trim()} disabled={disabled} type="button" onClick={handleCopy}>
+    <NativeButton className={`compact ${className ?? ""}`.trim()} disabled={disabled} type="button" onClick={handleCopy}>
       {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
       {copied ? "Tersalin" : label}
-    </button>
+    </NativeButton>
   );
 }

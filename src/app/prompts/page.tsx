@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Clock3, Edit3, FileText, Package, Plus } from "lucide-react";
 import { savePromptPack } from "./actions";
@@ -8,6 +7,7 @@ import { PromptLaunchReadinessSummary } from "@/components/operator/prompt-launc
 import { StatusBadge } from "@/components/operator/status-badge";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listDriveItems } from "@/lib/server/drive-items";
@@ -69,7 +69,7 @@ function PromptPackCreateForm({
       <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
       <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
       <PendingActionButton
-        className="button compact primary"
+        className="compact primary"
         aria-describedby={!readiness.ready ? readinessId : undefined}
         pendingLabel="Membuat"
         disabled={!readiness.ready}
@@ -141,14 +141,14 @@ function PromptRowCard({
       >
         {promptPack ? (
           <>
-            <Link className="button compact primary" href={`/prompts/${promptPack.id}`}>
+            <NativeLinkButton className="compact primary" href={`/prompts/${promptPack.id}`}>
               <Edit3 size={15} aria-hidden="true" />
               Buka
-            </Link>
-            <Link className="button compact tertiary" href={`/prompts/${promptPack.id}/history`}>
+            </NativeLinkButton>
+            <NativeLinkButton className="compact tertiary" href={`/prompts/${promptPack.id}/history`}>
               <Clock3 size={15} aria-hidden="true" />
               History
-            </Link>
+            </NativeLinkButton>
             <form action={savePromptPack}>
               <input type="hidden" name="intent" value="archive" />
               <input type="hidden" name="return_to" value="/prompts" />
@@ -159,9 +159,9 @@ function PromptRowCard({
           </>
         ) : (
           <>
-            <Link className="button compact tertiary" href={`/products/${product.id}?tab=metadata`}>
+            <NativeLinkButton className="compact tertiary" href={`/products/${product.id}?tab=metadata`}>
               Produk
-            </Link>
+            </NativeLinkButton>
             {intakeSession ? (
               <PromptPackCreateForm
                 affiliateProfile={affiliateProfile}
@@ -181,15 +181,15 @@ function PromptRowCard({
       <div className="mobile-card-actions prompt-list-card__mobile-actions">
         {promptPack ? (
           <>
-            <Link className="button compact primary" href={`/prompts/${promptPack.id}`}>
+            <NativeLinkButton className="compact primary" href={`/prompts/${promptPack.id}`}>
               <Edit3 size={15} aria-hidden="true" />
               Buka
-            </Link>
+            </NativeLinkButton>
             <OverflowActionMenu>
-              <Link className="button compact" href={`/prompts/${promptPack.id}/history`}>
+              <NativeLinkButton className="compact" href={`/prompts/${promptPack.id}/history`}>
                 <Clock3 size={15} aria-hidden="true" />
                 History
-              </Link>
+              </NativeLinkButton>
               <form action={savePromptPack}>
                 <input type="hidden" name="intent" value="archive" />
                 <input type="hidden" name="return_to" value="/prompts" />
@@ -210,15 +210,15 @@ function PromptRowCard({
                 sourceImage={sourceImage}
               />
             ) : (
-              <Link className="button compact primary" href={`/products/${product.id}?tab=metadata`}>
+              <NativeLinkButton className="compact primary" href={`/products/${product.id}?tab=metadata`}>
                 Produk
-              </Link>
+              </NativeLinkButton>
             )}
             {intakeSession ? (
               <OverflowActionMenu>
-                <Link className="button compact" href={`/products/${product.id}?tab=metadata`}>
+                <NativeLinkButton className="compact" href={`/products/${product.id}?tab=metadata`}>
                   Produk
-                </Link>
+                </NativeLinkButton>
               </OverflowActionMenu>
             ) : null}
           </>
@@ -387,10 +387,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
             title="Produk belum ada."
             description="Buat produk dulu."
             action={
-              <Link className="button primary" href="/products/new">
+              <NativeLinkButton className="primary" href="/products/new">
                 <Plus size={16} aria-hidden="true" />
                 Produk Baru
-              </Link>
+              </NativeLinkButton>
             }
           />
         )}

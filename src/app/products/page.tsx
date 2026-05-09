@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Package, Plus } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import { listClipJobs, type ClipJobRecord } from "@/lib/server/clip-jobs";
 import { listContents, type ContentRecord } from "@/lib/server/contents";
 import { listDriveItems } from "@/lib/server/drive-items";
@@ -528,10 +528,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           title={currentWorkspace && !showAllWorkspaces ? "Belum ada produk di workspace ini." : "Belum ada produk."}
           description="Mulai dari intake."
           action={
-            <Link className="button primary" href="/products/new">
+            <NativeLinkButton className="primary" href="/products/new">
               <Plus size={16} aria-hidden="true" />
               Intake baru
-            </Link>
+            </NativeLinkButton>
           }
         />
       )}

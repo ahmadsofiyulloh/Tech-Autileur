@@ -3,6 +3,7 @@
 import { Image as ImageIcon, Loader2, RotateCcw, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { NativeButton } from "@/components/ui/native-button";
 
 export type ImagePreviewSelectionState = {
   selected: boolean;
@@ -204,8 +205,8 @@ export function ImagePreviewUploadCard({
 
         {showClearButton ? (
           <div className="image-preview-upload-card__actions">
-            <button
-              className="button compact image-preview-upload-card__clear"
+            <NativeButton
+              className="compact image-preview-upload-card__clear"
               disabled={disabled || isPreparing}
               aria-label={clearButtonAriaLabel}
               title={clearButtonAriaLabel}
@@ -214,7 +215,7 @@ export function ImagePreviewUploadCard({
             >
               <ClearIcon size={14} aria-hidden="true" />
               <span className="image-preview-upload-card__action-label">{clearLabel}</span>
-            </button>
+            </NativeButton>
           </div>
         ) : null}
       </div>

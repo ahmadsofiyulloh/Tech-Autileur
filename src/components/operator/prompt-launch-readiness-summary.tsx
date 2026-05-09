@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import type { PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 
 type PromptLaunchReadinessSummaryProps = {
@@ -33,9 +33,9 @@ export function PromptLaunchReadinessSummary({ className, id, readiness }: Promp
           {readiness.blockers.map((blocker) => (
             <li key={blocker.key}>
               <strong>{blocker.label}</strong>
-              <Link className="button compact tertiary" href={blocker.href}>
+              <NativeLinkButton className="compact tertiary" href={blocker.href}>
                 Buka
-              </Link>
+              </NativeLinkButton>
             </li>
           ))}
         </ul>

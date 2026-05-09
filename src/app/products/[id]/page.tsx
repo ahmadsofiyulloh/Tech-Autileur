@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { TopbarOverride } from "@/components/operator/topbar-context";
+import { NativeAnchorButton, NativeLinkButton } from "@/components/ui/native-button";
 import { ProductOutputFields } from "../product-output-fields";
 import { listContents } from "@/lib/server/contents";
 import { listClipJobs, listGeneratedFiles } from "@/lib/server/clip-jobs";
@@ -228,10 +229,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
         <div className="surface-toolbar">
           <span className="surface-context">Detail produk</span>
           <div className="surface-toolbar__actions">
-            <Link className="button compact" href="/products">
+            <NativeLinkButton className="compact" href="/products">
               <ArrowLeft size={16} aria-hidden="true" />
               Products
-            </Link>
+            </NativeLinkButton>
           </div>
         </div>
         <SectionCard icon={Package} title="Unable to load product detail." description={message}>
@@ -481,10 +482,10 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
               </div>
             </div>
             {product.marketplace_product_link ? (
-              <a className="button compact" href={product.marketplace_product_link} target="_blank" rel="noreferrer">
+              <NativeAnchorButton className="compact" href={product.marketplace_product_link} target="_blank" rel="noreferrer">
                 <Link2 size={15} aria-hidden="true" />
                 Open source link
-              </a>
+              </NativeAnchorButton>
             ) : null}
           </SectionCard>
 
@@ -632,12 +633,12 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
                       </div>
                       <div className="section-card__actions">
                         <StatusBadge status={pack.status} />
-                        <Link className="button compact primary" href={`/prompts/${pack.id}`}>
+                        <NativeLinkButton className="compact primary" href={`/prompts/${pack.id}`}>
                           Buka
-                        </Link>
-                        <Link className="button compact tertiary" href={`/prompts/${pack.id}/history`}>
+                        </NativeLinkButton>
+                        <NativeLinkButton className="compact tertiary" href={`/prompts/${pack.id}/history`}>
                           History
-                        </Link>
+                        </NativeLinkButton>
                       </div>
                     </li>
                   );

@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeAnchorButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { disconnectGoogleDrive } from "./actions";
 import { ThemeToggle } from "./theme-mode-picker";
@@ -208,10 +209,10 @@ export default async function SettingsPage() {
           </span>
         </>
       ) : (
-        <a className="button compact primary settings-drive-connect-button" href="/api/google-drive/oauth/start">
+        <NativeAnchorButton className="compact primary settings-drive-connect-button" href="/api/google-drive/oauth/start">
           <img alt="" src="/google-drive.svg" />
           Connect
-        </a>
+        </NativeAnchorButton>
       ),
     },
     { key: "gemini", href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },

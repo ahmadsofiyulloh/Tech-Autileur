@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Search } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { NativeButton } from "@/components/ui/native-button";
 
 export type RelationalPickerOption = {
   value: string;
@@ -260,13 +261,13 @@ export function RelationalPicker({
             <span className="relational-picker__panel-label">{label}</span>
           )}
           {canClear ? (
-            <button
-              className="button compact relational-picker__clear"
+            <NativeButton
+              className="compact relational-picker__clear"
               type="button"
               onClick={() => selectValue("")}
             >
               Kosongkan
-            </button>
+            </NativeButton>
           ) : null}
         </div>
         <div className="relational-picker__list" role="listbox" aria-label={label}>

@@ -7,6 +7,7 @@ import { FormActions } from "@/components/operator/form-actions";
 import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveGeminiKey } from "../../gemini/actions";
 import { GEMINI_KEY_ROLES, GEMINI_MODELS } from "@/lib/gemini/validation";
@@ -104,10 +105,10 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
       <div className="product-master__list stack">
         <div className="settings-inline-summary">
           <span>{activeKeyCount} key aktif</span>
-          <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+          <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
             <Plus size={15} aria-hidden="true" />
             Gemini baru
-          </button>
+          </NativeButton>
         </div>
 
         {visibleGeminiKeys.length ? (
@@ -142,10 +143,10 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                       </td>
                       <td>
                         <div className="product-row-actions">
-                          <button className="button compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
+                          <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
                             <PanelRightOpen size={15} aria-hidden="true" />
                             Kelola
-                          </button>
+                          </NativeButton>
                           <form action={saveGeminiKey}>
                             <input type="hidden" name="intent" value="disable" />
                             <input type="hidden" name="id" value={key.id} />
@@ -171,10 +172,10 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                   </div>
                   <span className="settings-card-meta-line">{geminiMobileMeta(key)}</span>
                   <div className="mobile-card-actions">
-                    <button className="button compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
+                    <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
                       <PanelRightOpen size={15} aria-hidden="true" />
                       Kelola
-                    </button>
+                    </NativeButton>
                     <OverflowActionMenu>
                       <form action={saveGeminiKey}>
                         <input type="hidden" name="intent" value="disable" />
@@ -196,10 +197,10 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
             title="Belum ada Gemini key."
             description="Buat Gemini key pertama."
             action={
-              <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+              <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
                 <Plus size={15} aria-hidden="true" />
                 Gemini baru
-              </button>
+              </NativeButton>
             }
           />
         )}
@@ -217,9 +218,9 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
               {initialKey ? <StatusBadge status={initialKey.role} tone="info" /> : null}
             </div>
           </div>
-          <button className="button compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
+          <NativeButton className="compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
             <X size={16} aria-hidden="true" />
-          </button>
+          </NativeButton>
         </div>
 
         {drawerOpen ? (
@@ -287,13 +288,13 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
               </label>
 
               <FormActions layout="pair">
-                <button className="button primary" type="submit">
+                <NativeButton className="primary" type="submit">
                   <Save size={16} aria-hidden="true" />
                   {isCreating ? "Buat Gemini key" : "Simpan Gemini key"}
-                </button>
-                <button className="button tertiary" type="button" onClick={closeDrawer}>
+                </NativeButton>
+                <NativeButton className="tertiary" type="button" onClick={closeDrawer}>
                   Batal
-                </button>
+                </NativeButton>
               </FormActions>
             </form>
 

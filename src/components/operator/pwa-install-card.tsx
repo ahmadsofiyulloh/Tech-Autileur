@@ -2,6 +2,7 @@
 
 import { Download, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
+import { NativeButton } from "@/components/ui/native-button";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -111,10 +112,10 @@ export function PwaInstallCard() {
         <span>{deferredPrompt ? "Buka seperti app native." : "Bagikan lalu Tambah ke Layar Utama."}</span>
       </span>
       {deferredPrompt ? (
-        <button className="button compact primary pwa-install-card__action" disabled={isPrompting} type="button" onClick={handleInstallClick}>
+        <NativeButton className="compact primary pwa-install-card__action" disabled={isPrompting} type="button" onClick={handleInstallClick}>
           <Download size={15} aria-hidden="true" />
           {isPrompting ? "Membuka" : "Pasang"}
-        </button>
+        </NativeButton>
       ) : null}
     </section>
   );

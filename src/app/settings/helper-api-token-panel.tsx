@@ -5,6 +5,7 @@ import { CopyButton } from "@/components/operator/copy-button";
 import { FormActions } from "@/components/operator/form-actions";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveHelperApiToken } from "./actions";
 
@@ -85,33 +86,33 @@ export function HelperApiTokenPanel({
           <pre className="json-block">{payloadJson}</pre>
           <FormActions className="desktop-action-set" layout="pair">
             <CopyButton className="tertiary" text={payloadJson} label="Salin" />
-            <button className="button compact tertiary" type="button" onClick={handleDownload}>
+            <NativeButton className="compact tertiary" type="button" onClick={handleDownload}>
               Unduh JSON
-            </button>
+            </NativeButton>
           </FormActions>
           <div className="mobile-card-actions">
             <CopyButton className="primary" text={payloadJson} label="Salin" />
             <OverflowActionMenu>
-              <button className="button compact" type="button" onClick={handleDownload}>
+              <NativeButton className="compact" type="button" onClick={handleDownload}>
                 Unduh JSON
-              </button>
+              </NativeButton>
             </OverflowActionMenu>
           </div>
         </div>
       ) : null}
 
       <FormActions className="desktop-action-set" layout={payload ? "triple" : "pair"}>
-        <button className="button compact primary" type="button" onClick={handleCreate}>
+        <NativeButton className="compact primary" type="button" onClick={handleCreate}>
           Buat token
-        </button>
+        </NativeButton>
         {payload ? (
           <form action={saveHelperApiToken}>
             <input type="hidden" name="intent" value="save_helper_api_token" />
             <input type="hidden" name="return_to" value="/settings/account" />
             <input type="hidden" name="raw_token" value={payload.raw_token} />
-            <button className="button compact tertiary" type="submit">
+            <NativeButton className="compact tertiary" type="submit">
               Simpan hash
-            </button>
+            </NativeButton>
           </form>
         ) : null}
         <form action={saveHelperApiToken}>
@@ -131,27 +132,27 @@ export function HelperApiTokenPanel({
             <input type="hidden" name="intent" value="save_helper_api_token" />
             <input type="hidden" name="return_to" value="/settings/account" />
             <input type="hidden" name="raw_token" value={payload.raw_token} />
-            <button className="button compact primary" type="submit">
-              Simpan hash
-            </button>
-          </form>
-        ) : (
-          <button className="button compact primary" type="button" onClick={handleCreate}>
+          <NativeButton className="compact primary" type="submit">
+            Simpan hash
+          </NativeButton>
+        </form>
+      ) : (
+          <NativeButton className="compact primary" type="button" onClick={handleCreate}>
             Buat token
-          </button>
+          </NativeButton>
         )}
         {payload || currentToken ? (
           <OverflowActionMenu>
             {payload ? <CopyButton text={payloadJson} label="Salin" /> : null}
             {payload ? (
-              <button className="button compact" type="button" onClick={handleDownload}>
+              <NativeButton className="compact" type="button" onClick={handleDownload}>
                 Unduh JSON
-              </button>
+              </NativeButton>
             ) : null}
             {payload ? (
-              <button className="button compact" type="button" onClick={handleCreate}>
+              <NativeButton className="compact" type="button" onClick={handleCreate}>
                 Buat ulang
-              </button>
+              </NativeButton>
             ) : null}
             <form action={saveHelperApiToken}>
               <input type="hidden" name="intent" value="disable_helper_api_token" />

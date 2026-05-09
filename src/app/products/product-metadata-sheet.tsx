@@ -3,6 +3,7 @@
 import { Save } from "lucide-react";
 import { OperatorBottomSheet } from "@/components/operator/bottom-sheet";
 import { FormActions } from "@/components/operator/form-actions";
+import { NativeButton } from "@/components/ui/native-button";
 import { saveProductStatus } from "./actions";
 import type { ProductListRow } from "./types";
 
@@ -54,13 +55,13 @@ export function ProductStatusSheet({ product, open, onClose }: ProductStatusShee
         </section>
 
         <FormActions layout="pair">
-          <button className="button" type="button" onClick={onClose}>
+          <NativeButton type="button" onClick={onClose}>
             Batal
-          </button>
-          <button className="button primary" type="submit">
+          </NativeButton>
+          <NativeButton className="primary" type="submit">
             <Save size={15} aria-hidden="true" />
             Simpan
-          </button>
+          </NativeButton>
         </FormActions>
       </form>
     </OperatorBottomSheet>

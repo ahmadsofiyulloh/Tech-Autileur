@@ -6,6 +6,7 @@ import { Label, Pie, PieChart } from "recharts";
 import { EmptyState } from "@/components/operator/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { NativeButton } from "@/components/ui/native-button";
 import type { GeminiUsageCard, GeminiUsageMetric, GeminiUsageOverview } from "@/lib/gemini/usage-types";
 
 type GeminiUsageOverviewPanelProps = {
@@ -287,14 +288,14 @@ export function GeminiUsageOverviewPanel({ overview, sectionId }: GeminiUsageOve
       ) : (
         <div className="gemini-usage-carousel" data-carousel={hasCarousel ? "true" : "false"}>
           {hasCarousel ? (
-            <button
-              className="button compact tertiary gemini-usage-carousel__button"
+            <NativeButton
+              className="compact tertiary gemini-usage-carousel__button"
               type="button"
               onClick={goPrevious}
               aria-label="Gemini key sebelumnya"
             >
               <ChevronLeft size={16} aria-hidden="true" />
-            </button>
+            </NativeButton>
           ) : null}
 
           <div className="gemini-usage-carousel__viewport" ref={viewportRef} onScroll={handleCarouselScroll}>
@@ -308,14 +309,14 @@ export function GeminiUsageOverviewPanel({ overview, sectionId }: GeminiUsageOve
           </div>
 
           {hasCarousel ? (
-            <button
-              className="button compact tertiary gemini-usage-carousel__button"
+            <NativeButton
+              className="compact tertiary gemini-usage-carousel__button"
               type="button"
               onClick={goNext}
               aria-label="Gemini key berikutnya"
             >
               <ChevronRight size={16} aria-hidden="true" />
-            </button>
+            </NativeButton>
           ) : null}
         </div>
       )}

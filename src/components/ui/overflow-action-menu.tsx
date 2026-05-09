@@ -11,6 +11,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { NativeButton } from "@/components/ui/native-button";
 
 type OverflowActionMenuProps = {
   buttonClassName?: string;
@@ -120,12 +121,12 @@ export function OverflowActionMenu({
 
   return (
     <span className={joinClassNames("overflow-action-menu", className)}>
-      <button
+      <NativeButton
         aria-controls={open ? menuId : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={label}
-        className={joinClassNames("button compact overflow-action-menu__trigger", buttonClassName)}
+        className={joinClassNames("compact overflow-action-menu__trigger", buttonClassName)}
         ref={buttonRef}
         type="button"
         onClick={() => {
@@ -134,7 +135,7 @@ export function OverflowActionMenu({
         }}
       >
         <MoreHorizontal size={17} aria-hidden="true" />
-      </button>
+      </NativeButton>
       {mounted && open
         ? createPortal(
             <div

@@ -2,6 +2,12 @@
 
 Repo-level maintenance notes and MVP delivery updates.
 
+## 2026-05-09
+
+- Finished the S8-006 native visual button follow-up with shared `NativeButton`, `NativeLinkButton`, and `NativeAnchorButton` primitives.
+- Converted button-styled internal links, external anchors, pending actions, and error recovery actions across Intake, Produk, Prompt, Drive, Settings, and compatibility/error surfaces.
+- Kept custom gesture and selection controls on their existing semantic buttons where native wrappers would reduce behavior clarity.
+
 ## 2026-05-06
 
 - Rewrote the root README in plain ASCII with setup, environment, folder, script, and deployment notes.

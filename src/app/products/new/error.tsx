@@ -2,6 +2,7 @@
 
 import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
+import { NativeButton } from "@/components/ui/native-button";
 
 export default function NewProductError({
   error,
@@ -13,9 +14,9 @@ export default function NewProductError({
   return (
     <SectionCard title="Intake produk tidak bisa dimuat." description={error.message}>
       <FormActions layout="single">
-        <button className="button primary" type="button" onClick={reset}>
+        <NativeButton className="primary" type="button" onClick={reset}>
           Coba lagi
-        </button>
+        </NativeButton>
       </FormActions>
     </SectionCard>
   );

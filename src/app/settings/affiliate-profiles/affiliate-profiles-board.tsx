@@ -10,6 +10,7 @@ import { RelationalPicker } from "@/components/operator/relational-picker";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { reanalyzeAffiliateProfileAssets, saveAffiliateProfile } from "../actions";
 import { AFFILIATE_PLATFORMS, AFFILIATE_PROFILE_STATUSES } from "@/lib/affiliate-profiles/validation";
@@ -261,7 +262,7 @@ function AffiliateProfileAssetReanalysisPanel({ isCreating }: { isCreating: bool
 
       {!isCreating ? (
         <PendingActionButton
-          className="button compact tertiary affiliate-profile-asset-card__reanalyse"
+          className="compact tertiary affiliate-profile-asset-card__reanalyse"
           formAction={formAction}
           pendingLabel="Menganalisis..."
           pendingOverride={isPending}
@@ -411,10 +412,10 @@ export function AffiliateProfilesBoard({
           <AffiliateProfileHero
             accountLabel={heroProfile.account_label?.trim() || null}
             actions={
-              <button className="button compact tertiary" type="button" onClick={() => openEditDrawer(heroProfile.id)}>
+              <NativeButton className="compact tertiary" type="button" onClick={() => openEditDrawer(heroProfile.id)}>
                 <PanelRightOpen size={15} aria-hidden="true" />
                 Kelola
-              </button>
+              </NativeButton>
             }
             avatarUrl={heroProfile.avatarUrl}
             eyebrow="Profile terpilih"
@@ -426,10 +427,10 @@ export function AffiliateProfilesBoard({
         ) : (
           <AffiliateProfileHero
             actions={
-              <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+              <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
                 <Plus size={15} aria-hidden="true" />
                 Profile baru
-              </button>
+              </NativeButton>
             }
             avatarUrl={null}
             eyebrow="Akun Affiliate"
@@ -451,10 +452,10 @@ export function AffiliateProfilesBoard({
 
         <div className="settings-inline-summary">
           <span>{activeProfileCount} profile aktif</span>
-          <button className="button compact primary" type="button" onClick={openCreateDrawer}>
+          <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
             <Plus size={15} aria-hidden="true" />
             Profile baru
-          </button>
+          </NativeButton>
         </div>
 
         {!drawerOpen && routeFeedback ? (
@@ -499,14 +500,14 @@ export function AffiliateProfilesBoard({
                   </td>
                   <td>
                     <div className="product-row-actions">
-                      <button className="button compact" type="button" onClick={() => openEditDrawer(profile.id)}>
+                      <NativeButton className="compact" type="button" onClick={() => openEditDrawer(profile.id)}>
                         <PanelRightOpen size={15} aria-hidden="true" />
                         Detail
-                      </button>
-                      <button className="button compact primary" type="button" onClick={() => openEditDrawer(profile.id)}>
+                      </NativeButton>
+                      <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(profile.id)}>
                         <ArrowRight size={15} aria-hidden="true" />
                         Edit
-                      </button>
+                      </NativeButton>
                       <form action={saveAffiliateProfile}>
                         <input type="hidden" name="intent" value="archive_affiliate_profile" />
                         <input type="hidden" name="return_to" value="/settings/affiliate-profiles" />
@@ -538,10 +539,10 @@ export function AffiliateProfilesBoard({
                 </div>
               </div>
               <div className="mobile-card-actions">
-                <button className="button compact primary" type="button" onClick={() => openEditDrawer(profile.id)}>
+                <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(profile.id)}>
                   <PanelRightOpen size={15} aria-hidden="true" />
                   Kelola
-                </button>
+                </NativeButton>
                 <OverflowActionMenu>
                   <form action={saveAffiliateProfile}>
                     <input type="hidden" name="intent" value="archive_affiliate_profile" />
@@ -559,10 +560,10 @@ export function AffiliateProfilesBoard({
           <div className="muted-box stack">
             <strong>Belum ada profile affiliate.</strong>
             <span className="subtle">Buat profile pertama.</span>
-            <button className="button primary" type="button" onClick={openCreateDrawer}>
+            <NativeButton className="primary" type="button" onClick={openCreateDrawer}>
               <Plus size={15} aria-hidden="true" />
               Profile baru
-            </button>
+            </NativeButton>
           </div>
         ) : null}
       </div>
@@ -578,9 +579,9 @@ export function AffiliateProfilesBoard({
               <span className="settings-card-meta-line">{profileMobileMeta(lockSeedCharacter, lockEnvironment)}</span>
             ) : null}
           </div>
-          <button className="button compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
+          <NativeButton className="compact product-drawer__close" type="button" onClick={closeDrawer} aria-label="Tutup detail">
             <X size={16} aria-hidden="true" />
-          </button>
+          </NativeButton>
         </div>
 
         {drawerOpen ? (

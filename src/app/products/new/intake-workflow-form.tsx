@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
-import Link from "next/link";
 import {
   AlertTriangle,
   FileText,
@@ -18,6 +17,7 @@ import { PostSaveDecisionSurface } from "@/components/operator/post-save-decisio
 import { PromptLaunchReadinessSummary } from "@/components/operator/prompt-launch-readiness-summary";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import { normalizeIntakeClientContext } from "@/lib/intake/analysis-telemetry";
 import type { JsonRecord } from "@/lib/intake/validation";
 import type { PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
@@ -260,10 +260,10 @@ function IntakeMetadataFailedPanel({
     <section className="stack">
       <EmptyState
         action={
-          <Link className="button primary" href={`/products/new?${retryParams.toString()}`}>
+          <NativeLinkButton className="primary" href={`/products/new?${retryParams.toString()}`}>
             <Link2 size={16} aria-hidden="true" />
             Kembali ke intake
-          </Link>
+          </NativeLinkButton>
         }
         icon={AlertTriangle}
         title="Analisis metadata gagal."
@@ -308,10 +308,10 @@ function DraftQueuePanel({ drafts }: { drafts: IntakeWorkflowFormProps["draftQue
             </div>
             <div className="intake-draft-queue__actions">
               <StatusBadge status={draft.status} tone={draft.status === "ERROR" ? "danger" : "info"} />
-              <Link className="button compact primary" href={draft.continueHref}>
+              <NativeLinkButton className="compact primary" href={draft.continueHref}>
                 <Link2 size={15} aria-hidden="true" />
                 Lanjutkan
-              </Link>
+              </NativeLinkButton>
             </div>
           </article>
         ))}
@@ -445,7 +445,7 @@ function AnalysisReadyPanel({
 
       <FormActions layout="pair" className="intake-review-panel__actions">
         <PendingActionButton
-          className="button primary"
+          className="primary"
           form={reviewFormId}
           name="intent"
           value="review_metadata"
@@ -456,18 +456,18 @@ function AnalysisReadyPanel({
           Simpan
         </PendingActionButton>
         {savedSession.product_id ? (
-          <Link className="button tertiary" href={`/products/${savedSession.product_id}`}>
+          <NativeLinkButton className="tertiary" href={`/products/${savedSession.product_id}`}>
             <Link2 size={16} aria-hidden="true" />
             Produk
-          </Link>
+          </NativeLinkButton>
         ) : null}
       </FormActions>
       {promptProductId ? (
         <div className="intake-review-panel__launch-action">
-          <Link className="button primary" href={promptHref(promptProductId, savedSession.id, affiliateProfileId)}>
+          <NativeLinkButton className="primary" href={promptHref(promptProductId, savedSession.id, affiliateProfileId)}>
             <FileText size={16} aria-hidden="true" />
             Buat Prompt
-          </Link>
+          </NativeLinkButton>
         </div>
       ) : null}
       {promptLaunchReadiness && !promptLaunchReadiness.ready ? (
@@ -625,7 +625,7 @@ export function IntakeWorkflowForm({
             <PendingActionButton
               name="intent"
               value="save_product_capture"
-              className="button primary"
+              className="primary"
               pendingLabel="Menyimpan"
               disabled={!canSaveProduct || isDecisionSurfaceOpen}
             >
@@ -711,7 +711,7 @@ export function IntakeWorkflowForm({
             <PendingActionButton
               name="intent"
               value="analyze_metadata"
-              className="button tertiary"
+              className="tertiary"
               pendingLabel="Memproses"
               disabled={!canAnalyzeMetadata || isDecisionSurfaceOpen}
             >

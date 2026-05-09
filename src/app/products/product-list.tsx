@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Edit3, Package, Plus, Search } from "lucide-react";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { MediaThumbnailFrame } from "@/components/operator/media-thumbnail-frame";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -183,10 +183,10 @@ export function ProductList({ products }: ProductListProps) {
 
         <div className="settings-inline-summary">
           <span>{filteredProducts.length} produk</span>
-          <Link className="button compact primary" href="/products/new">
+          <NativeLinkButton className="compact primary" href="/products/new">
             <Plus size={15} aria-hidden="true" />
             Intake baru
-          </Link>
+          </NativeLinkButton>
         </div>
 
         <div className="product-filter-stack">
@@ -266,15 +266,15 @@ export function ProductList({ products }: ProductListProps) {
                   <td>
                     <div className="product-row-controls">
                       <div className="product-row-actions">
-                        <Link className="button compact" href={product.href}>
+                        <NativeLinkButton className="compact" href={product.href}>
                           <ArrowRight size={15} aria-hidden="true" />
                           Detail
-                        </Link>
+                        </NativeLinkButton>
                         {product.continue_href ? (
-                          <Link className="button compact primary" href={product.continue_href}>
+                          <NativeLinkButton className="compact primary" href={product.continue_href}>
                             <ArrowRight size={15} aria-hidden="true" />
                             Lanjutkan
-                          </Link>
+                          </NativeLinkButton>
                         ) : null}
                         <form action={saveProduct}>
                           <input type="hidden" name="intent" value="archive" />
@@ -321,19 +321,19 @@ export function ProductList({ products }: ProductListProps) {
                   {product.marketplace ? <span>{product.marketplace}</span> : null}
                 </div>
                 <div className="mobile-card-actions">
-                  <Link className="button compact primary" href={product.continue_href ?? product.href}>
+                  <NativeLinkButton className="compact primary" href={product.continue_href ?? product.href}>
                     <ArrowRight size={15} aria-hidden="true" />
                     {product.continue_href ? "Lanjutkan" : "Detail"}
-                  </Link>
+                  </NativeLinkButton>
                   <OverflowActionMenu label="Aksi produk">
                     {product.continue_href ? (
-                      <Link className="button compact" href={product.href}>
+                      <NativeLinkButton className="compact" href={product.href}>
                         <ArrowRight size={15} aria-hidden="true" />
                         Detail
-                      </Link>
+                      </NativeLinkButton>
                     ) : null}
-                    <button
-                      className="button compact"
+                    <NativeButton
+                      className="compact"
                       type="button"
                       onClick={() => {
                         setActiveStatusProductId(product.id);
@@ -341,7 +341,7 @@ export function ProductList({ products }: ProductListProps) {
                     >
                       <Edit3 size={15} aria-hidden="true" />
                       Ubah status
-                    </button>
+                    </NativeButton>
                     <form action={saveProduct}>
                       <input type="hidden" name="intent" value="archive" />
                       <input type="hidden" name="id" value={product.id} />

@@ -3,6 +3,7 @@
 import type { ButtonHTMLAttributes, MouseEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { Trash2 } from "lucide-react";
+import { NativeButton } from "@/components/ui/native-button";
 
 type DeleteActionButtonVariant = "iconOnly" | "iconLabel";
 
@@ -51,10 +52,10 @@ export function DeleteActionButton({
   }
 
   return (
-    <button
+    <NativeButton
       {...buttonProps}
       aria-label={iconOnly ? ariaLabel ?? label : ariaLabel}
-      className={joinClassNames("button compact destructive delete-action-button", iconOnly && "delete-action-button--icon-only", className)}
+      className={joinClassNames("compact destructive delete-action-button", iconOnly && "delete-action-button--icon-only", className)}
       disabled={isDisabled}
       title={title ?? (iconOnly ? label : undefined)}
       type={type}
@@ -62,6 +63,6 @@ export function DeleteActionButton({
     >
       <Trash2 size={15} aria-hidden="true" />
       {iconOnly ? null : visibleLabel}
-    </button>
+    </NativeButton>
   );
 }

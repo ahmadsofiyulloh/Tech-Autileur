@@ -22,6 +22,7 @@ import { MediaThumbnailFrame } from "@/components/operator/media-thumbnail-frame
 import { OperatorBottomSheet } from "@/components/operator/bottom-sheet";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeAnchorButton, NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 
 export type DriveVisualItem = {
@@ -322,15 +323,15 @@ function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: 
       />
       <div className="form-actions drive-preview-sheet__actions desktop-action-set">
         {item.detail_url ? (
-          <button className="button compact primary" type="button" onClick={() => setViewMode(viewMode === "detail" ? "summary" : "detail")}>
+          <NativeButton className="compact primary" type="button" onClick={() => setViewMode(viewMode === "detail" ? "summary" : "detail")}>
             {viewMode === "detail" ? <ChevronLeft size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
             {viewMode === "detail" ? "Ringkas" : "Detail"}
-          </button>
+          </NativeButton>
         ) : null}
-        <a className="button compact" href={item.drive_url} target="_blank" rel="noreferrer">
+        <NativeAnchorButton className="compact" href={item.drive_url} target="_blank" rel="noreferrer">
           <ExternalLink size={16} aria-hidden="true" />
           Buka link
-        </a>
+        </NativeAnchorButton>
         <form action={saveDriveItem}>
           <input type="hidden" name="intent" value="archive" />
           <input type="hidden" name="id" value={item.id} />
@@ -338,16 +339,16 @@ function DrivePreviewSheet({ item, onClose }: { item: DriveVisualItem; onClose: 
         </form>
       </div>
       <div className="mobile-action-set drive-preview-sheet__mobile-actions">
-        <a className="button compact primary" href={item.drive_url} target="_blank" rel="noreferrer">
+        <NativeAnchorButton className="compact primary" href={item.drive_url} target="_blank" rel="noreferrer">
           <ExternalLink size={16} aria-hidden="true" />
           Buka link
-        </a>
+        </NativeAnchorButton>
         <OverflowActionMenu>
           {item.detail_url ? (
-            <button className="button compact" type="button" onClick={() => setViewMode(viewMode === "detail" ? "summary" : "detail")}>
+            <NativeButton className="compact" type="button" onClick={() => setViewMode(viewMode === "detail" ? "summary" : "detail")}>
               {viewMode === "detail" ? <ChevronLeft size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
               {viewMode === "detail" ? "Ringkas" : "Detail"}
-            </button>
+            </NativeButton>
           ) : null}
           <form action={saveDriveItem}>
             <input type="hidden" name="intent" value="archive" />
@@ -445,10 +446,10 @@ function DriveFileDrawer({
             <span>Nama opsional</span>
             <input id="drive-upload-name" name="name" type="text" placeholder="Nama file" disabled={!uploadTarget} />
           </label>
-          <button className="button primary" type="submit" disabled={!uploadTarget}>
+          <NativeButton className="primary" type="submit" disabled={!uploadTarget}>
             <Upload size={16} aria-hidden="true" />
             Unggah
-          </button>
+          </NativeButton>
         </form>
       ) : (
         <form action={saveDriveItem} className="drive-file-form stack">
@@ -466,10 +467,10 @@ function DriveFileDrawer({
               disabled={!uploadTarget}
             />
           </label>
-          <button className="button primary" type="submit" disabled={!uploadTarget}>
+          <NativeButton className="primary" type="submit" disabled={!uploadTarget}>
             <Link2 size={16} aria-hidden="true" />
             Tautkan
-          </button>
+          </NativeButton>
         </form>
       )}
     </OperatorBottomSheet>
@@ -525,24 +526,24 @@ export function DriveVisualManager({ items, uploadTarget }: DriveVisualManagerPr
         <span>{resultsLabel}</span>
         <div className="drive-summary-actions">
           {query ? (
-            <button className="button compact" type="button" onClick={() => setQuery("")}>
+            <NativeButton className="compact" type="button" onClick={() => setQuery("")}>
               <X size={15} aria-hidden="true" />
               Reset
-            </button>
+            </NativeButton>
           ) : null}
-          <button className="button compact primary" type="button" onClick={() => openFileDrawer()} disabled={!uploadTarget}>
+          <NativeButton className="compact primary" type="button" onClick={() => openFileDrawer()} disabled={!uploadTarget}>
             <Plus size={15} aria-hidden="true" />
             Tambah file
-          </button>
+          </NativeButton>
         </div>
       </div>
 
       {selectedIds.size ? (
         <div className="muted-box section-card__actions">
           <strong>{selectedIds.size} dipilih</strong>
-          <button className="button compact" type="button" onClick={() => setSelectedIds(new Set())}>
+          <NativeButton className="compact" type="button" onClick={() => setSelectedIds(new Set())}>
             Bersihkan
-          </button>
+          </NativeButton>
         </div>
       ) : null}
 
@@ -566,9 +567,9 @@ export function DriveVisualManager({ items, uploadTarget }: DriveVisualManagerPr
           description={items.length ? "Coba kata kunci lain." : "Sinkronkan folder Drive dulu."}
           action={
             query ? (
-              <button className="button compact primary" type="button" onClick={() => setQuery("")}>
+              <NativeButton className="compact primary" type="button" onClick={() => setQuery("")}>
                 Reset pencarian
-              </button>
+              </NativeButton>
             ) : null
           }
         />

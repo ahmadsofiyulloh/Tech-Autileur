@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { NativeButton } from "@/components/ui/native-button";
 import { authenticate, type AuthActionState } from "./actions";
 
 type LoginFormProps = {
@@ -48,12 +49,12 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
       </div>
 
       <div className="auth-actions action-rail action-rail--pair">
-        <button className="button primary" type="submit" name="intent" value="login" disabled={isPending}>
+        <NativeButton className="primary" type="submit" name="intent" value="login" disabled={isPending}>
           {isPending ? "Working..." : "Sign in"}
-        </button>
-        <button className="button tertiary auth-secondary-action" type="submit" name="intent" value="signup" disabled={isPending}>
+        </NativeButton>
+        <NativeButton className="tertiary auth-secondary-action" type="submit" name="intent" value="signup" disabled={isPending}>
           {isPending ? "Working..." : "Create account"}
-        </button>
+        </NativeButton>
       </div>
     </form>
   );
