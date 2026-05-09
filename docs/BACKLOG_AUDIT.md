@@ -74,6 +74,7 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-06 | 32664ab | support | Hardened Drive long-press selection guard. |
 | 2026-05-06 | 962b7b9 | support | Follow-up on S8-006 and S6-006; tightened affiliate drawer fallback UX, pending state, and mobile preview density. |
 | 2026-05-06 | 353300d | support | Follow-up on S2-003 and S3-002; routed retryable Gemini temporary-unavailable responses as warnings in intake and prompt actions. |
+| 2026-05-09 | c379ab9 | S8-006 | Follow-up on native feedback scope; centralized visual button wrappers and converted button-styled links/anchors. |
 
 ## Legacy Foundation Checkpoints
 
