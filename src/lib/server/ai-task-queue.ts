@@ -226,7 +226,7 @@ export async function markTaskSuccess(taskId: string, outputJson: JsonValue) {
 export async function markTaskFailed(
   taskId: string,
   errorMessage: string,
-  options?: { retryable?: boolean },
+  options?: { retryable?: boolean; outputJson?: JsonValue },
 ) {
   const { userId, serviceClient } = await requireUser();
   const { data: currentTask, error: fetchError } = await serviceClient
@@ -254,6 +254,7 @@ export async function markTaskFailed(
       status: nextStatus,
       retry_count: nextRetryCount,
       error_message: errorMessage,
+      ...(options?.outputJson !== undefined ? { output_json: options.outputJson } : {}),
       finished_at: canRetry ? null : new Date().toISOString(),
     })
     .eq("id", taskId)

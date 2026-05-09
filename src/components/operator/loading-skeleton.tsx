@@ -90,6 +90,89 @@ export function SkeletonIntakeActiveAffiliateCard() {
   );
 }
 
+export function SkeletonIntakeStepper() {
+  return (
+    <section className="intake-stepper loading-skeleton-static" aria-hidden="true">
+      <ol className="intake-stepper__rail">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <li className="intake-stepper__rail-item" key={index}>
+            <span className="intake-stepper__rail-button">
+              <span className="intake-stepper__rail-dot skeleton-icon skeleton-icon--small" />
+              <span className="intake-stepper__rail-copy">
+                <span className="skeleton medium" />
+                <span className="skeleton short" />
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="intake-stepper__stack">
+        <section className="intake-stepper__step" data-expanded="true" aria-hidden="true">
+          <div className="intake-stepper__step-header">
+            <span className="intake-stepper__step-header-copy">
+              <span className="intake-stepper__step-dot skeleton-icon skeleton-icon--small" />
+              <span className="intake-stepper__step-copy">
+                <span className="skeleton medium" />
+                <span className="skeleton short" />
+              </span>
+            </span>
+            <span className="skeleton-pill" />
+          </div>
+          <div className="intake-stepper__step-body">
+            <SkeletonUploadCard />
+            <div className="form-actions">
+              <SkeletonButton />
+            </div>
+          </div>
+        </section>
+
+        <section className="intake-stepper__step" data-expanded="false" aria-hidden="true">
+          <div className="intake-stepper__step-header">
+            <span className="intake-stepper__step-header-copy">
+              <span className="intake-stepper__step-dot skeleton-icon skeleton-icon--small" />
+              <span className="intake-stepper__step-copy">
+                <span className="skeleton medium" />
+                <span className="skeleton short" />
+              </span>
+            </span>
+            <span className="skeleton-pill" />
+          </div>
+        </section>
+
+        <section className="intake-stepper__step" data-expanded="false" aria-hidden="true">
+          <div className="intake-stepper__step-header">
+            <span className="intake-stepper__step-header-copy">
+              <span className="intake-stepper__step-dot skeleton-icon skeleton-icon--small" />
+              <span className="intake-stepper__step-copy">
+                <span className="skeleton medium" />
+                <span className="skeleton short" />
+              </span>
+            </span>
+            <span className="skeleton-pill" />
+          </div>
+        </section>
+
+        <section className="intake-stepper__step" data-expanded="false" aria-hidden="true">
+          <div className="intake-stepper__step-header">
+            <span className="intake-stepper__step-header-copy">
+              <span className="intake-stepper__step-dot skeleton-icon skeleton-icon--small" />
+              <span className="intake-stepper__step-copy">
+                <span className="skeleton medium" />
+                <span className="skeleton short" />
+              </span>
+            </span>
+            <span className="skeleton-pill" />
+          </div>
+          <div className="intake-stepper__step-body">
+            <SkeletonIntakeMetadataPreview />
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 export function SkeletonIntakeEvidenceGrid() {
   return (
     <div className="intake-evidence-grid" aria-hidden="true">
@@ -151,6 +234,111 @@ export function SkeletonIntakeMetadataPreview() {
         <SkeletonButton />
       </div>
     </section>
+  );
+}
+
+export function SkeletonPromptFieldStepper() {
+  return (
+    <section className="prompt-field-stepper loading-skeleton-static" aria-hidden="true">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <section className="prompt-field-stepper__step" key={index}>
+          <div className="prompt-field-stepper__header">
+            <div className="prompt-field-stepper__header-copy">
+              <span className="prompt-field-stepper__index skeleton-pill skeleton-pill--compact" />
+              <div className="stack-tight">
+                <SkeletonLine size="short" />
+                <SkeletonLine size="medium" />
+              </div>
+            </div>
+            <SkeletonButton />
+          </div>
+          <div className="prompt-field-stepper__body">
+            <div className="prompt-readonly-field">
+              <div className="prompt-readonly-field__header">
+                <SkeletonLine size="short" />
+                <SkeletonButton />
+              </div>
+              <div className="prompt-readonly-field__body">
+                <SkeletonLine size="long" />
+                <SkeletonLine size="long" />
+                <SkeletonLine size="medium" />
+              </div>
+            </div>
+          </div>
+        </section>
+      ))}
+    </section>
+  );
+}
+
+export function SkeletonPromptDetailContent() {
+  return (
+    <div className="stack loading-skeleton-static" aria-hidden="true">
+      <section className="grid two-up" aria-label="Caption dan tags">
+        <div className="prompt-readonly-field">
+          <div className="prompt-readonly-field__header">
+            <SkeletonLine size="short" />
+            <SkeletonButton />
+          </div>
+          <div className="prompt-readonly-field__body">
+            <SkeletonLine size="long" />
+            <SkeletonLine size="medium" />
+          </div>
+        </div>
+        <div className="prompt-readonly-field">
+          <div className="prompt-readonly-field__header">
+            <SkeletonLine size="short" />
+            <SkeletonButton />
+          </div>
+          <div className="prompt-readonly-field__body">
+            <SkeletonLine size="medium" />
+            <SkeletonLine size="short" />
+          </div>
+        </div>
+      </section>
+
+      <div className="section-card__actions">
+        <SkeletonLine size="short" />
+        <span className="skeleton-pill" />
+      </div>
+
+      <section className="prompt-output-grid" aria-label="Prompt per clip">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <details className="prompt-output-section" key={index} open={index === 0}>
+            <summary>
+              <SkeletonLine size="medium" />
+              <SkeletonLine size="short" />
+            </summary>
+            <div className="prompt-output-section__body">
+              <SkeletonPromptFieldStepper />
+            </div>
+          </details>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+export function SkeletonPromptDetailRegenerate() {
+  return (
+    <div className="stack loading-skeleton-static" aria-hidden="true">
+      <SkeletonLine size="short" />
+      <div className="prompt-readonly-field">
+        <div className="prompt-readonly-field__header">
+          <SkeletonLine size="short" />
+          <SkeletonButton />
+        </div>
+        <div className="prompt-readonly-field__body">
+          <SkeletonLine size="long" />
+          <SkeletonLine size="long" />
+          <SkeletonLine size="medium" />
+        </div>
+      </div>
+      <div className="form-actions action-rail--pair">
+        <SkeletonButton />
+        <SkeletonButton />
+      </div>
+    </div>
   );
 }
 
@@ -305,6 +493,74 @@ export function SkeletonGeminiUsageOverview() {
   );
 }
 
+export function SkeletonDashboardLiveCycleChart({ rows = 7 }: { rows?: number }) {
+  const barWidths = [86, 42, 72, 30, 64, 48, 58];
+
+  return (
+    <section className="dashboard-analysis-chart loading-skeleton-static" aria-hidden="true">
+      <div className="dashboard-summary-note dashboard-analysis-chart__summary">
+        <span className="skeleton-pill" />
+        <span className="skeleton-pill" />
+        <span className="skeleton-pill" />
+      </div>
+
+      <div className="dashboard-analysis-chart__plot">
+        <div className="dashboard-analysis-chart__skeleton-frame">
+          <div className="dashboard-analysis-chart__skeleton-axis">
+            <SkeletonLine size="short" />
+            <SkeletonLine size="short" />
+            <SkeletonLine size="short" />
+            <SkeletonLine size="short" />
+          </div>
+
+          <div className="dashboard-analysis-chart__skeleton-bars">
+            {Array.from({ length: rows }).map((_, index) => (
+              <div className="dashboard-analysis-chart__skeleton-row" key={index}>
+                <SkeletonLine size="medium" />
+                <div className="dashboard-analysis-chart__skeleton-bar">
+                  <span style={{ width: `${barWidths[index % barWidths.length]}%` }} />
+                </div>
+                <SkeletonLine size="short" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="dashboard-analysis-chart__footer">
+          <div className="dashboard-analysis-chart__skeleton-legend">
+            {Array.from({ length: rows }).map((_, index) => (
+              <span className="dashboard-analysis-chart__skeleton-legend-item" key={index}>
+                <span className="dashboard-analysis-chart__skeleton-legend-dot skeleton-icon skeleton-icon--small" />
+                <SkeletonLine size="short" />
+                <SkeletonLine size="short" />
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export const SkeletonDashboardAnalysisTable = SkeletonDashboardLiveCycleChart;
+
+export function SkeletonSettingsShortcutCard() {
+  return (
+    <section className="settings-native-group loading-skeleton-static" aria-hidden="true">
+      <SkeletonLine size="short" />
+      <div className="settings-native-card">
+        <div className="settings-native-row">
+          <span className="settings-native-row__icon skeleton-icon" />
+          <span className="settings-native-row__copy">
+            <SkeletonLine size="medium" />
+            <SkeletonLine size="long" />
+          </span>
+          <span className="skeleton-pill" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function SkeletonManagerCards({ count = 2, withAvatar = false }: SkeletonCountProps & { withAvatar?: boolean }) {
   return (
     <div className="products-cards-mobile loading-skeleton-static" aria-hidden="true">
@@ -373,5 +629,33 @@ export function SkeletonDashboardActionRail() {
         </li>
       ))}
     </ul>
+  );
+}
+
+export function SkeletonIntakeTelemetryComparison() {
+  return (
+    <div className="dashboard-telemetry-list loading-skeleton-static" aria-hidden="true">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <article className="dashboard-telemetry-row" key={index}>
+          <div className="dashboard-telemetry-row__header">
+            <div className="dashboard-telemetry-row__copy">
+              <SkeletonLine size="medium" />
+              <SkeletonLine size="short" />
+            </div>
+            <span className="skeleton-pill" />
+          </div>
+
+          <div className="dashboard-telemetry-row__stats">
+            {Array.from({ length: 7 }).map((__, statIndex) => (
+              <div className="dashboard-telemetry-stat" key={statIndex}>
+                <SkeletonLine size="short" />
+                <SkeletonLine size="medium" />
+                <SkeletonLine size="short" />
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }

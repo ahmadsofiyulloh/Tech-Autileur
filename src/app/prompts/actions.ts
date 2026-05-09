@@ -171,17 +171,6 @@ function readPromptEditorPayload(formData: FormData, existingPersonalization?: u
   );
 }
 
-async function generatePromptPack(promptPackId: string, generationMode: GenerationMode) {
-  const { task } = await createPromptPackGenerationTask(promptPackId, {
-    generationMode,
-    maxRetries: generationMode === "mock" ? 0 : 3,
-  });
-
-  return generationMode === "mock"
-    ? await runMockPromptPackTask(promptPackId, task.id)
-    : await runRealPromptPackTask(promptPackId, task.id);
-}
-
 async function savePromptPackFields(formData: FormData, id: string) {
   const existing = await getPromptPackById(id);
   const productId = readText(formData, "product_id");
@@ -204,6 +193,17 @@ async function savePromptPackFields(formData: FormData, id: string) {
     i2v_prompts_json: storagePayload.i2v_prompts_json,
     personalization_json: storagePayload.personalization_json,
   });
+}
+
+async function generatePromptPack(promptPackId: string, generationMode: GenerationMode) {
+  const { task } = await createPromptPackGenerationTask(promptPackId, {
+    generationMode,
+    maxRetries: generationMode === "mock" ? 0 : 3,
+  });
+
+  return generationMode === "mock"
+    ? await runMockPromptPackTask(promptPackId, task.id)
+    : await runRealPromptPackTask(promptPackId, task.id);
 }
 
 export async function savePromptPack(formData: FormData) {
@@ -237,12 +237,11 @@ export async function savePromptPack(formData: FormData) {
   if (intent === "create_generate" || intent === "create") {
     const productId = readText(formData, "product_id");
     const status = readText(formData, "status") || "DRAFT";
-    let message = "Prompt pack disimpan";
-    let createdPromptPackId = "";
-    let generationRedirect: { key: "warning" | "error"; message: string } | null = null;
+      let message = "Prompt pack disimpan";
+      let createdPromptPackId = "";
 
-    if (!productId) {
-      failFromForm(formData, "Produk wajib dipilih.");
+      if (!productId) {
+        failFromForm(formData, "Produk wajib dipilih.");
     }
 
     try {
@@ -274,28 +273,19 @@ export async function savePromptPack(formData: FormData) {
       createdPromptPackId = promptPack.id;
 
       if (intent === "create_generate") {
-        const result = await generatePromptPack(promptPack.id, generationMode);
-        createdPromptPackId = result.promptPack.id;
-        if (result.task.status !== "SUCCESS") {
-          generationRedirect = buildPromptGenerationRedirect(result.message);
-        } else {
-          message = result.message;
-        }
+        await createPromptPackGenerationTask(promptPack.id, {
+          generationMode,
+          maxRetries: generationMode === "mock" ? 0 : 3,
+        });
+        message = "Prompt pack dibuat. Generasi dimulai di detail.";
       }
     } catch (error) {
       if (createdPromptPackId) {
-        const messageText = errorMessage(error);
-        const redirectInfo = buildPromptGenerationRedirect(messageText);
         revalidatePromptRoutes(createdPromptPackId, productId);
-        redirect(promptDetailRedirect(createdPromptPackId, redirectInfo.key, redirectInfo.message));
+        redirect(promptDetailRedirect(createdPromptPackId, "error", errorMessage(error)));
       }
 
       failFromForm(formData, errorMessage(error));
-    }
-
-    if (generationRedirect) {
-      revalidatePromptRoutes(createdPromptPackId, productId);
-      redirect(promptDetailRedirect(createdPromptPackId, generationRedirect.key, generationRedirect.message));
     }
 
     if (createdPromptPackId) {

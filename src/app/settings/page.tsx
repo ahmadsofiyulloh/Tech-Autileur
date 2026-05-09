@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { ArrowRightLeft, ChevronRight, FolderKanban, KeyRound, Settings, UserRound, Users, type LucideIcon } from "lucide-react";
+import {
+  ArrowRightLeft,
+  ChevronRight,
+  FolderKanban,
+  KeyRound,
+  LayoutDashboard,
+  Settings,
+  UserRound,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -16,12 +26,9 @@ import {
 import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
 import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
-import type { GeminiUsageOverview } from "@/lib/gemini/usage-types";
-import { getGeminiUsageOverview } from "@/lib/server/gemini-usage-overview";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { GeminiUsageOverviewPanel } from "./gemini-usage-overview";
 
 export const dynamic = "force-dynamic";
 
@@ -235,11 +242,6 @@ export default async function SettingsPage() {
   let driveIsConnected = false;
   let accountStatus: ReactNode = <StatusBadge status="Ready" tone="success" />;
   let workspaceId: string | null = null;
-  let geminiUsageOverview: GeminiUsageOverview = {
-    cards: [],
-    generatedAt: new Date().toISOString(),
-    unavailableMessage: null,
-  };
 
   try {
     const workspaceState = await getWorkspaceSelectionState();
@@ -292,17 +294,15 @@ export default async function SettingsPage() {
     accountStatus = <StatusBadge status={isHelperApiTokenSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />;
   }
 
-  try {
-    geminiUsageOverview = await getGeminiUsageOverview(user.id);
-  } catch (error) {
-    geminiUsageOverview = {
-      cards: [],
-      generatedAt: new Date().toISOString(),
-      unavailableMessage: errorMessage(error),
-    };
-  }
-
   const cards: SettingsCard[] = [
+    {
+      key: "dashboard-analysis",
+      href: "/dashboard#gemini-live-analysis",
+      title: "Dashboard",
+      icon: LayoutDashboard,
+      status: <StatusBadge status="Live" tone="info" />,
+      detail: "Live Gemini analysis dan carousel key.",
+    },
     { key: "account", href: "/settings/account", title: "Account", icon: UserRound, status: accountStatus, detail: user.email ?? "Signed in." },
     { key: "workspace", href: "/settings/workspace", title: "Workspace", icon: FolderKanban, status: workspaceCount, detail: workspaceDetail },
     {
@@ -342,6 +342,7 @@ export default async function SettingsPage() {
     },
     { key: "gemini", href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
   ];
+  const dashboardCards = cards.filter((card) => card.key === "dashboard-analysis");
   const accountCards = cards.filter((card) => card.key === "account");
   const workspaceCards = cards.filter((card) => card.key === "workspace");
   const serviceCards = cards.filter((card) => card.key === "google-drive" || card.key === "gemini");
@@ -349,7 +350,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="stack">
-      <GeminiUsageOverviewPanel overview={{ cards: geminiUsageOverview.cards }} />
+      <section className="settings-native-list">
+        <SettingsGroup title="Dashboard" cards={dashboardCards} />
+      </section>
       <PwaInstallCard />
       {cards.length ? (
         <section className="settings-native-list">

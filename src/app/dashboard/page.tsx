@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, FileText, FileVideo, HardDrive, Inbox, Plus, Sparkles, Workflow } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Archive, Sparkles, type LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { StatusBadge } from "@/components/operator/status-badge";
+import { GeminiLiveCycleChart } from "@/components/operator/gemini-live-cycle-chart";
+import { GeminiUsageOverviewPanel } from "@/components/operator/gemini-usage-overview";
 import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
-import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
-import { GENERATED_FILE_MATCH_STATUSES } from "@/lib/server/clip-jobs";
+import { getGeminiUsageOverview } from "@/lib/server/gemini-usage-overview";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -34,16 +32,39 @@ type StatusBreakdown = {
   statuses: StatusCount[];
 };
 
-type IntakeReviewTarget = {
-  id: string;
-  product_id: string | null;
+const ACTIVE_TASK_STATUSES = ["QUEUED", "RUNNING", "RETRYING", "WAITING_FOR_KEY"] as const;
+const ISSUE_TASK_STATUSES = ["FAILED", "CANCELLED"] as const;
+const numberFormatter = new Intl.NumberFormat("id-ID");
+const decimalFormatter = new Intl.NumberFormat("id-ID", {
+  maximumFractionDigits: 1,
+});
+
+const GEMINI_STATUS_LABELS: Record<string, string> = {
+  QUEUED: "Menunggu",
+  RUNNING: "Berjalan",
+  SUCCESS: "Sukses",
+  FAILED: "Gagal",
+  RETRYING: "Retry",
+  WAITING_FOR_KEY: "Menunggu key",
+  CANCELLED: "Dibatalkan",
 };
 
-const PROMPT_WORK_STATUSES = ["DRAFT", "GENERATED", "NEEDS_REVIEW"] as const;
-const numberFormatter = new Intl.NumberFormat("id-ID");
+const GEMINI_STATUS_TONES: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
+  QUEUED: "neutral",
+  RUNNING: "info",
+  SUCCESS: "success",
+  FAILED: "danger",
+  RETRYING: "warning",
+  WAITING_FOR_KEY: "warning",
+  CANCELLED: "neutral",
+};
 
 function formatCount(value: number) {
   return numberFormatter.format(value);
+}
+
+function formatPercentRatio(value: number) {
+  return `${decimalFormatter.format(value * 100)}%`;
 }
 
 function formatMetricValue(metric: MetricResult<number>) {
@@ -61,13 +82,15 @@ function getMetricFill(metric: MetricResult<number>) {
 function DashboardSection({
   children,
   icon: Icon,
+  id,
   title,
 }: {
   children: ReactNode;
   icon: LucideIcon;
+  id?: string;
   title: string;
 }) {
-  const sectionId = `dashboard-section-${title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
+  const sectionId = id ?? `dashboard-section-${title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
 
   return (
     <section className="dashboard-section" aria-labelledby={sectionId}>
@@ -165,57 +188,27 @@ async function countByStatus(input: {
   };
 }
 
-async function countMatchingStatuses(input: {
-  supabase: SupabaseServerClient;
-  tableName: string;
-  statusColumn: string;
-  userId: string;
-  statuses: readonly string[];
-}): Promise<MetricResult<number>> {
-  const results = await Promise.all(
-    input.statuses.map((status) =>
-      countRows(input.supabase, input.tableName, input.userId, {
-        column: input.statusColumn,
-        value: status,
-      }),
-    ),
-  );
-  const failed = results.find((result) => result.status === "unavailable");
-
-  if (failed?.status === "unavailable") {
-    return failed;
-  }
-
+function availableMetric(data: number): MetricResult<number> {
   return {
     status: "available",
-    data: results.reduce((sum, result) => sum + (result.status === "available" ? result.data : 0), 0),
+    data,
   };
 }
 
-async function getLatestIntakeReviewTarget(
-  supabase: SupabaseServerClient,
-  userId: string,
-): Promise<MetricResult<IntakeReviewTarget | null>> {
-  const { data, error } = await supabase
-    .from("product_intake_sessions")
-    .select("id, product_id")
-    .eq("user_id", userId)
-    .eq("status", "NEEDS_REVIEW")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    return {
-      status: "unavailable",
-      message: error.message,
-    };
+function statusCount(metric: MetricResult<StatusBreakdown>, status: string) {
+  if (metric.status === "unavailable") {
+    return 0;
   }
 
-  return {
-    status: "available",
-    data: data ? ({ id: data.id, product_id: data.product_id } as IntakeReviewTarget) : null,
-  };
+  return metric.data.statuses.find((item) => item.status === status)?.count ?? 0;
+}
+
+function sumStatuses(metric: MetricResult<StatusBreakdown>, statuses: readonly string[]) {
+  if (metric.status === "unavailable") {
+    return metric;
+  }
+
+  return availableMetric(statuses.reduce((sum, status) => sum + statusCount(metric, status), 0));
 }
 
 function MetricTile({
@@ -234,166 +227,31 @@ function MetricTile({
   );
 }
 
-function UnavailableMetricTile({ label }: { label: string }) {
-  return (
-    <div className="metric dashboard-kpi dashboard-kpi--unavailable" style={{ "--metric-fill": "0%" } as CSSProperties}>
-      <span>{label}</span>
-      <strong>Tidak tersedia</strong>
-      <i aria-hidden="true" />
-    </div>
-  );
-}
-
-function ActionCountBadge({ metric, suffix }: { metric?: MetricResult<number>; suffix: string }) {
-  if (!metric) {
-    return null;
-  }
-
-  if (metric.status === "unavailable") {
-    return <StatusBadge status="Tidak tersedia" tone="warning" />;
-  }
-
-  return <StatusBadge status={`${formatCount(metric.data)} ${suffix}`} tone={metric.data > 0 ? "info" : "neutral"} />;
-}
-
-function ActionRailItem({
-  count,
-  countSuffix,
-  description,
-  href,
-  icon: Icon,
-  label,
-  primary = false,
-  title,
-}: {
-  count?: MetricResult<number>;
-  countSuffix: string;
-  description: string;
-  href: string;
-  icon: LucideIcon;
+type GeminiLiveCycleRow = {
+  status: string;
   label: string;
-  primary?: boolean;
-  title: string;
-}) {
-  return (
-    <li className={primary ? "dashboard-action-card dashboard-action-card--primary" : "dashboard-action-card"}>
-      <div className="dashboard-action-card__content">
-        <span className="dashboard-action-card__orb" aria-hidden="true">
-          <Icon size={22} />
-        </span>
-        <div className="dashboard-action-card__copy">
-          <div className="dashboard-action-card__title-row">
-            <strong>{title}</strong>
-            <ActionCountBadge metric={count} suffix={countSuffix} />
-          </div>
-          <span>{description}</span>
-        </div>
-      </div>
-      <Link className={primary ? "button compact primary" : "button compact"} href={href}>
-        {label}
-      </Link>
-    </li>
-  );
-}
+  count: number;
+  share: number;
+  tone: "neutral" | "info" | "success" | "warning" | "danger";
+};
 
-function ActionRail({
-  promptWork,
-  readyPrompts,
-  reviewHref,
-  reviewIntakes,
-}: {
-  promptWork: MetricResult<number>;
-  readyPrompts: MetricResult<number>;
-  reviewHref: string;
-  reviewIntakes: MetricResult<number>;
-}) {
-  return (
-    <DashboardSection icon={Workflow} title="Aksi Berikutnya">
-      <ul className="dashboard-action-grid" aria-label="Aksi berikutnya">
-        <ActionRailItem
-          countSuffix="baru"
-          description="Upload evidence produk."
-          href="/products/new"
-          icon={Plus}
-          label="Mulai"
-          primary
-          title="Intake baru"
-        />
-        <ActionRailItem
-          count={reviewIntakes}
-          countSuffix="review"
-          description="Cek hasil Gemini."
-          href={reviewHref}
-          icon={Inbox}
-          label="Review"
-          title="Review metadata"
-        />
-        <ActionRailItem
-          count={promptWork}
-          countSuffix="prompt"
-          description="Edit atau generate paket."
-          href="/prompts"
-          icon={FileText}
-          label="Prompt"
-          title="Lanjut prompt"
-        />
-        <ActionRailItem
-          count={readyPrompts}
-          countSuffix="siap"
-          description="Cek aset Drive."
-          href="/drive"
-          icon={HardDrive}
-          label="Drive"
-          title="Drive visual"
-        />
-      </ul>
-    </DashboardSection>
-  );
-}
-
-function StatusBreakdownList({
-  metric,
-  emptyTitle,
-  unavailableTitle,
-}: {
-  metric: MetricResult<StatusBreakdown>;
-  emptyTitle: string;
-  unavailableTitle: string;
-}) {
+function getLiveCycleRows(metric: MetricResult<StatusBreakdown>) {
   if (metric.status === "unavailable") {
-    return <EmptyState icon={Archive} title={unavailableTitle} description={metric.message} />;
+    return [];
   }
 
-  if (metric.data.total === 0) {
-    return <EmptyState icon={Archive} title={emptyTitle} description="Belum ada data." />;
-  }
+  return AI_TASK_STATUSES.map((status) => {
+    const count = statusCount(metric, status);
+    const share = metric.data.total > 0 ? count / metric.data.total : 0;
 
-  return (
-    <ul className="dashboard-status-list" aria-label={emptyTitle}>
-      {metric.data.statuses.map((item) => (
-        <li
-          className="dashboard-status-row"
-          key={item.status}
-          style={{ "--status-fill": `${Math.max(8, Math.round((item.count / metric.data.total) * 100))}%` } as CSSProperties}
-        >
-          <div className="dashboard-status-row__meta">
-            <StatusBadge status={item.status} />
-            <strong>{formatCount(item.count)}</strong>
-          </div>
-          <span className="dashboard-status-row__bar" aria-hidden="true" />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function getBreakdownTotal(metric: MetricResult<StatusBreakdown>): MetricResult<number> {
-  return metric.status === "available"
-    ? {
-        status: "available",
-        data: metric.data.total,
-      }
-    : metric;
+    return {
+      status,
+      label: GEMINI_STATUS_LABELS[status] ?? status,
+      count,
+      share,
+      tone: GEMINI_STATUS_TONES[status] ?? "neutral",
+    } satisfies GeminiLiveCycleRow;
+  });
 }
 
 export default async function DashboardPage() {
@@ -406,7 +264,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [geminiTasks, driveItems, generatedFiles, promptPacks, outputImport, reviewIntakes, promptWork, readyPrompts, latestReviewTarget] = await Promise.all([
+  const [geminiTasks, geminiUsageOverview] = await Promise.all([
     countByStatus({
       supabase,
       tableName: "ai_tasks",
@@ -414,80 +272,45 @@ export default async function DashboardPage() {
       userId: user.id,
       statuses: AI_TASK_STATUSES,
     }),
-    countRows(supabase, "drive_items", user.id),
-    countRows(supabase, "generated_files", user.id),
-    countRows(supabase, "prompt_packs", user.id),
-    countByStatus({
-      supabase,
-      tableName: "generated_files",
-      statusColumn: "match_status",
-      userId: user.id,
-      statuses: GENERATED_FILE_MATCH_STATUSES,
-    }),
-    countRows(supabase, "product_intake_sessions", user.id, {
-      column: "status",
-      value: "NEEDS_REVIEW",
-    }),
-    countMatchingStatuses({
-      supabase,
-      tableName: "prompt_packs",
-      statusColumn: "status",
-      userId: user.id,
-      statuses: PROMPT_WORK_STATUSES,
-    }),
-    countRows(supabase, "prompt_packs", user.id, {
-      column: "status",
-      value: PROMPT_READY_FOR_FLOW_STATUS,
-    }),
-    getLatestIntakeReviewTarget(supabase, user.id),
+    getGeminiUsageOverview(user.id),
   ]);
 
-  const geminiTaskCount: MetricResult<number> = getBreakdownTotal(geminiTasks);
-  const outputImportCount = getBreakdownTotal(outputImport);
-  const reviewHref =
-    latestReviewTarget.status === "available" && latestReviewTarget.data
-      ? `/products/new?step=prompt&intake_id=${latestReviewTarget.data.id}`
-      : "/products/new";
+  const geminiTaskCount: MetricResult<number> = geminiTasks.status === "available" ? availableMetric(geminiTasks.data.total) : geminiTasks;
+  const activeTaskCount = sumStatuses(geminiTasks, ACTIVE_TASK_STATUSES);
+  const successTaskCount = sumStatuses(geminiTasks, ["SUCCESS"]);
+  const issueTaskCount = sumStatuses(geminiTasks, ISSUE_TASK_STATUSES);
+  const liveCycleRows = getLiveCycleRows(geminiTasks);
+  const liveCycleSummary =
+    geminiTasks.status === "available"
+      ? {
+          total: geminiTasks.data.total,
+          active: activeTaskCount.status === "available" ? activeTaskCount.data : 0,
+          issue: issueTaskCount.status === "available" ? issueTaskCount.data : 0,
+        }
+      : null;
 
   return (
-    <div className="dashboard-page">
-      <ActionRail
-        promptWork={promptWork}
-        readyPrompts={readyPrompts}
-        reviewHref={reviewHref}
-        reviewIntakes={reviewIntakes}
-      />
-
-      <DashboardSection icon={Sparkles} title="Gemini">
+    <div className="dashboard-page dashboard-page--analysis">
+      <DashboardSection icon={Sparkles} id="gemini-summary" title="Ringkasan Gemini">
         <div className="metric-grid dashboard-kpi-grid">
-          <MetricTile label="Task count" metric={geminiTaskCount} />
-          <UnavailableMetricTile label="Token/cost" />
-        </div>
-        <StatusBreakdownList
-          metric={geminiTasks}
-          emptyTitle="Belum ada Gemini task."
-          unavailableTitle="Gemini task tidak tersedia."
-        />
-      </DashboardSection>
-
-      <DashboardSection icon={HardDrive} title="Drive dan prompt">
-        <div className="metric-grid dashboard-kpi-grid">
-          <MetricTile label="Drive item" metric={driveItems} />
-          <MetricTile label="Generated file" metric={generatedFiles} />
-          <MetricTile label="Prompt pack" metric={promptPacks} />
+          <MetricTile label="Task total" metric={geminiTaskCount} />
+          <MetricTile label="Aktif" metric={activeTaskCount} />
+          <MetricTile label="Sukses" metric={successTaskCount} />
+          <MetricTile label="Issue" metric={issueTaskCount} />
         </div>
       </DashboardSection>
 
-      <DashboardSection icon={FileVideo} title="Output/import">
-        <div className="metric-grid dashboard-kpi-grid">
-          <MetricTile label="Status count" metric={outputImportCount} />
-        </div>
-        <StatusBreakdownList
-          metric={outputImport}
-          emptyTitle="Belum ada output/import."
-          unavailableTitle="Output/import tidak tersedia."
-        />
+      <DashboardSection icon={Sparkles} id="gemini-live-analysis" title="Live cycle Gemini">
+        {geminiTasks.status === "unavailable" ? (
+          <EmptyState icon={Archive} title="Gemini task tidak tersedia." description={geminiTasks.message} />
+        ) : geminiTasks.data.total === 0 ? (
+          <EmptyState icon={Archive} title="Belum ada Gemini task." description="Task live cycle masih kosong." />
+        ) : liveCycleSummary ? (
+          <GeminiLiveCycleChart rows={liveCycleRows} summary={liveCycleSummary} />
+        ) : null}
       </DashboardSection>
+
+      <GeminiUsageOverviewPanel overview={geminiUsageOverview} sectionId="gemini-key-usage" />
     </div>
   );
 }

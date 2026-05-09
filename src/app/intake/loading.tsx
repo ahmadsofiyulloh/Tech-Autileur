@@ -1,9 +1,7 @@
 import {
-  SkeletonButton,
   SkeletonIntakeActiveAffiliateCard,
-  SkeletonIntakeEvidenceGrid,
-  SkeletonIntakeMetadataPreview,
   SkeletonPwaInstallCard,
+  SkeletonIntakeStepper,
 } from "@/components/operator/loading-skeleton";
 
 export default function IntakeLoading() {
@@ -13,11 +11,7 @@ export default function IntakeLoading() {
       <section className="intake-native-surface" aria-label="Memuat workflow intake produk">
         <section className="intake-workflow stack loading-skeleton-static">
           <SkeletonIntakeActiveAffiliateCard />
-          <SkeletonIntakeEvidenceGrid />
-          <SkeletonIntakeMetadataPreview />
-          <div className="form-actions">
-            <SkeletonButton />
-          </div>
+          <SkeletonIntakeStepper />
         </section>
       </section>
     </div>

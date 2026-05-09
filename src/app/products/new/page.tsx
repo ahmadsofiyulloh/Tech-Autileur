@@ -21,6 +21,7 @@ type NewProductPageProps = {
   searchParams: Promise<{
     intake_id?: string | string[];
     step?: string | string[];
+    post_save?: string | string[];
     workspace?: string | string[];
     affiliate_profile_id?: string | string[];
   }>;
@@ -80,6 +81,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   const query = await searchParams;
   const showAllWorkspaces = firstParam(query.workspace) === "all";
   const requestedStep = firstParam(query.step);
+  const requestedPostSave = firstParam(query.post_save);
   const intakeId = firstParam(query.intake_id);
   const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id) ?? null;
   let selectedSession: Awaited<ReturnType<typeof getIntakeSessionById>> | null = null;
@@ -195,6 +197,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
         })
       : null;
   const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
+  const postSaveDecisionOpen = requestedPostSave === "1" && Boolean(selectedSession);
   const savedSessionWorkspaceName = selectedSession ? workspaceLabel(selectedSession.workspace_id, workspaceMap) : null;
   const draftQueue = intakeSessions
     .filter((session) => {
@@ -248,6 +251,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
           promptLaunchReadiness={promptLaunchReadiness}
           selectedAffiliateProfileId={selectedAffiliateProfileId}
           showAllWorkspaces={showAllWorkspaces}
+          postSaveDecisionOpen={postSaveDecisionOpen}
           savedSessionEvidencePreviewUrls={{
             productImage: selectedSessionProductPreviewUrl,
             shopeeScreenshot: selectedSessionShopeePreviewUrl,

@@ -24,6 +24,7 @@ export type OperatorRouteMeta = OperatorNavItem & {
 };
 
 export const mobileNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },
@@ -31,6 +32,7 @@ export const mobileNavItems = [
 ] satisfies OperatorNavItem[];
 
 export const desktopNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },

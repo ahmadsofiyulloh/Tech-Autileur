@@ -1,5 +1,6 @@
 import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { StatusBadge } from "@/components/operator/status-badge";
+import { PromptFieldStepper } from "@/components/operator/prompt-field-stepper";
 import { readPromptPackEditorPromptSet, type PromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import {
   PROMPT_CLIP_KEYS,
@@ -82,14 +83,32 @@ export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
       <section className="prompt-output-grid" aria-label="Prompt per clip">
         {PROMPT_CLIP_KEYS.map((clipKey) => {
           const clip = promptSet.clips[clipKey];
+          const fieldSteps = [
+            {
+              id: `${clipKey}-i2i-first-frame`,
+              label: "I2I First Frame",
+              value: clip.i2i_first_frame,
+              emptyLabel: "Belum ada prompt.",
+            },
+            {
+              id: `${clipKey}-i2i-last-frame`,
+              label: "I2I Last Frame",
+              value: clip.i2i_last_frame,
+              emptyLabel: "Belum ada prompt.",
+            },
+            {
+              id: `${clipKey}-i2v-prompt`,
+              label: "I2V Prompt",
+              value: clip.i2v_prompt,
+              emptyLabel: "Belum ada prompt.",
+            },
+          ];
 
           return (
-            <details className="prompt-output-section" key={clipKey}>
+            <details className="prompt-output-section" key={clipKey} open={clipKey === PROMPT_CLIP_KEYS[0]}>
               <summary>{PROMPT_CLIP_LABELS[clipKey]}</summary>
               <div className="prompt-output-section__body">
-                <PromptReadOnlyField label="I2I First Frame" value={clip.i2i_first_frame} />
-                <PromptReadOnlyField label="I2I Last Frame" value={clip.i2i_last_frame} />
-                <PromptReadOnlyField label="I2V Prompt" value={clip.i2v_prompt} />
+                <PromptFieldStepper steps={fieldSteps} />
               </div>
             </details>
           );

@@ -18,6 +18,7 @@ import {
   getGeminiTemporaryUnavailableRetryMessage,
   isGeminiTemporaryUnavailableMessage,
 } from "@/lib/gemini/error-message";
+import { parseIntakeClientContextJson } from "@/lib/intake/analysis-telemetry";
 
 const INTAKE_RETURN_PATH = "/products/new";
 
@@ -165,7 +166,7 @@ export async function saveIntake(formData: FormData) {
         throw new Error("Foto Produk Utama wajib diisi.");
       }
 
-      await saveIntakeProductCapture({
+      const savedCapture = await saveIntakeProductCapture({
         productImage,
         shopeeScreenshot,
         tiktokScreenshot,
@@ -173,6 +174,24 @@ export async function saveIntake(formData: FormData) {
       });
       message = "Produk disimpan";
       redirectParams = {
+        step: "intake",
+        intake_id: savedCapture.session.id,
+        post_save: "1",
+        ...(workspaceScope === "all" ? { workspace: "all" } : {}),
+        ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
+      };
+    } else if (intent === "archive_intake_session") {
+      if (!id) {
+        throw new Error("Missing intake id.");
+      }
+
+      await updateIntakeSession(id, {
+        status: "ARCHIVED",
+        error_message: null,
+      });
+      message = "Draft archived";
+      redirectParams = {
+        step: "intake",
         ...(workspaceScope === "all" ? { workspace: "all" } : {}),
         ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),
       };
@@ -183,11 +202,13 @@ export async function saveIntake(formData: FormData) {
 
       const shopeeScreenshot = readUploadedFile(formData, "shopee_screenshot") ?? readUploadedFile(formData, "marketplace_screenshot");
       const tiktokScreenshot = readUploadedFile(formData, "tiktok_screenshot");
+      const clientContext = parseIntakeClientContextJson(readText(formData, "analysis_client_context"));
 
       const result = await analyzeIntakeMetadataFromSavedCapture({
         intakeSessionId: id,
         shopeeScreenshot,
         tiktokScreenshot,
+        clientContext,
       });
       message = result.message;
       redirectParams = {
@@ -263,11 +284,16 @@ export async function saveIntake(formData: FormData) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unable to save intake.";
-    const shouldKeepIntakeContext = intent === "review_metadata" || intent === "save_reviewed_metadata" || intent === "analyze_metadata";
+    const shouldKeepIntakeContext =
+      intent === "review_metadata" ||
+      intent === "save_reviewed_metadata" ||
+      intent === "analyze_metadata" ||
+      intent === "archive_intake_session";
+    const errorStep = intent === "analyze_metadata" || intent === "archive_intake_session" ? "intake" : "prompt";
     const errorParams =
       shouldKeepIntakeContext
         ? {
-            step: intent === "analyze_metadata" ? "intake" : "prompt",
+            step: errorStep,
             ...(id ? { intake_id: id } : {}),
             ...(workspaceScope === "all" ? { workspace: "all" } : {}),
             ...(affiliateProfileId ? { affiliate_profile_id: affiliateProfileId } : {}),

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
+import { PromptGenerationMonitor } from "@/components/operator/prompt-generation-monitor";
 import { TopbarOverride } from "@/components/operator/topbar-context";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
@@ -13,6 +14,10 @@ import { getPromptPackById } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { savePromptPack } from "../actions";
 import { HiddenPromptSetFields, PromptOutputFields, readPromptOutputSet } from "./prompt-output-fields";
+import {
+  SkeletonPromptDetailContent,
+  SkeletonPromptDetailRegenerate,
+} from "@/components/operator/loading-skeleton";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +127,8 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
     : productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
   const promptSet = readPromptOutputSet(promptPack);
   const promptErrorMessage = promptPack.error_message ?? promptTask?.error_message ?? null;
+  const promptTaskStatus = promptTask?.status ?? promptPack.status;
+  const isPromptGenerationPending = ["QUEUED", "GENERATING", "WAITING_FOR_KEY", "RETRYING"].includes(promptTaskStatus);
   const subtitleInfo = [
     product.product_name,
     `v${promptPack.version}`,
@@ -135,69 +142,93 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
 
       {promptErrorMessage ? <section className="error-box">{promptErrorMessage}</section> : null}
 
+      {isPromptGenerationPending ? <PromptGenerationMonitor enabled promptPackId={promptPack.id} /> : null}
+
       <SectionCard icon={FileText} title="Output Siap Copy">
-        <PromptOutputFields pack={promptPack} />
-        <form className="section-card__actions desktop-action-set" action={savePromptPack}>
-          <input type="hidden" name="id" value={promptPack.id} />
-          <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
-          <input type="hidden" name="product_id" value={promptPack.product_id} />
-          <PendingActionButton
-            className="button compact tertiary"
-            pendingLabel="Menyimpan"
-            name="intent"
-            value="export_prompt_txt"
-          >
-            Simpan TXT Drive
-          </PendingActionButton>
-        </form>
-        <div className="mobile-action-set">
-          <form action={savePromptPack}>
-            <input type="hidden" name="id" value={promptPack.id} />
-            <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
-            <input type="hidden" name="product_id" value={promptPack.product_id} />
-            <PendingActionButton
-              className="button compact tertiary"
-              pendingLabel="Menyimpan"
-              name="intent"
-              value="export_prompt_txt"
-            >
-              Simpan TXT Drive
-            </PendingActionButton>
-          </form>
-        </div>
+        {isPromptGenerationPending ? (
+          <>
+            <SkeletonPromptDetailContent />
+            <div className="section-card__actions desktop-action-set">
+              <PendingActionButton className="button compact tertiary" pendingLabel="Menyimpan" disabled>
+                Simpan TXT Drive
+              </PendingActionButton>
+            </div>
+            <div className="mobile-action-set">
+              <PendingActionButton className="button compact tertiary" pendingLabel="Menyimpan" disabled>
+                Simpan TXT Drive
+              </PendingActionButton>
+            </div>
+          </>
+        ) : (
+          <>
+            <PromptOutputFields pack={promptPack} />
+            <form className="section-card__actions desktop-action-set" action={savePromptPack}>
+              <input type="hidden" name="id" value={promptPack.id} />
+              <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
+              <input type="hidden" name="product_id" value={promptPack.product_id} />
+              <PendingActionButton
+                className="button compact tertiary"
+                pendingLabel="Menyimpan"
+                name="intent"
+                value="export_prompt_txt"
+              >
+                Simpan TXT Drive
+              </PendingActionButton>
+            </form>
+            <div className="mobile-action-set">
+              <form action={savePromptPack}>
+                <input type="hidden" name="id" value={promptPack.id} />
+                <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
+                <input type="hidden" name="product_id" value={promptPack.product_id} />
+                <PendingActionButton
+                  className="button compact tertiary"
+                  pendingLabel="Menyimpan"
+                  name="intent"
+                  value="export_prompt_txt"
+                >
+                  Simpan TXT Drive
+                </PendingActionButton>
+              </form>
+            </div>
+          </>
+        )}
       </SectionCard>
 
       <SectionCard icon={RefreshCcw} title="Regenerate Prompt">
-        <form className="stack" action={savePromptPack}>
-          <input type="hidden" name="id" value={promptPack.id} />
-          <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
-          <input type="hidden" name="product_id" value={promptPack.product_id} />
-          <input type="hidden" name="version" value={promptPack.version} />
-          <input type="hidden" name="intake_session_id" value={promptPack.intake_session_id ?? intakeSession?.id ?? ""} />
-          <input type="hidden" name="affiliate_profile_id" value={promptPack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
-          <input type="hidden" name="source_product_image_id" value={promptPack.source_product_image_id ?? sourceImage?.id ?? ""} />
-          <HiddenPromptSetFields idPrefix={promptPack.id} promptSet={promptSet} />
+        {isPromptGenerationPending ? (
+          <SkeletonPromptDetailRegenerate />
+        ) : (
+          <form className="stack" action={savePromptPack}>
+            <input type="hidden" name="id" value={promptPack.id} />
+            <input type="hidden" name="return_to" value={`/prompts/${promptPack.id}`} />
+            <input type="hidden" name="product_id" value={promptPack.product_id} />
+            <input type="hidden" name="version" value={promptPack.version} />
+            <input type="hidden" name="intake_session_id" value={promptPack.intake_session_id ?? intakeSession?.id ?? ""} />
+            <input type="hidden" name="affiliate_profile_id" value={promptPack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
+            <input type="hidden" name="source_product_image_id" value={promptPack.source_product_image_id ?? sourceImage?.id ?? ""} />
+            <HiddenPromptSetFields idPrefix={promptPack.id} promptSet={promptSet} />
 
-          <label className="stack auth-field" htmlFor="revision_instruction">
-            <span>Instruksi Revisi</span>
-            <textarea id="revision_instruction" name="revision_instruction" rows={3} />
-          </label>
+            <label className="stack auth-field" htmlFor="revision_instruction">
+              <span>Instruksi Revisi</span>
+              <textarea id="revision_instruction" name="revision_instruction" rows={3} />
+            </label>
 
-          <FormActions layout="pair">
-            <Link className="button tertiary" href={`/prompts/${promptPack.id}/history`}>
-              <Clock3 size={16} aria-hidden="true" />
-              History
-            </Link>
-            <PendingActionButton
-              className="button primary"
-              pendingLabel="Meregenerasi"
-              name="intent"
-              value="regenerate"
-            >
-              Buat Ulang
-            </PendingActionButton>
-          </FormActions>
-        </form>
+            <FormActions layout="pair">
+              <Link className="button tertiary" href={`/prompts/${promptPack.id}/history`}>
+                <Clock3 size={16} aria-hidden="true" />
+                History
+              </Link>
+              <PendingActionButton
+                className="button primary"
+                pendingLabel="Meregenerasi"
+                name="intent"
+                value="regenerate"
+              >
+                Buat Ulang
+              </PendingActionButton>
+            </FormActions>
+          </form>
+        )}
       </SectionCard>
     </div>
   );

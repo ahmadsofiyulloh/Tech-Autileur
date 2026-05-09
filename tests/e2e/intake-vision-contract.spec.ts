@@ -161,6 +161,24 @@ test("intake vision output recovers JSON from wrapped code fences", () => {
   expect(parsed.extraction_quality.overall_confidence).toBe("high");
 });
 
+test("intake vision output repair callback is used when Gemini returns a JSON array", async () => {
+  let repairCalls = 0;
+
+  const parsed = await parseIntakeVisionOutputWithRepair({
+    rawText: JSON.stringify([buildVisionPayload()]),
+    repair: async ({ prompt }) => {
+      repairCalls += 1;
+      expect(prompt).toContain("Never return an array");
+      expect(prompt).toContain("Repair reason:");
+      return JSON.stringify(buildVisionPayload());
+    },
+  });
+
+  expect(repairCalls).toBe(1);
+  expect(parsed.schema_version).toBe(INTAKE_VISION_SCHEMA_VERSION);
+  expect(parsed.product_title).toBe("Tas selempang premium");
+});
+
 test("intake vision output repair callback is used when Gemini returns non-JSON text", async () => {
   let repairCalls = 0;
 

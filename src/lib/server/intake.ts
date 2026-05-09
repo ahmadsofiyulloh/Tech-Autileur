@@ -14,6 +14,15 @@ import { GeminiClientError } from "@/lib/server/gemini-client";
 import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
+  buildIntakeTelemetryPayload,
+  classifyIntakeAnalysisPath,
+  classifyIntakeEvidenceOrigin,
+  classifyIntakeFailureKind,
+  normalizeIntakeClientContext,
+  type IntakeClientContextInput,
+  type IntakeTelemetryPayload,
+} from "@/lib/intake/analysis-telemetry";
+import {
   INTAKE_VISION_PROMPT_VERSION,
   INTAKE_VISION_SCHEMA_VERSION,
   appendUniqueNote,
@@ -637,8 +646,71 @@ function buildIntakeParsePrompt(input: {
   ].join("\n");
 }
 
-function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput, selectedModelName?: string | null) {
+function summarizeIntakeVisionResponseText(value: string | null | undefined, maxLength = 320) {
+  const trimmed = readText(value);
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const singleLine = trimmed.replace(/\s+/g, " ");
+
+  if (singleLine.length <= maxLength) {
+    return singleLine;
+  }
+
+  return `${singleLine.slice(0, maxLength).trimEnd()}...`;
+}
+
+function buildIntakeVisionTaskDiagnostics(input: {
+  repairAttempted: boolean;
+  responseText: string;
+  repairResponseText?: string | null;
+  modelName?: string | null;
+}) {
   return {
+    pipeline: "intake_vision",
+    analysis_mode: "LIVE_IMAGE_BYTES",
+    repair_attempted: input.repairAttempted,
+    model_name: input.modelName ?? null,
+    response_text: input.responseText,
+    response_text_excerpt: summarizeIntakeVisionResponseText(input.responseText),
+    repair_response_text: input.repairResponseText ?? null,
+    repair_response_text_excerpt: summarizeIntakeVisionResponseText(input.repairResponseText ?? null),
+  } satisfies JsonRecord;
+}
+
+function buildIntakeVisionFailureMessage(
+  errorMessage: string,
+  diagnostics?: {
+    responseText?: string | null;
+    repairAttempted?: boolean;
+    repairResponseText?: string | null;
+  },
+) {
+  const parts = [errorMessage.trim()];
+
+  const primaryExcerpt = summarizeIntakeVisionResponseText(diagnostics?.responseText ?? null);
+  if (primaryExcerpt) {
+    parts.push(`Primary excerpt: ${primaryExcerpt}`);
+  }
+
+  const repairExcerpt = summarizeIntakeVisionResponseText(diagnostics?.repairResponseText ?? null);
+  if (diagnostics?.repairAttempted && repairExcerpt) {
+    parts.push(`Repair excerpt: ${repairExcerpt}`);
+  }
+
+  return parts.join(" | ");
+}
+
+function buildParsedMetadataTaskSnapshot(
+  metadata: IntakeVisionParseOutput,
+  selectedModelName?: string | null,
+  telemetry?: IntakeTelemetryPayload | null,
+  diagnostics?: JsonRecord,
+) {
+  return {
+    pipeline: "intake_vision",
     schema_version: metadata.schema_version,
     prompt_version: metadata.prompt_version,
     analysis_mode: "LIVE_IMAGE_BYTES",
@@ -663,6 +735,8 @@ function buildParsedMetadataTaskSnapshot(metadata: IntakeVisionParseOutput, sele
     confidence_notes: metadata.confidence_notes,
     ocr_evidence: metadata.ocr_evidence,
     extraction_quality: metadata.extraction_quality,
+    ...(telemetry ? { telemetry } : {}),
+    ...(diagnostics ? { diagnostics } : {}),
   } satisfies JsonRecord;
 }
 
@@ -670,12 +744,40 @@ function buildIntakeTaskInput(input: {
   productImage: { name: string; mimeType: string; size: number };
   shopeeScreenshot: { name: string; mimeType: string; size: number };
   tiktokScreenshot: { name: string; mimeType: string; size: number };
+  clientContext?: IntakeClientContextInput | null;
+  analysisPath: "saved_capture" | "live_upload";
+  freshEvidenceCount: number;
+  savedEvidenceCount: number;
+  clientUploadBytes: number;
+  totalUploadBytes: number;
+  maxFileBytes: number;
+  requestStartedAt: string;
 }) {
   return {
+    pipeline: "intake_vision",
     analysis_mode: "LIVE_IMAGE_BYTES",
     image_bytes_available: true,
     schema_version: INTAKE_VISION_SCHEMA_VERSION,
     prompt_version: INTAKE_VISION_PROMPT_VERSION,
+    analysis_path: classifyIntakeAnalysisPath(input.analysisPath),
+    evidence_origin: classifyIntakeEvidenceOrigin({
+      freshEvidenceCount: input.freshEvidenceCount,
+      savedEvidenceCount: input.savedEvidenceCount,
+    }),
+    client_context: input.clientContext ? normalizeIntakeClientContext(input.clientContext) : normalizeIntakeClientContext(null),
+    telemetry: buildIntakeTelemetryPayload({
+      clientContext: input.clientContext ?? null,
+      analysisPath: input.analysisPath,
+      freshEvidenceCount: input.freshEvidenceCount,
+      savedEvidenceCount: input.savedEvidenceCount,
+      clientUploadBytes: input.clientUploadBytes,
+      totalUploadBytes: input.totalUploadBytes,
+      maxFileBytes: input.maxFileBytes,
+      requestStartedAt: input.requestStartedAt,
+      repairAttempted: false,
+      repairSuccess: false,
+      failureKind: null,
+    }),
     product_image: input.productImage,
     shopee_screenshot: input.shopeeScreenshot,
     tiktok_screenshot: input.tiktokScreenshot,
@@ -1432,6 +1534,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
   intakeSessionId: string;
   shopeeScreenshot?: File | null;
   tiktokScreenshot?: File | null;
+  clientContext?: IntakeClientContextInput | null;
 }) {
   const { supabase, user } = await requireUser();
   const session = await getIntakeSessionById(input.intakeSessionId);
@@ -1463,14 +1566,19 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     (input.shopeeScreenshot?.size ?? 0) +
     (input.tiktokScreenshot?.size ?? 0);
 
-  if (totalBytes > 19 * 1024 * 1024) {
-    throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
-  }
-
+  const maxFileBytes = Math.max(productDriveItem.size_bytes ?? 0, input.shopeeScreenshot?.size ?? 0, input.tiktokScreenshot?.size ?? 0);
+  const analysisStartedAt = new Date();
+  const requestStartedAt = analysisStartedAt.toISOString();
+  let freshEvidenceCount = 0;
+  let savedEvidenceCount = 0;
   const intakeCode = session.intake_code;
-  let analysisSession: IntakeSessionRecord | null = null;
+  let analysisSession: IntakeSessionRecord | null = session;
   let task: AiTaskRecord | null = null;
   let taskWaitingForKey = false;
+  let responseText: string | null = null;
+  let repairAttempted = false;
+  let repairResponseText: string | null = null;
+  let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
   try {
     const existingSources = await listProductMarketplaceSources({ productId: product.id, limit: 20 });
@@ -1478,6 +1586,71 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     const existingTiktokSource = existingSources.find((source) => source.platform === "TIKTOK") ?? null;
     const existingShopeeDriveItemRefId = existingShopeeSource?.screenshot_drive_item_ref_id ?? session.screenshot_drive_item_ref_id ?? null;
     const existingTiktokDriveItemRefId = existingTiktokSource?.screenshot_drive_item_ref_id ?? null;
+    const existingShopeeDriveItem = existingShopeeDriveItemRefId ? await getDriveItemById(existingShopeeDriveItemRefId) : null;
+    const existingTiktokDriveItem = existingTiktokDriveItemRefId ? await getDriveItemById(existingTiktokDriveItemRefId) : null;
+    const productImageSummary = {
+      name: productDriveItem.name,
+      mimeType: productDriveItem.mime_type ?? "image/jpeg",
+      size: productDriveItem.size_bytes ?? 0,
+    };
+    const shopeeScreenshotSummary = input.shopeeScreenshot
+      ? buildUploadedImageSummary(input.shopeeScreenshot)
+      : existingShopeeDriveItem
+        ? {
+            name: existingShopeeDriveItem.name,
+            mimeType: existingShopeeDriveItem.mime_type ?? "application/octet-stream",
+            size: existingShopeeDriveItem.size_bytes ?? 0,
+          }
+        : {
+            name: "Screenshot Shopee",
+            mimeType: "application/octet-stream",
+            size: 0,
+          };
+    const tiktokScreenshotSummary = input.tiktokScreenshot
+      ? buildUploadedImageSummary(input.tiktokScreenshot)
+      : existingTiktokDriveItem
+        ? {
+            name: existingTiktokDriveItem.name,
+            mimeType: existingTiktokDriveItem.mime_type ?? "application/octet-stream",
+            size: existingTiktokDriveItem.size_bytes ?? 0,
+          }
+        : {
+            name: "Screenshot TikTok",
+            mimeType: "application/octet-stream",
+            size: 0,
+          };
+    freshEvidenceCount = (input.shopeeScreenshot ? 1 : 0) + (input.tiktokScreenshot ? 1 : 0);
+    savedEvidenceCount = 1 + (input.shopeeScreenshot ? 0 : existingShopeeDriveItem ? 1 : 0) + (input.tiktokScreenshot ? 0 : existingTiktokDriveItem ? 1 : 0);
+
+    const createdTask = (await createAITask({
+      taskType: "VISION_ANALYSIS",
+      inputJson: buildIntakeTaskInput({
+        productImage: productImageSummary,
+        shopeeScreenshot: shopeeScreenshotSummary,
+        tiktokScreenshot: tiktokScreenshotSummary,
+        clientContext: input.clientContext ?? null,
+        analysisPath: "saved_capture",
+        freshEvidenceCount,
+        savedEvidenceCount,
+        clientUploadBytes: (input.shopeeScreenshot?.size ?? 0) + (input.tiktokScreenshot?.size ?? 0),
+        totalUploadBytes: totalBytes,
+        maxFileBytes,
+        requestStartedAt,
+      }),
+      maxRetries: 0,
+    })) as AiTaskRecord;
+
+    task = createdTask;
+    await markTaskRunning(createdTask.id);
+
+    analysisSession = await updateIntakeSessionRecord(supabase, user.id, session.id, {
+      status: "SUBMITTED",
+      error_message: null,
+    });
+
+    if (totalBytes > 19 * 1024 * 1024) {
+      throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
+    }
 
     const shopeeScreenshotDriveItem = input.shopeeScreenshot
       ? (await uploadIntakeScreenshotToDrive({
@@ -1486,9 +1659,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
           folderLabel: "SCREENSHOTS/SHOPEE",
           notes: "Screenshot Shopee",
         })).screenshotDriveItem
-      : existingShopeeDriveItemRefId
-        ? await getDriveItemById(existingShopeeDriveItemRefId)
-        : null;
+      : existingShopeeDriveItem;
     const tiktokScreenshotDriveItem = input.tiktokScreenshot
       ? (await uploadIntakeScreenshotToDrive({
           file: input.tiktokScreenshot,
@@ -1496,9 +1667,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
           folderLabel: "SCREENSHOTS/TIKTOK",
           notes: "Screenshot TikTok",
         })).screenshotDriveItem
-      : existingTiktokDriveItemRefId
-        ? await getDriveItemById(existingTiktokDriveItemRefId)
-        : null;
+      : existingTiktokDriveItem;
 
     if (!shopeeScreenshotDriveItem?.drive_item_id) {
       throw new Error("Screenshot Shopee belum tersimpan.");
@@ -1507,11 +1676,6 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     if (!tiktokScreenshotDriveItem?.drive_item_id) {
       throw new Error("Screenshot TikTok belum tersimpan.");
     }
-
-    analysisSession = await updateIntakeSessionRecord(supabase, user.id, session.id, {
-      status: "SUBMITTED",
-      error_message: null,
-    });
 
     await Promise.all([
       createMarketplaceSource({
@@ -1539,20 +1703,6 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       type: productDriveItem.mime_type ?? "image/jpeg",
     });
     const productImagePart = await buildIntakeAnalysisImagePartFromDriveItem(session.product_photo_drive_item_ref_id, "Foto Produk Utama");
-    const shopeeScreenshotSummary = input.shopeeScreenshot
-      ? buildUploadedImageSummary(input.shopeeScreenshot)
-      : {
-          name: shopeeScreenshotDriveItem.name,
-          mimeType: shopeeScreenshotDriveItem.mime_type ?? "application/octet-stream",
-          size: shopeeScreenshotDriveItem.size_bytes ?? 0,
-        };
-    const tiktokScreenshotSummary = input.tiktokScreenshot
-      ? buildUploadedImageSummary(input.tiktokScreenshot)
-      : {
-          name: tiktokScreenshotDriveItem.name,
-          mimeType: tiktokScreenshotDriveItem.mime_type ?? "application/octet-stream",
-          size: tiktokScreenshotDriveItem.size_bytes ?? 0,
-        };
     const shopeeScreenshotPart = input.shopeeScreenshot
       ? await buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee")
       : await buildIntakeAnalysisImagePartFromDriveItem(shopeeScreenshotDriveItem.id, "Screenshot Shopee");
@@ -1560,23 +1710,8 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       ? await buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok")
       : await buildIntakeAnalysisImagePartFromDriveItem(tiktokScreenshotDriveItem.id, "Screenshot TikTok");
 
-    const createdTask = (await createAITask({
-      taskType: "VISION_ANALYSIS",
-      inputJson: buildIntakeTaskInput({
-        productImage: buildUploadedImageSummary(productImageFile),
-        shopeeScreenshot: shopeeScreenshotSummary,
-        tiktokScreenshot: tiktokScreenshotSummary,
-      }),
-      maxRetries: 0,
-    })) as AiTaskRecord;
-
-    task = createdTask;
-    await markTaskRunning(createdTask.id);
-
     const excludedQuotaGroups = new Set<string>();
     const excludedKeyIds = new Set<string>();
-    let responseText: string | null = null;
-    let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
     while (!responseText) {
       const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups, excludedKeyIds);
@@ -1680,6 +1815,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     const parsed = await parseIntakeVisionOutputWithRepair({
       rawText: responseText,
       repair: async ({ rawText, prompt }) => {
+        repairAttempted = true;
         if (!selectedKeySelectionForSuccess) {
           throw new Error("Missing successful Gemini key selection for intake repair.");
         }
@@ -1695,6 +1831,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
         });
 
         selectedKeySelectionForSuccess = repairResult.selectedKeySelection;
+        repairResponseText = repairResult.responseText;
 
         return repairResult.responseText;
       },
@@ -1732,9 +1869,41 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       tiktokScreenshotDriveItemRefId: tiktokScreenshotDriveItem.id,
     });
 
+    const requestFinishedAt = new Date().toISOString();
+    const requestDurationMs = Math.max(0, Date.now() - analysisStartedAt.getTime());
+    const successTelemetry = buildIntakeTelemetryPayload({
+      clientContext: input.clientContext ?? null,
+      analysisPath: "saved_capture",
+      freshEvidenceCount,
+      savedEvidenceCount,
+      clientUploadBytes: (input.shopeeScreenshot?.size ?? 0) + (input.tiktokScreenshot?.size ?? 0),
+      totalUploadBytes: totalBytes,
+      maxFileBytes,
+      requestStartedAt,
+      requestFinishedAt,
+      requestDurationMs,
+      repairAttempted,
+      repairSuccess: repairAttempted && Boolean(repairResponseText),
+      failureKind: null,
+      responseTextExcerpt: summarizeIntakeVisionResponseText(responseText),
+      repairResponseTextExcerpt: summarizeIntakeVisionResponseText(repairResponseText),
+      modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+    });
     const completedTask = await markTaskSuccess(
       createdTask.id,
-      buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeySelectionForSuccess?.key.model_name),
+      buildParsedMetadataTaskSnapshot(
+        parsedWithNote,
+        selectedKeySelectionForSuccess?.key.model_name,
+        successTelemetry,
+        responseText
+          ? buildIntakeVisionTaskDiagnostics({
+              repairAttempted,
+              responseText,
+              repairResponseText,
+              modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+            })
+          : undefined,
+      ),
     );
 
     if (selectedKeySelectionForSuccess) {
@@ -1758,10 +1927,63 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     };
   } catch (error) {
     const message = safeErrorMessage(error);
+    const upstreamStatus = error instanceof GeminiClientError ? error.status : null;
+    const upstreamRetryAfterSeconds = error instanceof GeminiClientError ? error.retryAfterSeconds : null;
+    const failureKind = classifyIntakeFailureKind({
+      errorMessage: message,
+      upstreamStatus,
+      telemetryFailureKind: null,
+      responseText,
+      repairAttempted,
+      repairResponseText,
+    });
+    const requestFinishedAt = new Date().toISOString();
+    const requestDurationMs = Math.max(0, Date.now() - analysisStartedAt.getTime());
+    const failureTelemetry = buildIntakeTelemetryPayload({
+      clientContext: input.clientContext ?? null,
+      analysisPath: "saved_capture",
+      freshEvidenceCount,
+      savedEvidenceCount,
+      clientUploadBytes: (input.shopeeScreenshot?.size ?? 0) + (input.tiktokScreenshot?.size ?? 0),
+      totalUploadBytes: totalBytes,
+      maxFileBytes,
+      requestStartedAt,
+      requestFinishedAt,
+      requestDurationMs,
+      repairAttempted,
+      repairSuccess: false,
+      failureKind,
+      upstreamStatus,
+      upstreamRetryAfterSeconds,
+      responseTextExcerpt: summarizeIntakeVisionResponseText(responseText),
+      repairResponseTextExcerpt: summarizeIntakeVisionResponseText(repairResponseText),
+      modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+    });
+    const failureDiagnostics = responseText
+      ? buildIntakeVisionTaskDiagnostics({
+          repairAttempted,
+          responseText,
+          repairResponseText,
+          modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+        })
+      : null;
+    const failureMessage = buildIntakeVisionFailureMessage(message, {
+      responseText,
+      repairAttempted,
+      repairResponseText,
+    });
 
     if (task && !taskWaitingForKey) {
       try {
-        await markTaskFailed(task.id, message, { retryable: false });
+        await markTaskFailed(task.id, failureMessage, {
+          retryable: false,
+          outputJson: {
+            pipeline: "intake_vision",
+            analysis_mode: "LIVE_IMAGE_BYTES",
+            telemetry: failureTelemetry,
+            ...(failureDiagnostics ? { diagnostics: failureDiagnostics } : {}),
+          } satisfies JsonRecord,
+        });
       } catch {
         // Keep the intake recoverable even if task failure update fails.
       }
@@ -1771,7 +1993,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       try {
         await updateIntakeSessionRecord(supabase, user.id, analysisSession.id, {
           status: "ERROR",
-          error_message: message,
+          error_message: failureMessage,
         });
       } catch {
         // Preserve the original failure if the intake row update also fails.
@@ -1779,7 +2001,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     }
 
     revalidatePath("/intake");
-    throw new Error(message);
+    throw new Error(failureMessage);
   }
 }
 
@@ -2185,12 +2407,9 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   assertUploadedImage(input.tiktokScreenshot, "Screenshot TikTok");
 
   const totalBytes = input.productImage.size + input.shopeeScreenshot.size + input.tiktokScreenshot.size;
-
-  if (totalBytes > 19 * 1024 * 1024) {
-    throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
-  }
-
-  const uploadedEvidence = await uploadIntakeEvidenceToDrive(input);
+  const maxFileBytes = Math.max(input.productImage.size, input.shopeeScreenshot.size, input.tiktokScreenshot.size);
+  const analysisStartedAt = new Date();
+  const requestStartedAt = analysisStartedAt.toISOString();
   const productImageSummary = buildUploadedImageSummary(input.productImage);
   const shopeeScreenshotSummary = buildUploadedImageSummary(input.shopeeScreenshot);
   const tiktokScreenshotSummary = buildUploadedImageSummary(input.tiktokScreenshot);
@@ -2198,22 +2417,40 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   let analysisSession: IntakeSessionRecord | null = null;
   let task: AiTaskRecord | null = null;
   let taskWaitingForKey = false;
+  let responseText: string | null = null;
+  let repairAttempted = false;
+  let repairResponseText: string | null = null;
+  let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
   try {
-    const draftCapture = await createDurableIntakeCapture(input, uploadedEvidence);
-    analysisSession = draftCapture.session;
     const createdTask = (await createAITask({
       taskType: "VISION_ANALYSIS",
       inputJson: buildIntakeTaskInput({
         productImage: productImageSummary,
         shopeeScreenshot: shopeeScreenshotSummary,
         tiktokScreenshot: tiktokScreenshotSummary,
+        clientContext: null,
+        analysisPath: "live_upload",
+        freshEvidenceCount: 3,
+        savedEvidenceCount: 0,
+        clientUploadBytes: totalBytes,
+        totalUploadBytes: totalBytes,
+        maxFileBytes,
+        requestStartedAt,
       }),
       maxRetries: 0,
     })) as AiTaskRecord;
     task = createdTask;
 
     await markTaskRunning(createdTask.id);
+
+    if (totalBytes > 19 * 1024 * 1024) {
+      throw new Error("Total upload terlalu besar untuk analisis Gemini live.");
+    }
+
+    const uploadedEvidence = await uploadIntakeEvidenceToDrive(input);
+    const draftCapture = await createDurableIntakeCapture(input, uploadedEvidence);
+    analysisSession = draftCapture.session;
     const [productImagePart, shopeeScreenshotPart, tiktokScreenshotPart] = await Promise.all([
       buildIntakeAnalysisImagePart(input.productImage, "Foto Produk Utama"),
       buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee"),
@@ -2221,8 +2458,6 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     ]);
     const excludedQuotaGroups = new Set<string>();
     const excludedKeyIds = new Set<string>();
-    let responseText: string | null = null;
-    let selectedKeySelectionForSuccess: GeminiKeySelection | null = null;
 
     while (!responseText) {
       const selectedKey = await selectGeminiKeyForIntake(user.id, excludedQuotaGroups, excludedKeyIds);
@@ -2338,6 +2573,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     const parsed = await parseIntakeVisionOutputWithRepair({
       rawText: responseText,
       repair: async ({ rawText, prompt }) => {
+        repairAttempted = true;
         if (!selectedKeySelectionForSuccess) {
           throw new Error("Missing successful Gemini key selection for intake repair.");
         }
@@ -2353,6 +2589,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
         });
 
         selectedKeySelectionForSuccess = repairResult.selectedKeySelection;
+        repairResponseText = repairResult.responseText;
 
         return repairResult.responseText;
       },
@@ -2393,9 +2630,41 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       tiktokScreenshotDriveItemRefId: uploadedEvidence.tiktokScreenshotDriveItem?.id ?? null,
     });
 
+    const requestFinishedAt = new Date().toISOString();
+    const requestDurationMs = Math.max(0, Date.now() - analysisStartedAt.getTime());
+    const successTelemetry = buildIntakeTelemetryPayload({
+      clientContext: null,
+      analysisPath: "live_upload",
+      freshEvidenceCount: 3,
+      savedEvidenceCount: 0,
+      clientUploadBytes: totalBytes,
+      totalUploadBytes: totalBytes,
+      maxFileBytes,
+      requestStartedAt,
+      requestFinishedAt,
+      requestDurationMs,
+      repairAttempted,
+      repairSuccess: repairAttempted && Boolean(repairResponseText),
+      failureKind: null,
+      responseTextExcerpt: summarizeIntakeVisionResponseText(responseText),
+      repairResponseTextExcerpt: summarizeIntakeVisionResponseText(repairResponseText),
+      modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+    });
     const completedTask = await markTaskSuccess(
       createdTask.id,
-      buildParsedMetadataTaskSnapshot(parsedWithNote, selectedKeySelectionForSuccess?.key.model_name),
+      buildParsedMetadataTaskSnapshot(
+        parsedWithNote,
+        selectedKeySelectionForSuccess?.key.model_name,
+        successTelemetry,
+        responseText
+          ? buildIntakeVisionTaskDiagnostics({
+              repairAttempted,
+              responseText,
+              repairResponseText,
+              modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+            })
+          : undefined,
+      ),
     );
     if (selectedKeySelectionForSuccess) {
       await markGeminiKeySuccess({
@@ -2416,10 +2685,63 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     };
   } catch (error) {
     const message = safeErrorMessage(error);
+    const upstreamStatus = error instanceof GeminiClientError ? error.status : null;
+    const upstreamRetryAfterSeconds = error instanceof GeminiClientError ? error.retryAfterSeconds : null;
+    const failureKind = classifyIntakeFailureKind({
+      errorMessage: message,
+      upstreamStatus,
+      telemetryFailureKind: null,
+      responseText,
+      repairAttempted,
+      repairResponseText,
+    });
+    const requestFinishedAt = new Date().toISOString();
+    const requestDurationMs = Math.max(0, Date.now() - analysisStartedAt.getTime());
+    const failureTelemetry = buildIntakeTelemetryPayload({
+      clientContext: null,
+      analysisPath: "live_upload",
+      freshEvidenceCount: 3,
+      savedEvidenceCount: 0,
+      clientUploadBytes: totalBytes,
+      totalUploadBytes: totalBytes,
+      maxFileBytes,
+      requestStartedAt,
+      requestFinishedAt,
+      requestDurationMs,
+      repairAttempted,
+      repairSuccess: false,
+      failureKind,
+      upstreamStatus,
+      upstreamRetryAfterSeconds,
+      responseTextExcerpt: summarizeIntakeVisionResponseText(responseText),
+      repairResponseTextExcerpt: summarizeIntakeVisionResponseText(repairResponseText),
+      modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+    });
+    const failureDiagnostics = responseText
+      ? buildIntakeVisionTaskDiagnostics({
+          repairAttempted,
+          responseText,
+          repairResponseText,
+          modelName: selectedKeySelectionForSuccess?.key.model_name ?? null,
+        })
+      : null;
+    const failureMessage = buildIntakeVisionFailureMessage(message, {
+      responseText,
+      repairAttempted,
+      repairResponseText,
+    });
 
     if (task && !taskWaitingForKey) {
       try {
-        await markTaskFailed(task.id, message, { retryable: false });
+        await markTaskFailed(task.id, failureMessage, {
+          retryable: false,
+          outputJson: {
+            pipeline: "intake_vision",
+            analysis_mode: "LIVE_IMAGE_BYTES",
+            telemetry: failureTelemetry,
+            ...(failureDiagnostics ? { diagnostics: failureDiagnostics } : {}),
+          } satisfies JsonRecord,
+        });
       } catch {
         // Keep the intake recoverable even if task failure update fails.
       }
@@ -2429,7 +2751,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
       try {
         await updateIntakeSessionRecord(supabase, user.id, analysisSession.id, {
           status: "ERROR",
-          error_message: message,
+          error_message: failureMessage,
         });
       } catch {
         // Preserve the original failure if the intake row update also fails.
@@ -2437,7 +2759,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     }
 
     revalidatePath("/intake");
-    throw new Error(message);
+    throw new Error(failureMessage);
   }
 }
 

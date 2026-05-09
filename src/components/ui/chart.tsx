@@ -51,7 +51,7 @@ ${colorConfig.map(([key, item]) => `  --color-${key}: ${item.color};`).join("\n"
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    children: React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer>["children"];
+    children: React.ReactNode;
     config: ChartConfig;
   }
 >(({ children, className, config, id, ...props }, ref) => {
@@ -62,7 +62,7 @@ const ChartContainer = React.forwardRef<
     <ChartContext.Provider value={{ config }}>
       <div className={cn("chart-container", className)} data-chart={chartId} ref={ref} {...props}>
         <ChartStyle config={config} id={chartId} />
-        <RechartsPrimitive.ResponsiveContainer>{children}</RechartsPrimitive.ResponsiveContainer>
+        {children}
       </div>
     </ChartContext.Provider>
   );

@@ -62,7 +62,7 @@ function OperatorShellContent({ children }: { children: ReactNode }) {
   return (
     <div className="operator-shell">
       <aside className="sidebar" aria-label="Operator navigation">
-        <Link className="sidebar-brand" href="/products/new">
+        <Link className="sidebar-brand" href="/dashboard">
           <span className="sidebar-brand__mark" aria-hidden="true">
             <Workflow size={18} />
           </span>

@@ -1,29 +1,23 @@
-import { SkeletonDashboardActionRail, SkeletonMetricGrid } from "@/components/operator/loading-skeleton";
+import { SkeletonDashboardLiveCycleChart, SkeletonGeminiUsageOverview, SkeletonMetricGrid } from "@/components/operator/loading-skeleton";
 
 export default function DashboardLoading() {
   return (
     <div className="dashboard-page" aria-busy="true">
-      <section className="dashboard-section" aria-label="Memuat aksi berikutnya">
+      <section className="dashboard-section" aria-label="Memuat ringkasan Gemini">
         <div className="dashboard-section__header loading-skeleton-static" aria-hidden="true">
           <span className="icon-frame dashboard-section__icon skeleton-icon" />
           <span className="skeleton medium" />
         </div>
-        <SkeletonDashboardActionRail />
+        <SkeletonMetricGrid count={4} />
       </section>
-      <section className="dashboard-section" aria-label="Memuat metrik Gemini">
+      <section className="dashboard-section" aria-label="Memuat live cycle Gemini">
         <div className="dashboard-section__header loading-skeleton-static" aria-hidden="true">
           <span className="icon-frame dashboard-section__icon skeleton-icon" />
           <span className="skeleton medium" />
         </div>
-        <SkeletonMetricGrid count={2} />
+        <SkeletonDashboardLiveCycleChart />
       </section>
-      <section className="dashboard-section" aria-label="Memuat metrik Drive">
-        <div className="dashboard-section__header loading-skeleton-static" aria-hidden="true">
-          <span className="icon-frame dashboard-section__icon skeleton-icon" />
-          <span className="skeleton medium" />
-        </div>
-        <SkeletonMetricGrid count={3} />
-      </section>
+      <SkeletonGeminiUsageOverview />
     </div>
   );
 }
