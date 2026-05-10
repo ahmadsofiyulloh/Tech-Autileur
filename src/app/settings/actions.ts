@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  activateAffiliateProfileNamespace,
   archiveAffiliateProfile,
   createAffiliateProfile,
   getAffiliateProfileById,
@@ -105,6 +106,7 @@ function revalidateAffiliateProfileSurfaces() {
   revalidateSettingsSurface();
   revalidatePath("/prompts");
   revalidatePath("/products/new");
+  revalidatePath("/", "layout");
 }
 
 function safeReturnPath(value: string) {
@@ -126,9 +128,6 @@ export async function saveWorkspace(formData: FormData) {
       await createWorkspace({
         workspace_name: readText(formData, "workspace_name"),
         niche: readText(formData, "niche"),
-        drive_root_folder_ref_id: readText(formData, "drive_root_folder_ref_id"),
-        drive_root_folder_url: readText(formData, "drive_root_folder_url"),
-        drive_root_folder_path: readText(formData, "drive_root_folder_path"),
         is_default: readBoolean(formData, "is_default"),
       });
       message = "Workspace created";
@@ -140,9 +139,6 @@ export async function saveWorkspace(formData: FormData) {
       await updateWorkspace(id, {
         workspace_name: readText(formData, "workspace_name"),
         niche: readText(formData, "niche"),
-        drive_root_folder_ref_id: readText(formData, "drive_root_folder_ref_id"),
-        drive_root_folder_url: readText(formData, "drive_root_folder_url"),
-        drive_root_folder_path: readText(formData, "drive_root_folder_path"),
         status: readText(formData, "status"),
         is_default: readBoolean(formData, "is_default"),
       });
@@ -557,6 +553,25 @@ export async function setDefaultAffiliateProfile(formData: FormData) {
   }
 
   done("Default affiliate profile updated", returnTo);
+}
+
+export async function activateAffiliateProfile(formData: FormData) {
+  const profileId = readText(formData, "affiliate_profile_id");
+  const returnTo = safeReturnPath(readText(formData, "return_to") || "/settings");
+
+  try {
+    if (!profileId) {
+      throw new Error("Missing affiliate profile id.");
+    }
+
+    await activateAffiliateProfileNamespace(profileId);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Affiliate profile operation failed.";
+    fail(errorMessage, returnTo);
+  }
+
+  revalidateAffiliateProfileSurfaces();
+  done("Akun Affiliate aktif diperbarui", returnTo);
 }
 
 export async function saveHelperApiToken(formData: FormData) {

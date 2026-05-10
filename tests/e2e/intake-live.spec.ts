@@ -168,7 +168,7 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
           throw classifySmokeError("intake live", message);
         }
       } else {
-        await expect(page.getByRole("heading", { name: "Review metadata" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Review Hasil" })).toBeVisible();
         await expect(page.getByText("NEEDS REVIEW")).toBeVisible();
         const { data: analyzedProduct, error: analyzedProductError } = await client
           .from("products")
@@ -181,8 +181,10 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
         }
 
         expect(analyzedProduct.status).toBe("DRAFT");
-        await expect(page.getByRole("button", { name: "Simpan Review" })).toBeVisible();
-        await page.getByRole("button", { name: "Simpan Review" }).click();
+        const reviewPanel = page.locator("#review-panel");
+        await expect(reviewPanel).toBeVisible();
+        await expect(reviewPanel.getByRole("button", { name: "Simpan" })).toBeVisible();
+        await reviewPanel.getByRole("button", { name: "Simpan" }).click();
         await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.has("product_id"));
         await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
         const promptCard = page.locator("article").filter({ hasText: state.product.name }).first();

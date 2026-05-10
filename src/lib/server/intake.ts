@@ -71,7 +71,7 @@ import {
   listProductMarketplaceSources,
 } from "@/lib/server/product-marketplace-sources";
 import { getGoogleDriveFileContentBytes, uploadFileToGoogleDrive } from "@/lib/server/google-drive";
-import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { getCurrentWorkspace, getOrProvisionWorkspaceDriveRoot } from "@/lib/server/workspaces";
 import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
 type ProductRecord = {
@@ -795,26 +795,7 @@ function buildIntakeDraftProductTitle(file: File) {
 }
 
 async function resolveIntakeDriveRootFolder() {
-  const workspace = await getCurrentWorkspace();
-
-  if (!workspace) {
-    throw new Error("Pilih workspace aktif dulu.");
-  }
-
-  if (!workspace.drive_root_folder_ref_id) {
-    throw new Error("Folder Drive Utama belum diisi.");
-  }
-
-  const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
-
-  if (!rootFolder?.drive_item_id) {
-    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
-  }
-
-  return {
-    workspace,
-    rootFolder,
-  };
+  return await getOrProvisionWorkspaceDriveRoot();
 }
 
 async function uploadIntakeDriveImage(input: {
@@ -827,7 +808,7 @@ async function uploadIntakeDriveImage(input: {
   const { workspace, rootFolder } = await resolveIntakeDriveRootFolder();
   const parentFolderId = rootFolder.drive_item_id;
   if (!parentFolderId) {
-    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+    throw new Error("Folder Drive otomatis belum tersinkron.");
   }
 
   const uploaded = await uploadFileToGoogleDrive({
@@ -1290,20 +1271,11 @@ async function uploadIntakeEvidenceToDrive(input: {
   shopeeScreenshot: File;
   tiktokScreenshot: File;
 }) {
-  const workspace = await getCurrentWorkspace();
+  const { workspace, rootFolder } = await getOrProvisionWorkspaceDriveRoot();
+  const parentFolderId = rootFolder.drive_item_id;
 
-  if (!workspace) {
-    throw new Error("Pilih workspace aktif dulu.");
-  }
-
-  if (!workspace.drive_root_folder_ref_id) {
-    throw new Error("Folder Drive Utama belum diisi.");
-  }
-
-  const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
-
-  if (!rootFolder?.drive_item_id) {
-    throw new Error("Folder Drive Utama belum tersinkron ke Google Drive.");
+  if (!parentFolderId) {
+    throw new Error("Folder Drive otomatis belum tersinkron.");
   }
 
   const intakeCode = `INTAKE-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`;
@@ -1338,7 +1310,7 @@ async function uploadIntakeEvidenceToDrive(input: {
       file: upload.file,
       name: upload.name,
       description: upload.notes,
-      parentFolderId: rootFolder.drive_item_id,
+      parentFolderId,
     });
     const drivePath = buildIntakeDrivePath({
       workspaceCode: workspace.workspace_code,

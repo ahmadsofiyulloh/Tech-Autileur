@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { HardDrive } from "lucide-react";
 import { DriveVisualManager } from "./drive-visual-manager";
 import { EmptyState } from "@/components/operator/empty-state";
-import { getDriveItemById, listDriveItems } from "@/lib/server/drive-items";
+import { listDriveItems } from "@/lib/server/drive-items";
 import { resolveDriveImageDetailUrl, resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
-import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { getOrProvisionWorkspaceDriveRoot } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,17 @@ export default async function DrivePage() {
 
   let driveItems;
   let uploadTarget: { id: string; name: string; drive_path: string } | null = null;
+
+  try {
+    const { rootFolder } = await getOrProvisionWorkspaceDriveRoot();
+    uploadTarget = {
+      id: rootFolder.id,
+      name: rootFolder.name,
+      drive_path: rootFolder.drive_path,
+    };
+  } catch {
+    uploadTarget = null;
+  }
 
   try {
     driveItems = await listDriveItems({ limit: 200 });
@@ -54,24 +65,6 @@ export default async function DrivePage() {
       detail_url: resolveDriveImageDetailUrl(item, detailUrlCache),
     })),
   );
-
-  try {
-    const workspace = await getCurrentWorkspace();
-
-    if (workspace?.drive_root_folder_ref_id) {
-      const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
-
-      if (rootFolder?.item_type === "FOLDER" && rootFolder.drive_item_id && rootFolder.status !== "ARCHIVED") {
-        uploadTarget = {
-          id: rootFolder.id,
-          name: rootFolder.name,
-          drive_path: rootFolder.drive_path,
-        };
-      }
-    }
-  } catch {
-    uploadTarget = null;
-  }
 
   return (
     <DriveVisualManager

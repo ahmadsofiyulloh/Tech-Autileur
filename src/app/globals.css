@@ -2472,6 +2472,100 @@ summary::marker {
   color: var(--text);
 }
 
+.mobile-notification-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  border: 0;
+  background: var(--color-overlay-backdrop-mid);
+  backdrop-filter: blur(2px);
+}
+
+.mobile-notification-sheet {
+  --mobile-notification-tone: var(--color-status-info);
+  position: fixed;
+  right: var(--space-3);
+  bottom: calc(var(--shell-bottom-sheet-offset) + env(safe-area-inset-bottom));
+  left: var(--space-3);
+  z-index: 130;
+  border: 1px solid var(--color-floating-border);
+  border-radius: var(--radius);
+  background: var(--color-overlay-surface);
+  box-shadow: var(--shadow);
+  color: var(--color-text-primary);
+  padding: var(--space-4);
+}
+
+.mobile-notification-sheet[data-tone="success"] {
+  --mobile-notification-tone: var(--color-status-success);
+}
+
+.mobile-notification-sheet[data-tone="error"] {
+  --mobile-notification-tone: var(--color-status-error);
+}
+
+.mobile-notification-sheet[data-tone="warning"] {
+  --mobile-notification-tone: var(--color-status-warning);
+}
+
+.mobile-notification-sheet[data-tone="info"] {
+  --mobile-notification-tone: var(--color-status-info);
+}
+
+.mobile-notification-sheet__body {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.mobile-notification-sheet__icon {
+  display: inline-grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mobile-notification-tone) 14%, transparent);
+  color: var(--mobile-notification-tone);
+}
+
+.mobile-notification-sheet__title {
+  max-width: calc(100% - 44px);
+  color: var(--color-text-primary);
+  font-size: var(--type-card-size);
+  line-height: var(--type-card-line);
+}
+
+.mobile-notification-sheet__message {
+  max-width: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  overflow-wrap: anywhere;
+}
+
+.mobile-notification-sheet__close {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-overlay-close-background);
+  color: var(--color-overlay-close-foreground);
+  padding: 0;
+}
+
+.mobile-notification-sheet__close:hover,
+.mobile-notification-sheet__close:focus-visible {
+  background: var(--color-floating-hover);
+  color: var(--text);
+}
+
 .skeleton {
   display: block;
   height: 16px;

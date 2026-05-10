@@ -16,6 +16,8 @@
 - Large asset bytes must not be stored in Supabase.
 - 2026-05-06 refactor: `workspace_id` remains internal namespace infrastructure. Operator-facing scope is Affiliate Profile.
 - Do not remove or rename `workspaces` in this refactor. Any direct `affiliate_profile_id` schema cleanup for product-flow tables belongs to a later explicit migration task.
+- The active operator namespace is the active Affiliate Profile. Runtime keeps using `user_preferences.current_workspace_id` as the internal pointer and activates the profile-owned workspace when the operator switches profiles.
+- Drive root columns on `workspaces` remain internal metadata only. They are populated by automatic `/AffiliateAI/` provisioning, not by manual operator link setup.
 
 ## Required Enums
 
@@ -80,12 +82,13 @@ UI labels:
 
 ```text
 Nama Ruang Kerja
-Folder Drive Utama
 ```
 
 ### `user_preferences`
 
 Stores active workspace selection.
+
+During the Affiliate Profile namespace refactor this is the internal active namespace pointer. User-facing profile activation must update this value to the selected profile's owned workspace.
 
 ```text
 user_id uuid pk fk auth.users

@@ -84,7 +84,7 @@ The user may prepare and copy generated prompts on mobile. Flow execution remain
 
 ## Mobile Settings Contract
 
-Mobile settings must keep `/settings` as the overview entrypoint, then open section routes or equivalent section screens for Workspace, Affiliate Profiles, Gemini, and Account. Google Drive connect/status lives in the Connected Services row on the overview, with `/settings/drive` retained only as a redirect.
+Mobile settings must keep `/settings` as the overview entrypoint, then open section routes or equivalent section screens for Workspace, Affiliate Profiles, Gemini, and Account. Settings overview exposes the active Affiliate Profile switch, and switching it also switches the internal workspace namespace. Google Drive connect/status lives in the Connected Services row on the overview, with `/settings/drive` retained only as a redirect. Drive folder setup is automatic under `/AffiliateAI/` and is not a manual mobile setting.
 
 Mutable master lists use compact cards. Edit/create forms open as a full-screen drawer or bottom sheet. Mobile must not expose large desktop tables as the primary interaction.
 

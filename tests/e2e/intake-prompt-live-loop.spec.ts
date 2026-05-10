@@ -90,7 +90,7 @@ async function assertAffiliateProfileSeedState(
 
   const drawer = page.locator('aside[aria-label="Detail akun affiliate"]');
   await expect(drawer).toBeVisible();
-  await expect(page.locator(`#${state.affiliate_profile.id}-asset-lock`)).toBeChecked();
+  await expect(page.locator(`[id="${state.affiliate_profile.id}-asset-lock"]`)).toBeChecked();
   await expect(page.locator("#affiliate-i2i-rules")).toHaveValue(/.+/);
   await expect(page.locator("#affiliate-i2v-rules")).toHaveValue(/.+/);
   await expect(page.locator("#affiliate-caption-rules")).toHaveValue(/.+/);
@@ -472,39 +472,63 @@ async function runLiveSmokeIteration(input: {
 
   try {
     await test.step(`Loop ${iteration}: save capture`, async () => {
-    await page.goto("/products/new");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(250);
+      await page.goto("/products/new");
+      await page.waitForLoadState("networkidle");
+      await page.waitForTimeout(250);
 
-    await expect(page.locator(".image-preview-upload-card")).toHaveCount(3);
-    await expect(page.getByRole("button", { name: "Simpan Produk" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Analisis Metadata" })).toBeDisabled();
+      await expect(page.locator(".image-preview-upload-card")).toHaveCount(3);
+      await expect(page.getByRole("button", { name: "Simpan Produk" })).toBeDisabled();
 
-    const uploadCards = page.locator(".image-preview-upload-card");
-    const productChooserPromise = page.waitForEvent("filechooser");
-    await uploadCards.nth(0).getByRole("button").first().click();
-    await (await productChooserPromise).setFiles(files.productImage);
+      const uploadCards = page.locator(".image-preview-upload-card");
+      const productChooserPromise = page.waitForEvent("filechooser");
+      await uploadCards.nth(0).getByRole("button").first().click();
+      await (await productChooserPromise).setFiles(files.productImage);
 
-    const shopeeChooserPromise = page.waitForEvent("filechooser");
-    await uploadCards.nth(1).getByRole("button").first().click();
-    await (await shopeeChooserPromise).setFiles(files.shopeeScreenshot);
+      const evidencePanel = page.locator("#evidence-panel");
+      if (!(await evidencePanel.isVisible())) {
+        await page.locator('button[aria-controls="evidence-panel"]').click();
+      }
+      await expect(evidencePanel).toBeVisible();
 
-    const tiktokChooserPromise = page.waitForEvent("filechooser");
-    await uploadCards.nth(2).getByRole("button").first().click();
-    await (await tiktokChooserPromise).setFiles(files.tiktokScreenshot);
+      const shopeeChooserPromise = page.waitForEvent("filechooser");
+      await evidencePanel.getByRole("button", { name: "Tambah gambar" }).first().click();
+      await (await shopeeChooserPromise).setFiles(files.shopeeScreenshot);
 
-    await expect(page.getByRole("button", { name: "Simpan Produk" })).toBeEnabled();
-    await page.getByRole("button", { name: "Simpan Produk" }).click();
+      const tiktokChooserPromise = page.waitForEvent("filechooser");
+      await evidencePanel.getByRole("button", { name: "Tambah gambar" }).first().click();
+      await (await tiktokChooserPromise).setFiles(files.tiktokScreenshot);
 
-    await page.waitForURL((url) => url.pathname === "/products/new" && url.searchParams.get("message") === "Produk disimpan", {
-      timeout: 180_000,
-    });
+      const capturePanel = page.locator("#capture-panel");
+      if (!(await capturePanel.isVisible())) {
+        await page.locator('button[aria-controls="capture-panel"]').click();
+      }
+      await expect(capturePanel).toBeVisible();
+      await expect(page.getByRole("button", { name: "Simpan Produk" })).toBeEnabled();
+      await page.getByRole("button", { name: "Simpan Produk" }).click();
 
-    await expect(page.getByRole("heading", { name: "Draft tersimpan" })).toBeVisible();
+      await page.waitForURL(
+        (url) =>
+          url.pathname === "/products/new" &&
+          (url.searchParams.get("message") === "Produk disimpan" || url.searchParams.get("post_save") === "1"),
+        {
+          timeout: 180_000,
+        },
+      );
 
-    const latestDraft = await loadLatestDraftState(client, state);
-    productId = latestDraft.productId;
-    await assertSavedCaptureState(client, state, productId);
+      const continueDecisionButton = page.getByRole("button", { name: /^(Lanjutkan sesi ini|Lanjut)$/ });
+      await expect(continueDecisionButton).toBeVisible();
+      await continueDecisionButton.click();
+
+      await page.waitForURL((url) => url.pathname === "/products/new" && url.searchParams.get("post_save") !== "1", {
+        timeout: 180_000,
+      });
+
+      await expect(page.getByRole("dialog", { name: "Opsi setelah simpan produk" })).toBeHidden();
+      await expect(page.locator('button[aria-controls="capture-panel"]')).toBeVisible();
+
+      const latestDraft = await loadLatestDraftState(client, state);
+      productId = latestDraft.productId;
+      await assertSavedCaptureState(client, state, productId);
     });
 
     await test.step(`Loop ${iteration}: affiliate lock preflight`, async () => {
@@ -521,9 +545,16 @@ async function runLiveSmokeIteration(input: {
 
     await page.goto(`/products/new?intake_id=${intakeId}&affiliate_profile_id=${state.affiliate_profile.id}`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("button", { name: "Analisis Metadata" })).toBeEnabled();
 
-    await page.getByRole("button", { name: "Analisis Metadata" }).click();
+    const analysisPanel = page.locator("#analysis-panel");
+    if (!(await analysisPanel.isVisible())) {
+      await page.locator('button[aria-controls="analysis-panel"]').click();
+    }
+    await expect(analysisPanel).toBeVisible();
+
+    const analyzeMetadataButton = analysisPanel.getByRole("button", { name: "Analisis Metadata" });
+    await expect(analyzeMetadataButton).toBeEnabled();
+    await analyzeMetadataButton.click();
     await page.waitForURL(
       (url) => url.pathname === "/products/new" && (url.searchParams.has("intake_id") || url.searchParams.has("error") || url.searchParams.has("warning")),
       {
@@ -542,7 +573,7 @@ async function runLiveSmokeIteration(input: {
       throw classifySmokeError(`loop ${iteration} live Gemini analysis`, analysisFeedback);
     }
 
-    const reviewHeading = page.getByRole("heading", { name: "Review metadata" });
+    const reviewHeading = page.getByRole("heading", { name: "Review Hasil" });
     const analysisFailureHeading = page.getByRole("heading", { name: "Analisis metadata gagal.", level: 3 });
     const analysisOutcome = await Promise.race([
       reviewHeading.waitFor({ state: "visible", timeout: 180_000 }).then(() => "review" as const),
@@ -560,7 +591,10 @@ async function runLiveSmokeIteration(input: {
     }
 
     await expect(reviewHeading).toBeVisible();
-    await expect(page.getByRole("button", { name: "Simpan Review" })).toBeVisible();
+    const reviewPanel = page.locator("#review-panel");
+    await expect(reviewPanel).toBeVisible();
+    const saveReviewButton = reviewPanel.getByRole("button", { name: "Simpan" });
+    await expect(saveReviewButton).toBeVisible();
 
     await assertIntakeGeminiTaskState(client, state, iterationStartIso, productId);
   });
@@ -573,7 +607,7 @@ async function runLiveSmokeIteration(input: {
   }
 
   await test.step(`Loop ${iteration}: save reviewed metadata`, async () => {
-    await page.getByRole("button", { name: "Simpan Review" }).click();
+    await page.locator("#review-panel").getByRole("button", { name: "Simpan" }).click();
     await page.waitForURL(
       (url) =>
         url.pathname === "/prompts" &&
@@ -669,7 +703,9 @@ async function runLiveSmokeIteration(input: {
     expect(promptPackV1Id).toBeTruthy();
 
     await expect(page.getByRole("heading", { name: "Output Siap Copy" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Buat Ulang" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Buat Ulang" })).toBeVisible({
+      timeout: PROMPT_GENERATION_TIMEOUT_MS,
+    });
 
     const promptPackV1 = await client
       .from("prompt_packs")

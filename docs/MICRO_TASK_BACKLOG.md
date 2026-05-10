@@ -123,6 +123,24 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Scope:** QA evidence and docs progress only after runtime tasks land.
 **Acceptance:** verification results are documented; product save, metadata retry/failure, prompt readiness, and drawer reanalysis are covered.
 
+### MT-AFFDRIVE-00 - Active affiliate and automatic Drive lock
+**Goal:** Lock that Akun Affiliate is the active operator namespace and Google Drive folder setup is static/automatic under `/AffiliateAI/`.
+**Owner:** Codex
+**Scope:** source-of-truth docs, Settings overview, workspace/profile server helpers, and Drive target resolution only.
+**Acceptance:** changing the active affiliate profile from Settings also changes the internal workspace namespace, Drive no longer requires manual folder URL/path/ref setup, and runtime paths auto-provision missing workspace Drive roots when Google Drive is connected.
+
+### MT-AFFDRIVE-01 - Active Affiliate overview switch
+**Goal:** Make `/settings` the simple place to change the active Affiliate Account.
+**Owner:** Codex
+**Scope:** Settings overview and profile activation action only.
+**Acceptance:** the overview shows available active profiles, the current profile is marked, and activating a profile updates both the profile default link and `current_workspace_id`.
+
+### MT-AFFDRIVE-02 - Static automatic Drive provisioning
+**Goal:** Remove manual Drive folder setup from operator UX and use automatic `/AffiliateAI/` provisioning.
+**Owner:** Codex
+**Scope:** Drive root resolver, Workspace settings UI, `/drive`, intake upload, and prompt export target resolution.
+**Acceptance:** no manual Drive root URL/path/ref fields are shown, missing workspace Drive root metadata is provisioned before upload/export, and disconnected Google Drive still returns a Connect/setup error instead of manual link instructions.
+
 ## VIS - Visual PWA Mobile-First Sync
 
 These tasks document the visual implementation state after the 2026-05-04 Visual PWA Mobile-First override.
@@ -277,7 +295,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S6-001 - Workspace and affiliate settings _(DONE)_
 **Goal:** Use list + drawer CRUD and minimal fields for Ruang Kerja and Akun Affiliate.
 **Owner:** Codex
-**Acceptance:** workspace drawer hides auto-generated code and uses Nama Ruang Kerja, niche picker, Folder Drive Utama picker, default switch, and archive; affiliate drawer uses base info, Character/Environment image cards, editable rule editors, and no notes field.
+**Acceptance:** workspace drawer hides auto-generated code and uses Nama Ruang Kerja, niche picker, default switch, and archive; affiliate drawer uses base info, Character/Environment image cards, editable rule editors, and no notes field.
 
 ### S6-002 - Tool settings _(DONE)_
 **Goal:** Keep Gemini, Drive, Flow link/status, Account, and Windows Helper/App API Token in Pengaturan.
@@ -317,7 +335,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S6-009 - Google Drive connect row polish _(DONE)_
 **Goal:** Move Google Drive connect into the `/settings` overview and retire `/settings/drive` as a visible UI surface while keeping OAuth callback and workspace sync intact.
 **Owner:** Codex
-**Acceptance:** Google Drive uses a local asset icon, shows `Connect` only when disconnected, `/settings/drive` redirects to `/settings`, OAuth callback returns to `/settings`, and workspace Drive folder provisioning remains available from Workspace settings.
+**Acceptance:** Google Drive uses a local asset icon, shows `Connect` only when disconnected, `/settings/drive` redirects to `/settings`, OAuth callback returns to `/settings`, and workspace Drive folder provisioning is automatic under `/AffiliateAI/`.
 
 ### S6-010 - Gemini usage quota overview _(DONE)_
 **Goal:** Show a compact Gemini `RPD`, `RPM`, and `TPM` usage overview at the top of `/settings`.

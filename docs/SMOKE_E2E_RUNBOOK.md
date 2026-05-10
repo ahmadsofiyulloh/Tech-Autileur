@@ -31,6 +31,8 @@ Run a hybrid smoke harness that exercises the operator app end-to-end and classi
 ```bash
 npm run smoke:e2e
 npm run smoke:e2e:live-loop
+npm run smoke:e2e:live-100
+npm run smoke:e2e:live-batch
 npm run smoke:e2e:headed
 npm run smoke:e2e:report
 ```
@@ -50,6 +52,8 @@ Optional:
 - `E2E_SMOKE_PASSWORD`
 - `SMOKE_PROMPT_GENERATION_MODE=mock|gemini`
 - `SMOKE_LIVE_E2E_LOOPS=3`
+- `SMOKE_LIVE_E2E_BATCHES=10`
+- `SMOKE_LIVE_E2E_BATCH_PAUSE_MS=0`
 
 ## Notes
 
@@ -63,3 +67,4 @@ Optional:
 - Google Flow remains a manual boundary and is not auto-submitted by the app.
 - The harness creates a local auth state file under `.playwright/.auth/`.
 - The harness seeds a dedicated smoke workspace, affiliate profile, product, intake session, and Drive references before the browser tests start.
+- `npm run smoke:e2e:live-100` is a convenience alias for the default `10 x 10` plan. Use `npm run smoke:e2e:live-batch` with `SMOKE_LIVE_E2E_BATCHES` and `SMOKE_LIVE_E2E_LOOPS` to adjust the total.

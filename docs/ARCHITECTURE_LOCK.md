@@ -148,6 +148,8 @@ Drive Phase 1 UI: visual grid over all Drive item metadata
 
 Google Drive stores real uploaded product images, marketplace screenshots, prompt references, raw clips, final clips, batch manifests, and upload package assets.
 
+Google Drive folder setup is static and automatic for the MVP. The app provisions the fixed `/AffiliateAI/` folder tree server-side when a connected Drive account is available; operators do not paste or pick Drive root folder links during normal setup.
+
 2026-05-07 Intake lifecycle lock: product capture and metadata analysis are separate. Intake may save a `DRAFT` product with the product image first, then run Gemini metadata analysis after Shopee and TikTok screenshot evidence is complete. Metadata readiness must not be inferred from `products.status`, and Gemini failure must keep the saved product recoverable.
 
 ## AI
@@ -235,9 +237,11 @@ Settings detail grammar:
 
 - Workspace: retained internal support only during the refactor; new feature work must not expand Workspace UX.
 - Affiliate Profiles: list + drawer CRUD, base info, two asset cards, visible `Lock Character` and `Lock Environment` controls, rule editors, archive, and one internal workspace/folder namespace per profile.
+- Settings overview owns the active Affiliate Profile switch. Activating a profile also activates its internal workspace namespace.
 - Gemini: multi-key list + drawer CRUD; no request history UI. Editable fields are name, project, model, purpose, and masked encrypted key. Quota limits are auto-filled from the selected model and are not typed by the operator.
 - Settings overview may show a compact Gemini usage panel directly above the card groups.
 - Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.
+- Drive folder provisioning is automatic under `/AffiliateAI/`; Workspace settings must not expose manual Drive root URL/path/ref setup.
 - Drive primary route: visual all-items grid/gallery with bottom-sheet preview.
 - Account: Chrome pairing, App API Token, and sign out.
 - Flow Accounts are controller-owned execution tools for Phase 2 and must not become a separate Settings CRUD surface.

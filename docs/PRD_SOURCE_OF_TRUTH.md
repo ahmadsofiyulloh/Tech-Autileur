@@ -24,9 +24,11 @@ Locked decisions:
 
 - `Akun Affiliate` is the visible top-level namespace for the operator.
 - One Affiliate Profile owns one internal workspace/folder namespace.
+- The active Affiliate Profile is changed from Settings overview; activating a profile also activates its owned internal workspace namespace.
 - Products, intake sessions, prompt packs, and prompt history must not mix across Affiliate Profiles.
 - `Workspace` remains as internal storage/scope infrastructure for now; it is not a user-facing planning concept during this refactor.
 - Gemini API keys and Google Drive connection remain global user config shared by all Affiliate Profiles.
+- Google Drive uses the fixed `/AffiliateAI/` structure and provisions required folders automatically. The operator must not manually paste Drive folder links for normal setup.
 - Cutoff preserves only auth profiles, Gemini key metadata/secrets, and Google Drive connection metadata.
 
 Implementation constraints:
@@ -339,9 +341,9 @@ Settings > Workspace:
 
 - list + drawer CRUD.
 - auto-generated workspace code, hidden from operator UI.
-- visible fields: `Nama Ruang Kerja`, `Niche`, `Folder Drive Utama`, `Default`.
+- visible fields: `Nama Ruang Kerja`, `Niche`, `Default`.
 - `Niche` uses static suggestions with free fallback.
-- `Folder Drive Utama` uses Drive folder picker.
+- Drive folder refs remain internal metadata and are provisioned automatically from the fixed `/AffiliateAI/` structure.
 - archive-first lifecycle; hard delete is not a primary action.
 - retained only as internal support during the Affiliate Profile namespace refactor.
 - new feature work must not expand Workspace UX.
@@ -349,9 +351,10 @@ Settings > Workspace:
 Settings > Affiliate Profiles:
 
 - list + drawer CRUD.
-- overview may show linked profile avatar thumbnails and a quick default switch for the active workspace.
+- overview may show linked profile avatar thumbnails and a quick active profile switch.
 - visible base fields: profile name, platform/mode label, account label, affiliate URL, status.
 - one internal workspace/folder namespace is maintained per profile.
+- activating a profile updates the active internal workspace namespace and the default profile link for that namespace.
 - many-to-many workspace choices must not be exposed in the drawer during this refactor.
 - `notes` is internal metadata only and must not be shown in forms.
 - character and environment are two separate image cards.
@@ -380,7 +383,7 @@ Connected Services > Google Drive:
 - `Connect` is shown only when disconnected.
 - the row uses a local Drive asset icon and stays non-navigating.
 - `/settings/drive` is a compatibility redirect only and does not expose a dedicated UI.
-- workspace Drive folder provisioning remains in Settings > Workspace.
+- Drive folder provisioning is automatic and static under `/AffiliateAI/`; no manual Drive folder setup UI is exposed.
 
 Primary `/drive` Phase 1 surface:
 
@@ -399,7 +402,6 @@ Workspace field labels are minimal:
 
 ```text
 Nama Ruang Kerja
-Folder Drive Utama
 ```
 
 ### 1.12 UI Copy Lock

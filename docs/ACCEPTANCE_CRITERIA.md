@@ -95,15 +95,15 @@
 ## Affiliate Profiles and Settings
 
 - User can create unlimited affiliate profiles.
-- Profiles are top-level personas linked to one or more workspaces.
+- Profiles are top-level personas, each owning one internal workspace namespace.
 - Profiles store editable prompt personalization rules.
 - Profiles can lock character and environment with Drive references.
 - Profile UI exposes only two asset slots: Character and Environment.
 - No third background-reference asset slot exists in MVP.
-- Default profile selection is explicit per workspace.
+- Active profile selection is explicit from Settings overview and switches the internal workspace namespace.
 - New profiles default asset locks to ON.
-- Workspace settings use `Nama Ruang Kerja` and `Folder Drive Utama`.
-- Workspace settings use list + drawer CRUD with hidden auto-generated code, name, niche picker, Drive root picker, default switch, and archive.
+- Workspace settings use `Nama Ruang Kerja` for retained internal support.
+- Workspace settings use list + drawer CRUD with hidden auto-generated code, name, niche picker, default switch, and archive.
 - Affiliate Profile settings use list + drawer CRUD with base info, Character image card, Environment image card, rule editors, archive, and explicit workspace links/default selection.
 - Affiliate Profile settings do not show `notes` fields.
 - Affiliate Profile drawer keeps Character preview hidden when `Lock Character` is OFF.
@@ -113,7 +113,7 @@
 - Gemini settings do not expose editable quota fields; `RPM`, `RPD`, and `TPM` are saved from the selected model.
 - `/settings` shows compact Gemini usage versus quota using app-recorded calls, grouped by `project + model` when project metadata exists.
 - Multiple Gemini keys render in the usage overview with a carousel.
-- Drive settings are folder-centric list + drawer, workspace-scoped, and folders only.
+- Google Drive settings are connect/status only; folder provisioning is automatic under `/AffiliateAI/`.
 - Flow Accounts are controller-owned execution tools and do not become a separate Settings CRUD surface.
 - Chrome profile pairing and App API Token controls live in `Pengaturan > Account`.
 - `/settings` overview uses a grouped native-style list.

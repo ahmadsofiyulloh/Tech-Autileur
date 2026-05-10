@@ -101,7 +101,8 @@ Google Drive connect/status lives in the `/settings` Connected Services row.
 
 - The row uses a local Drive asset icon and a `Connect` action when disconnected.
 - `/settings/drive` is a compatibility redirect only.
-- Drive folder provisioning remains under Settings > Workspace.
+- Drive folder provisioning is static and automatic under `/AffiliateAI/`.
+- Workspace settings must not expose manual Drive root URL, path, ref, or sync controls for normal setup.
 - The primary Drive manager stays `/drive`.
 - Drive codes are internal and hidden from the primary UI.
 

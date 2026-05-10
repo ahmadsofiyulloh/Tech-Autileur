@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { FolderKanban } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { WorkspaceSettingsBoard } from "./workspace-settings-board";
-import { listDriveItems } from "@/lib/server/drive-items";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError, type WorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -10,14 +9,6 @@ export const dynamic = "force-dynamic";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Workspace tidak tersedia.";
-}
-
-function pickerOption(value: string, label: string, description?: string | null) {
-  return {
-    value,
-    label,
-    ...(description ? { description } : {}),
-  };
 }
 
 export default async function WorkspaceSettingsPage() {
@@ -32,24 +23,12 @@ export default async function WorkspaceSettingsPage() {
 
   let workspaceState: WorkspaceSelectionState | null = null;
   let workspaceError: string | null = null;
-  const driveFolderPickerOptions: Array<{ value: string; label: string; description?: string }> = [];
 
   try {
     workspaceState = await getWorkspaceSelectionState();
   } catch (error) {
     workspaceError =
       isWorkspaceSchemaMissingError(error) ? "Apply the local Sprint 12B migration before using workspace profiles." : errorMessage(error);
-  }
-
-  try {
-    const driveItems = await listDriveItems({ limit: 200 });
-    driveFolderPickerOptions.push(
-      ...driveItems
-        .filter((item) => item.item_type === "FOLDER" && item.status !== "ARCHIVED")
-        .map((item) => pickerOption(item.id, item.name, [item.purpose, item.drive_path].filter(Boolean).join(" - "))),
-    );
-  } catch {
-    // Drive references are optional for workspace editing.
   }
 
   const workspaces = workspaceState?.workspaces ?? [];
@@ -62,7 +41,6 @@ export default async function WorkspaceSettingsPage() {
       ) : (
         <WorkspaceSettingsBoard
           currentWorkspaceId={currentWorkspace?.id ?? null}
-          driveFolderOptions={driveFolderPickerOptions}
           workspaces={workspaces}
         />
       )}

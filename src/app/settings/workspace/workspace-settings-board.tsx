@@ -24,16 +24,9 @@ type WorkspaceRecord = {
   is_default: boolean;
 };
 
-type DriveFolderOption = {
-  value: string;
-  label: string;
-  description?: string;
-};
-
 type WorkspaceSettingsBoardProps = {
   workspaces: WorkspaceRecord[];
   currentWorkspaceId: string | null;
-  driveFolderOptions: DriveFolderOption[];
 };
 
 function choiceOptions(values: readonly string[]) {
@@ -47,10 +40,6 @@ function fieldValue(value: string | null | undefined) {
   return value ?? "";
 }
 
-function workspaceDetail(workspace: WorkspaceRecord) {
-  return [workspace.drive_root_folder_url, workspace.drive_root_folder_path].filter(Boolean).join(" - ") || "Folder Drive utama belum diisi.";
-}
-
 function matchesQuery(workspace: WorkspaceRecord, query: string) {
   const value = query.trim().toLowerCase();
 
@@ -61,8 +50,6 @@ function matchesQuery(workspace: WorkspaceRecord, query: string) {
   return [
     workspace.workspace_name,
     workspace.niche,
-    workspace.drive_root_folder_url,
-    workspace.drive_root_folder_path,
     workspace.status,
   ]
     .join(" ")
@@ -76,7 +63,7 @@ function isVisibleWorkspace(workspace: WorkspaceRecord) {
 
 function workspaceMobileMeta(workspace: WorkspaceRecord, currentWorkspaceId: string | null) {
   return [
-    workspace.drive_root_folder_ref_id || workspace.drive_root_folder_url || workspace.drive_root_folder_path ? "Drive siap" : "Drive kosong",
+    workspace.drive_root_folder_ref_id || workspace.drive_root_folder_url || workspace.drive_root_folder_path ? "Drive otomatis" : "",
     workspace.is_default ? "Default" : "",
     currentWorkspaceId === workspace.id ? "Aktif" : "",
     workspace.niche,
@@ -85,7 +72,7 @@ function workspaceMobileMeta(workspace: WorkspaceRecord, currentWorkspaceId: str
     .join(" - ");
 }
 
-export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFolderOptions }: WorkspaceSettingsBoardProps) {
+export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId }: WorkspaceSettingsBoardProps) {
   const [query, setQuery] = useState("");
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaces.find(isVisibleWorkspace)?.id ?? "");
   const [isCreating, setIsCreating] = useState(false);
@@ -165,7 +152,6 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                   <tr>
                     <th>Workspace</th>
                     <th>Status</th>
-                    <th>Drive</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
@@ -185,7 +171,6 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                           {currentWorkspaceId === workspace.id ? <StatusBadge status="Aktif" tone="info" /> : null}
                         </div>
                       </td>
-                      <td>{workspaceDetail(workspace)}</td>
                       <td>
                         <div className="product-row-actions">
                           <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(workspace.id)}>
@@ -215,7 +200,7 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                   <div className="workspace-list-card__header">
                     <div className="stack-tight">
                       <strong>{workspace.workspace_name}</strong>
-                      <span className="subtle">{workspace.drive_root_folder_path || workspace.drive_root_folder_url || "Folder Drive utama belum diisi"}</span>
+                      <span className="subtle">{workspace.niche || "Niche belum diisi"}</span>
                     </div>
                     <StatusBadge status={workspace.status} />
                   </div>
@@ -309,39 +294,6 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                 </label>
               </div>
 
-              <div className="grid two-up">
-                <label className="stack auth-field" htmlFor="workspace-drive-url">
-                  <span>Folder Drive Utama</span>
-                  <input
-                    id="workspace-drive-url"
-                    name="drive_root_folder_url"
-                    type="url"
-                    placeholder="https://..."
-                    defaultValue={fieldValue(initialWorkspace?.drive_root_folder_url)}
-                  />
-                </label>
-                <label className="stack auth-field" htmlFor="workspace-drive-path">
-                  <span>Drive path</span>
-                  <input
-                    id="workspace-drive-path"
-                    name="drive_root_folder_path"
-                    type="text"
-                    placeholder="/AffiliateAI/WORKSPACES/FASHION_MEN"
-                    defaultValue={fieldValue(initialWorkspace?.drive_root_folder_path)}
-                  />
-                </label>
-              </div>
-
-              <RelationalPicker
-                allowClear
-                defaultValue={initialWorkspace?.drive_root_folder_ref_id ?? ""}
-                label="Folder Drive ref"
-                name="drive_root_folder_ref_id"
-                options={driveFolderOptions}
-                placeholder="Pilih folder Drive"
-                searchPlaceholder="Cari folder"
-              />
-
               <label className="checkbox-row" htmlFor="workspace-is-default">
                 <input id="workspace-is-default" name="is_default" type="checkbox" defaultChecked={initialWorkspace?.is_default ?? false} />
                 <span>Jadikan default</span>
@@ -361,7 +313,7 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
             {!isCreating && initialWorkspace ? (
               <div className="stack">
                 <span className="subtle">Aksi cepat</span>
-                <FormActions layout="quad">
+                <FormActions layout="triple">
                   <form action={saveWorkspace}>
                     <input type="hidden" name="intent" value="set_current_workspace" />
                     <input type="hidden" name="return_to" value="/settings/workspace" />
@@ -376,14 +328,6 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId, driveFo
                     <input type="hidden" name="id" value={initialWorkspace.id} />
                     <NativeButton className="compact tertiary" type="submit" disabled={!isActive || initialWorkspace.is_default}>
                       Default
-                    </NativeButton>
-                  </form>
-                  <form action={saveWorkspace}>
-                    <input type="hidden" name="intent" value="provision_workspace_drive" />
-                    <input type="hidden" name="return_to" value="/settings/workspace" />
-                    <input type="hidden" name="id" value={initialWorkspace.id} />
-                    <NativeButton className="compact primary" type="submit" disabled={!isActive}>
-                      {initialWorkspace.drive_root_folder_ref_id ? "Sinkronkan Folder Drive" : "Buat Folder Drive"}
                     </NativeButton>
                   </form>
                   <form action={saveWorkspace}>

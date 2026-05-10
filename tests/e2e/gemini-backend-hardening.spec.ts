@@ -1075,12 +1075,39 @@ test("route toaster replays identical toasts after dismissal", async ({ page }) 
   await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
   await saveHashButton.click();
   await expect(successToast).toContainText("App API Token saved");
+  await expect
+    .poll(() => new URL(page.url()).searchParams.has("message"), {
+      message: "route feedback param is cleared after queueing the toast",
+    })
+    .toBe(false);
   await expect(page.locator(".activity-banner")).toHaveCount(0);
   await page.getByRole("button", { name: "Tutup notifikasi" }).click();
+  await expect(successToast).toHaveCount(0);
+  await page.reload();
   await expect(successToast).toHaveCount(0);
 
   await createTokenButton.click();
   await expect(page.locator("pre.json-block")).toContainText('"raw_token"');
   await saveHashButton.click();
   await expect(page.locator('.toast[data-tone="success"]').last()).toContainText("App API Token saved");
+});
+
+test("route toaster maps important mobile feedback to body-only notification sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/settings?error=Google%20Drive%20connection%20failed.");
+
+  const sheet = page.locator(".mobile-notification-sheet");
+
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator(".mobile-notification-sheet__icon")).toBeVisible();
+  await expect(sheet.locator(".mobile-notification-sheet__title")).toContainText("Gagal");
+  await expect(sheet.locator(".mobile-notification-sheet__message")).toContainText("Google Drive connection failed.");
+  await expect(page.locator(".mobile-notification-sheet__header")).toHaveCount(0);
+  await expect(page.locator(".toast")).toHaveCount(0);
+  await expect
+    .poll(() => new URL(page.url()).searchParams.has("error"), {
+      message: "route feedback param is cleared after queueing the mobile sheet",
+    })
+    .toBe(false);
+  await expect(sheet).toHaveCount(0, { timeout: 7000 });
 });

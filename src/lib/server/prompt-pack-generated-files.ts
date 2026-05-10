@@ -7,7 +7,6 @@ import {
   createDriveItem,
   getDriveItemByDriveItemId,
   getDriveItemByDrivePath,
-  getDriveItemById,
   updateDriveItem,
   writeGeneratedDriveFile,
   type DriveItemRecord,
@@ -15,7 +14,7 @@ import {
 import { ensureGoogleDriveFolder } from "@/lib/server/google-drive";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";
-import { getCurrentWorkspace, getWorkspaceById } from "@/lib/server/workspaces";
+import { getOrProvisionWorkspaceDriveRoot } from "@/lib/server/workspaces";
 
 type DriveFolderRecord = Pick<
   DriveItemRecord,
@@ -110,16 +109,11 @@ async function ensureDriveFolderRecord(input: {
 }
 
 async function resolveWorkspacePromptsFolder(productWorkspaceId: string | null) {
-  const workspace = productWorkspaceId ? await getWorkspaceById(productWorkspaceId) : await getCurrentWorkspace();
+  const { rootFolder } = await getOrProvisionWorkspaceDriveRoot({ workspaceId: productWorkspaceId });
+  const parentFolderId = rootFolder.drive_item_id;
 
-  if (!workspace?.drive_root_folder_ref_id) {
-    throw new Error("Sinkronkan Folder Drive Utama workspace dulu.");
-  }
-
-  const rootFolder = await getDriveItemById(workspace.drive_root_folder_ref_id);
-
-  if (!rootFolder || rootFolder.item_type !== "FOLDER" || !rootFolder.drive_item_id) {
-    throw new Error("Folder Drive Utama workspace belum valid.");
+  if (!parentFolderId) {
+    throw new Error("Folder Drive otomatis belum tersinkron.");
   }
 
   const promptsPath = joinDrivePath(rootFolder.drive_path, "PROMPTS");
@@ -136,7 +130,7 @@ async function resolveWorkspacePromptsFolder(productWorkspaceId: string | null) 
   return await ensureDriveFolderRecord({
     name: "PROMPTS",
     drivePath: promptsPath,
-    parentFolderId: rootFolder.drive_item_id,
+    parentFolderId,
     parentRecord: rootFolder,
     notes: "Workspace generated prompt files.",
   });

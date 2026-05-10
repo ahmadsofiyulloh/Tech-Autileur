@@ -399,7 +399,7 @@ function DriveFileDrawer({
   open: boolean;
   uploadTarget: DriveVisualManagerProps["uploadTarget"];
 }) {
-  const targetLabel = uploadTarget ? `${uploadTarget.name} - ${uploadTarget.drive_path}` : "Sinkronkan folder target dulu.";
+  const targetLabel = uploadTarget ? `${uploadTarget.name} - ${uploadTarget.drive_path}` : "Hubungkan Drive dulu.";
 
   return (
     <OperatorBottomSheet
@@ -564,7 +564,7 @@ export function DriveVisualManager({ items, uploadTarget }: DriveVisualManagerPr
         <EmptyState
           icon={Folder}
           title={items.length ? "Tidak ada item yang cocok." : "Belum ada item Drive."}
-          description={items.length ? "Coba kata kunci lain." : "Sinkronkan folder Drive dulu."}
+          description={items.length ? "Coba kata kunci lain." : "Hubungkan Drive dulu."}
           action={
             query ? (
               <NativeButton className="compact primary" type="button" onClick={() => setQuery("")}>

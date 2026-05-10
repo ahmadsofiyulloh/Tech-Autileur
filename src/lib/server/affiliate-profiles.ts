@@ -2,6 +2,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { setCurrentWorkspace } from "@/lib/server/workspaces";
 import {
   AFFILIATE_PLATFORMS,
   AFFILIATE_PROFILE_STATUSES,
@@ -604,25 +605,33 @@ export async function getDefaultAffiliateProfileForWorkspace(workspaceId: string
   }
 
   const context = await requireUser();
-  const { data: defaultLink, error: linkError } = await context.supabase
+  const { data: links, error: linkError } = await context.supabase
     .from("affiliate_profile_workspace_links")
-    .select("affiliate_profile_id")
+    .select("affiliate_profile_id, is_default")
     .eq("user_id", context.user.id)
     .eq("workspace_id", workspaceId)
-    .eq("is_default", true)
-    .maybeSingle();
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true });
 
   if (linkError) {
     throwAffiliateProfileError(linkError);
   }
 
-  if (!defaultLink?.affiliate_profile_id) {
+  const defaultLink = links?.find((link) => link.is_default) ?? null;
+  const singleLink = links?.length === 1 ? links[0] : null;
+  const profileId = defaultLink?.affiliate_profile_id ?? singleLink?.affiliate_profile_id ?? null;
+
+  if (!profileId) {
     return null;
   }
 
-  const profile = await requireOwnedAffiliateProfile(context, defaultLink.affiliate_profile_id);
+  const profile = await requireOwnedAffiliateProfile(context, profileId);
 
   return profile.status === "ACTIVE" ? profile : null;
+}
+
+export async function getPrimaryAffiliateProfileForWorkspace(workspaceId: string | null) {
+  return await getDefaultAffiliateProfileForWorkspace(workspaceId);
 }
 
 export async function setDefaultAffiliateProfileForWorkspace(profileId: string, workspaceId: string) {
@@ -667,8 +676,36 @@ export async function setDefaultAffiliateProfileForWorkspace(profileId: string, 
   revalidatePath("/settings/affiliate-profiles");
   revalidatePath("/prompts");
   revalidatePath("/products/new");
+  revalidatePath("/", "layout");
 
   return profile;
+}
+
+export async function activateAffiliateProfileNamespace(profileId: string) {
+  const context = await requireUser();
+  const profile = await requireOwnedAffiliateProfile(context, profileId);
+  const workspaceId = profile.default_workspace_id ?? profile.workspace_ids[0] ?? null;
+
+  if (profile.status !== "ACTIVE") {
+    throw new Error("Akun Affiliate harus aktif.");
+  }
+
+  if (!workspaceId) {
+    throw new Error("Akun Affiliate belum memiliki namespace.");
+  }
+
+  await requireOwnedActiveWorkspace(context, workspaceId);
+  await setDefaultAffiliateProfileForWorkspace(profile.id, workspaceId);
+  await setCurrentWorkspace(workspaceId);
+
+  revalidatePath("/settings");
+  revalidatePath("/settings/affiliate-profiles");
+  revalidatePath("/products/new");
+  revalidatePath("/prompts");
+  revalidatePath("/drive");
+  revalidatePath("/", "layout");
+
+  return await requireOwnedAffiliateProfile(context, profile.id);
 }
 
 export async function resolvePromptAffiliateProfile(input: { workspaceId: string | null; affiliateProfileId?: string | null }) {
