@@ -3,7 +3,6 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { ArrowRight, ImageIcon, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { AffiliateProfileHero } from "@/components/operator/affiliate-profile-hero";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
@@ -47,12 +46,6 @@ type AffiliateProfilesBoardProps = {
   currentWorkspaceId: string | null;
 };
 
-type DriveItemOption = {
-  value: string;
-  label: string;
-  description: string;
-};
-
 type RouteFeedbackTone = "success" | "warning" | "error";
 type RouteFeedback = {
   tone: RouteFeedbackTone;
@@ -82,9 +75,7 @@ function profileMatchesQuery(profile: AffiliateProfileRecord, query: string) {
   return [
     profile.profile_name,
     profile.platform,
-    profile.account_label,
     profile.niche,
-    profile.affiliate_url,
     profile.status,
     profile.product_positioning_notes,
     profile.workspace_ids.join(" "),
@@ -317,19 +308,6 @@ export function AffiliateProfilesBoard({
         filteredProfiles[0] ??
         visibleProfiles.find((profile) => profile.id === selectedProfileId) ??
         null;
-  const heroProfile = selectedProfile ?? visibleProfiles.find((profile) => profile.status === "ACTIVE") ?? visibleProfiles[0] ?? null;
-
-  const driveItemOptions = useMemo<DriveItemOption[]>(
-    () =>
-      driveItems
-        .filter((item) => item.status !== "ARCHIVED")
-        .map((item) => ({
-          value: item.id,
-          label: item.name,
-          description: [item.item_type, item.purpose, item.drive_path].filter(Boolean).join(" - "),
-        })),
-    [driveItems],
-  );
 
   useEffect(() => {
     if (!filteredProfiles.length) {
@@ -408,35 +386,6 @@ export function AffiliateProfilesBoard({
   return (
     <section className="product-master settings-manager settings-manager--affiliate" aria-label="Akun Affiliate">
       <div className="product-master__list stack">
-        {heroProfile ? (
-          <AffiliateProfileHero
-            accountLabel={heroProfile.account_label?.trim() || null}
-            actions={
-              <NativeButton className="compact tertiary" type="button" onClick={() => openEditDrawer(heroProfile.id)}>
-                <PanelRightOpen size={15} aria-hidden="true" />
-                Kelola
-              </NativeButton>
-            }
-            avatarUrl={heroProfile.avatarUrl}
-            eyebrow="Profile terpilih"
-            nicheLabel={heroProfile.niche?.trim() || null}
-            statusLabel={heroProfile.status === "ACTIVE" ? "Aktif" : heroProfile.status}
-            statusTone={heroProfile.status === "ACTIVE" ? "success" : undefined}
-            title={heroProfile.profile_name}
-          />
-        ) : (
-          <AffiliateProfileHero
-            actions={
-              <NativeButton className="compact primary" type="button" onClick={openCreateDrawer}>
-                <Plus size={15} aria-hidden="true" />
-                Profile baru
-              </NativeButton>
-            }
-            avatarUrl={null}
-            eyebrow="Akun Affiliate"
-            title="Belum ada profile affiliate."
-          />
-        )}
         <div className="settings-list-toolbar">
           <label className="product-search" htmlFor="affiliate-profile-search">
             <Search size={16} aria-hidden="true" />
@@ -556,7 +505,7 @@ export function AffiliateProfilesBoard({
           ))}
         </div>
 
-        {!filteredProfiles.length && visibleProfiles.length ? (
+        {!visibleProfiles.length ? (
           <div className="muted-box stack">
             <strong>Belum ada profile affiliate.</strong>
             <span className="subtle">Buat profile pertama.</span>
@@ -564,6 +513,13 @@ export function AffiliateProfilesBoard({
               <Plus size={15} aria-hidden="true" />
               Profile baru
             </NativeButton>
+          </div>
+        ) : null}
+
+        {visibleProfiles.length && !filteredProfiles.length ? (
+          <div className="muted-box stack">
+            <strong>Tidak ada hasil.</strong>
+            <span className="subtle">Cari profile lain.</span>
           </div>
         ) : null}
       </div>
@@ -598,6 +554,8 @@ export function AffiliateProfilesBoard({
               {!isCreating && initialProfile ? <input type="hidden" name="id" value={initialProfile.id} /> : null}
               <input type="hidden" name="current_seed_character_drive_item_ref_id" value={initialProfile?.seed_character_drive_item_ref_id ?? ""} />
               <input type="hidden" name="current_environment_drive_item_ref_id" value={initialProfile?.environment_drive_item_ref_id ?? ""} />
+              <input type="hidden" name="current_account_label" value={initialProfile?.account_label ?? ""} />
+              <input type="hidden" name="current_affiliate_url" value={initialProfile?.affiliate_url ?? ""} />
               <input type="hidden" name="workspace_ids" value={namespaceWorkspaceId} />
               <input type="hidden" name="default_workspace_id" value={namespaceWorkspaceId} />
               <input type="hidden" name="lock_seed_character" value={assetLockEnabled ? "true" : "false"} />
@@ -628,6 +586,10 @@ export function AffiliateProfilesBoard({
                   searchable={false}
                 />
               </div>
+              <label className="stack auth-field" htmlFor="affiliate-niche">
+                <span>Niche</span>
+                <input id="affiliate-niche" name="niche" type="text" placeholder="Optional niche" defaultValue={initialProfile?.niche ?? ""} />
+              </label>
 
               <section className="stack">
                 <div className="section-card__actions">
@@ -668,18 +630,6 @@ export function AffiliateProfilesBoard({
                           previewUrl={selectedSeedCharacterPreviewUrl}
                           showStatusBadge={false}
                         />
-                        <details className="stack-tight">
-                          <summary>Referensi Drive</summary>
-                          <RelationalPicker
-                            allowClear
-                            defaultValue={initialProfile?.seed_character_drive_item_ref_id}
-                            label="Referensi Character"
-                            name="seed_character_drive_item_ref_id"
-                            options={driveItemOptions}
-                            placeholder="Gunakan karakter kosong."
-                            searchPlaceholder="Cari Drive item"
-                          />
-                        </details>
                       </section>
 
                       <section className="affiliate-profile-asset-card stack-tight">
@@ -694,18 +644,6 @@ export function AffiliateProfilesBoard({
                           previewUrl={selectedEnvironmentPreviewUrl}
                           showStatusBadge={false}
                         />
-                        <details className="stack-tight">
-                          <summary>Referensi Drive</summary>
-                          <RelationalPicker
-                            allowClear
-                            defaultValue={initialProfile?.environment_drive_item_ref_id}
-                            label="Referensi Environment"
-                            name="environment_drive_item_ref_id"
-                            options={driveItemOptions}
-                            placeholder="Gunakan environment otomatis."
-                            searchPlaceholder="Cari Drive item"
-                          />
-                        </details>
                       </section>
                     </>
                   ) : (
@@ -713,26 +651,6 @@ export function AffiliateProfilesBoard({
                   )}
                 </div>
               </section>
-
-              <details>
-                <summary>Lanjutan</summary>
-                <div className="stack">
-                  <div className="grid two-up">
-                    <label className="stack auth-field" htmlFor="affiliate-account-label">
-                      <span>Account label</span>
-                      <input id="affiliate-account-label" name="account_label" type="text" placeholder="Optional account label" defaultValue={initialProfile?.account_label ?? ""} />
-                    </label>
-                    <label className="stack auth-field" htmlFor="affiliate-niche">
-                      <span>Niche</span>
-                      <input id="affiliate-niche" name="niche" type="text" placeholder="Optional niche" defaultValue={initialProfile?.niche ?? ""} />
-                    </label>
-                  </div>
-                  <label className="stack auth-field" htmlFor="affiliate-url">
-                    <span>Affiliate URL</span>
-                    <input id="affiliate-url" name="affiliate_url" type="url" placeholder="https://..." defaultValue={initialProfile?.affiliate_url ?? ""} />
-                  </label>
-                </div>
-              </details>
 
               <details>
                 <summary>Prompt rules</summary>

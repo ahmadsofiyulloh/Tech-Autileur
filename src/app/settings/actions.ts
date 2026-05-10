@@ -179,14 +179,21 @@ export async function saveWorkspace(formData: FormData) {
   done(message, returnTo);
 }
 
-function affiliateProfileInputFromForm(formData: FormData, options?: { profileCode?: string }) {
+function affiliateProfileInputFromForm(formData: FormData, options?: { profileCode?: string; preserveRemovedFields?: boolean }) {
+  const accountLabel = options?.preserveRemovedFields
+    ? readText(formData, "account_label") || readText(formData, "current_account_label")
+    : readText(formData, "account_label");
+  const affiliateUrl = options?.preserveRemovedFields
+    ? readText(formData, "affiliate_url") || readText(formData, "current_affiliate_url")
+    : readText(formData, "affiliate_url");
+
   return {
     ...(options?.profileCode ? { profile_code: options.profileCode } : {}),
     profile_name: readText(formData, "profile_name"),
     platform: readText(formData, "platform"),
-    account_label: readText(formData, "account_label"),
+    account_label: accountLabel,
     niche: readText(formData, "niche"),
-    affiliate_url: readText(formData, "affiliate_url"),
+    affiliate_url: affiliateUrl,
     i2i_prompt_rules: readText(formData, "i2i_prompt_rules"),
     i2v_prompt_rules: readText(formData, "i2v_prompt_rules"),
     caption_rules: readText(formData, "caption_rules"),
@@ -326,7 +333,7 @@ export async function saveAffiliateProfile(formData: FormData) {
       }
 
       const existingProfile = await getAffiliateProfileById(id);
-      const baseInput = affiliateProfileInputFromForm(formData);
+      const baseInput = affiliateProfileInputFromForm(formData, { preserveRemovedFields: true });
       const namespaceInput = await resolveAffiliateProfileNamespace({
         profileName: baseInput.profile_name,
         niche: baseInput.niche,

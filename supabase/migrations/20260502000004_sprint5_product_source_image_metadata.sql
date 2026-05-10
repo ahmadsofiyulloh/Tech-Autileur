@@ -82,6 +82,7 @@ create table public.product_images (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint product_images_id_user_id_key unique (id, user_id),
+  constraint product_images_id_user_product_id_key unique (id, user_id, product_id),
   constraint product_images_product_id_user_id_fkey
     foreign key (product_id, user_id)
     references public.products(id, user_id),
