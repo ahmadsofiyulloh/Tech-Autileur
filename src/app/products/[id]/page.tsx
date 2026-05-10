@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Archive, Clock3, FileText, Image, Link2, Package, Workflow } from "lucide-react";
+import { ArrowLeft, Archive, Clock3, FileText, Package } from "lucide-react";
+import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { TopbarOverride } from "@/components/operator/topbar-context";
-import { NativeAnchorButton, NativeLinkButton } from "@/components/ui/native-button";
+import { NativeLinkButton } from "@/components/ui/native-button";
 import { ProductOutputFields } from "../product-output-fields";
 import { listContents } from "@/lib/server/contents";
 import { listClipJobs, listGeneratedFiles } from "@/lib/server/clip-jobs";
@@ -49,10 +50,6 @@ type ProductDetailPageProps = {
   searchParams: Promise<{ tab?: string | string[] }>;
 };
 
-function fieldValue(value: string | number | null | undefined) {
-  return value ?? "Not set";
-}
-
 function formatDate(value: string) {
   return new Date(value).toLocaleString("en-US", {
     dateStyle: "medium",
@@ -60,8 +57,108 @@ function formatDate(value: string) {
   });
 }
 
-function prettyJson(value: unknown) {
-  return value ? JSON.stringify(value, null, 2) : "No output yet.";
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readRecord(value: unknown) {
+  return isRecord(value) ? value : null;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => readString(item)).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+type OcrEvidenceView = {
+  visibleTextLines: string[];
+  extractedFields: {
+    productTitle: string;
+    category: string;
+    ratingText: string;
+    soldCountText: string;
+    priceText: string;
+    shopName: string;
+  };
+};
+
+function readOcrEvidenceBlock(value: unknown): OcrEvidenceView | null {
+  const block = readRecord(value);
+
+  if (!block) {
+    return null;
+  }
+
+  const qualityFlags = readStringArray(block.quality_flags);
+
+  if (qualityFlags.includes("missing_source_image")) {
+    return null;
+  }
+
+  const fields = readRecord(block.extracted_fields) ?? {};
+  const evidence = {
+    visibleTextLines: readStringArray(block.visible_text_lines),
+    extractedFields: {
+      productTitle: readString(fields.product_title),
+      category: readString(fields.category),
+      ratingText: readString(fields.rating_text),
+      soldCountText: readString(fields.sold_count_text),
+      priceText: readString(fields.price_text),
+      shopName: readString(fields.shop_name),
+    },
+  };
+
+  return hasOcrEvidenceContent(evidence) ? evidence : null;
+}
+
+function hasOcrEvidenceContent(evidence: OcrEvidenceView) {
+  return Boolean(evidence.visibleTextLines.length || Object.values(evidence.extractedFields).some(Boolean));
+}
+
+function readMetadataOcrEvidence(metadata: Record<string, unknown> | null, key: "shopee_screenshot" | "tiktok_screenshot") {
+  const ocrEvidence = readRecord(metadata?.ocr_evidence);
+  return readOcrEvidenceBlock(ocrEvidence?.[key]);
+}
+
+function readMarketplaceSourceOcrEvidence(sources: MarketplaceSourceRecord[], platform: "SHOPEE" | "TIKTOK") {
+  const source = sources.find((item) => item.platform === platform && item.status !== "ARCHIVED");
+  const metadata = readRecord(source?.parsed_metadata_json);
+  return readOcrEvidenceBlock(metadata?.ocr_evidence);
+}
+
+function ocrLinesValue(evidence: OcrEvidenceView) {
+  return evidence.visibleTextLines.join("\n");
+}
+
+function OcrCopyFields({ evidence, platform }: { evidence: OcrEvidenceView; platform: "Shopee" | "TikTok" }) {
+  return (
+    <details className="prompt-output-section" open>
+      <summary>OCR {platform}</summary>
+      <div className="prompt-output-section__body">
+        <CopyableReadOnlyField label="Title" value={evidence.extractedFields.productTitle} />
+        <CopyableReadOnlyField label="Kategori" value={evidence.extractedFields.category} />
+        <CopyableReadOnlyField label="Rating" value={evidence.extractedFields.ratingText} />
+        <CopyableReadOnlyField label="Terjual" value={evidence.extractedFields.soldCountText} />
+        <CopyableReadOnlyField label="Harga" value={evidence.extractedFields.priceText} />
+        <CopyableReadOnlyField label="Toko" value={evidence.extractedFields.shopName} />
+        <CopyableReadOnlyField label="Teks OCR" value={ocrLinesValue(evidence)} />
+      </div>
+    </details>
+  );
 }
 
 function resolveTab(value: string | string[] | undefined): DetailTab {
@@ -261,8 +358,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const productWorkspaceLabel = workspaceLabel(product.workspace_id, workspaceMap);
   const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
-  const primaryImage = productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
-  const primaryDriveItem = primaryImage ? driveItemMap.get(primaryImage.drive_item_ref_id) ?? null : null;
   const latestPromptPack = visiblePromptPacks[0] ?? null;
   const orderedFlowBatches = [...flowBatches].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
   const latestFlowBatch =
@@ -278,6 +373,11 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
   const reviewedMetadata = (latestIntakeSession?.reviewed_metadata_json ?? latestIntakeSession?.parsed_metadata_json ?? null) as
     | Record<string, unknown>
     | null;
+  const shopeeOcrEvidence =
+    readMetadataOcrEvidence(reviewedMetadata, "shopee_screenshot") ?? readMarketplaceSourceOcrEvidence(marketplaceSources, "SHOPEE");
+  const tiktokOcrEvidence =
+    readMetadataOcrEvidence(reviewedMetadata, "tiktok_screenshot") ?? readMarketplaceSourceOcrEvidence(marketplaceSources, "TIKTOK");
+  const hasMetadataOcrEvidence = Boolean(shopeeOcrEvidence || tiktokOcrEvidence);
   const orderedContents = [...contents].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
   const outputContents = orderedContents.slice(0, 2);
   const promptOutputSet = readPromptPackEditorPromptSet(latestPromptPack ?? {});
@@ -351,7 +451,6 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     hasFolderDrive: Boolean(outputFolderDrive),
   });
   const hasLegacyClipData = outputContents.length > 0;
-  const hasReferenceDetails = Boolean(productImages.length || intakeSessions.length || marketplaceSources.length || anchors.length);
   const hasTechnicalHistoryDetails = Boolean(relevantClipJobs.length || relevantGeneratedFiles.length);
 
   const timelineItems = [
@@ -450,137 +549,14 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
 
       {activeTab === "metadata" ? (
         <section className="stack">
-          <SectionCard
-            icon={Package}
-            title="Product metadata"
-            actions={<StatusBadge status={product.status} />}
-          >
-            <div className="metric-grid">
-              <div className="metric">
-                <span>Workspace</span>
-                <strong>{productWorkspaceLabel}</strong>
-              </div>
-              <div className="metric">
-                <span>Marketplace</span>
-                <strong>{fieldValue(product.marketplace)}</strong>
-              </div>
-              <div className="metric">
-                <span>Niche</span>
-                <strong>{fieldValue(product.niche)}</strong>
-              </div>
-              <div className="metric">
-                <span>Primary image</span>
-                <strong>{primaryDriveItem?.name ?? "Not attached"}</strong>
-              </div>
-              <div className="metric">
-                <span>Created</span>
-                <strong>{formatDate(product.created_at)}</strong>
-              </div>
-              <div className="metric">
-                <span>Updated</span>
-                <strong>{formatDate(product.updated_at)}</strong>
-              </div>
-            </div>
-            {product.marketplace_product_link ? (
-              <NativeAnchorButton className="compact" href={product.marketplace_product_link} target="_blank" rel="noreferrer">
-                <Link2 size={15} aria-hidden="true" />
-                Open source link
-              </NativeAnchorButton>
-            ) : null}
-          </SectionCard>
-
-          {hasReferenceDetails ? (
-            <details>
-              <summary>Referensi audit</summary>
-              <div className="stack product-detail-collection">
-                {productImages.length ? (
-                  <SectionCard icon={Image} title="Source images">
-                    <ul className="list">
-                      {productImages.map((image) => {
-                        const driveItem = driveItemMap.get(image.drive_item_ref_id);
-
-                        return (
-                          <li key={image.id}>
-                            <div className="stack-tight">
-                              <strong>{driveItem?.name ?? image.drive_item_ref_id}</strong>
-                              <span className="subtle">
-                                {[driveItem?.drive_path, image.is_primary ? "Primary" : null].filter(Boolean).join(" - ")}
-                              </span>
-                            </div>
-                            <StatusBadge status={image.status} />
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </SectionCard>
-                ) : null}
-
-                {intakeSessions.length ? (
-                  <SectionCard icon={Archive} title="Intake">
-                    <ul className="list">
-                      {intakeSessions.map((session) => (
-                        <li key={session.id}>
-                          <div className="stack-tight">
-                            <strong>{fieldValue(session.product_title)}</strong>
-                            <span className="subtle">
-                              {[session.shopee_url ? "Shopee" : null, session.tiktok_url ? "TikTok" : null]
-                                .filter(Boolean)
-                                .join(" - ")}
-                            </span>
-                          </div>
-                          <StatusBadge status={session.status} />
-                        </li>
-                      ))}
-                    </ul>
-                  </SectionCard>
-                ) : null}
-
-                {marketplaceSources.length ? (
-                  <SectionCard icon={Link2} title="Marketplace sources">
-                    <section className="grid two-up">
-                      {marketplaceSources.map((source) => (
-                        <div className="muted-box stack-tight" key={source.id}>
-                          <div className="section-card__actions">
-                            <strong>{source.platform}</strong>
-                            <StatusBadge status={source.status} />
-                          </div>
-                          <p>{fieldValue(source.title)}</p>
-                          <p className="subtle">
-                            {[source.category, source.price_text, source.shop_name].filter(Boolean).join(" - ") || "No source details."}
-                          </p>
-                          {source.product_url ? (
-                            <a href={source.product_url} target="_blank" rel="noreferrer">
-                              Product URL
-                            </a>
-                          ) : null}
-                        </div>
-                      ))}
-                    </section>
-                  </SectionCard>
-                ) : null}
-
-                {anchors.length ? (
-                  <SectionCard icon={Workflow} title="Anchor summary">
-                    <section className="stack">
-                      {anchors.map((anchor) => (
-                        <div className="muted-box stack-tight" key={anchor.id}>
-                          <div className="section-card__actions">
-                            <strong>Anchor</strong>
-                            <StatusBadge status={anchor.status} />
-                          </div>
-                          <p>Version {anchor.version}</p>
-                          <details>
-                            <summary>Anchor JSON</summary>
-                            <pre className="json-block">{prettyJson(anchor.anchor_json)}</pre>
-                          </details>
-                        </div>
-                      ))}
-                    </section>
-                  </SectionCard>
-                ) : null}
-              </div>
-            </details>
-          ) : null}
+          {hasMetadataOcrEvidence ? (
+            <section className="prompt-output-grid metadata-ocr-fields" aria-label="OCR screenshot">
+              {shopeeOcrEvidence ? <OcrCopyFields evidence={shopeeOcrEvidence} platform="Shopee" /> : null}
+              {tiktokOcrEvidence ? <OcrCopyFields evidence={tiktokOcrEvidence} platform="TikTok" /> : null}
+            </section>
+          ) : (
+            <EmptyState icon={Package} title="OCR screenshot belum ada." description="Jalankan Analisis Metadata." />
+          )}
         </section>
       ) : null}
 

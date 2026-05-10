@@ -18,7 +18,7 @@ This prevents silent loss when Gemini is slow or fails, and prevents the UI from
 - A saved product remains `products.status = DRAFT` until a later explicit workflow transition.
 - Source image availability is derived from Drive-backed image/evidence rows, not from `products.status`.
 - Metadata readiness is derived from the intake session and analysis action state, not from `products.status`.
-- `Analisis Metadata` requires the evidence needed by the Gemini vision contract: product image, Shopee screenshot, and TikTok screenshot.
+- `Analisis Metadata` requires the evidence needed by the Gemini vision contract: product image and at least one Shopee or TikTok screenshot.
 - Gemini failure must not remove the saved product from the operator flow.
 - After save, the operator stays on `/products/new`.
 - After metadata analysis succeeds, the operator stays on `/products/new` for review/next action instead of being auto-redirected.
@@ -103,7 +103,7 @@ Mobile layout:
 Action contract:
 
 - primary action before capture: `Simpan Produk`.
-- primary action after capture and evidence complete: `Analisis Metadata`.
+- primary action after capture and at least one marketplace screenshot evidence: `Analisis Metadata`.
 - retry action after failure: same analysis action, with visible failed state.
 - prompt action appears only when metadata and profile readiness allow it.
 
@@ -152,6 +152,10 @@ Inline status:
 - long context text must truncate or line-clamp safely.
 - badge and context text need consistent spacing.
 - fixes should use reusable card/list patterns where possible, not one-off string patches.
+
+## Product Detail Metadata Tab
+
+The product detail `Metadata` tab shows screenshot OCR only. It uses the same read-only copy field pattern as Prompt Detail, with `Salin` actions, and excludes technical audit data such as Drive IDs, paths, schema versions, task IDs, raw JSON, timestamps, and extraction diagnostics.
 
 ## Micro-Task Sequence
 

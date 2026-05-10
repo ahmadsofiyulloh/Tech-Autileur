@@ -63,7 +63,7 @@ Mobile intake must support:
 - upload `Screenshot TikTok`.
 - local preview before submit.
 - `Simpan Produk` action with only product image required.
-- `Analisis Metadata` action after required screenshot evidence is complete.
+- `Analisis Metadata` action after at least one Shopee or TikTok screenshot evidence is complete.
 - recoverable failed/pending metadata state with retry.
 - three equal mini preview cards on mobile without a product/screenshot tab split.
 - active Affiliate Account readiness card without profile switching.

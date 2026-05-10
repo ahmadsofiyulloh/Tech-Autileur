@@ -8,7 +8,7 @@ This lock defines how uploaded product evidence becomes generated prompt packs. 
 ```text
 /products/new upload product image
 -> Simpan Produk
--> complete Shopee + TikTok screenshot evidence
+-> complete at least one marketplace screenshot evidence
 -> Analisis Metadata
 -> Metadata review
 -> Buat Prompt
@@ -28,8 +28,7 @@ Minimum for `Simpan Produk`:
 Minimum for `Analisis Metadata`:
 
 - `Foto Produk Utama`: at least 1 image byte upload.
-- `Screenshot Shopee`: at least 1 Shopee screenshot byte upload.
-- `Screenshot TikTok`: at least 1 TikTok screenshot byte upload.
+- Marketplace screenshot evidence: at least 1 screenshot byte upload from `Screenshot Shopee` or `Screenshot TikTok`.
 
 Optional:
 

@@ -30,7 +30,7 @@ Core flow:
 
 1. `/products/new` Intake entrypoint.
 2. Mobile upload/capture for product image, with product capture saved before metadata analysis.
-3. Shopee and TikTok screenshots complete the evidence required for Gemini metadata analysis.
+3. At least one Shopee or TikTok screenshot completes the evidence required for Gemini metadata analysis.
 4. Active Affiliate Account readiness is shown in Intake without profile switching.
 5. Live Gemini analysis from uploaded image bytes.
 6. Metadata review.
@@ -48,7 +48,7 @@ Do not start broad feature work. Start with the locked vertical slice:
 /products/new Intake
 -> upload Foto Produk Utama
 -> Simpan Produk as durable DRAFT capture
--> complete Screenshot Shopee + Screenshot TikTok evidence
+-> complete at least one marketplace screenshot evidence
 -> Analisis Metadata with Gemini
 -> Metadata review
 -> active Affiliate Account readiness handoff

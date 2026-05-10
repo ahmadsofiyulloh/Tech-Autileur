@@ -516,12 +516,14 @@ export function IntakeWorkflowForm({
   const hasSavedShopeePreview = Boolean(savedSessionEvidencePreviewUrls?.shopeeScreenshot);
   const hasSavedTiktokPreview = Boolean(savedSessionEvidencePreviewUrls?.tiktokScreenshot);
   const hasSavedSession = Boolean(savedSession?.id);
+  const hasShopeeEvidence = Boolean(shopeeScreenshot.selected || hasSavedShopeePreview);
+  const hasTiktokEvidence = Boolean(tiktokScreenshot.selected || hasSavedTiktokPreview);
+  const hasMarketplaceEvidence = hasShopeeEvidence || hasTiktokEvidence;
   const canSaveProduct = Boolean(productImage.selected);
   const canAnalyzeMetadata =
     hasSavedSession &&
     Boolean(productImage.selected || hasSavedProductPreview) &&
-    Boolean(shopeeScreenshot.selected || hasSavedShopeePreview) &&
-    Boolean(tiktokScreenshot.selected || hasSavedTiktokPreview);
+    hasMarketplaceEvidence;
   const sessionHasMetadata = savedSession ? hasSessionMetadata(savedSession) : false;
   const isMetadataPending = Boolean(savedSession && savedSession.status === "SUBMITTED" && !sessionHasMetadata);
   const isMetadataFailed = Boolean(savedSession && savedSession.status === "ERROR" && !sessionHasMetadata);
@@ -556,7 +558,7 @@ export function IntakeWorkflowForm({
 
   function evidenceBadge() {
     if (canAnalyzeMetadata) {
-      return { badgeLabel: "Lengkap", badgeTone: "success" as const };
+      return { badgeLabel: "Siap", badgeTone: "success" as const };
     }
 
     if (hasSavedSession || productImage.selected || shopeeScreenshot.selected || tiktokScreenshot.selected) {
@@ -639,8 +641,8 @@ export function IntakeWorkflowForm({
 
   const evidenceStep = {
     id: "evidence",
-    label: "Evidence Lengkap",
-    summary: canAnalyzeMetadata ? "Shopee dan TikTok lengkap" : "Lengkapi screenshot Shopee dan TikTok",
+    label: "Evidence Screenshot",
+    summary: canAnalyzeMetadata ? "Screenshot tersedia" : "Tambah minimal satu screenshot",
     status: canAnalyzeMetadata ? "completed" : hasSavedSession || productImage.selected || shopeeScreenshot.selected || tiktokScreenshot.selected ? "active" : "pending",
     ...evidenceBadge(),
     panel: (
@@ -669,7 +671,7 @@ export function IntakeWorkflowForm({
             onSelectionChange={setTiktokScreenshot}
           />
         </div>
-        <span className="settings-card-meta-line">Analisis aktif setelah dua screenshot lengkap.</span>
+        <span className="settings-card-meta-line">Analisis aktif setelah minimal satu screenshot.</span>
       </section>
     ),
   } satisfies IntakeStepperStep;
@@ -677,7 +679,7 @@ export function IntakeWorkflowForm({
   const analysisStep = {
     id: "analysis",
     label: "Analisis Metadata",
-    summary: isMetadataPending ? "Sedang dianalisis" : sessionHasMetadata ? "Analisis selesai" : canAnalyzeMetadata ? "Siap dianalisis" : "Menunggu evidence lengkap",
+    summary: isMetadataPending ? "Sedang dianalisis" : sessionHasMetadata ? "Analisis selesai" : canAnalyzeMetadata ? "Siap dianalisis" : "Menunggu screenshot",
     status: isMetadataPending || isAnalyzingMetadata ? "loading" : isMetadataFailed ? "error" : sessionHasMetadata ? "completed" : canAnalyzeMetadata ? "active" : "locked",
     ...analysisStepBadge,
     panel: !savedSession ? (
@@ -701,7 +703,7 @@ export function IntakeWorkflowForm({
         <div className="section-card__actions">
           <div className="stack-tight">
             <strong>Analisis Metadata</strong>
-            <span className="settings-card-meta-line">Aktif setelah Capture Produk dan Evidence Lengkap selesai.</span>
+            <span className="settings-card-meta-line">Aktif setelah Capture Produk dan minimal satu screenshot.</span>
           </div>
           <StatusBadge status={canAnalyzeMetadata ? "Siap" : "Terkunci"} tone={canAnalyzeMetadata ? "success" : "warning"} />
         </div>
@@ -717,7 +719,7 @@ export function IntakeWorkflowForm({
             >
               Analisis Metadata
             </PendingActionButton>
-            {!canAnalyzeMetadata ? <span className="intake-inline-status">Lengkapi evidence dulu.</span> : null}
+            {!canAnalyzeMetadata ? <span className="intake-inline-status">Tambahkan screenshot dulu.</span> : null}
           </div>
         </FormActions>
       </section>

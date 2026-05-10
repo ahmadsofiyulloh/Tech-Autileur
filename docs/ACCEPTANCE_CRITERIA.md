@@ -23,7 +23,7 @@
 - `/products/[id]` shows `Metadata`, `Output`, and `History`.
 - Intake uses upload cards with local preview.
 - Intake can save a durable `DRAFT` product with at least 1 `Foto Produk Utama`.
-- Intake requires at least 1 `Foto Produk Utama`, 1 `Screenshot Shopee`, and 1 `Screenshot TikTok` before `Analisis Metadata`.
+- Intake requires at least 1 `Foto Produk Utama` and at least 1 screenshot from `Screenshot Shopee` or `Screenshot TikTok` before `Analisis Metadata`.
 - No product title/account/metadata field is required before metadata analysis.
 - `Simpan Produk` and `Analisis Metadata` are separate actions.
 - Metadata readiness is not inferred from `products.status`.

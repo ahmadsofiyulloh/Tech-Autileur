@@ -316,7 +316,7 @@ Do not require Gemini success before creating durable product/intake records.
 
 ### `product_marketplace_sources`
 
-Marketplace evidence rows for Shopee and TikTok screenshots.
+Marketplace evidence rows for Shopee and/or TikTok screenshots.
 
 ```text
 id uuid pk

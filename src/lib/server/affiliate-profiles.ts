@@ -2,7 +2,8 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { setCurrentWorkspace } from "@/lib/server/workspaces";
+import { getOrProvisionWorkspaceDriveRoot, setCurrentWorkspace } from "@/lib/server/workspaces";
+import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
 import {
   AFFILIATE_PLATFORMS,
   AFFILIATE_PROFILE_STATUSES,
@@ -80,6 +81,29 @@ type AffiliateProfileMutationInput = AffiliateProfileInput & {
   workspace_ids?: string[] | null;
   default_workspace_id?: string | null;
 };
+
+async function provisionAffiliateWorkspaceDriveIfConnected(workspaceId: string | null | undefined) {
+  if (!workspaceId) {
+    return;
+  }
+
+  try {
+    const connection = await getGoogleDriveConnection();
+
+    if (connection?.status === "CONNECTED") {
+      await getOrProvisionWorkspaceDriveRoot({ workspaceId });
+    }
+  } catch (error) {
+    if (isGoogleDriveConnectionSchemaMissingError(error)) {
+      return;
+    }
+
+    console.warn("[affiliate-profiles] Workspace Drive provisioning skipped", {
+      workspaceId,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
 
 type AffiliateProfileUpdateInput = Partial<AffiliateProfileInput> & {
   workspace_ids?: string[] | null;
@@ -508,6 +532,7 @@ export async function createAffiliateProfile(input: AffiliateProfileMutationInpu
 
   if (workspaceIds.length) {
     await syncAffiliateProfileWorkspaceLinks(context, profile.id, workspaceIds, input.default_workspace_id);
+    await provisionAffiliateWorkspaceDriveIfConnected(input.default_workspace_id ?? workspaceIds[0] ?? null);
   }
 
   revalidatePath("/settings");
@@ -697,6 +722,7 @@ export async function activateAffiliateProfileNamespace(profileId: string) {
   await requireOwnedActiveWorkspace(context, workspaceId);
   await setDefaultAffiliateProfileForWorkspace(profile.id, workspaceId);
   await setCurrentWorkspace(workspaceId);
+  await provisionAffiliateWorkspaceDriveIfConnected(workspaceId);
 
   revalidatePath("/settings");
   revalidatePath("/settings/affiliate-profiles");
@@ -754,7 +780,9 @@ export async function updateAffiliateProfile(id: string, input: AffiliateProfile
   const nextProfile = data as AffiliateProfileRow;
 
   if (input.workspace_ids !== undefined || input.default_workspace_id !== undefined) {
-    await syncAffiliateProfileWorkspaceLinks(context, id, input.workspace_ids ?? [], input.default_workspace_id);
+    const workspaceIds = normalizeWorkspaceIds(input.workspace_ids ?? []);
+    await syncAffiliateProfileWorkspaceLinks(context, id, workspaceIds, input.default_workspace_id);
+    await provisionAffiliateWorkspaceDriveIfConnected(input.default_workspace_id ?? workspaceIds[0] ?? null);
   }
 
   revalidatePath("/settings");

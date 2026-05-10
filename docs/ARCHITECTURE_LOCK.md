@@ -150,7 +150,7 @@ Google Drive stores real uploaded product images, marketplace screenshots, promp
 
 Google Drive folder setup is static and automatic for the MVP. The app provisions the fixed `/AffiliateAI/` folder tree server-side when a connected Drive account is available; operators do not paste or pick Drive root folder links during normal setup.
 
-2026-05-07 Intake lifecycle lock: product capture and metadata analysis are separate. Intake may save a `DRAFT` product with the product image first, then run Gemini metadata analysis after Shopee and TikTok screenshot evidence is complete. Metadata readiness must not be inferred from `products.status`, and Gemini failure must keep the saved product recoverable.
+2026-05-07 Intake lifecycle lock: product capture and metadata analysis are separate. Intake may save a `DRAFT` product with the product image first, then run Gemini metadata analysis after at least one Shopee or TikTok screenshot evidence is complete. Metadata readiness must not be inferred from `products.status`, and Gemini failure must keep the saved product recoverable.
 
 ## AI
 

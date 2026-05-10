@@ -39,6 +39,10 @@ Google Drive is the source of truth for all file bytes and assets. Supabase stor
   /02_WORKSPACES/
     /WORKSPACE_CODE/
       /ROOT_FOLDER/
+        /INTAKE/
+          /INTAKE_CODE/
+            /product/
+            /evidence_screenshot/
       /PRODUCTS/
       /PROMPTS/
 
@@ -81,7 +85,8 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 
 - Create standard folders.
 - Upload product image bytes and store Drive metadata before Gemini metadata success when the operator uses `Simpan Produk`.
-- Upload marketplace screenshot bytes and store Drive metadata before `Analisis Metadata`.
+- For every new Intake, create one folder under the active Affiliate Account workspace root, with `/product` and `/evidence_screenshot` subfolders.
+- Upload marketplace screenshot bytes and store Drive metadata before `Analisis Metadata`; at least one Shopee or TikTok screenshot is required.
 - Upload affiliate profile character and environment assets from the Affiliate Profile drawer into the profile-owned admin folders.
 - Store those profile assets as Drive metadata references that resolve back to the active Affiliate Profile or its linked workspace context.
 - Attach existing Drive file metadata by URL or picker when needed.

@@ -28,7 +28,7 @@ Login
 -> Produk list
 -> /products/new upload Foto Produk Utama
 -> Simpan Produk as DRAFT capture
--> complete Screenshot Shopee + Screenshot TikTok evidence
+-> complete at least one marketplace screenshot evidence
 -> Analisis Metadata
 -> Metadata review
 -> active Affiliate Account readiness

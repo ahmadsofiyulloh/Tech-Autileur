@@ -65,7 +65,7 @@ const ocrEvidenceBlockSchema = {
     confidence: confidenceSchema,
     quality_flags: {
       ...stringArraySchema,
-      description: "Image or extraction quality flags such as blurry, cropped, rotated, low_resolution, occluded, or none.",
+      description: "Image or extraction quality flags such as blurry, cropped, rotated, low_resolution, occluded, missing_source_image, or none.",
     },
   },
   additionalProperties: false,

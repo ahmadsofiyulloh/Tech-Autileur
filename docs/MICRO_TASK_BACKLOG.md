@@ -206,11 +206,11 @@ Known visual/backend gaps:
 ## S2 - Intake Workflow
 
 ### S2-001 - Upload-only intake before Gemini _(DONE)_
-**Goal:** `/products/new` requires `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok` upload cards before analysis.
+**Goal:** `/products/new` shows `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok` upload cards before analysis.
 **Owner:** Codex
 **Acceptance:** no title/account/metadata fields are shown before `Analisis Gemini`.
 
-Superseded follow-up: MT-INTAKE-01 keeps upload-only intake but separates `Simpan Produk` from `Analisis Metadata`, allowing product capture with product image before screenshot evidence is complete.
+Superseded follow-up: MT-INTAKE-01 keeps upload-only intake but separates `Simpan Produk` from `Analisis Metadata`, allowing product capture with product image before screenshot evidence is complete. Later evidence lock allows `Analisis Metadata` with at least one Shopee or TikTok screenshot.
 
 ### S2-002 - Real Drive upload _(DONE)_
 **Goal:** Store uploaded image/screenshot bytes in Google Drive and metadata in Supabase.

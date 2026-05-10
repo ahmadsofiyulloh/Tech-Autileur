@@ -49,7 +49,7 @@ Locked decisions:
 - Product capture must be durable before Gemini metadata analysis succeeds.
 - `Simpan Produk` is enabled with at least one `Foto Produk Utama`.
 - A newly captured product remains `DRAFT`; metadata readiness is not inferred from `products.status`.
-- Shopee and TikTok screenshots are required for metadata analysis, not for the first product save.
+- At least one Shopee or TikTok screenshot is required for metadata analysis, not for the first product save.
 - Gemini failure must leave the saved product recoverable with visible retry/failure state.
 - Intake stays on `/products/new` after save and after successful metadata analysis.
 - Intake does not expose Affiliate Profile switching. It shows the active Affiliate Account context and readiness only.
@@ -128,17 +128,17 @@ Mobile intake product capture
 
 Before metadata analysis, intake is upload-only.
 
-Required upload cards:
+Upload cards:
 
 - `Foto Produk Utama`: at least 1 product image.
-- `Screenshot Shopee`: at least 1 Shopee marketplace screenshot.
-- `Screenshot TikTok`: at least 1 TikTok marketplace screenshot.
+- `Screenshot Shopee`: optional Shopee marketplace screenshot.
+- `Screenshot TikTok`: optional TikTok marketplace screenshot.
 
 Save and analysis lifecycle:
 
 - `Simpan Produk` is the first durable capture action and requires only `Foto Produk Utama`.
 - Saved products remain `DRAFT` until a later explicit workflow transition.
-- `Analisis Metadata` is a separate action and requires `Foto Produk Utama`, `Screenshot Shopee`, and `Screenshot TikTok`.
+- `Analisis Metadata` is a separate action and requires `Foto Produk Utama` plus at least one of `Screenshot Shopee` or `Screenshot TikTok`.
 - Metadata readiness is derived from intake session metadata/review state and action state, not from `products.status`.
 - If Gemini fails or is slow, the product remains visible and retryable.
 
@@ -181,6 +181,8 @@ Pain Point
 Selling Angle
 Target Viewer
 ```
+
+Product detail `Metadata` tab displays screenshot OCR only, using read-only copy fields with `Salin` actions. It must not surface technical audit data such as Drive IDs, paths, schema versions, task IDs, raw JSON, or extraction diagnostics in the main Metadata tab.
 
 ### 1.6 Prompt UX
 

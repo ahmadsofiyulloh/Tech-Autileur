@@ -54,7 +54,13 @@ import {
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
 import { getGeminiFailureDisposition } from "@/lib/server/gemini-failure-policy";
-import { createDriveItem, getDriveItemById } from "@/lib/server/drive-items";
+import {
+  createDriveItem,
+  getDriveItemByDriveItemId,
+  getDriveItemByDrivePath,
+  getDriveItemById,
+  updateDriveItem,
+} from "@/lib/server/drive-items";
 import {
   attachProductSourceImage,
   buildProductCode,
@@ -70,7 +76,7 @@ import {
   createMarketplaceSource,
   listProductMarketplaceSources,
 } from "@/lib/server/product-marketplace-sources";
-import { getGoogleDriveFileContentBytes, uploadFileToGoogleDrive } from "@/lib/server/google-drive";
+import { ensureGoogleDriveFolder, getGoogleDriveFileContentBytes, uploadFileToGoogleDrive } from "@/lib/server/google-drive";
 import { getCurrentWorkspace, getOrProvisionWorkspaceDriveRoot } from "@/lib/server/workspaces";
 import { normalizeNullableWorkspaceUuid } from "@/lib/workspaces/validation";
 
@@ -191,8 +197,8 @@ export type IntakeSessionInput = {
 type ManualSourceInput = Omit<MarketplaceSourceInput, "product_id" | "platform">;
 type IntakeAnalysisUploadInput = {
   productImage: File;
-  shopeeScreenshot: File;
-  tiktokScreenshot: File;
+  shopeeScreenshot?: File | null;
+  tiktokScreenshot?: File | null;
 };
 
 const INTAKE_VISION_SYSTEM_INSTRUCTION = [
@@ -607,43 +613,116 @@ function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
 
 function buildIntakeParsePrompt(input: {
   productImage: { name: string; mimeType: string; size: number };
-  shopeeScreenshot: { name: string; mimeType: string; size: number };
-  tiktokScreenshot: { name: string; mimeType: string; size: number };
+  shopeeScreenshot: { name: string; mimeType: string; size: number } | null;
+  tiktokScreenshot: { name: string; mimeType: string; size: number } | null;
 }) {
+  const imageOrder = [
+    "1. product_image",
+    input.shopeeScreenshot ? "2. shopee_screenshot" : null,
+    input.tiktokScreenshot ? `${input.shopeeScreenshot ? "3" : "2"}. tiktok_screenshot` : null,
+  ].filter((value): value is string => Boolean(value));
+  const uploadedEvidence = {
+    product_image: input.productImage,
+    shopee_screenshot: input.shopeeScreenshot ?? { missing: true },
+    tiktok_screenshot: input.tiktokScreenshot ?? { missing: true },
+  };
+  const marketplaceRule =
+    input.shopeeScreenshot && input.tiktokScreenshot
+      ? '- Set marketplace to "Shopee + TikTok" when both marketplace screenshots are present, even if one has weaker OCR.'
+      : input.shopeeScreenshot
+        ? '- Set marketplace to "SHOPEE" because only Shopee screenshot evidence is present.'
+        : '- Set marketplace to "TIKTOK" because only TikTok screenshot evidence is present.';
+
   return [
     "Task: extract OCR evidence and prompt-ready product metadata from the uploaded bytes.",
     `schema_version must be "${INTAKE_VISION_SCHEMA_VERSION}".`,
     `prompt_version must be "${INTAKE_VISION_PROMPT_VERSION}".`,
     "",
     "Image order:",
-    "1. product_image",
-    "2. shopee_screenshot",
-    "3. tiktok_screenshot",
+    ...imageOrder,
     "",
     "Literal OCR rules:",
     "- Copy visible marketplace text exactly for title, category, rating, sold count, price, and shop/account name.",
     "- Do not translate, normalize currency, round ratings, or rewrite sold count abbreviations in literal fields.",
     "- If text is unreadable or absent, use an empty string and add a quality flag.",
     "- visible_text_lines should contain concise exact text lines seen in each image.",
+    '- For a missing marketplace screenshot, return an empty OCR evidence block for that platform and add the quality flag "missing_source_image".',
     "",
     "Inference rules:",
     "- Use short operator-friendly Indonesian for nama_produk, keyword_cari_etalase, deskripsi_visual, use_case, pain_point, selling_angle, and target_viewer.",
-    '- Set marketplace to "Shopee + TikTok" when both marketplace screenshots are present, even if one has weaker OCR.',
+    marketplaceRule,
     "- Set extraction_quality.review_required to true when any key marketplace field is unreadable, cropped, blurry, or inferred.",
     "- Do not claim visual parsing from links.",
     "- Return JSON only. No markdown, code fences, or commentary.",
     "",
     "Uploaded evidence:",
     JSON.stringify(
-      {
-        product_image: input.productImage,
-        shopee_screenshot: input.shopeeScreenshot,
-        tiktok_screenshot: input.tiktokScreenshot,
-      },
+      uploadedEvidence,
       null,
       2,
     ),
   ].join("\n");
+}
+
+function missingMarketplaceOcrEvidenceBlock(): IntakeOcrEvidenceBlock {
+  return {
+    visible_text_lines: [],
+    extracted_fields: {
+      product_title: "",
+      category: "",
+      rating_text: "",
+      sold_count_text: "",
+      price_text: "",
+      shop_name: "",
+    },
+    confidence: "low",
+    quality_flags: ["missing_source_image"],
+  };
+}
+
+function appendUniqueValues(values: string[], additions: string[]) {
+  return [...new Set([...values, ...additions].map((value) => value.trim()).filter(Boolean))];
+}
+
+function applyMarketplaceEvidenceAvailability(
+  metadata: IntakeVisionParseOutput,
+  availability: { shopee: boolean; tiktok: boolean },
+): IntakeVisionParseOutput {
+  const missingFlags = [
+    availability.shopee ? null : "missing_shopee_screenshot",
+    availability.tiktok ? null : "missing_tiktok_screenshot",
+  ].filter((value): value is string => Boolean(value));
+  const marketplace =
+    availability.shopee && availability.tiktok ? metadata.marketplace || "Shopee + TikTok" : availability.shopee ? "SHOPEE" : "TIKTOK";
+  let confidenceNotes = metadata.confidence_notes;
+
+  if (!availability.shopee) {
+    confidenceNotes = appendUniqueNote(confidenceNotes, "Screenshot Shopee tidak tersedia saat analisis.");
+  }
+
+  if (!availability.tiktok) {
+    confidenceNotes = appendUniqueNote(confidenceNotes, "Screenshot TikTok tidak tersedia saat analisis.");
+  }
+
+  return {
+    ...metadata,
+    marketplace,
+    confidence_notes: confidenceNotes,
+    ocr_evidence: {
+      ...metadata.ocr_evidence,
+      shopee_screenshot: availability.shopee ? metadata.ocr_evidence.shopee_screenshot : missingMarketplaceOcrEvidenceBlock(),
+      tiktok_screenshot: availability.tiktok ? metadata.ocr_evidence.tiktok_screenshot : missingMarketplaceOcrEvidenceBlock(),
+    },
+    extraction_quality: {
+      ...metadata.extraction_quality,
+      review_required: metadata.extraction_quality.review_required || missingFlags.length > 0,
+      blocking_flags: appendUniqueValues(metadata.extraction_quality.blocking_flags, missingFlags),
+      notes: appendUniqueValues(
+        metadata.extraction_quality.notes,
+        missingFlags.length ? ["Analisis memakai satu screenshot marketplace."] : [],
+      ),
+    },
+  };
 }
 
 function summarizeIntakeVisionResponseText(value: string | null | undefined, maxLength = 320) {
@@ -801,29 +880,26 @@ async function resolveIntakeDriveRootFolder() {
 async function uploadIntakeDriveImage(input: {
   file: File;
   notes: string;
-  folderLabel: string;
+  folderKind: "product" | "evidence_screenshot";
   intakeCode: string;
   purpose: "SOURCE_IMAGE" | "OTHER";
+  folders?: Awaited<ReturnType<typeof ensureIntakeDriveFolders>>;
 }) {
-  const { workspace, rootFolder } = await resolveIntakeDriveRootFolder();
-  const parentFolderId = rootFolder.drive_item_id;
+  const folders = input.folders ?? (await ensureIntakeDriveFolders(input.intakeCode));
+  const targetFolder = input.folderKind === "product" ? folders.productFolder : folders.evidenceScreenshotFolder;
+  const parentFolderId = targetFolder.drive_item_id;
+
   if (!parentFolderId) {
     throw new Error("Folder Drive otomatis belum tersinkron.");
   }
 
   const uploaded = await uploadFileToGoogleDrive({
     file: input.file,
-    name: sanitizeDriveLeafName(input.file.name) || input.folderLabel.toLowerCase().replace(/\//g, "-"),
+    name: sanitizeDriveLeafName(input.file.name) || input.folderKind,
     description: input.notes,
     parentFolderId,
   });
-  const drivePath = buildIntakeDrivePath({
-    workspaceCode: workspace.workspace_code,
-    workspaceDrivePath: workspace.drive_root_folder_path,
-    intakeCode: input.intakeCode,
-    folderLabel: input.folderLabel,
-    fileName: input.file.name,
-  });
+  const drivePath = joinIntakeDrivePath(targetFolder.drive_path, input.file.name);
 
   const driveItem = await createDriveItem({
     item_type: "FILE",
@@ -838,10 +914,12 @@ async function uploadIntakeDriveImage(input: {
     purpose: input.purpose,
     status: "ACTIVE",
     notes: input.notes,
+    parent_id: targetFolder.id,
+    parent_drive_item_id: targetFolder.drive_item_id,
   });
 
   return {
-    workspace,
+    workspace: folders.workspace,
     driveItem,
   };
 }
@@ -851,7 +929,7 @@ async function uploadIntakeProductImageToDrive(input: { productImage: File; inta
   const result = await uploadIntakeDriveImage({
     file: input.productImage,
     notes: "Foto Produk Utama",
-    folderLabel: "SOURCE_IMAGES",
+    folderKind: "product",
     intakeCode,
     purpose: "SOURCE_IMAGE",
   });
@@ -866,15 +944,16 @@ async function uploadIntakeProductImageToDrive(input: { productImage: File; inta
 async function uploadIntakeScreenshotToDrive(input: {
   file: File;
   intakeCode: string;
-  folderLabel: "SCREENSHOTS/SHOPEE" | "SCREENSHOTS/TIKTOK";
   notes: string;
+  folders?: Awaited<ReturnType<typeof ensureIntakeDriveFolders>>;
 }) {
   const result = await uploadIntakeDriveImage({
     file: input.file,
     notes: input.notes,
-    folderLabel: input.folderLabel,
+    folderKind: "evidence_screenshot",
     intakeCode: input.intakeCode,
     purpose: "OTHER",
+    folders: input.folders,
   });
 
   return {
@@ -1225,9 +1304,18 @@ function buildUploadedImageSummary(file: File) {
   };
 }
 
-function readDrivePath(value: string | null | undefined) {
-  const trimmed = readText(value);
-  return trimmed ? trimmed.replace(/\/+$/g, "") : "";
+function buildMissingImageSummary(name: string) {
+  return {
+    name,
+    mimeType: "application/octet-stream",
+    size: 0,
+  };
+}
+
+function assertHasMarketplaceScreenshot(input: { shopeeScreenshot?: unknown; tiktokScreenshot?: unknown }) {
+  if (!input.shopeeScreenshot && !input.tiktokScreenshot) {
+    throw new Error("Tambahkan minimal satu screenshot Shopee atau TikTok.");
+  }
 }
 
 function sanitizeDriveLeafName(value: string) {
@@ -1240,113 +1328,152 @@ function sanitizeDriveLeafName(value: string) {
   return trimmed.replace(/[\\/:*?"<>|]+/g, "-");
 }
 
-function readDrivePathSegments(value: string | null | undefined) {
-  return readDrivePath(value)
-    .split("/")
+function joinIntakeDrivePath(...segments: Array<string | null | undefined>) {
+  return `/${segments
     .map((segment) => readText(segment))
-    .filter((segment) => segment.length > 0)
-    .map((segment) => sanitizeDriveLeafName(segment))
-    .filter((segment) => segment.length > 0);
+    .filter(Boolean)
+    .map((segment) => segment.replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/")}`;
 }
 
-function buildIntakeDrivePath(input: {
-  workspaceCode: string;
-  workspaceDrivePath: string | null;
-  intakeCode: string;
-  folderLabel: string;
-  fileName: string;
+async function ensureIntakeDriveFolderRecord(input: {
+  name: string;
+  drivePath: string;
+  parentFolderId: string;
+  parentRecord: DriveItemRecord;
+  notes: string;
 }) {
-  const rootSegments = readDrivePathSegments(input.workspaceDrivePath);
-  const fallbackRootSegments = [`AffiliateAI`, "02_WORKSPACES", input.workspaceCode, "ROOT_FOLDER"].map(sanitizeDriveLeafName);
-  const folderSegments = readDrivePathSegments(input.folderLabel);
-  const intakeFolder = sanitizeDriveLeafName(input.intakeCode);
-  const fileName = sanitizeDriveLeafName(input.fileName);
-  const segments = rootSegments.length ? rootSegments : fallbackRootSegments;
+  const driveFolder = await ensureGoogleDriveFolder({
+    name: input.name,
+    parentFolderId: input.parentFolderId,
+  });
+  const existing = (await getDriveItemByDriveItemId(driveFolder.id)) ?? (await getDriveItemByDrivePath(input.drivePath));
 
-  return [...segments, "INTAKE", intakeFolder, ...folderSegments, fileName].filter(Boolean).join("/");
+  if (existing) {
+    return (await updateDriveItem(existing.id, {
+      item_type: "FOLDER",
+      drive_item_id: driveFolder.id,
+      name: driveFolder.name,
+      drive_url: driveFolder.webViewLink,
+      drive_path: input.drivePath,
+      purpose: "OTHER",
+      status: "ACTIVE",
+      notes: input.notes,
+      parent_id: input.parentRecord.id,
+      parent_drive_item_id: input.parentRecord.drive_item_id,
+    })) as DriveItemRecord;
+  }
+
+  return (await createDriveItem({
+    item_type: "FOLDER",
+    drive_item_id: driveFolder.id,
+    name: driveFolder.name,
+    drive_url: driveFolder.webViewLink,
+    drive_path: input.drivePath,
+    purpose: "OTHER",
+    status: "ACTIVE",
+    notes: input.notes,
+    parent_id: input.parentRecord.id,
+    parent_drive_item_id: input.parentRecord.drive_item_id,
+  })) as DriveItemRecord;
+}
+
+async function ensureIntakeDriveFolders(intakeCode: string) {
+  const { workspace, rootFolder } = await resolveIntakeDriveRootFolder();
+  const rootFolderId = rootFolder.drive_item_id;
+
+  if (!rootFolderId) {
+    throw new Error("Folder Drive otomatis belum tersinkron.");
+  }
+
+  const intakeContainer = await ensureIntakeDriveFolderRecord({
+    name: "INTAKE",
+    drivePath: joinIntakeDrivePath(rootFolder.drive_path, "INTAKE"),
+    parentFolderId: rootFolderId,
+    parentRecord: rootFolder,
+    notes: "Workspace intake folder.",
+  });
+
+  if (!intakeContainer.drive_item_id) {
+    throw new Error("Folder intake belum tersinkron.");
+  }
+
+  const intakeFolderName = sanitizeDriveLeafName(intakeCode);
+  const intakeFolder = await ensureIntakeDriveFolderRecord({
+    name: intakeFolderName,
+    drivePath: joinIntakeDrivePath(intakeContainer.drive_path, intakeFolderName),
+    parentFolderId: intakeContainer.drive_item_id,
+    parentRecord: intakeContainer,
+    notes: `Intake folder ${intakeFolderName}.`,
+  });
+
+  if (!intakeFolder.drive_item_id) {
+    throw new Error("Folder root intake belum tersinkron.");
+  }
+
+  const productFolder = await ensureIntakeDriveFolderRecord({
+    name: "product",
+    drivePath: joinIntakeDrivePath(intakeFolder.drive_path, "product"),
+    parentFolderId: intakeFolder.drive_item_id,
+    parentRecord: intakeFolder,
+    notes: `Product assets for ${intakeFolderName}.`,
+  });
+
+  const evidenceScreenshotFolder = await ensureIntakeDriveFolderRecord({
+    name: "evidence_screenshot",
+    drivePath: joinIntakeDrivePath(intakeFolder.drive_path, "evidence_screenshot"),
+    parentFolderId: intakeFolder.drive_item_id,
+    parentRecord: intakeFolder,
+    notes: `Screenshot evidence for ${intakeFolderName}.`,
+  });
+
+  return {
+    workspace,
+    intakeCode: intakeFolderName,
+    productFolder,
+    evidenceScreenshotFolder,
+  };
 }
 
 async function uploadIntakeEvidenceToDrive(input: {
   productImage: File;
-  shopeeScreenshot: File;
-  tiktokScreenshot: File;
+  shopeeScreenshot?: File | null;
+  tiktokScreenshot?: File | null;
 }) {
-  const { workspace, rootFolder } = await getOrProvisionWorkspaceDriveRoot();
-  const parentFolderId = rootFolder.drive_item_id;
-
-  if (!parentFolderId) {
-    throw new Error("Folder Drive otomatis belum tersinkron.");
-  }
-
   const intakeCode = `INTAKE-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`;
-  const uploads = [
-    {
-      file: input.productImage,
-      folderLabel: "SOURCE_IMAGES",
-      name: sanitizeDriveLeafName(input.productImage.name) || "product-image",
-      notes: "Foto Produk Utama",
-      purpose: "SOURCE_IMAGE" as const,
-    },
-    {
-      file: input.shopeeScreenshot,
-      folderLabel: "SCREENSHOTS/SHOPEE",
-      name: sanitizeDriveLeafName(input.shopeeScreenshot.name) || "shopee-screenshot",
-      notes: "Screenshot Shopee",
-      purpose: "OTHER" as const,
-    },
-    {
-      file: input.tiktokScreenshot,
-      folderLabel: "SCREENSHOTS/TIKTOK",
-      name: sanitizeDriveLeafName(input.tiktokScreenshot.name) || "tiktok-screenshot",
-      notes: "Screenshot TikTok",
-      purpose: "OTHER" as const,
-    },
-  ] as const;
-
-  const results = [];
-
-  for (const upload of uploads) {
-    const uploaded = await uploadFileToGoogleDrive({
-      file: upload.file,
-      name: upload.name,
-      description: upload.notes,
-      parentFolderId,
-    });
-    const drivePath = buildIntakeDrivePath({
-      workspaceCode: workspace.workspace_code,
-      workspaceDrivePath: workspace.drive_root_folder_path,
-      intakeCode,
-      folderLabel: upload.folderLabel,
-      fileName: upload.file.name,
-    });
-
-    const driveItem = await createDriveItem({
-      item_type: "FILE",
-      drive_item_id: uploaded.driveItemId,
-      name: uploaded.name,
-      drive_url: uploaded.driveUrl,
-      drive_path: drivePath,
-      mime_type: uploaded.mimeType,
-      size_bytes: uploaded.sizeBytes,
-      checksum: uploaded.checksum,
-      drive_modified_at: uploaded.driveModifiedAt,
-      purpose: upload.purpose,
-      status: "ACTIVE",
-      notes: upload.notes,
-    });
-
-    results.push({
-      ...uploaded,
-      driveItem,
-    });
-  }
+  const folders = await ensureIntakeDriveFolders(intakeCode);
+  const productImageDriveItem = (await uploadIntakeDriveImage({
+    file: input.productImage,
+    folders,
+    folderKind: "product",
+    intakeCode,
+    notes: "Foto Produk Utama",
+    purpose: "SOURCE_IMAGE",
+  })).driveItem;
+  const shopeeScreenshotDriveItem = input.shopeeScreenshot
+    ? (await uploadIntakeScreenshotToDrive({
+        file: input.shopeeScreenshot,
+        folders,
+        intakeCode,
+        notes: "Screenshot Shopee",
+      })).screenshotDriveItem
+    : null;
+  const tiktokScreenshotDriveItem = input.tiktokScreenshot
+    ? (await uploadIntakeScreenshotToDrive({
+        file: input.tiktokScreenshot,
+        folders,
+        intakeCode,
+        notes: "Screenshot TikTok",
+      })).screenshotDriveItem
+    : null;
 
   return {
-    workspace,
+    workspace: folders.workspace,
     intakeCode,
-    productImageDriveItem: results[0]?.driveItem ?? null,
-    shopeeScreenshotDriveItem: results[1]?.driveItem ?? null,
-    tiktokScreenshotDriveItem: results[2]?.driveItem ?? null,
+    productImageDriveItem,
+    shopeeScreenshotDriveItem,
+    tiktokScreenshotDriveItem,
   };
 }
 
@@ -1429,7 +1556,6 @@ export async function saveIntakeProductCapture(input: {
       ? uploadIntakeScreenshotToDrive({
           file: input.shopeeScreenshot,
           intakeCode: uploaded.intakeCode,
-          folderLabel: "SCREENSHOTS/SHOPEE",
           notes: "Screenshot Shopee",
         }).then((result) => result.screenshotDriveItem)
       : Promise.resolve(null),
@@ -1437,7 +1563,6 @@ export async function saveIntakeProductCapture(input: {
       ? uploadIntakeScreenshotToDrive({
           file: input.tiktokScreenshot,
           intakeCode: uploaded.intakeCode,
-          folderLabel: "SCREENSHOTS/TIKTOK",
           notes: "Screenshot TikTok",
         }).then((result) => result.screenshotDriveItem)
       : Promise.resolve(null),
@@ -1533,12 +1658,12 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     throw new Error("Foto produk utama belum tersimpan di Drive.");
   }
 
-  const totalBytes =
+  let totalBytes =
     (productDriveItem.size_bytes ?? 0) +
     (input.shopeeScreenshot?.size ?? 0) +
     (input.tiktokScreenshot?.size ?? 0);
 
-  const maxFileBytes = Math.max(productDriveItem.size_bytes ?? 0, input.shopeeScreenshot?.size ?? 0, input.tiktokScreenshot?.size ?? 0);
+  let maxFileBytes = Math.max(productDriveItem.size_bytes ?? 0, input.shopeeScreenshot?.size ?? 0, input.tiktokScreenshot?.size ?? 0);
   const analysisStartedAt = new Date();
   const requestStartedAt = analysisStartedAt.toISOString();
   let freshEvidenceCount = 0;
@@ -1560,6 +1685,24 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
     const existingTiktokDriveItemRefId = existingTiktokSource?.screenshot_drive_item_ref_id ?? null;
     const existingShopeeDriveItem = existingShopeeDriveItemRefId ? await getDriveItemById(existingShopeeDriveItemRefId) : null;
     const existingTiktokDriveItem = existingTiktokDriveItemRefId ? await getDriveItemById(existingTiktokDriveItemRefId) : null;
+    const hasShopeeEvidence = Boolean(input.shopeeScreenshot || existingShopeeDriveItem?.drive_item_id);
+    const hasTiktokEvidence = Boolean(input.tiktokScreenshot || existingTiktokDriveItem?.drive_item_id);
+
+    assertHasMarketplaceScreenshot({
+      shopeeScreenshot: hasShopeeEvidence,
+      tiktokScreenshot: hasTiktokEvidence,
+    });
+
+    totalBytes =
+      (productDriveItem.size_bytes ?? 0) +
+      (input.shopeeScreenshot?.size ?? existingShopeeDriveItem?.size_bytes ?? 0) +
+      (input.tiktokScreenshot?.size ?? existingTiktokDriveItem?.size_bytes ?? 0);
+    maxFileBytes = Math.max(
+      productDriveItem.size_bytes ?? 0,
+      input.shopeeScreenshot?.size ?? existingShopeeDriveItem?.size_bytes ?? 0,
+      input.tiktokScreenshot?.size ?? existingTiktokDriveItem?.size_bytes ?? 0,
+    );
+
     const productImageSummary = {
       name: productDriveItem.name,
       mimeType: productDriveItem.mime_type ?? "image/jpeg",
@@ -1573,11 +1716,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
             mimeType: existingShopeeDriveItem.mime_type ?? "application/octet-stream",
             size: existingShopeeDriveItem.size_bytes ?? 0,
           }
-        : {
-            name: "Screenshot Shopee",
-            mimeType: "application/octet-stream",
-            size: 0,
-          };
+        : buildMissingImageSummary("Screenshot Shopee");
     const tiktokScreenshotSummary = input.tiktokScreenshot
       ? buildUploadedImageSummary(input.tiktokScreenshot)
       : existingTiktokDriveItem
@@ -1586,11 +1725,7 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
             mimeType: existingTiktokDriveItem.mime_type ?? "application/octet-stream",
             size: existingTiktokDriveItem.size_bytes ?? 0,
           }
-        : {
-            name: "Screenshot TikTok",
-            mimeType: "application/octet-stream",
-            size: 0,
-          };
+        : buildMissingImageSummary("Screenshot TikTok");
     freshEvidenceCount = (input.shopeeScreenshot ? 1 : 0) + (input.tiktokScreenshot ? 1 : 0);
     savedEvidenceCount = 1 + (input.shopeeScreenshot ? 0 : existingShopeeDriveItem ? 1 : 0) + (input.tiktokScreenshot ? 0 : existingTiktokDriveItem ? 1 : 0);
 
@@ -1628,7 +1763,6 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       ? (await uploadIntakeScreenshotToDrive({
           file: input.shopeeScreenshot,
           intakeCode,
-          folderLabel: "SCREENSHOTS/SHOPEE",
           notes: "Screenshot Shopee",
         })).screenshotDriveItem
       : existingShopeeDriveItem;
@@ -1636,38 +1770,38 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       ? (await uploadIntakeScreenshotToDrive({
           file: input.tiktokScreenshot,
           intakeCode,
-          folderLabel: "SCREENSHOTS/TIKTOK",
           notes: "Screenshot TikTok",
         })).screenshotDriveItem
       : existingTiktokDriveItem;
 
-    if (!shopeeScreenshotDriveItem?.drive_item_id) {
-      throw new Error("Screenshot Shopee belum tersimpan.");
-    }
-
-    if (!tiktokScreenshotDriveItem?.drive_item_id) {
-      throw new Error("Screenshot TikTok belum tersimpan.");
-    }
+    assertHasMarketplaceScreenshot({
+      shopeeScreenshot: shopeeScreenshotDriveItem?.drive_item_id,
+      tiktokScreenshot: tiktokScreenshotDriveItem?.drive_item_id,
+    });
 
     await Promise.all([
-      createMarketplaceSource({
-        product_id: product.id,
-        workspace_id: product.workspace_id ?? session.workspace_id,
-        platform: "SHOPEE",
-        title: session.product_title || product.product_name,
-        screenshot_drive_item_ref_id: shopeeScreenshotDriveItem.id,
-        status: "DRAFT",
-        notes: "Awaiting Gemini analysis.",
-      }),
-      createMarketplaceSource({
-        product_id: product.id,
-        workspace_id: product.workspace_id ?? session.workspace_id,
-        platform: "TIKTOK",
-        title: session.product_title || product.product_name,
-        screenshot_drive_item_ref_id: tiktokScreenshotDriveItem.id,
-        status: "DRAFT",
-        notes: "Awaiting Gemini analysis.",
-      }),
+      shopeeScreenshotDriveItem
+        ? createMarketplaceSource({
+            product_id: product.id,
+            workspace_id: product.workspace_id ?? session.workspace_id,
+            platform: "SHOPEE",
+            title: session.product_title || product.product_name,
+            screenshot_drive_item_ref_id: shopeeScreenshotDriveItem.id,
+            status: "DRAFT",
+            notes: "Awaiting Gemini analysis.",
+          })
+        : Promise.resolve(null),
+      tiktokScreenshotDriveItem
+        ? createMarketplaceSource({
+            product_id: product.id,
+            workspace_id: product.workspace_id ?? session.workspace_id,
+            platform: "TIKTOK",
+            title: session.product_title || product.product_name,
+            screenshot_drive_item_ref_id: tiktokScreenshotDriveItem.id,
+            status: "DRAFT",
+            notes: "Awaiting Gemini analysis.",
+          })
+        : Promise.resolve(null),
     ]);
 
     const productImageBytes = await getGoogleDriveFileContentBytes(productDriveItem.drive_item_id);
@@ -1675,12 +1809,16 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       type: productDriveItem.mime_type ?? "image/jpeg",
     });
     const productImagePart = await buildIntakeAnalysisImagePartFromDriveItem(session.product_photo_drive_item_ref_id, "Foto Produk Utama");
-    const shopeeScreenshotPart = input.shopeeScreenshot
-      ? await buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee")
-      : await buildIntakeAnalysisImagePartFromDriveItem(shopeeScreenshotDriveItem.id, "Screenshot Shopee");
-    const tiktokScreenshotPart = input.tiktokScreenshot
-      ? await buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok")
-      : await buildIntakeAnalysisImagePartFromDriveItem(tiktokScreenshotDriveItem.id, "Screenshot TikTok");
+    const shopeeScreenshotPart = shopeeScreenshotDriveItem
+      ? input.shopeeScreenshot
+        ? await buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee")
+        : await buildIntakeAnalysisImagePartFromDriveItem(shopeeScreenshotDriveItem.id, "Screenshot Shopee")
+      : null;
+    const tiktokScreenshotPart = tiktokScreenshotDriveItem
+      ? input.tiktokScreenshot
+        ? await buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok")
+        : await buildIntakeAnalysisImagePartFromDriveItem(tiktokScreenshotDriveItem.id, "Screenshot TikTok")
+      : null;
 
     const excludedQuotaGroups = new Set<string>();
     const excludedKeyIds = new Set<string>();
@@ -1718,13 +1856,13 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
             apiKey: selectedKey.secret,
             parts: [
               productImagePart,
-              shopeeScreenshotPart,
-              tiktokScreenshotPart,
+              ...(shopeeScreenshotPart ? [shopeeScreenshotPart] : []),
+              ...(tiktokScreenshotPart ? [tiktokScreenshotPart] : []),
               {
                 text: buildIntakeParsePrompt({
                   productImage: buildUploadedImageSummary(productImageFile),
-                  shopeeScreenshot: shopeeScreenshotSummary,
-                  tiktokScreenshot: tiktokScreenshotSummary,
+                  shopeeScreenshot: shopeeScreenshotDriveItem ? shopeeScreenshotSummary : null,
+                  tiktokScreenshot: tiktokScreenshotDriveItem ? tiktokScreenshotSummary : null,
                 }),
               },
             ],
@@ -1809,9 +1947,16 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       },
     });
 
+    const parsedWithEvidenceAvailability = applyMarketplaceEvidenceAvailability(parsed, {
+      shopee: Boolean(shopeeScreenshotDriveItem),
+      tiktok: Boolean(tiktokScreenshotDriveItem),
+    });
     const parsedWithNote: IntakeVisionParseOutput = {
-      ...parsed,
-      confidence_notes: appendUniqueNote(parsed.confidence_notes, "Analisis Gemini live dari screenshot intake yang tersimpan."),
+      ...parsedWithEvidenceAvailability,
+      confidence_notes: appendUniqueNote(
+        parsedWithEvidenceAvailability.confidence_notes,
+        "Analisis Gemini live dari screenshot intake yang tersimpan.",
+      ),
     };
     const parsedJson = toReviewedMetadataJson(parsedWithNote);
 
@@ -1837,8 +1982,8 @@ export async function analyzeIntakeMetadataFromSavedCapture(input: {
       product: updatedProduct,
       session: finalSession,
       metadata: parsedWithNote,
-      shopeeScreenshotDriveItemRefId: shopeeScreenshotDriveItem.id,
-      tiktokScreenshotDriveItemRefId: tiktokScreenshotDriveItem.id,
+      shopeeScreenshotDriveItemRefId: shopeeScreenshotDriveItem?.id ?? null,
+      tiktokScreenshotDriveItemRefId: tiktokScreenshotDriveItem?.id ?? null,
     });
 
     const requestFinishedAt = new Date().toISOString();
@@ -2375,16 +2520,26 @@ export async function createMarketplaceSourcesFromIntake(
 export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
   const { supabase, user } = await requireUser();
   assertUploadedImage(input.productImage, "Foto Produk Utama");
-  assertUploadedImage(input.shopeeScreenshot, "Screenshot Shopee");
-  assertUploadedImage(input.tiktokScreenshot, "Screenshot TikTok");
+  if (input.shopeeScreenshot) {
+    assertUploadedImage(input.shopeeScreenshot, "Screenshot Shopee");
+  }
+  if (input.tiktokScreenshot) {
+    assertUploadedImage(input.tiktokScreenshot, "Screenshot TikTok");
+  }
+  assertHasMarketplaceScreenshot(input);
 
-  const totalBytes = input.productImage.size + input.shopeeScreenshot.size + input.tiktokScreenshot.size;
-  const maxFileBytes = Math.max(input.productImage.size, input.shopeeScreenshot.size, input.tiktokScreenshot.size);
+  const totalBytes = input.productImage.size + (input.shopeeScreenshot?.size ?? 0) + (input.tiktokScreenshot?.size ?? 0);
+  const maxFileBytes = Math.max(input.productImage.size, input.shopeeScreenshot?.size ?? 0, input.tiktokScreenshot?.size ?? 0);
+  const freshEvidenceCount = 1 + (input.shopeeScreenshot ? 1 : 0) + (input.tiktokScreenshot ? 1 : 0);
   const analysisStartedAt = new Date();
   const requestStartedAt = analysisStartedAt.toISOString();
   const productImageSummary = buildUploadedImageSummary(input.productImage);
-  const shopeeScreenshotSummary = buildUploadedImageSummary(input.shopeeScreenshot);
-  const tiktokScreenshotSummary = buildUploadedImageSummary(input.tiktokScreenshot);
+  const shopeeScreenshotSummary = input.shopeeScreenshot
+    ? buildUploadedImageSummary(input.shopeeScreenshot)
+    : buildMissingImageSummary("Screenshot Shopee");
+  const tiktokScreenshotSummary = input.tiktokScreenshot
+    ? buildUploadedImageSummary(input.tiktokScreenshot)
+    : buildMissingImageSummary("Screenshot TikTok");
 
   let analysisSession: IntakeSessionRecord | null = null;
   let task: AiTaskRecord | null = null;
@@ -2403,7 +2558,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
         tiktokScreenshot: tiktokScreenshotSummary,
         clientContext: null,
         analysisPath: "live_upload",
-        freshEvidenceCount: 3,
+        freshEvidenceCount,
         savedEvidenceCount: 0,
         clientUploadBytes: totalBytes,
         totalUploadBytes: totalBytes,
@@ -2425,8 +2580,8 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     analysisSession = draftCapture.session;
     const [productImagePart, shopeeScreenshotPart, tiktokScreenshotPart] = await Promise.all([
       buildIntakeAnalysisImagePart(input.productImage, "Foto Produk Utama"),
-      buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee"),
-      buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok"),
+      input.shopeeScreenshot ? buildIntakeAnalysisImagePart(input.shopeeScreenshot, "Screenshot Shopee") : Promise.resolve(null),
+      input.tiktokScreenshot ? buildIntakeAnalysisImagePart(input.tiktokScreenshot, "Screenshot TikTok") : Promise.resolve(null),
     ]);
     const excludedQuotaGroups = new Set<string>();
     const excludedKeyIds = new Set<string>();
@@ -2464,13 +2619,13 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
             apiKey: selectedKey.secret,
             parts: [
               productImagePart,
-              shopeeScreenshotPart,
-              tiktokScreenshotPart,
+              ...(shopeeScreenshotPart ? [shopeeScreenshotPart] : []),
+              ...(tiktokScreenshotPart ? [tiktokScreenshotPart] : []),
               {
                 text: buildIntakeParsePrompt({
                   productImage: productImageSummary,
-                  shopeeScreenshot: shopeeScreenshotSummary,
-                  tiktokScreenshot: tiktokScreenshotSummary,
+                  shopeeScreenshot: input.shopeeScreenshot ? shopeeScreenshotSummary : null,
+                  tiktokScreenshot: input.tiktokScreenshot ? tiktokScreenshotSummary : null,
                 }),
               },
             ],
@@ -2566,9 +2721,13 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
         return repairResult.responseText;
       },
     });
+    const parsedWithEvidenceAvailability = applyMarketplaceEvidenceAvailability(parsed, {
+      shopee: Boolean(input.shopeeScreenshot),
+      tiktok: Boolean(input.tiktokScreenshot),
+    });
     const parsedWithNote: IntakeVisionParseOutput = {
-      ...parsed,
-      confidence_notes: appendUniqueNote(parsed.confidence_notes, "Analisis Gemini live dari bytes upload."),
+      ...parsedWithEvidenceAvailability,
+      confidence_notes: appendUniqueNote(parsedWithEvidenceAvailability.confidence_notes, "Analisis Gemini live dari bytes upload."),
     };
     const parsedJson = toReviewedMetadataJson(parsedWithNote);
 
@@ -2607,7 +2766,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     const successTelemetry = buildIntakeTelemetryPayload({
       clientContext: null,
       analysisPath: "live_upload",
-      freshEvidenceCount: 3,
+      freshEvidenceCount,
       savedEvidenceCount: 0,
       clientUploadBytes: totalBytes,
       totalUploadBytes: totalBytes,
@@ -2672,7 +2831,7 @@ export async function parseIntakeWithGemini(input: IntakeAnalysisUploadInput) {
     const failureTelemetry = buildIntakeTelemetryPayload({
       clientContext: null,
       analysisPath: "live_upload",
-      freshEvidenceCount: 3,
+      freshEvidenceCount,
       savedEvidenceCount: 0,
       clientUploadBytes: totalBytes,
       totalUploadBytes: totalBytes,
