@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { GeminiUsageCard, GeminiUsageMetric, GeminiUsageOverview } from "@/lib/gemini/usage-types";
-import { getGeminiQuotaGroupKey, startOfCurrentDayInTimeZone } from "@/lib/gemini/routing";
+import { isGeminiModelName } from "@/lib/gemini/validation";
+import { getGeminiQuotaGroupKey, hasConfiguredGeminiQuotaLimits, startOfCurrentDayInTimeZone } from "@/lib/gemini/routing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type GeminiKeyRecord = {
@@ -166,7 +167,9 @@ export async function getGeminiUsageOverview(userId: string): Promise<GeminiUsag
     };
   }
 
-  const geminiKeys = (keys ?? []) as GeminiKeyRecord[];
+  const geminiKeys = ((keys ?? []) as GeminiKeyRecord[]).filter(
+    (key) => key.status !== "DISABLED" && isGeminiModelName(key.model_name) && hasConfiguredGeminiQuotaLimits(key),
+  );
   const { data: events, error: eventError } = await supabase
     .from("gemini_api_usage_events")
     .select("gemini_api_key_id, project_label, model_name, request_started_at, prompt_token_count")

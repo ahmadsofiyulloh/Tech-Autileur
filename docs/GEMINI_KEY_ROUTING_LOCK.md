@@ -4,6 +4,17 @@
 
 Use separate Google AI Studio projects/API keys when available, but keep the UI minimal.
 
+The model picker is locked to quota-positive Free tier text-out models from the operator's Google AI Studio quota snapshot:
+
+| Label | Model ID | RPM | RPD | TPM |
+|---|---:|---:|---:|---:|
+| Gemini 3.1 Flash Lite | `gemini-3.1-flash-lite` | 15 | 500 | 250000 |
+| Gemini 3 Flash | `gemini-3-flash` | 5 | 20 | 250000 |
+| Gemini 2.5 Flash | `gemini-2.5-flash` | 5 | 20 | 250000 |
+| Gemini 2.5 Flash Lite | `gemini-2.5-flash-lite` | 10 | 20 | 250000 |
+
+Zero-quota models such as `gemini-2.5-pro`, `gemini-2.0-flash`, and `gemini-3.1-pro` are hidden from the picker in Free tier mode. Existing rows for these models may remain for metadata/secret preservation, but they must be `DISABLED` with zero limits and must not be selected for live requests.
+
 ```text
 Project/Key 1: Gemini vision-capable model
 Role: VISION_ANALYSIS

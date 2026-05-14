@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { NativeButton } from "@/components/ui/native-button";
+import { getGeminiModelLabel } from "@/lib/gemini/validation";
 import type { GeminiUsageCard, GeminiUsageMetric, GeminiUsageOverview } from "@/lib/gemini/usage-types";
 
 type GeminiUsageOverviewPanelProps = {
@@ -195,7 +196,7 @@ function GeminiUsageCardView({ card }: { card: GeminiUsageCard }) {
           <div className="gemini-usage-context__header">
             <div className="stack-tight">
               <strong>{card.label}</strong>
-              <span>{card.modelName}</span>
+              <span>{getGeminiModelLabel(card.modelName)}</span>
               <span>{card.status}</span>
               <span>{formatRole(card.role)}</span>
             </div>

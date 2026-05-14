@@ -1,11 +1,12 @@
 import "server-only";
 
-import type { GeminiKeyRole, GeminiModelName } from "@/lib/gemini/validation";
+import { isGeminiModelName, type GeminiKeyRole, type GeminiModelName } from "@/lib/gemini/validation";
 import {
   PROMPT_PACK_GEMINI_KEY_PRIORITY,
   VISION_GEMINI_KEY_PRIORITY,
   VISION_MODEL_NAMES,
   getGeminiQuotaGroupKey,
+  hasConfiguredGeminiQuotaLimits,
   normalizeGeminiProjectLabel,
   startOfCurrentDayInTimeZone,
 } from "@/lib/gemini/routing";
@@ -15,6 +16,7 @@ export {
   PROMPT_PACK_GEMINI_KEY_PRIORITY,
   VISION_GEMINI_KEY_PRIORITY,
   getGeminiQuotaGroupKey,
+  hasConfiguredGeminiQuotaLimits,
   normalizeGeminiProjectLabel,
   startOfCurrentDayInTimeZone,
 };
@@ -48,7 +50,7 @@ export type GeminiRoutableKey = {
 type GeminiUsageEventRecord = {
   gemini_api_key_id: string;
   project_label: string | null;
-  model_name: GeminiModelName;
+  model_name: string;
   request_started_at: string;
   prompt_token_count: number | null;
 };
@@ -102,9 +104,12 @@ function isBucketWithinLimit(bucket: UsageBucket, keys: GeminiRoutableKey[]) {
   const tpmLimit = minKnownLimit(keys, "tpm_limit");
 
   return (
-    (rpdLimit === null || bucket.rpdUsed < rpdLimit) &&
-    (rpmLimit === null || bucket.rpmUsed < rpmLimit) &&
-    (tpmLimit === null || bucket.tpmUsed < tpmLimit)
+    rpdLimit !== null &&
+    rpmLimit !== null &&
+    tpmLimit !== null &&
+    bucket.rpdUsed < rpdLimit &&
+    bucket.rpmUsed < rpmLimit &&
+    bucket.tpmUsed < tpmLimit
   );
 }
 
@@ -213,7 +218,7 @@ export async function listQuotaAwareGeminiKeys(input: {
       return false;
     }
 
-    return true;
+    return isGeminiModelName(key.model_name) && hasConfiguredGeminiQuotaLimits(key);
   });
   const groupedKeys = groupKeys(rawKeys);
   const dayStart = startOfCurrentDayInTimeZone(now);

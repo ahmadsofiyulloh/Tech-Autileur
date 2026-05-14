@@ -13,6 +13,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S4-001, S4-002, S4-003, S4-004, S4-005
 - S5-001, S5-002, S5-003, S5-004
 - S6-001, S6-002, S6-003, S6-004, S6-005, S6-006, S6-007, S6-008, S6-009, S6-010, S6-011, S6-012
+- MT-GEMINI-FREE-TIER-01
 - S7-001
 - S8-001, S8-002, S8-003, S8-004, S8-005, S8-006, S8-007
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
@@ -351,6 +352,11 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Deny direct client access to `gemini_api_key_secrets` and remove public EXECUTE from the exposed public helper functions.
 **Owner:** Codex
 **Acceptance:** `gemini_api_key_secrets` has a restrictive deny-all policy for client roles, `handle_new_auth_user` and `set_updated_at` are not executable by `public`, `anon`, or `authenticated`, and future public functions do not auto-expose through default privileges.
+
+### MT-GEMINI-FREE-TIER-01 - Gemini Free tier model defaults _(DONE)_
+**Goal:** Align the Gemini model picker, stored quota defaults, usage calculation, and database constraint with the operator's Google AI Studio Free tier quota snapshot.
+**Owner:** Codex
+**Acceptance:** picker shows only quota-positive Free tier models, quota defaults match the snapshot, zero-quota models are hidden and not routed for live requests, and legacy zero-quota rows are preserved as disabled metadata.
 
 ## S7 - Dashboard Analytics
 

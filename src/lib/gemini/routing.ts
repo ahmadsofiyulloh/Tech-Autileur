@@ -2,7 +2,12 @@ import type { GeminiKeyRole, GeminiModelName } from "@/lib/gemini/validation";
 
 const PACIFIC_TIME_ZONE = "America/Los_Angeles";
 
-export const VISION_MODEL_NAMES = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"] as const satisfies readonly GeminiModelName[];
+export const VISION_MODEL_NAMES = [
+  "gemini-3.1-flash-lite",
+  "gemini-3-flash",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+] as const satisfies readonly GeminiModelName[];
 
 export const VISION_GEMINI_KEY_PRIORITY = ["VISION_ANALYSIS", "FALLBACK"] as const satisfies readonly GeminiKeyRole[];
 export const PROMPT_PACK_GEMINI_KEY_PRIORITY = [
@@ -29,6 +34,22 @@ export function getGeminiQuotaGroupKey(input: { id: string; model_name: string; 
   }
 
   return `key:${input.id}`;
+}
+
+function readPositiveLimit(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function hasConfiguredGeminiQuotaLimits(input: {
+  rpm_limit: number | null | undefined;
+  rpd_limit: number | null | undefined;
+  tpm_limit: number | null | undefined;
+}) {
+  return (
+    readPositiveLimit(input.rpm_limit) !== null &&
+    readPositiveLimit(input.rpd_limit) !== null &&
+    readPositiveLimit(input.tpm_limit) !== null
+  );
 }
 
 export function startOfCurrentDayInTimeZone(now: Date, timeZone = PACIFIC_TIME_ZONE) {

@@ -9,6 +9,7 @@
     "start": "next start",
     "audit:colors": "node scripts/audit-color-tokens.mjs",
     "audit:typography": "node scripts/audit-typography-tokens.mjs",
+    "supabase:targets": "node scripts/check-supabase-targets.mjs",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "smoke:e2e": "playwright test",

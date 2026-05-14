@@ -1,8 +1,18 @@
 import { expect, test } from "@playwright/test";
 import {
   PROMPT_PACK_GEMINI_KEY_PRIORITY,
+  VISION_MODEL_NAMES,
   getGeminiQuotaGroupKey,
+  hasConfiguredGeminiQuotaLimits,
 } from "../../src/lib/gemini/routing";
+import {
+  GEMINI_MODEL_OPTIONS,
+  GEMINI_MODEL_QUOTA_DEFAULTS,
+  GEMINI_MODELS,
+  GEMINI_ZERO_QUOTA_MODELS,
+  isGeminiDatabaseModelName,
+  isGeminiModelName,
+} from "../../src/lib/gemini/validation";
 import {
   GEMINI_INTAKE_VISION_RESPONSE_SCHEMA,
   GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
@@ -492,6 +502,64 @@ test("quota grouping is project and model scoped when project metadata exists", 
 
   expect(first).toBe(second);
   expect(fallback).toBe("key:key-c");
+});
+
+test("Gemini Free tier model defaults match selectable quota-positive models", () => {
+  expect(GEMINI_MODELS).toEqual([
+    "gemini-3.1-flash-lite",
+    "gemini-3-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+  ]);
+  expect(GEMINI_MODEL_OPTIONS.map((option) => option.value)).toEqual([...GEMINI_MODELS]);
+  expect(GEMINI_MODEL_QUOTA_DEFAULTS["gemini-3.1-flash-lite"]).toEqual({
+    rpmLimit: 15,
+    rpdLimit: 500,
+    tpmLimit: 250000,
+  });
+  expect(GEMINI_MODEL_QUOTA_DEFAULTS["gemini-3-flash"]).toEqual({
+    rpmLimit: 5,
+    rpdLimit: 20,
+    tpmLimit: 250000,
+  });
+  expect(GEMINI_MODEL_QUOTA_DEFAULTS["gemini-2.5-flash"]).toEqual({
+    rpmLimit: 5,
+    rpdLimit: 20,
+    tpmLimit: 250000,
+  });
+  expect(GEMINI_MODEL_QUOTA_DEFAULTS["gemini-2.5-flash-lite"]).toEqual({
+    rpmLimit: 10,
+    rpdLimit: 20,
+    tpmLimit: 250000,
+  });
+  expect(VISION_MODEL_NAMES).toEqual(GEMINI_MODELS);
+  expect(isGeminiModelName("gemini-2.5-pro")).toBe(false);
+  expect(isGeminiDatabaseModelName("gemini-2.5-pro")).toBe(true);
+  expect(GEMINI_ZERO_QUOTA_MODELS).toEqual(["gemini-2.5-pro", "gemini-2.0-flash", "gemini-3.1-pro"]);
+});
+
+test("Gemini quota config treats zero and missing limits as unavailable", () => {
+  expect(
+    hasConfiguredGeminiQuotaLimits({
+      rpm_limit: 15,
+      rpd_limit: 500,
+      tpm_limit: 250000,
+    }),
+  ).toBe(true);
+  expect(
+    hasConfiguredGeminiQuotaLimits({
+      rpm_limit: 0,
+      rpd_limit: 0,
+      tpm_limit: 0,
+    }),
+  ).toBe(false);
+  expect(
+    hasConfiguredGeminiQuotaLimits({
+      rpm_limit: null,
+      rpd_limit: 20,
+      tpm_limit: 250000,
+    }),
+  ).toBe(false);
 });
 
 test("Gemini response schemas are strict at the top level", () => {

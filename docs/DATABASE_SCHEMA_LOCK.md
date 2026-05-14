@@ -144,6 +144,17 @@ updated_at timestamptz
 
 `project_label` must be non-empty for `ACTIVE` Gemini keys. The app uses that metadata for `project + model` quota grouping and usage overview rendering.
 
+Free tier selectable model defaults:
+
+```text
+gemini-3.1-flash-lite: RPM 15, RPD 500, TPM 250000
+gemini-3-flash: RPM 5, RPD 20, TPM 250000
+gemini-2.5-flash: RPM 5, RPD 20, TPM 250000
+gemini-2.5-flash-lite: RPM 10, RPD 20, TPM 250000
+```
+
+Zero-quota model rows may be retained only as disabled metadata/secrets preservation rows. They must use zero limits, must not appear in the operator picker, and must not be selected for live requests.
+
 ### `gemini_api_key_secrets`
 
 Server-only encrypted secret store.

@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CircleAlert, CircleCheck, Info, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -135,7 +135,6 @@ function MobileNotificationSheet({ feedback, onClose }: { feedback: RouteFeedbac
 
 export function RouteToaster() {
   const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<RouteFeedback[]>([]);
   const [mobileNotification, setMobileNotification] = useState<RouteFeedback | null>(null);
@@ -257,7 +256,7 @@ export function RouteToaster() {
     const cleanHref = buildCleanRouteFeedbackHref(pathname, searchParams);
 
     if (cleanHref !== currentHref(pathname, searchParams)) {
-      router.replace(cleanHref, { scroll: false });
+      window.history.replaceState(window.history.state, "", cleanHref);
     }
 
     if (shouldSuppressRouteFeedback(pathname, searchParams, feedback)) {
@@ -295,7 +294,7 @@ export function RouteToaster() {
       return trimmed;
     });
     scheduleDismiss(feedback);
-  }, [isMobileViewport, pathname, router, searchParams, suppressToasts]);
+  }, [isMobileViewport, pathname, searchParams, suppressToasts]);
 
   if (suppressToasts || (!toasts.length && !mobileNotification)) {
     return null;

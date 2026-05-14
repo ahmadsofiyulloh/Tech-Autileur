@@ -2,8 +2,8 @@ import "server-only";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { type GeminiKeyRole } from "@/lib/gemini/validation";
-import { PROMPT_PACK_GEMINI_KEY_PRIORITY } from "@/lib/gemini/routing";
+import { isGeminiModelName, type GeminiKeyRole } from "@/lib/gemini/validation";
+import { PROMPT_PACK_GEMINI_KEY_PRIORITY, hasConfiguredGeminiQuotaLimits } from "@/lib/gemini/routing";
 export { PROMPT_PACK_GEMINI_KEY_PRIORITY };
 import {
   type AiTaskStatus,
@@ -315,6 +315,10 @@ export async function listAvailableGeminiKeysByRole(taskType: GeminiKeyRole) {
   }
 
   const eligibleKeys = (data ?? []).filter((key) => {
+    if (!isGeminiModelName(key.model_name) || !hasConfiguredGeminiQuotaLimits(key)) {
+      return false;
+    }
+
     if (!key.cooldown_until) {
       return true;
     }

@@ -10,7 +10,7 @@ import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { saveGeminiKey } from "../../gemini/actions";
-import { GEMINI_KEY_ROLES, GEMINI_MODELS } from "@/lib/gemini/validation";
+import { GEMINI_KEY_ROLES, GEMINI_MODEL_OPTIONS, GEMINI_MODELS, getGeminiModelLabel } from "@/lib/gemini/validation";
 
 export type GeminiKeyRecord = {
   id: string;
@@ -54,7 +54,7 @@ function isVisibleGeminiKey(key: GeminiKeyRecord) {
 }
 
 function geminiMobileMeta(key: GeminiKeyRecord) {
-  return [key.model_name, key.role].filter(Boolean).join(" - ");
+  return [getGeminiModelLabel(key.model_name), key.role].filter(Boolean).join(" - ");
 }
 
 export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
@@ -134,7 +134,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                       </td>
                       <td>
                         <div className="stack-tight">
-                          <span className="subtle">{key.model_name}</span>
+                          <span className="subtle">{getGeminiModelLabel(key.model_name)}</span>
                           <StatusBadge status={key.role} tone="info" />
                         </div>
                       </td>
@@ -259,7 +259,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                   defaultValue={initialKey?.model_name ?? GEMINI_MODELS[0]}
                   label="Model"
                   name="model"
-                  options={choiceOptions(GEMINI_MODELS)}
+                  options={GEMINI_MODEL_OPTIONS}
                   placeholder="Pilih model"
                   required
                   searchable={false}

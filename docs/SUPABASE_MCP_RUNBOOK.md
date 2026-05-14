@@ -3,6 +3,35 @@
 ## Purpose
 The user normally uses Supabase MCP so Codex can create and modify the database directly in Supabase. This runbook keeps that safe and controlled.
 
+## Project Targets
+
+This repo must use project-scoped Supabase connections only.
+
+```text
+Dev project ref: czpjccljowyldtvycxlq
+Production project ref: laychawloumnhvzgegmj
+```
+
+Do not use a generic global `mcp_servers.supabase` connection for this repo. The repo-local `.mcp.json` uses explicit server names:
+
+- `supabase_dev` for dev inspection and approved dev migrations.
+- `supabase_prod_readonly` for production inspection only.
+
+If the current Codex client does not load `.mcp.json`, use the global fallback entries in the active `CODEX_HOME/config.toml` only when they are project-scoped with explicit names:
+
+- `supabase_tech_autiluer_dev`.
+- `supabase_tech_autiluer_prod_readonly`.
+
+Keep any generic `[mcp_servers.supabase]` block disabled to avoid using another repo's project by accident.
+
+Run this before any migration work:
+
+```bash
+npm run supabase:targets
+```
+
+The command validates the repo MCP targets, masked env project refs, CLI link cache, and global MCP collision risk without printing secrets.
+
 ## Locked Rule
 Codex may use Supabase MCP for database work only after it has:
 
@@ -85,6 +114,18 @@ Forbidden unless user explicitly overrides:
 - using Supabase Storage for large video/image assets in MVP
 
 ## MCP Configuration Reminder
-Codex stores MCP configuration in `config.toml`. The user may configure Supabase MCP globally or per project. Do not write real MCP tokens into repo files.
+Codex can store MCP configuration globally or per project. For this repo, prefer the repo-local `.mcp.json` so the connection is scoped to this project and not mixed with other projects. Do not write real MCP tokens into repo files.
 
 Use placeholders only in repo docs.
+
+## CLI Fallback
+
+Use CLI only as a fallback when MCP is not available.
+
+Rules:
+
+- Use `npx supabase`, not an assumed global binary.
+- Verify the target first with `npm run supabase:targets`.
+- Set `SUPABASE_DB_PASSWORD` only in the current shell/session when needed.
+- Prefer explicit target commands such as `--db-url` when switching between dev and production.
+- Never run `db push` against production unless the current target has been verified and the exact migration SQL has already passed on dev.
