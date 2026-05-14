@@ -28,6 +28,7 @@ import {
   analyzeAffiliateProfileAsset,
 } from "@/lib/server/affiliate-profile-asset-analysis";
 import { uploadAffiliateProfileAsset } from "@/lib/server/affiliate-profile-assets";
+import { isAffiliateProfileAssetAnalysisReady } from "@/lib/affiliate-profiles/readiness";
 import {
   disableHelperApiToken as disableStoredHelperApiToken,
   upsertHelperApiToken,
@@ -240,7 +241,24 @@ async function resolveAffiliateProfileNamespace(input: {
   };
 }
 
-function affiliateProfilePersonalizationInputFromForm(formData: FormData) {
+function affiliateProfilePersonalizationInputFromForm(
+  formData: FormData,
+  existingProfile?: {
+    seed_character_drive_item_ref_id?: string | null;
+    environment_drive_item_ref_id?: string | null;
+  } | null,
+) {
+  const seedCharacterAsset = readAffiliateProfileAssetFormState(
+    formData,
+    "CHARACTER",
+    existingProfile?.seed_character_drive_item_ref_id,
+  );
+  const environmentAsset = readAffiliateProfileAssetFormState(
+    formData,
+    "ENVIRONMENT",
+    existingProfile?.environment_drive_item_ref_id,
+  );
+
   return {
     i2i_prompt_rules: readText(formData, "i2i_prompt_rules"),
     i2v_prompt_rules: readText(formData, "i2v_prompt_rules"),
@@ -249,48 +267,96 @@ function affiliateProfilePersonalizationInputFromForm(formData: FormData) {
     negative_prompt_rules: readText(formData, "negative_prompt_rules"),
     product_positioning_notes: readText(formData, "product_positioning_notes"),
     lock_seed_character: readBoolean(formData, "lock_seed_character"),
-    seed_character_drive_item_ref_id: readText(formData, "seed_character_drive_item_ref_id"),
+    seed_character_drive_item_ref_id: seedCharacterAsset.driveItemRefId,
     lock_environment: readBoolean(formData, "lock_environment"),
-    environment_drive_item_ref_id: readText(formData, "environment_drive_item_ref_id"),
+    environment_drive_item_ref_id: environmentAsset.driveItemRefId,
   };
 }
 
-async function resolveAffiliateProfileAssetRef(input: {
-  formData: FormData;
-  profileCode: string;
-  kind: "CHARACTER" | "ENVIRONMENT";
-}) {
-  const currentRefKey = input.kind === "CHARACTER" ? "current_seed_character_drive_item_ref_id" : "current_environment_drive_item_ref_id";
-  const pickerRefKey = input.kind === "CHARACTER" ? "seed_character_drive_item_ref_id" : "environment_drive_item_ref_id";
-  const clearKey = input.kind === "CHARACTER" ? "clear_seed_character_drive_item_ref_id" : "clear_environment_drive_item_ref_id";
-  const fileKey = input.kind === "CHARACTER" ? "seed_character_file" : "environment_file";
-  const file = readFile(input.formData, fileKey);
-  const currentRef = readText(input.formData, currentRefKey);
-  const pickerRef = readText(input.formData, pickerRefKey);
+type AffiliateProfileAssetFormState = {
+  locked: boolean;
+  driveItemRefId: string | null;
+  file: File | null;
+  clearRequested: boolean;
+};
 
-  if (file) {
-    const asset = await uploadAffiliateProfileAsset({
-      profileCode: input.profileCode,
-      kind: input.kind,
-      file,
-    });
+function readAffiliateProfileAssetFormState(
+  formData: FormData,
+  kind: AffiliateProfileAssetKind,
+  existingDriveItemRefId?: string | null,
+): AffiliateProfileAssetFormState {
+  const currentRefKey = kind === "CHARACTER" ? "current_seed_character_drive_item_ref_id" : "current_environment_drive_item_ref_id";
+  const pickerRefKey = kind === "CHARACTER" ? "seed_character_drive_item_ref_id" : "environment_drive_item_ref_id";
+  const clearKey = kind === "CHARACTER" ? "clear_seed_character_drive_item_ref_id" : "clear_environment_drive_item_ref_id";
+  const fileKey = kind === "CHARACTER" ? "seed_character_file" : "environment_file";
+  const lockKey = kind === "CHARACTER" ? "lock_seed_character" : "lock_environment";
+  const clearRequested = readBoolean(formData, clearKey);
+  const currentRef = readText(formData, currentRefKey);
+  const pickerRef = readText(formData, pickerRefKey);
 
-    return asset.id;
-  }
-
-  if (readBoolean(input.formData, clearKey)) {
-    return null;
-  }
-
-  return pickerRef || currentRef || null;
+  return {
+    locked: readBoolean(formData, lockKey),
+    driveItemRefId: clearRequested ? null : pickerRef || currentRef || existingDriveItemRefId || null,
+    file: readFile(formData, fileKey),
+    clearRequested,
+  };
 }
 
-function readAffiliateProfileAssetDraft(formData: FormData) {
+function assertNoDirectAffiliateProfileAssetSave(input: {
+  seedCharacterAsset: AffiliateProfileAssetFormState;
+  environmentAsset: AffiliateProfileAssetFormState;
+}) {
+  if (input.seedCharacterAsset.file || input.environmentAsset.file) {
+    throw new Error("Analisis aset dulu sebelum menyimpan profile.");
+  }
+}
+
+function assertAffiliateProfileAssetAnalysisCanBeSaved(input: {
+  kind: AffiliateProfileAssetKind;
+  locked: boolean;
+  driveItemRefId: string | null;
+  analysisJson: Parameters<typeof isAffiliateProfileAssetAnalysisReady>[0]["analysisJson"];
+}) {
+  if (
+    input.locked &&
+    input.driveItemRefId &&
+    !isAffiliateProfileAssetAnalysisReady({
+      locked: input.locked,
+      driveItemRefId: input.driveItemRefId,
+      analysisJson: input.analysisJson,
+    })
+  ) {
+    throw new Error(`Analisis ulang ${formatAffiliateProfileAssetKind(input.kind)} dulu sebelum menyimpan profile.`);
+  }
+}
+
+function readAffiliateProfileAssetDraft(
+  formData: FormData,
+  existingProfile?: {
+    seed_character_drive_item_ref_id?: string | null;
+    environment_drive_item_ref_id?: string | null;
+  } | null,
+) {
+  const seedCharacterAsset = readAffiliateProfileAssetFormState(
+    formData,
+    "CHARACTER",
+    existingProfile?.seed_character_drive_item_ref_id,
+  );
+  const environmentAsset = readAffiliateProfileAssetFormState(
+    formData,
+    "ENVIRONMENT",
+    existingProfile?.environment_drive_item_ref_id,
+  );
+
   return {
-    lock_seed_character: readBoolean(formData, "lock_seed_character"),
-    seed_character_drive_item_ref_id: readText(formData, "seed_character_drive_item_ref_id") || null,
-    lock_environment: readBoolean(formData, "lock_environment"),
-    environment_drive_item_ref_id: readText(formData, "environment_drive_item_ref_id") || null,
+    lock_seed_character: seedCharacterAsset.locked,
+    seed_character_drive_item_ref_id: seedCharacterAsset.driveItemRefId,
+    seed_character_file: seedCharacterAsset.file,
+    clear_seed_character_drive_item_ref_id: seedCharacterAsset.clearRequested,
+    lock_environment: environmentAsset.locked,
+    environment_drive_item_ref_id: environmentAsset.driveItemRefId,
+    environment_file: environmentAsset.file,
+    clear_environment_drive_item_ref_id: environmentAsset.clearRequested,
   };
 }
 
@@ -304,27 +370,34 @@ export async function saveAffiliateProfile(formData: FormData) {
     if (intent === "create_affiliate_profile") {
       const profileCode = buildAffiliateProfileCode(readText(formData, "profile_name"));
       const baseInput = affiliateProfileInputFromForm(formData, { profileCode });
+      const seedCharacterAsset = readAffiliateProfileAssetFormState(formData, "CHARACTER");
+      const environmentAsset = readAffiliateProfileAssetFormState(formData, "ENVIRONMENT");
+      assertNoDirectAffiliateProfileAssetSave({ seedCharacterAsset, environmentAsset });
       const namespaceInput = await resolveAffiliateProfileNamespace({
         profileName: baseInput.profile_name,
         niche: baseInput.niche,
         workspaceIds: baseInput.workspace_ids,
         defaultWorkspaceId: baseInput.default_workspace_id,
       });
-      const seedCharacterDriveItemRefId = await resolveAffiliateProfileAssetRef({
-        formData,
-        profileCode,
+
+      assertAffiliateProfileAssetAnalysisCanBeSaved({
         kind: "CHARACTER",
+        locked: seedCharacterAsset.locked,
+        driveItemRefId: seedCharacterAsset.driveItemRefId,
+        analysisJson: null,
       });
-      const environmentDriveItemRefId = await resolveAffiliateProfileAssetRef({
-        formData,
-        profileCode,
+      assertAffiliateProfileAssetAnalysisCanBeSaved({
         kind: "ENVIRONMENT",
+        locked: environmentAsset.locked,
+        driveItemRefId: environmentAsset.driveItemRefId,
+        analysisJson: null,
       });
+
       await createAffiliateProfile({
         ...baseInput,
         ...namespaceInput,
-        seed_character_drive_item_ref_id: seedCharacterDriveItemRefId,
-        environment_drive_item_ref_id: environmentDriveItemRefId,
+        seed_character_drive_item_ref_id: seedCharacterAsset.driveItemRefId,
+        environment_drive_item_ref_id: environmentAsset.driveItemRefId,
       });
       message = "Affiliate profile created";
     } else if (intent === "update_affiliate_profile") {
@@ -342,22 +415,37 @@ export async function saveAffiliateProfile(formData: FormData) {
         existingWorkspaceIds: existingProfile.workspace_ids,
         existingDefaultWorkspaceId: existingProfile.default_workspace_id,
       });
-      const seedCharacterDriveItemRefId = await resolveAffiliateProfileAssetRef({
+      const seedCharacterAsset = readAffiliateProfileAssetFormState(
         formData,
-        profileCode: existingProfile.profile_code,
+        "CHARACTER",
+        existingProfile.seed_character_drive_item_ref_id,
+      );
+      const environmentAsset = readAffiliateProfileAssetFormState(
+        formData,
+        "ENVIRONMENT",
+        existingProfile.environment_drive_item_ref_id,
+      );
+      assertNoDirectAffiliateProfileAssetSave({ seedCharacterAsset, environmentAsset });
+      assertAffiliateProfileAssetAnalysisCanBeSaved({
         kind: "CHARACTER",
+        locked: seedCharacterAsset.locked,
+        driveItemRefId: seedCharacterAsset.driveItemRefId,
+        analysisJson: existingProfile.seed_character_analysis_json,
       });
-      const environmentDriveItemRefId = await resolveAffiliateProfileAssetRef({
-        formData,
-        profileCode: existingProfile.profile_code,
+      assertAffiliateProfileAssetAnalysisCanBeSaved({
         kind: "ENVIRONMENT",
+        locked: environmentAsset.locked,
+        driveItemRefId: environmentAsset.driveItemRefId,
+        analysisJson: existingProfile.environment_analysis_json,
       });
 
       await updateAffiliateProfile(id, {
         ...baseInput,
         ...namespaceInput,
-        seed_character_drive_item_ref_id: seedCharacterDriveItemRefId,
-        environment_drive_item_ref_id: environmentDriveItemRefId,
+        seed_character_drive_item_ref_id: seedCharacterAsset.driveItemRefId,
+        seed_character_analysis_json: seedCharacterAsset.driveItemRefId ? existingProfile.seed_character_analysis_json : null,
+        environment_drive_item_ref_id: environmentAsset.driveItemRefId,
+        environment_analysis_json: environmentAsset.driveItemRefId ? existingProfile.environment_analysis_json : null,
       });
       message = "Affiliate profile updated";
     } else if (intent === "update_affiliate_personalization") {
@@ -365,7 +453,32 @@ export async function saveAffiliateProfile(formData: FormData) {
         throw new Error("Missing affiliate profile id.");
       }
 
-      await updateAffiliateProfile(id, affiliateProfilePersonalizationInputFromForm(formData));
+      const existingProfile = await getAffiliateProfileById(id);
+      const seedCharacterAsset = readAffiliateProfileAssetFormState(
+        formData,
+        "CHARACTER",
+        existingProfile.seed_character_drive_item_ref_id,
+      );
+      const environmentAsset = readAffiliateProfileAssetFormState(
+        formData,
+        "ENVIRONMENT",
+        existingProfile.environment_drive_item_ref_id,
+      );
+      assertNoDirectAffiliateProfileAssetSave({ seedCharacterAsset, environmentAsset });
+      assertAffiliateProfileAssetAnalysisCanBeSaved({
+        kind: "CHARACTER",
+        locked: seedCharacterAsset.locked,
+        driveItemRefId: seedCharacterAsset.driveItemRefId,
+        analysisJson: existingProfile.seed_character_analysis_json,
+      });
+      assertAffiliateProfileAssetAnalysisCanBeSaved({
+        kind: "ENVIRONMENT",
+        locked: environmentAsset.locked,
+        driveItemRefId: environmentAsset.driveItemRefId,
+        analysisJson: existingProfile.environment_analysis_json,
+      });
+
+      await updateAffiliateProfile(id, affiliateProfilePersonalizationInputFromForm(formData, existingProfile));
       message = "Prompt personalization updated";
     } else if (intent === "archive_affiliate_profile") {
       if (!id) {
@@ -391,41 +504,53 @@ async function analyzeAffiliateProfileAssetWithState(input: {
   kind: AffiliateProfileAssetKind;
   locked: boolean;
   driveItemRefId: string | null;
+  file: File | null;
   profileId: string;
   results: AffiliateProfileAssetReanalysisResult[];
 }) {
   const label = formatAffiliateProfileAssetKind(input.kind);
+  let driveItemRefId = input.driveItemRefId;
 
   if (!input.locked) {
     input.results.push({
       kind: input.kind,
       status: "skipped",
       message: "Lock nonaktif; dilewati.",
-      driveItemRefId: input.driveItemRefId,
-      analysisStored: false,
-    });
-    return;
-  }
-
-  if (!input.driveItemRefId) {
-    input.results.push({
-      kind: input.kind,
-      status: "warning",
-      message: `Referensi ${label} belum dipilih.`,
-      driveItemRefId: null,
+      driveItemRefId,
       analysisStored: false,
     });
     return;
   }
 
   try {
+    if (input.file) {
+      const asset = await uploadAffiliateProfileAsset({
+        profileCode: input.profileCode,
+        kind: input.kind,
+        file: input.file,
+      });
+
+      driveItemRefId = asset.id;
+    }
+
+    if (!driveItemRefId) {
+      input.results.push({
+        kind: input.kind,
+        status: "warning",
+        message: `Referensi ${label} belum dipilih.`,
+        driveItemRefId: null,
+        analysisStored: false,
+      });
+      return;
+    }
+
     const analysisJson = await analyzeAffiliateProfileAsset({
       profileCode: input.profileCode,
       kind: input.kind,
-      driveItemId: input.driveItemRefId,
+      driveItemId: driveItemRefId,
     });
 
-    const normalizedAnalysisJson = canonicalizeAffiliateProfileAssetAnalysisJson(analysisJson, input.driveItemRefId);
+    const normalizedAnalysisJson = canonicalizeAffiliateProfileAssetAnalysisJson(analysisJson, driveItemRefId);
 
     if (!normalizedAnalysisJson) {
       throw new Error(`${label} analysis failed.`);
@@ -433,15 +558,21 @@ async function analyzeAffiliateProfileAssetWithState(input: {
 
     await updateAffiliateProfile(input.profileId, {
       ...(input.kind === "CHARACTER"
-        ? { seed_character_analysis_json: normalizedAnalysisJson }
-        : { environment_analysis_json: normalizedAnalysisJson }),
+        ? {
+            seed_character_drive_item_ref_id: driveItemRefId,
+            seed_character_analysis_json: normalizedAnalysisJson,
+          }
+        : {
+            environment_drive_item_ref_id: driveItemRefId,
+            environment_analysis_json: normalizedAnalysisJson,
+          }),
     });
 
     input.results.push({
       kind: input.kind,
       status: "success",
       message: `JSON disimpan dengan ref aktif.`,
-      driveItemRefId: input.driveItemRefId,
+      driveItemRefId,
       analysisStored: true,
     });
   } catch (error) {
@@ -450,7 +581,7 @@ async function analyzeAffiliateProfileAssetWithState(input: {
         kind: input.kind,
         status: "warning",
         message: getGeminiTemporaryUnavailableRetryMessage(),
-        driveItemRefId: input.driveItemRefId,
+        driveItemRefId,
         analysisStored: false,
       });
       return;
@@ -461,7 +592,7 @@ async function analyzeAffiliateProfileAssetWithState(input: {
       kind: input.kind,
       status: "error",
       message: errorMessage,
-      driveItemRefId: input.driveItemRefId,
+      driveItemRefId,
       analysisStored: false,
     });
   }
@@ -484,13 +615,23 @@ export async function reanalyzeAffiliateProfileAssets(
 
   try {
     const profile = await getAffiliateProfileById(id);
-    const draft = readAffiliateProfileAssetDraft(formData);
+    const draft = readAffiliateProfileAssetDraft(formData, profile);
 
     await updateAffiliateProfile(id, {
       lock_seed_character: draft.lock_seed_character,
-      seed_character_drive_item_ref_id: draft.seed_character_drive_item_ref_id,
+      ...(draft.clear_seed_character_drive_item_ref_id
+        ? {
+            seed_character_drive_item_ref_id: null,
+            seed_character_analysis_json: null,
+          }
+        : {}),
       lock_environment: draft.lock_environment,
-      environment_drive_item_ref_id: draft.environment_drive_item_ref_id,
+      ...(draft.clear_environment_drive_item_ref_id
+        ? {
+            environment_drive_item_ref_id: null,
+            environment_analysis_json: null,
+          }
+        : {}),
     });
 
     const results: AffiliateProfileAssetReanalysisResult[] = [];
@@ -500,6 +641,7 @@ export async function reanalyzeAffiliateProfileAssets(
       kind: "CHARACTER",
       locked: draft.lock_seed_character,
       driveItemRefId: draft.seed_character_drive_item_ref_id,
+      file: draft.clear_seed_character_drive_item_ref_id ? null : draft.seed_character_file,
       profileId: id,
       results,
     });
@@ -509,6 +651,7 @@ export async function reanalyzeAffiliateProfileAssets(
       kind: "ENVIRONMENT",
       locked: draft.lock_environment,
       driveItemRefId: draft.environment_drive_item_ref_id,
+      file: draft.clear_environment_drive_item_ref_id ? null : draft.environment_file,
       profileId: id,
       results,
     });

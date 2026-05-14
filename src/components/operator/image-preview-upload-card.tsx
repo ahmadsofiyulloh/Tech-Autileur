@@ -20,6 +20,7 @@ type ImagePreviewUploadCardProps = {
   removedTitle?: string;
   required?: boolean;
   disabled?: boolean;
+  uploadDisabled?: boolean;
   clearName?: string;
   className?: string;
   accept?: string;
@@ -42,6 +43,7 @@ export function ImagePreviewUploadCard({
   removedTitle,
   required = false,
   disabled = false,
+  uploadDisabled = false,
   clearName,
   className,
   accept = "image/*",
@@ -129,7 +131,7 @@ export function ImagePreviewUploadCard({
   }
 
   function handleFrameClick() {
-    if (disabled || isPreparing) {
+    if (disabled || uploadDisabled || isPreparing) {
       return;
     }
 
@@ -224,7 +226,7 @@ export function ImagePreviewUploadCard({
         ref={inputRef}
         accept={accept}
         className="image-preview-upload-card__input"
-        disabled={disabled}
+        disabled={disabled || uploadDisabled}
         name={name}
         required={required && !hasLocalSelection && !hasRemotePreview}
         type="file"

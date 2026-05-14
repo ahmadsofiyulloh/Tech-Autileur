@@ -380,6 +380,14 @@ export function AffiliateProfilesBoard({
     driveItemRefId: initialProfile?.environment_drive_item_ref_id,
     analysisJson: initialProfile?.environment_analysis_json,
   });
+  const seedCharacterUploadDisabled =
+    lockSeedCharacter &&
+    Boolean(initialProfile?.seed_character_drive_item_ref_id) &&
+    seedCharacterAnalysisState !== "READY";
+  const environmentUploadDisabled =
+    lockEnvironment &&
+    Boolean(initialProfile?.environment_drive_item_ref_id) &&
+    environmentAnalysisState !== "READY";
 
   const formKey = isCreating ? "create-profile" : selectedProfile?.id ?? "edit-profile";
 
@@ -629,6 +637,7 @@ export function AffiliateProfilesBoard({
                           previewAlt={selectedSeedCharacterDriveItem?.name ?? "Character preview"}
                           previewUrl={selectedSeedCharacterPreviewUrl}
                           showStatusBadge={false}
+                          uploadDisabled={seedCharacterUploadDisabled}
                         />
                       </section>
 
@@ -643,6 +652,7 @@ export function AffiliateProfilesBoard({
                           previewAlt={selectedEnvironmentDriveItem?.name ?? "Environment preview"}
                           previewUrl={selectedEnvironmentPreviewUrl}
                           showStatusBadge={false}
+                          uploadDisabled={environmentUploadDisabled}
                         />
                       </section>
                     </>
