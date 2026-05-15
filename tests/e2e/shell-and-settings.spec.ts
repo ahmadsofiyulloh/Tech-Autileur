@@ -264,8 +264,9 @@ test("affiliate profile drawer stays compact on mobile", async ({ page }) => {
 
       const previewFrames = assetGrid.locator(".image-preview-upload-card__frame");
       await expect(previewFrames).toHaveCount(2);
-      await expect(assetGrid.locator(".image-preview-upload-card__media")).toHaveCount(2);
-      const previewSources = await assetGrid.locator(".image-preview-upload-card__media").evaluateAll((nodes) =>
+      await expect(assetGrid.locator(".image-preview-upload-card__media, .image-preview-upload-card__empty")).toHaveCount(2);
+      const previewMedia = assetGrid.locator(".image-preview-upload-card__media");
+      const previewSources = await previewMedia.evaluateAll((nodes) =>
         nodes.map((node) => (node as HTMLImageElement).getAttribute("src") ?? ""),
       );
       expect(previewSources.every((src) => src.includes("/api/drive/items/"))).toBe(true);

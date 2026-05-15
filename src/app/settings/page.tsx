@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AffiliateProfileHero } from "@/components/operator/affiliate-profile-hero";
+import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -24,7 +25,7 @@ import {
   type AffiliateProfileRecord,
 } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
-import { type DriveItemRecord } from "@/lib/server/drive-items";
+import { listDriveItemsByIds, type DriveItemRecord } from "@/lib/server/drive-items";
 import { getActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope";
 import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
@@ -36,6 +37,16 @@ export const dynamic = "force-dynamic";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Tidak dapat memuat pengaturan.";
+}
+
+function mergeDriveItemsById(items: DriveItemRecord[], extraItems: DriveItemRecord[]) {
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+
+  for (const item of extraItems) {
+    itemMap.set(item.id, item);
+  }
+
+  return Array.from(itemMap.values());
 }
 
 type SettingsCard = {
@@ -135,9 +146,11 @@ function AffiliateProfileSwitchGroup({
 
           return (
             <div className="settings-native-row settings-native-row--static" key={profile.id}>
-              <span className="affiliate-profile-card__avatar" aria-hidden="true">
-                {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <UserRound size={18} />}
-              </span>
+              <AvatarThumbnailFrame
+                className="affiliate-profile-card__avatar"
+                iconSize={18}
+                src={profile.avatarUrl}
+              />
               <span className="settings-native-row__copy">
                 <strong>{profile.profile_name}</strong>
                 <span>{profile.account_label?.trim() || profile.niche?.trim() || profile.platform}</span>
@@ -226,6 +239,17 @@ export default async function SettingsPage() {
     driveDetail = `${folders.length} folder, ${driveItems.length} item di workspace aktif.`;
   } catch (error) {
     driveDetail = errorMessage(error);
+  }
+
+  try {
+    const profileDriveItemRefs = affiliateProfiles.flatMap((profile) => [
+      profile.seed_character_drive_item_ref_id,
+      profile.environment_drive_item_ref_id,
+    ]);
+    const profileDriveItems = (await listDriveItemsByIds(profileDriveItemRefs)).filter((item) => item.status !== "ARCHIVED");
+    driveItems = mergeDriveItemsById(driveItems, profileDriveItems);
+  } catch {
+    driveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
   }
 
   try {

@@ -6,11 +6,19 @@ type MediaThumbnailFrameProps = {
   alt?: string;
   className?: string;
   fallback: ReactNode;
+  fallbackClassName?: string;
   loading?: "eager" | "lazy";
   src: string | null;
 };
 
-export function MediaThumbnailFrame({ alt = "", className, fallback, loading = "lazy", src }: MediaThumbnailFrameProps) {
+export function MediaThumbnailFrame({
+  alt = "",
+  className,
+  fallback,
+  fallbackClassName,
+  loading = "lazy",
+  src,
+}: MediaThumbnailFrameProps) {
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
@@ -18,9 +26,10 @@ export function MediaThumbnailFrame({ alt = "", className, fallback, loading = "
   }, [src]);
 
   const showImage = Boolean(src) && !imageError;
+  const frameClassName = [className, !showImage ? fallbackClassName : null].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={className} aria-hidden="true">
+    <div className={frameClassName} aria-hidden="true">
       {showImage ? (
         <img
           alt={alt}

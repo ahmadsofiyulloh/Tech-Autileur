@@ -253,6 +253,27 @@ export async function listDriveItems(input?: { status?: DriveItemStatus | string
   return (data ?? []) as DriveItemRecord[];
 }
 
+export async function listDriveItemsByIds(ids: Array<string | null | undefined>) {
+  const { supabase, user } = await requireUser();
+  const uniqueIds = Array.from(new Set(ids.map((id) => readUserFacingText(id)).filter(Boolean)));
+
+  if (!uniqueIds.length) {
+    return [] as DriveItemRecord[];
+  }
+
+  const { data, error } = await supabase
+    .from("drive_items")
+    .select("*")
+    .eq("user_id", user.id)
+    .in("id", uniqueIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as DriveItemRecord[];
+}
+
 export async function getDriveItemById(id: string) {
   const { supabase, user } = await requireUser();
 

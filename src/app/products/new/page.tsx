@@ -8,7 +8,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
 import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
-import { listDriveItems } from "@/lib/server/drive-items";
+import { listDriveItems, listDriveItemsByIds, type DriveItemRecord } from "@/lib/server/drive-items";
 import { getIntakeSessionById, listIntakeSessions } from "@/lib/server/intake";
 import { getPromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
@@ -69,6 +69,16 @@ function intakeContinueHref(input: {
   return `/products/new?${searchParams.toString()}`;
 }
 
+function mergeDriveItemsById(items: DriveItemRecord[], extraItems: DriveItemRecord[]) {
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+
+  for (const item of extraItems) {
+    itemMap.set(item.id, item);
+  }
+
+  return Array.from(itemMap.values());
+}
+
 export default async function NewProductPage({ searchParams }: NewProductPageProps) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -119,6 +129,18 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     if (selectedSession?.product_id) {
       promptSourceImages = await listProductImages({ productId: selectedSession.product_id, limit: 50 });
     }
+
+    const referencedDriveItems = await listDriveItemsByIds([
+      ...affiliateProfiles.flatMap((profile) => [
+        profile.seed_character_drive_item_ref_id,
+        profile.environment_drive_item_ref_id,
+      ]),
+      selectedSession?.product_photo_drive_item_ref_id,
+      selectedSession?.screenshot_drive_item_ref_id,
+      ...promptSourceImages.map((image) => image.drive_item_ref_id),
+      ...marketplaceSources.map((source) => source.screenshot_drive_item_ref_id),
+    ]);
+    driveItems = mergeDriveItemsById(driveItems, referencedDriveItems);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load intake.";
 

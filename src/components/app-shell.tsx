@@ -1,9 +1,10 @@
 "use client";
 
-import { PanelLeftClose, PanelLeftOpen, Settings, Workflow } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
 import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
@@ -33,7 +34,6 @@ export function AppShell({ children, shellContext }: { children: ReactNode; shel
 function OperatorShellContent({ children, shellContext }: { children: ReactNode; shellContext: OperatorShellContext }) {
   const pathname = usePathname();
   const shellMainRef = useRef<HTMLElement | null>(null);
-  const [profileAvatarFailed, setProfileAvatarFailed] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const activeRoute =
     routeTitles
@@ -46,7 +46,6 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   const ActiveIcon = activeRoute?.icon ?? Workflow;
   const currentAffiliateProfile = shellContext.currentAffiliateProfile;
   const showSettingsGear = !pathname.startsWith("/settings") && !override?.hideSettingsLink;
-  const showProfileAvatar = Boolean(currentAffiliateProfile?.avatarUrl) && !profileAvatarFailed;
   const mobileCenterNavItem =
     mobileNavItems.find((item) => item.href === "/products/new") ?? mobileNavItems[0] ?? null;
   const mobileSideNavItems = mobileNavItems.filter((item) => item.href !== mobileCenterNavItem?.href);
@@ -54,10 +53,6 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   const mobileRightNavItems = mobileSideNavItems.slice(2);
   const sidebarToggleLabel = isSidebarCollapsed ? "Perluas sidebar" : "Ciutkan sidebar";
   const SidebarToggleIcon = isSidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
-
-  useEffect(() => {
-    setProfileAvatarFailed(false);
-  }, [currentAffiliateProfile?.avatarUrl]);
 
   function isActive(href: string) {
     if (href === "/products/new" && pathname.startsWith("/intake")) {
@@ -141,20 +136,13 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
                 href="/settings"
                 title="Pengaturan"
               >
-                <span
-                  className={`topbar-profile-link__avatar${showProfileAvatar ? "" : " topbar-profile-link__avatar--fallback"}`}
-                  aria-hidden="true"
-                >
-                  {showProfileAvatar ? (
-                    <img
-                      alt=""
-                      src={currentAffiliateProfile?.avatarUrl ?? ""}
-                      onError={() => setProfileAvatarFailed(true)}
-                    />
-                  ) : (
-                    <Settings size={18} aria-hidden="true" />
-                  )}
-                </span>
+                <AvatarThumbnailFrame
+                  className="topbar-profile-link__avatar"
+                  fallback="settings"
+                  fallbackClassName="topbar-profile-link__avatar--fallback"
+                  iconSize={18}
+                  src={currentAffiliateProfile?.avatarUrl ?? null}
+                />
                 <span className="topbar-profile-link__label">Pengaturan</span>
               </Link>
             ) : null}

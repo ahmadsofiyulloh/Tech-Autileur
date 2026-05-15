@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { ArrowRight, ImageIcon, Plus, PanelRightOpen, Search, User, X } from "lucide-react";
+import { ArrowRight, ImageIcon, Plus, PanelRightOpen, Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
 import { FormActions } from "@/components/operator/form-actions";
 import { ImagePreviewUploadCard } from "@/components/operator/image-preview-upload-card";
 import { RelationalPicker } from "@/components/operator/relational-picker";
@@ -433,9 +434,11 @@ export function AffiliateProfilesBoard({
                 <tr data-active={selectedProfile?.id === profile.id && !isCreating ? "true" : undefined} key={profile.id}>
                   <td>
                     <div className="affiliate-profile-list__identity">
-                      <span className="affiliate-profile-card__avatar" aria-hidden="true">
-                        {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <User size={20} />}
-                      </span>
+                      <AvatarThumbnailFrame
+                        className="affiliate-profile-card__avatar"
+                        fallback="user"
+                        src={profile.avatarUrl}
+                      />
                       <div className="stack-tight">
                         <strong>{profile.profile_name}</strong>
                         <span className="subtle">{profile.niche?.trim() || "Niche belum diisi"}</span>
@@ -479,9 +482,11 @@ export function AffiliateProfilesBoard({
           {filteredProfiles.map((profile) => (
             <article className="product-card settings-list-card affiliate-profile-card" key={profile.id}>
               <div className="affiliate-profile-card__main">
-                <span className="affiliate-profile-card__avatar" aria-hidden="true">
-                  {profile.avatarUrl ? <img alt="" src={profile.avatarUrl} /> : <User size={20} />}
-                </span>
+                <AvatarThumbnailFrame
+                  className="affiliate-profile-card__avatar"
+                  fallback="user"
+                  src={profile.avatarUrl}
+                />
                 <div className="affiliate-profile-card__copy">
                   <div className="affiliate-profile-card__title-row">
                     <strong>{profile.profile_name}</strong>

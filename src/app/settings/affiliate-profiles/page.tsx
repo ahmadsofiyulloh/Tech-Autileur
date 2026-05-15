@@ -8,7 +8,7 @@ import {
   listAffiliateProfiles,
   type AffiliateProfileRecord,
 } from "@/lib/server/affiliate-profiles";
-import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
+import { listDriveItems, listDriveItemsByIds, type DriveItemRecord } from "@/lib/server/drive-items";
 import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError, type WorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -17,6 +17,16 @@ export const dynamic = "force-dynamic";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Akun Affiliate tidak tersedia.";
+}
+
+function mergeDriveItemsById(items: DriveItemRecord[], extraItems: DriveItemRecord[]) {
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+
+  for (const item of extraItems) {
+    itemMap.set(item.id, item);
+  }
+
+  return Array.from(itemMap.values());
 }
 
 export default async function AffiliateProfilesSettingsPage() {
@@ -54,6 +64,17 @@ export default async function AffiliateProfilesSettingsPage() {
     driveItems = (await listDriveItems({ limit: 200 })).filter((item) => item.status !== "ARCHIVED");
   } catch (error) {
     driveItemsError = errorMessage(error);
+  }
+
+  try {
+    const profileDriveItemRefs = affiliateProfiles.flatMap((profile) => [
+      profile.seed_character_drive_item_ref_id,
+      profile.environment_drive_item_ref_id,
+    ]);
+    const profileDriveItems = (await listDriveItemsByIds(profileDriveItemRefs)).filter((item) => item.status !== "ARCHIVED");
+    driveItems = mergeDriveItemsById(driveItems, profileDriveItems);
+  } catch (error) {
+    driveItemsError ??= errorMessage(error);
   }
 
   const workspaces = (workspaceState?.workspaces ?? []).filter((workspace) => workspace.status !== "ARCHIVED");

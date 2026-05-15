@@ -6,7 +6,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { listClipJobs, type ClipJobRecord } from "@/lib/server/clip-jobs";
 import { listContents, type ContentRecord } from "@/lib/server/contents";
-import { listDriveItems } from "@/lib/server/drive-items";
+import { listDriveItems, listDriveItemsByIds, type DriveItemRecord } from "@/lib/server/drive-items";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { listProductImages, listProducts } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
@@ -71,6 +71,16 @@ function buildProductsHref(params: {
 
   const queryString = searchParams.toString();
   return queryString ? `/products?${queryString}` : "/products";
+}
+
+function mergeDriveItemsById(items: DriveItemRecord[], extraItems: DriveItemRecord[]) {
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+
+  for (const item of extraItems) {
+    itemMap.set(item.id, item);
+  }
+
+  return Array.from(itemMap.values());
 }
 
 function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
@@ -401,6 +411,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       listContents({ limit: 200 }),
       listClipJobs({ limit: 200 }),
     ]);
+
+    const referencedDriveItems = await listDriveItemsByIds(productImages.map((image) => image.drive_item_ref_id));
+    driveItems = mergeDriveItemsById(driveItems, referencedDriveItems);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load products.";
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
+import sharp from "sharp";
 import { isEncryptionAuthenticationError } from "@/lib/server/encryption-errors";
 import {
   GOOGLE_DRIVE_CONNECTION_SCOPES,
@@ -71,6 +72,7 @@ type GoogleDriveThumbnailResponse = {
 const cachedAccessTokens = new Map<string, AccessTokenCache>();
 const GOOGLE_DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const GOOGLE_DRIVE_FILE_FETCH_TIMEOUT_MS = 30_000;
+const GOOGLE_DRIVE_PREVIEW_SIZE_PX = 512;
 
 class GoogleDriveClientError extends Error {
   constructor(
@@ -442,31 +444,68 @@ export async function getGoogleDriveImageThumbnailBytes(fileId: string) {
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,mimeType,thumbnailLink`,
       token,
     );
+    const mimeType = readText(parsed.mimeType).toLowerCase() || "image/jpeg";
+
+    if (!mimeType.startsWith("image/")) {
+      return null;
+    }
+
     const thumbnailLink = readText(parsed.thumbnailLink);
 
-    if (!thumbnailLink) {
-      return null;
+    if (thumbnailLink) {
+      const response = await fetch(thumbnailLink, {
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const bytes = Buffer.from(await response.arrayBuffer());
+        const contentType = readText(response.headers.get("content-type")).toLowerCase() || mimeType;
+
+        if (bytes.length && contentType.startsWith("image/")) {
+          return {
+            bytes,
+            contentType,
+          };
+        }
+      }
     }
 
-    const response = await fetch(thumbnailLink, {
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const bytes = Buffer.from(await response.arrayBuffer());
+    const bytes = await fetchGoogleDriveFileBytes(fileId);
 
     if (!bytes.length) {
       return null;
     }
 
+    try {
+      const resized = await sharp(bytes, { failOn: "none" })
+        .rotate()
+        .resize({
+          width: GOOGLE_DRIVE_PREVIEW_SIZE_PX,
+          height: GOOGLE_DRIVE_PREVIEW_SIZE_PX,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 78 })
+        .toBuffer();
+
+      if (resized.length) {
+        return {
+          bytes: resized,
+          contentType: "image/webp",
+        };
+      }
+    } catch {
+      return {
+        bytes,
+        contentType: mimeType,
+      };
+    }
+
     return {
       bytes,
-      contentType: readText(response.headers.get("content-type")) || readText(parsed.mimeType) || "image/jpeg",
+      contentType: mimeType,
     };
   } catch {
     return null;

@@ -56,13 +56,15 @@ export function ImagePreviewUploadCard({
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isRemoved, setIsRemoved] = useState(false);
+  const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
 
   const hasLocalSelection = Boolean(fileName) || Boolean(localPreviewUrl) || isPreparing;
   const hasRemotePreview = Boolean(previewUrl);
   const displayPreviewUrl = isRemoved ? null : localPreviewUrl ?? previewUrl ?? null;
-  const previewLabel = isPreparing ? "Menyiapkan" : isRemoved ? "Dihapus" : displayPreviewUrl ? "Preview" : "Kosong";
-  const previewTone = isPreparing ? "warning" : isRemoved ? "warning" : displayPreviewUrl ? "success" : "neutral";
-  const frameAriaLabel = displayPreviewUrl ? `${label}. Ganti gambar` : undefined;
+  const showPreview = Boolean(displayPreviewUrl) && !previewLoadFailed;
+  const previewLabel = isPreparing ? "Menyiapkan" : isRemoved ? "Dihapus" : showPreview ? "Preview" : "Kosong";
+  const previewTone = isPreparing ? "warning" : isRemoved ? "warning" : showPreview ? "success" : "neutral";
+  const frameAriaLabel = showPreview ? `${label}. Ganti gambar` : undefined;
   const clearLabel = isRemoved ? "Pulihkan" : hasLocalSelection && hasRemotePreview ? "Batal" : "Hapus";
   const clearButtonAriaLabel = `${clearLabel} ${label}`;
   const showClearButton = !disabled && (hasLocalSelection || hasRemotePreview || isRemoved);
@@ -74,8 +76,13 @@ export function ImagePreviewUploadCard({
     setLocalPreviewUrl(null);
     setIsPreparing(false);
     setIsRemoved(false);
+    setPreviewLoadFailed(false);
     resetInputValue(inputRef.current);
   }, [previewUrl]);
+
+  useEffect(() => {
+    setPreviewLoadFailed(false);
+  }, [displayPreviewUrl]);
 
   function notifySelection(nextState: ImagePreviewSelectionState) {
     onSelectionChange?.(nextState);
@@ -88,6 +95,7 @@ export function ImagePreviewUploadCard({
     setFileName(null);
     setLocalPreviewUrl(null);
     setIsPreparing(false);
+    setPreviewLoadFailed(false);
     resetInputValue(inputRef.current);
     notifySelection({ selected: false, fileName: null, previewUrl: null });
   }
@@ -154,6 +162,7 @@ export function ImagePreviewUploadCard({
       setLocalPreviewUrl(null);
       setIsPreparing(false);
       setIsRemoved((current) => !current);
+      setPreviewLoadFailed(false);
       resetInputValue(inputRef.current);
       notifySelection({ selected: false, fileName: null, previewUrl: null });
       return;
@@ -165,7 +174,7 @@ export function ImagePreviewUploadCard({
   const ClearIcon = isRemoved ? RotateCcw : hasLocalSelection && hasRemotePreview ? X : Trash2;
 
   return (
-    <section className={`image-preview-upload-card stack-tight${className ? ` ${className}` : ""}`} data-has-preview={displayPreviewUrl ? "true" : "false"} data-removed={isRemoved ? "true" : "false"}>
+    <section className={`image-preview-upload-card stack-tight${className ? ` ${className}` : ""}`} data-has-preview={showPreview ? "true" : "false"} data-removed={isRemoved ? "true" : "false"}>
       <div className="image-preview-upload-card__header">
         <strong>{label}</strong>
         {showStatusBadge ? (
@@ -189,8 +198,13 @@ export function ImagePreviewUploadCard({
               <Loader2 className="spin" size={32} aria-hidden="true" />
               <span>Menyiapkan pratinjau</span>
             </div>
-          ) : displayPreviewUrl ? (
-            <img alt={previewAlt ?? label} className="image-preview-upload-card__media" src={displayPreviewUrl} />
+          ) : showPreview ? (
+            <img
+              alt={previewAlt ?? label}
+              className="image-preview-upload-card__media"
+              src={displayPreviewUrl ?? undefined}
+              onError={() => setPreviewLoadFailed(true)}
+            />
           ) : (
             <div className="image-preview-upload-card__empty">
               <ImageIcon size={28} aria-hidden="true" />
@@ -198,7 +212,7 @@ export function ImagePreviewUploadCard({
             </div>
           )}
 
-          {displayPreviewUrl ? (
+          {showPreview ? (
             <span className="image-preview-upload-card__trigger" aria-hidden="true">
               <RotateCcw size={15} aria-hidden="true" />
             </span>

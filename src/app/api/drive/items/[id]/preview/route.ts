@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleDriveImageThumbnailBytes } from "@/lib/server/google-drive";
-import { type DriveItemRecord } from "@/lib/server/drive-items";
-import { requireDriveItemInActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope";
+import { isDriveImageLike, requireDriveImagePreviewItem } from "@/lib/server/drive-image-previews";
 
 export const dynamic = "force-dynamic";
-
-function isDriveImageLike(item: DriveItemRecord) {
-  return Boolean(item.drive_item_id) && (item.mime_type?.startsWith("image/") || item.purpose === "SOURCE_IMAGE");
-}
 
 function toArrayBuffer(bytes: Uint8Array) {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
@@ -27,7 +22,7 @@ function imageResponse(bytes: Uint8Array, contentType: string) {
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const { item } = await requireDriveItemInActiveWorkspaceDriveScope(id);
+    const item = await requireDriveImagePreviewItem(id);
 
     if (!isDriveImageLike(item)) {
       return NextResponse.json({ error: "Preview tidak tersedia." }, { status: 404 });

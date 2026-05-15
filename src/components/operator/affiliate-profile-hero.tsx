@@ -1,4 +1,5 @@
-import { ChevronRight, UserRound } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import type { ReactNode } from "react";
@@ -41,9 +42,11 @@ export function AffiliateProfileHero({
 
   return (
     <section className={`settings-native-card settings-profile-hero settings-profile-hero--${variant}`}>
-      <div className="settings-profile-hero__avatar" aria-hidden="true">
-        {avatarUrl ? <img alt="" src={avatarUrl} /> : <UserRound size={28} />}
-      </div>
+      <AvatarThumbnailFrame
+        className="settings-profile-hero__avatar"
+        iconSize={28}
+        src={avatarUrl}
+      />
       <div className="settings-profile-hero__copy">
         <span className="settings-profile-hero__eyebrow">{eyebrow}</span>
         <strong>{title}</strong>

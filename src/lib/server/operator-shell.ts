@@ -3,7 +3,7 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDefaultAffiliateProfileForWorkspace } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
-import { listDriveItems } from "@/lib/server/drive-items";
+import { listDriveItemsByIds } from "@/lib/server/drive-items";
 import { getWorkspaceSelectionState } from "@/lib/server/workspaces";
 import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
 
@@ -31,7 +31,10 @@ export async function getOperatorShellContext(): Promise<OperatorShellContext> {
       return { currentAffiliateProfile: null };
     }
 
-    const driveItems = (await listDriveItems({ limit: 200 })).filter((item) => item.status !== "ARCHIVED");
+    const driveItems = (await listDriveItemsByIds([
+      currentAffiliateProfile.seed_character_drive_item_ref_id,
+      currentAffiliateProfile.environment_drive_item_ref_id,
+    ])).filter((item) => item.status !== "ARCHIVED");
     const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
 
     return {
