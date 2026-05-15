@@ -18,13 +18,35 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(desktopSidebar).toContainText("Produk");
     await expect(desktopSidebar).toContainText("Prompt");
     await expect(desktopSidebar).toContainText("Drive");
-    await expect(desktopSidebar).not.toContainText("Dashboard");
+    await expect(desktopSidebar).toContainText("Dashboard");
     await expect(desktopSidebar).not.toContainText("Flow Control");
     await expect(desktopSidebar).not.toContainText("Pengaturan");
     await expect(page.getByRole("link", { name: "Pengaturan" })).toBeVisible();
     await expect(page.locator('.topbar-profile-link[href="/settings"]')).toBeVisible();
     await expect(page.locator(".topbar-settings-link")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toBeVisible();
+
+    const sidebarHeader = desktopSidebar.locator(".sidebar-header");
+    const sidebarNav = desktopSidebar.locator(".sidebar-nav");
+    const sidebarFooter = desktopSidebar.locator(".sidebar-footer");
+    const sidebarWidth = () => desktopSidebar.evaluate((node) => node.getBoundingClientRect().width);
+    const expandedSidebarWidth = await sidebarWidth();
+    await expect(sidebarHeader.getByRole("button", { name: /sidebar/i })).toHaveCount(0);
+    await expect(sidebarFooter.getByRole("button", { name: "Ciutkan sidebar" })).toBeVisible();
+
+    const [navBox, footerBox] = await Promise.all([
+      sidebarNav.evaluate((node) => node.getBoundingClientRect()),
+      sidebarFooter.evaluate((node) => node.getBoundingClientRect()),
+    ]);
+    expect(footerBox.top).toBeGreaterThan(navBox.bottom - 1);
+
+    await sidebarFooter.getByRole("button", { name: "Ciutkan sidebar" }).press("Enter");
+    await expect(sidebarFooter.getByRole("button", { name: "Perluas sidebar" })).toBeVisible();
+    await expect.poll(sidebarWidth).toBeLessThan(expandedSidebarWidth - 100);
+    await expect(desktopSidebar.getByRole("link", { name: "Intake" })).toBeVisible();
+    await sidebarFooter.getByRole("button", { name: "Perluas sidebar" }).press("Enter");
+    await expect(sidebarFooter.getByRole("button", { name: "Ciutkan sidebar" })).toBeVisible();
+    await expect.poll(sidebarWidth).toBeGreaterThan(expandedSidebarWidth - 10);
 
     await page.goto("/settings");
     await expect(page.locator('a.settings-native-row[href="/settings"]')).toHaveCount(0);
@@ -126,6 +148,35 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
   }
 });
 
+test("operator sidebar uses compact rail on tablet widths", async ({ page }) => {
+  try {
+    await page.setViewportSize({ width: 900, height: 900 });
+    await page.goto("/products/new", { waitUntil: "domcontentloaded" });
+
+    const desktopSidebar = page.getByRole("complementary", { name: "Operator navigation" });
+    await expect(desktopSidebar).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /sidebar/i })).toHaveCount(0);
+    await expect(desktopSidebar.getByRole("link", { name: "Intake" })).toBeVisible();
+
+    const layoutState = await page.evaluate(() => {
+      const sidebar = document.querySelector(".sidebar");
+
+      return {
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        sidebarWidth: sidebar?.getBoundingClientRect().width ?? 0,
+      };
+    });
+
+    expect(layoutState.sidebarWidth).toBeGreaterThan(60);
+    expect(layoutState.sidebarWidth).toBeLessThanOrEqual(90);
+    expect(layoutState.scrollWidth).toBeLessThanOrEqual(layoutState.clientWidth + 1);
+  } catch (error) {
+    throw classifySmokeError("tablet operator sidebar", error);
+  }
+});
+
 test("settings theme preference supports light dark and system modes", async ({ page }) => {
   try {
     await page.setViewportSize({ width: 1280, height: 1600 });
@@ -133,13 +184,14 @@ test("settings theme preference supports light dark and system modes", async ({ 
     await page.goto("/settings", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Pengaturan", level: 1 })).toBeVisible();
 
-    const themeTrigger = page.locator(".theme-mode-picker .relational-picker__trigger");
-    await expect(themeTrigger).toContainText("Terang");
+    const lightThemeButton = page.getByRole("button", { name: "Light theme" });
+    const systemThemeButton = page.getByRole("button", { name: "System theme" });
+    const darkThemeButton = page.getByRole("button", { name: "Dark theme" });
+    await expect(lightThemeButton).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("light");
 
-    await themeTrigger.click();
-    await page.getByRole("option", { name: "Gelap" }).click();
+    await darkThemeButton.click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("dark");
     await expect.poll(() => readThemeCookie(page)).toBe("dark");
@@ -149,8 +201,7 @@ test("settings theme preference supports light dark and system modes", async ({ 
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("dark");
 
     await page.emulateMedia({ colorScheme: "dark" });
-    await themeTrigger.click();
-    await page.getByRole("option", { name: "Ikuti Sistem" }).click();
+    await systemThemeButton.click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("system");
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
     await expect.poll(() => readThemeCookie(page)).toBe("system");
@@ -158,8 +209,7 @@ test("settings theme preference supports light dark and system modes", async ({ 
     await page.emulateMedia({ colorScheme: "light" });
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
 
-    await themeTrigger.click();
-    await page.getByRole("option", { name: "Terang" }).click();
+    await lightThemeButton.click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("light");
     await expect.poll(() => readThemeCookie(page)).toBe("light");
@@ -236,6 +286,7 @@ test("affiliate profile reanalysis submits from the drawer", async ({ page }) =>
       void dialog.accept();
     });
 
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings/affiliate-profiles", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Akun Affiliate", level: 1 })).toBeVisible();
     await expect(page.locator(".tab-nav")).toHaveCount(0);
@@ -246,6 +297,7 @@ test("affiliate profile reanalysis submits from the drawer", async ({ page }) =>
 
       const drawer = page.getByRole("complementary", { name: "Detail akun affiliate" });
       await expect(drawer).toBeVisible();
+      await expect(drawer).toHaveAttribute("data-open", "true");
 
       const characterReanalyseButton = drawer.getByRole("button", { name: "Analisis ulang aset" });
       await expect(characterReanalyseButton).toHaveCount(1);

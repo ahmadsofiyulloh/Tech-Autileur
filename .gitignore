@@ -12,8 +12,10 @@ dist
 .vercel
 supabase/.temp
 .playwright
+.playwright-mcp
 playwright-report
 test-results
 gemini_prototype_design
+excel prototype/
 *.log
 *.temp.ts

@@ -50,7 +50,7 @@ function feedbackTitle(tone: ToastTone) {
   return "Berhasil";
 }
 
-function isImportantMobileFeedback(tone: ToastTone, message: string) {
+function isImportantFeedback(tone: ToastTone, message: string) {
   if (tone === "error" || tone === "warning") {
     return true;
   }
@@ -241,8 +241,7 @@ export function RouteToaster() {
     const retryableGeminiError = Boolean(error && isGeminiTemporaryUnavailableMessage(error));
     const tone: ToastTone = error ? (retryableGeminiError ? "warning" : "error") : warning ? "warning" : "success";
     const toastMessage = retryableGeminiError ? getGeminiTemporaryUnavailableRetryMessage() : value;
-    const presentation: FeedbackPresentation =
-      isMobileViewport && isImportantMobileFeedback(tone, toastMessage) ? "sheet" : "toast";
+    const presentation: FeedbackPresentation = isImportantFeedback(tone, toastMessage) ? "sheet" : "toast";
     const key = `${pathname}:${tone}:${toastMessage}`;
     const id = `${Date.now()}-${tone}`;
     const feedback: RouteFeedback = {

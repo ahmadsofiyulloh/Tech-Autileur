@@ -1,6 +1,6 @@
 "use client";
 
-import { UserRound, Workflow } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Settings, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -34,6 +34,7 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   const pathname = usePathname();
   const shellMainRef = useRef<HTMLElement | null>(null);
   const [profileAvatarFailed, setProfileAvatarFailed] = useState(false);
+  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const activeRoute =
     routeTitles
       .slice()
@@ -51,6 +52,8 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   const mobileSideNavItems = mobileNavItems.filter((item) => item.href !== mobileCenterNavItem?.href);
   const mobileLeftNavItems = mobileSideNavItems.slice(0, 2);
   const mobileRightNavItems = mobileSideNavItems.slice(2);
+  const sidebarToggleLabel = isSidebarCollapsed ? "Perluas sidebar" : "Ciutkan sidebar";
+  const SidebarToggleIcon = isSidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
 
   useEffect(() => {
     setProfileAvatarFailed(false);
@@ -73,17 +76,19 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   }
 
   return (
-    <div className="operator-shell">
-      <aside className="sidebar" aria-label="Operator navigation">
-        <Link className="sidebar-brand" href="/dashboard">
-          <span className="sidebar-brand__mark" aria-hidden="true">
-            <Workflow size={18} />
-          </span>
-          <span>
-            <strong>Operator</strong>
-            <small>Content OS</small>
-          </span>
-        </Link>
+    <div className="operator-shell" data-sidebar-collapsed={isSidebarCollapsed ? "true" : undefined}>
+      <aside className="sidebar" aria-label="Operator navigation" data-collapsed={isSidebarCollapsed ? "true" : undefined}>
+        <div className="sidebar-header">
+          <Link className="sidebar-brand" href="/dashboard">
+            <span className="sidebar-brand__mark" aria-hidden="true">
+              <Workflow size={18} />
+            </span>
+            <span className="sidebar-brand__copy">
+              <strong>Operator</strong>
+              <small>Content OS</small>
+            </span>
+          </Link>
+        </div>
         <nav className="sidebar-nav">
           {desktopNavItems.map((item) => {
             const Icon = item.icon;
@@ -102,6 +107,19 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
             );
           })}
         </nav>
+        <div className="sidebar-footer">
+          <button
+            aria-label={sidebarToggleLabel}
+            aria-pressed={isSidebarCollapsed}
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed((current) => !current)}
+            title={sidebarToggleLabel}
+            type="button"
+          >
+            <SidebarToggleIcon aria-hidden="true" size={17} />
+            <span className="sidebar-toggle__label">{sidebarToggleLabel}</span>
+          </button>
+        </div>
       </aside>
 
       <div className="operator-workspace">
@@ -121,7 +139,7 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
                 aria-label="Pengaturan"
                 className="topbar-profile-link"
                 href="/settings"
-                title={currentAffiliateProfile?.profileName ?? "Pengaturan"}
+                title="Pengaturan"
               >
                 <span
                   className={`topbar-profile-link__avatar${showProfileAvatar ? "" : " topbar-profile-link__avatar--fallback"}`}
@@ -134,9 +152,10 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
                       onError={() => setProfileAvatarFailed(true)}
                     />
                   ) : (
-                    <UserRound size={18} aria-hidden="true" />
+                    <Settings size={18} aria-hidden="true" />
                   )}
                 </span>
+                <span className="topbar-profile-link__label">Pengaturan</span>
               </Link>
             ) : null}
           </div>

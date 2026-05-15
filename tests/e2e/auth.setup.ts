@@ -9,9 +9,9 @@ setup("prepare smoke auth state", async ({ page }) => {
 
   try {
     await page.goto("/login");
-    await page.getByLabel("Email").fill(state.user.email);
-    await page.getByLabel("Password").fill(state.user.password);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabel("Email", { exact: true }).fill(state.user.email);
+    await page.getByLabel("Password", { exact: true }).fill(state.user.password);
+    await page.getByRole("button", { name: "Masuk" }).click();
 
     await page.waitForURL(/\/products\/new/);
     await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();

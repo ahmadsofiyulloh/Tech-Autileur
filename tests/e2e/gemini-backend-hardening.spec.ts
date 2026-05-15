@@ -1172,10 +1172,40 @@ test("route toaster maps important mobile feedback to body-only notification she
   await expect(sheet.locator(".mobile-notification-sheet__message")).toContainText("Google Drive connection failed.");
   await expect(page.locator(".mobile-notification-sheet__header")).toHaveCount(0);
   await expect(page.locator(".toast")).toHaveCount(0);
+  const sheetBox = await sheet.boundingBox();
+  if (!sheetBox) {
+    throw new Error("Expected mobile notification sheet to have a layout box.");
+  }
+  expect(Math.round(sheetBox.x)).toBe(0);
+  expect(Math.round(sheetBox.width)).toBe(390);
+  expect(Math.round(sheetBox.y + sheetBox.height)).toBe(844);
+  await expect(sheet).toHaveCSS("border-top-width", "0px");
   await expect
     .poll(() => new URL(page.url()).searchParams.has("error"), {
       message: "route feedback param is cleared after queueing the mobile sheet",
     })
     .toBe(false);
   await expect(sheet).toHaveCount(0, { timeout: 7000 });
+});
+
+test("route toaster maps important desktop feedback to centered modal", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/settings?error=Google%20Drive%20connection%20failed.");
+
+  const sheet = page.locator(".mobile-notification-sheet");
+
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator(".mobile-notification-sheet__title")).toContainText("Gagal");
+  await expect(sheet.locator(".mobile-notification-sheet__message")).toContainText("Google Drive connection failed.");
+  await expect(page.locator(".toast")).toHaveCount(0);
+  await expect(sheet).toHaveCSS("border-top-width", "0px");
+
+  const sheetBox = await sheet.boundingBox();
+  const viewport = page.viewportSize();
+  if (!sheetBox || !viewport) {
+    throw new Error("Expected desktop notification sheet to have viewport and layout boxes.");
+  }
+
+  expect(Math.abs(sheetBox.x + sheetBox.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sheetBox.y + sheetBox.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(2);
 });

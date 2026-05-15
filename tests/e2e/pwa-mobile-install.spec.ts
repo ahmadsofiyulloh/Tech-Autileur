@@ -74,6 +74,7 @@ test("manifest exposes Phase 1 install metadata and screenshot assets", async ({
 
 test("mobile intake shell has install-ready head tags and no horizontal overflow", async ({ page }) => {
   try {
+    await page.setViewportSize({ width: 360, height: 800 });
     await page.goto("/products/new");
     await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();
 
@@ -90,12 +91,70 @@ test("mobile intake shell has install-ready head tags and no horizontal overflow
 
     const bottomNav = page.getByRole("navigation", { name: "Mobile operator navigation" });
     await expect(bottomNav).toBeVisible();
-    await expect(bottomNav).toContainText("Intake");
+    await expect(bottomNav).toContainText("Dashboard");
     await expect(bottomNav).toContainText("Produk");
     await expect(bottomNav).toContainText("Prompt");
     await expect(bottomNav).toContainText("Drive");
     await expect(bottomNav).not.toContainText("Flow Control");
     await expect(bottomNav).not.toContainText("Pengaturan");
+    await expect(bottomNav.getByRole("link")).toHaveCount(5);
+    await expect(bottomNav.getByRole("link", { name: "Dashboard" })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Intake" })).toHaveClass(/bottom-nav__link--center/);
+    await expect(bottomNav.getByRole("link", { name: "Produk" })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Prompt" })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Drive" })).toBeVisible();
+
+    const bottomNavFitState = await bottomNav.evaluate((navigation) => {
+      const links = Array.from(navigation.querySelectorAll<HTMLElement>(".bottom-nav__link"));
+      const sideLinks = links.filter((link) => !link.classList.contains("bottom-nav__link--center"));
+      const sideRows = new Set(sideLinks.map((link) => Math.round(link.getBoundingClientRect().top)));
+      const labels = sideLinks.map((link) => {
+        const label = link.querySelector<HTMLSpanElement>("span");
+        const labelRect = label?.getBoundingClientRect();
+        const labelStyle = label ? window.getComputedStyle(label) : null;
+
+        return {
+          height: labelRect?.height ?? 0,
+          lineHeight: Number.parseFloat(labelStyle?.lineHeight ?? "0"),
+          overflowWrap: labelStyle?.overflowWrap ?? "",
+          text: label?.textContent ?? "",
+          whiteSpace: labelStyle?.whiteSpace ?? "",
+          wordBreak: labelStyle?.wordBreak ?? "",
+        };
+      });
+      const navRect = navigation.getBoundingClientRect();
+      const centerLink = navigation.querySelector<HTMLElement>(".bottom-nav__link--center");
+      const centerIconWrap = navigation.querySelector<HTMLElement>(".bottom-nav__center-iconWrap");
+      const centerLinkRect = centerLink?.getBoundingClientRect();
+      const centerIconRect = centerIconWrap?.getBoundingClientRect();
+
+      return {
+        centerIconOffset: centerIconRect
+          ? Math.abs(centerIconRect.left + centerIconRect.width / 2 - (navRect.left + navRect.width / 2))
+          : Number.POSITIVE_INFINITY,
+        centerIconVerticalOffset:
+          centerIconRect && centerLinkRect
+            ? Math.abs(centerIconRect.top + centerIconRect.height / 2 - (centerLinkRect.top + centerLinkRect.height / 2))
+            : Number.POSITIVE_INFINITY,
+        centerLinkOffset: centerLinkRect
+          ? Math.abs(centerLinkRect.left + centerLinkRect.width / 2 - (navRect.left + navRect.width / 2))
+          : Number.POSITIVE_INFINITY,
+        gridColumnCount: window.getComputedStyle(navigation).gridTemplateColumns.split(" ").filter(Boolean).length,
+        labels,
+        sideRowCount: sideRows.size,
+      };
+    });
+    expect(bottomNavFitState.gridColumnCount).toBe(5);
+    expect(bottomNavFitState.sideRowCount).toBe(1);
+    expect(bottomNavFitState.centerLinkOffset).toBeLessThanOrEqual(1);
+    expect(bottomNavFitState.centerIconOffset).toBeLessThanOrEqual(1);
+    expect(bottomNavFitState.centerIconVerticalOffset).toBeLessThanOrEqual(1);
+    for (const label of bottomNavFitState.labels) {
+      expect(label.whiteSpace).toBe("nowrap");
+      expect(label.overflowWrap).toBe("normal");
+      expect(label.wordBreak).toBe("normal");
+      expect(label.height).toBeLessThanOrEqual(label.lineHeight + 1);
+    }
 
     const layoutState = await page.evaluate(() => {
       const bottomNavElement = document.querySelector(".bottom-nav");
@@ -144,6 +203,7 @@ test("mobile intake shell has install-ready head tags and no horizontal overflow
 
 test("mobile shell exposes a pull-to-refresh fallback when the gesture is active", async ({ page }) => {
   try {
+    await page.setViewportSize({ width: 360, height: 800 });
     await page.goto("/products/new");
     await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();
     await page.waitForTimeout(150);
@@ -156,6 +216,7 @@ test("mobile shell exposes a pull-to-refresh fallback when the gesture is active
         throw new Error("shell-main is missing.");
       }
 
+      element.scrollTop = 0;
       const rect = element.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;
       const startY = rect.top + 12;
@@ -185,7 +246,7 @@ test("mobile shell exposes a pull-to-refresh fallback when the gesture is active
         }),
       );
 
-      const moveY = startY + 56;
+      const moveY = startY + 96;
       const moveTouch = new Touch({
         clientX: startX,
         clientY: moveY,
