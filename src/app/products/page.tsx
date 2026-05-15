@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Package, Plus } from "lucide-react";
+import { OperatorDetailDrawer } from "@/components/operator/detail-drawer";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { NativeLinkButton } from "@/components/ui/native-button";
@@ -12,13 +13,19 @@ import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ProductDetailPanel, resolveProductDetailTab } from "./product-detail-panel";
 import { ProductList } from "./product-list";
 import type { ProductListRow, ProductUploadScope, ProductWorkflowStage, ProductWorkflowStatusJson } from "./types";
 
 export const dynamic = "force-dynamic";
 
 type ProductsPageProps = {
-  searchParams: Promise<{ affiliate_profile_id?: string | string[]; workspace?: string | string[] }>;
+  searchParams: Promise<{
+    affiliate_profile_id?: string | string[];
+    detail?: string | string[];
+    tab?: string | string[];
+    workspace?: string | string[];
+  }>;
 };
 
 type PromptPackRecord = Awaited<ReturnType<typeof listPromptPacks>>[number];
@@ -36,6 +43,34 @@ function formatDate(value: string) {
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function buildProductsHref(params: {
+  affiliateProfileId?: string | null;
+  detailId?: string | null;
+  showAllWorkspaces?: boolean;
+  tab?: string | null;
+}) {
+  const searchParams = new URLSearchParams();
+
+  if (params.showAllWorkspaces) {
+    searchParams.set("workspace", "all");
+  }
+
+  if (params.affiliateProfileId) {
+    searchParams.set("affiliate_profile_id", params.affiliateProfileId);
+  }
+
+  if (params.detailId) {
+    searchParams.set("detail", params.detailId);
+  }
+
+  if (params.tab) {
+    searchParams.set("tab", params.tab);
+  }
+
+  const queryString = searchParams.toString();
+  return queryString ? `/products?${queryString}` : "/products";
 }
 
 function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { workspace_code: string; workspace_name: string }>) {
@@ -95,7 +130,13 @@ function buildContinueHref(params: {
   showAllWorkspaces: boolean;
 }) {
   if (params.latestPromptPack && isDraftPromptPack(params.latestPromptPack.status)) {
-    return `/prompts/${params.latestPromptPack.id}`;
+    const searchParams = new URLSearchParams({ detail: params.latestPromptPack.id });
+
+    if (params.affiliateProfileId) {
+      searchParams.set("affiliate_profile_id", params.affiliateProfileId);
+    }
+
+    return `/prompts?${searchParams.toString()}`;
   }
 
   if (!params.latestIntake) {
@@ -325,6 +366,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   const query = await searchParams;
   const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id) ?? null;
+  const selectedProductDetailId = firstParam(query.detail) ?? "";
+  const selectedProductDetailTab = resolveProductDetailTab(firstParam(query.tab));
   const showAllWorkspaces = firstParam(query.workspace) === "all";
   let products;
   let currentWorkspace;
@@ -497,7 +540,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       created_at: product.created_at,
       created_at_label: formatDate(product.created_at),
       thumbnail_url: thumbnailUrl,
-      href: `/products/${product.id}`,
+      href: buildProductsHref({
+        affiliateProfileId: requestedAffiliateProfileId,
+        detailId: product.id,
+        showAllWorkspaces,
+        tab: "output",
+      }),
       continue_href: continueHref,
       primary_status_label: primaryStatusLabel,
       status_context_label: statusContextLabel,
@@ -518,23 +566,57 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
   });
 
+  const selectedProductRow = productRows.find((product) => product.id === selectedProductDetailId) ?? null;
+  const hasProductDetail = Boolean(selectedProductDetailId && selectedProductRow);
+  const productsCloseHref = buildProductsHref({
+    affiliateProfileId: requestedAffiliateProfileId,
+    showAllWorkspaces,
+  });
+  const productDetailHrefBase = hasProductDetail
+    ? buildProductsHref({
+        affiliateProfileId: requestedAffiliateProfileId,
+        detailId: selectedProductDetailId,
+        showAllWorkspaces,
+      })
+    : productsCloseHref;
+  const productDetailSubtitle = selectedProductRow
+    ? [selectedProductRow.workspace_label, selectedProductRow.primary_status_label].filter(Boolean).join(" - ")
+    : null;
+
   return (
-    <div className="stack">
-      {visibleProducts.length ? (
-        <ProductList products={productRows} />
-      ) : (
-        <EmptyState
-          icon={Package}
-          title={currentWorkspace && !showAllWorkspaces ? "Belum ada produk di workspace ini." : "Belum ada produk."}
-          description="Mulai dari intake."
-          action={
-            <NativeLinkButton className="primary" href="/products/new">
-              <Plus size={16} aria-hidden="true" />
-              Intake baru
-            </NativeLinkButton>
-          }
-        />
-      )}
+    <div className="operator-detail-layout" data-has-detail={hasProductDetail ? "true" : undefined}>
+      <div className="operator-detail-layout__list">
+        {visibleProducts.length ? (
+          <ProductList activeProductId={hasProductDetail ? selectedProductDetailId : null} products={productRows} />
+        ) : (
+          <EmptyState
+            icon={Package}
+            title={currentWorkspace && !showAllWorkspaces ? "Belum ada produk di workspace ini." : "Belum ada produk."}
+            description="Mulai dari intake."
+            action={
+              <NativeLinkButton className="primary" href="/products/new">
+                <Plus size={16} aria-hidden="true" />
+                Intake baru
+              </NativeLinkButton>
+            }
+          />
+        )}
+      </div>
+
+      {selectedProductRow ? (
+        <OperatorDetailDrawer
+          ariaLabel="Detail produk"
+          closeHref={productsCloseHref}
+          subtitle={productDetailSubtitle}
+          title={selectedProductRow?.product_name ?? "Detail produk"}
+        >
+          <ProductDetailPanel
+            activeTab={selectedProductDetailTab}
+            detailHrefBase={productDetailHrefBase}
+            productId={selectedProductRow.id}
+          />
+        </OperatorDetailDrawer>
+      ) : null}
     </div>
   );
 }

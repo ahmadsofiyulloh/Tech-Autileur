@@ -57,7 +57,8 @@ function appendRedirectMessage(path: string, key: "message" | "error" | "warning
 }
 
 function promptDetailRedirect(promptPackId: string, key: "message" | "error" | "warning", message: string) {
-  return appendRedirectMessage(`/prompts/${promptPackId}`, key, message);
+  const searchParams = new URLSearchParams({ detail: promptPackId });
+  return appendRedirectMessage(`/prompts?${searchParams.toString()}`, key, message);
 }
 
 function buildPromptRedirectFromForm(
@@ -114,6 +115,7 @@ function revalidatePromptRoutes(promptPackId: string, productId?: string | null)
   revalidatePath(`/prompts/${promptPackId}/history`);
 
   if (productId) {
+    revalidatePath("/products");
     revalidatePath(`/products/${productId}`);
   }
 }

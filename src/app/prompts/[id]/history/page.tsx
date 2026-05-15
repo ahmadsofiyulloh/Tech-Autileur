@@ -140,7 +140,7 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
 
       <div className="surface-toolbar">
         <div className="surface-toolbar__actions action-rail action-rail--pair desktop-action-set">
-          <NativeLinkButton className="compact" href={`/prompts/${selectedPromptPack.id}`}>
+          <NativeLinkButton className="compact" href={`/prompts?detail=${selectedPromptPack.id}`}>
             <ArrowLeft size={16} aria-hidden="true" />
             Editor
           </NativeLinkButton>
@@ -149,7 +149,7 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
           </NativeLinkButton>
         </div>
         <div className="surface-toolbar__actions mobile-action-set">
-          <NativeLinkButton className="compact primary" href={`/prompts/${selectedPromptPack.id}`}>
+          <NativeLinkButton className="compact primary" href={`/prompts?detail=${selectedPromptPack.id}`}>
             <ArrowLeft size={16} aria-hidden="true" />
             Editor
           </NativeLinkButton>
@@ -178,7 +178,7 @@ export default async function PromptHistoryPage({ params }: PromptHistoryPagePro
                     {pack.error_message ? <span className="error-box">{pack.error_message}</span> : null}
                     {task?.error_message ? <span className="error-box">{task.error_message}</span> : null}
                   </div>
-                  <NativeLinkButton className="compact primary prompt-history-row__action" href={`/prompts/${pack.id}`}>
+                  <NativeLinkButton className="compact primary prompt-history-row__action" href={`/prompts?detail=${pack.id}`}>
                     <Edit3 size={15} aria-hidden="true" />
                     Buka
                   </NativeLinkButton>

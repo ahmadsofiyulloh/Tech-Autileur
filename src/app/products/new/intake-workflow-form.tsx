@@ -307,7 +307,6 @@ function DraftQueuePanel({ drafts }: { drafts: IntakeWorkflowFormProps["draftQue
               {draft.errorMessage ? <small title={draft.errorMessage}>{draft.errorMessage}</small> : null}
             </div>
             <div className="intake-draft-queue__actions">
-              <StatusBadge status={draft.status} tone={draft.status === "ERROR" ? "danger" : "info"} />
               <NativeLinkButton className="compact primary" href={draft.continueHref}>
                 <Link2 size={15} aria-hidden="true" />
                 Lanjutkan
@@ -456,7 +455,7 @@ function AnalysisReadyPanel({
           Simpan
         </PendingActionButton>
         {savedSession.product_id ? (
-          <NativeLinkButton className="tertiary" href={`/products/${savedSession.product_id}`}>
+          <NativeLinkButton className="tertiary" href={`/products?detail=${savedSession.product_id}`}>
             <Link2 size={16} aria-hidden="true" />
             Produk
           </NativeLinkButton>

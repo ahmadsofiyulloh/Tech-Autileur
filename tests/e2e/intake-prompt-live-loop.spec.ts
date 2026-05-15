@@ -51,6 +51,12 @@ function isGeminiBlockerMessage(message: string) {
 }
 
 function promptPackIdFromUrl(url: URL) {
+  const detailId = url.searchParams.get("detail");
+
+  if (url.pathname === "/prompts" && detailId) {
+    return detailId;
+  }
+
   const segments = url.pathname.split("/").filter(Boolean);
   if (segments[0] !== "prompts" || segments.length < 2) {
     return "";
@@ -674,7 +680,7 @@ async function runLiveSmokeIteration(input: {
   await test.step(`Loop ${iteration}: generate prompt`, async () => {
     const promptCard = page
       .locator("article")
-      .filter({ has: page.locator(`a[href="/products/${productId}?tab=metadata"]`) })
+      .filter({ has: page.locator(`a[href^="/products?"][href*="detail=${productId}"][href*="tab=metadata"]`) })
       .first();
     await expect(promptCard).toBeVisible();
     await expect(promptCard.getByRole("button", { name: "Buat Prompt" })).toBeEnabled();
@@ -682,7 +688,11 @@ async function runLiveSmokeIteration(input: {
 
     await page.waitForURL((url) => {
       const promptPackId = promptPackIdFromUrl(url);
-      return /^\/prompts\/[^/]+$/.test(url.pathname) && promptPackId !== promptPackV1Id;
+      return (
+        (url.pathname === "/prompts" || /^\/prompts\/[^/]+$/.test(url.pathname)) &&
+        Boolean(promptPackId) &&
+        promptPackId !== promptPackV1Id
+      );
     }, {
       timeout: PROMPT_GENERATION_TIMEOUT_MS,
       waitUntil: "commit",
@@ -860,7 +870,11 @@ async function runLiveSmokeIteration(input: {
 
     await page.waitForURL((url) => {
       const promptPackId = promptPackIdFromUrl(url);
-      return /^\/prompts\/[^/]+$/.test(url.pathname) && promptPackId !== promptPackV1Id;
+      return (
+        (url.pathname === "/prompts" || /^\/prompts\/[^/]+$/.test(url.pathname)) &&
+        Boolean(promptPackId) &&
+        promptPackId !== promptPackV1Id
+      );
     }, {
       timeout: PROMPT_GENERATION_TIMEOUT_MS,
       waitUntil: "commit",

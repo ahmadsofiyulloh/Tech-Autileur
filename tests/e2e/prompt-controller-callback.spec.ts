@@ -338,11 +338,11 @@ test.skip("prompt generation, flow handoff, manifest export, and helper callback
     await page.getByRole("button", { name: "Tutup" }).first().click();
     await expect(page.getByText("CLOSED", { exact: true })).toBeVisible();
 
-    await page.goto(`/products/${state.product.id}?tab=metadata`);
-    await expect(page.getByRole("heading", { name: "Product metadata" })).toBeVisible();
-    await page.goto(`/products/${state.product.id}?tab=output`);
-    await expect(page.getByRole("heading", { name: "Output", exact: true })).toBeVisible();
-    await page.goto(`/products/${state.product.id}?tab=history`);
+    await page.goto(`/products?detail=${state.product.id}&tab=metadata`);
+    await expect(page.getByRole("link", { name: "Metadata" })).toHaveAttribute("aria-current", "page");
+    await page.goto(`/products?detail=${state.product.id}&tab=output`);
+    await expect(page.getByRole("heading", { name: "Output Siap Copy", exact: true })).toBeVisible();
+    await page.goto(`/products?detail=${state.product.id}&tab=history`);
     await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
   } catch (error) {
     if (error instanceof Error && error.message.includes("timeout")) {

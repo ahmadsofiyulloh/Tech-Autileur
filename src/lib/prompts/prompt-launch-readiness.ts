@@ -48,7 +48,8 @@ function buildPromptReviewHref(input: Pick<PromptLaunchReadinessInput, "affiliat
 }
 
 function buildProductMetadataHref(productId: string) {
-  return `/products/${productId}?tab=metadata`;
+  const searchParams = new URLSearchParams({ detail: productId, tab: "metadata" });
+  return `/products?${searchParams.toString()}`;
 }
 
 function buildAffiliateProfileHref() {

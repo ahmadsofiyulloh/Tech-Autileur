@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Clock3, Edit3, FileText, Package, Plus } from "lucide-react";
 import { savePromptPack } from "./actions";
+import { OperatorDetailDrawer } from "@/components/operator/detail-drawer";
 import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { PromptLaunchReadinessSummary } from "@/components/operator/prompt-launch-readiness-summary";
@@ -17,6 +18,7 @@ import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { getPromptLaunchReadiness, type PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PromptDetailPanel } from "./prompt-detail-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,7 @@ type PromptTaskRecord = {
 type PromptsPageProps = {
   searchParams: Promise<{
     affiliate_profile_id?: string | string[];
+    detail?: string | string[];
     intake_id?: string | string[];
     product_id?: string | string[];
   }>;
@@ -42,6 +45,34 @@ type PromptsPageProps = {
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function buildPromptsHref(params: {
+  affiliateProfileId?: string | null;
+  detailId?: string | null;
+  intakeId?: string | null;
+  productId?: string | null;
+}) {
+  const searchParams = new URLSearchParams();
+
+  if (params.affiliateProfileId) {
+    searchParams.set("affiliate_profile_id", params.affiliateProfileId);
+  }
+
+  if (params.productId) {
+    searchParams.set("product_id", params.productId);
+  }
+
+  if (params.intakeId) {
+    searchParams.set("intake_id", params.intakeId);
+  }
+
+  if (params.detailId) {
+    searchParams.set("detail", params.detailId);
+  }
+
+  const queryString = searchParams.toString();
+  return queryString ? `/prompts?${queryString}` : "/prompts";
 }
 
 function PromptPackCreateForm({
@@ -91,6 +122,9 @@ function PromptRowCard({
   generationTask,
   defaultAffiliateProfileName,
   isSelected,
+  productDetailHref,
+  promptDetailHref,
+  returnHref,
 }: {
   product: ProductRecord;
   workspaceName: string;
@@ -102,6 +136,9 @@ function PromptRowCard({
   generationTask: PromptTaskRecord | null;
   defaultAffiliateProfileName: string;
   isSelected: boolean;
+  productDetailHref: string;
+  promptDetailHref: string | null;
+  returnHref: string;
 }) {
   const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
   const affiliateProfileName = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
@@ -136,41 +173,49 @@ function PromptRowCard({
 
       <div className="prompt-list-card__divider" aria-hidden="true" />
 
-      <div
-        className={`prompt-list-card__actions desktop-action-set action-rail action-rail--${promptPack ? "triple" : intakeSession ? "pair" : "single"}`.trim()}
-      >
+      <div className="prompt-list-card__actions prompt-list-card__desktop-actions desktop-action-set">
         {promptPack ? (
           <>
-            <NativeLinkButton className="compact primary" href={`/prompts/${promptPack.id}`}>
+            <NativeLinkButton className="compact primary" href={promptDetailHref ?? `/prompts/${promptPack.id}`}>
               <Edit3 size={15} aria-hidden="true" />
               Buka
             </NativeLinkButton>
-            <NativeLinkButton className="compact tertiary" href={`/prompts/${promptPack.id}/history`}>
-              <Clock3 size={15} aria-hidden="true" />
-              History
-            </NativeLinkButton>
-            <form action={savePromptPack}>
-              <input type="hidden" name="intent" value="archive" />
-              <input type="hidden" name="return_to" value="/prompts" />
-              <input type="hidden" name="id" value={promptPack.id} />
-              <input type="hidden" name="product_id" value={promptPack.product_id} />
-              <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} variant="iconOnly" />
-            </form>
+            <OverflowActionMenu label="Aksi prompt">
+              <NativeLinkButton className="compact" href={`/prompts/${promptPack.id}/history`}>
+                <Clock3 size={15} aria-hidden="true" />
+                History
+              </NativeLinkButton>
+              <form action={savePromptPack}>
+                <input type="hidden" name="intent" value="archive" />
+                <input type="hidden" name="return_to" value={returnHref} />
+                <input type="hidden" name="id" value={promptPack.id} />
+                <input type="hidden" name="product_id" value={promptPack.product_id} />
+                <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
+              </form>
+            </OverflowActionMenu>
           </>
         ) : (
           <>
-            <NativeLinkButton className="compact tertiary" href={`/products/${product.id}?tab=metadata`}>
-              Produk
-            </NativeLinkButton>
             {intakeSession ? (
-              <PromptPackCreateForm
-                affiliateProfile={affiliateProfile}
-                intakeSession={intakeSession}
-                product={product}
-                readiness={promptLaunchReadiness}
-                sourceImage={sourceImage}
-              />
-            ) : null}
+              <>
+                <PromptPackCreateForm
+                  affiliateProfile={affiliateProfile}
+                  intakeSession={intakeSession}
+                  product={product}
+                  readiness={promptLaunchReadiness}
+                  sourceImage={sourceImage}
+                />
+                <OverflowActionMenu label="Aksi prompt">
+                  <NativeLinkButton className="compact" href={productDetailHref}>
+                    Produk
+                  </NativeLinkButton>
+                </OverflowActionMenu>
+              </>
+            ) : (
+              <NativeLinkButton className="compact primary" href={productDetailHref}>
+                Produk
+              </NativeLinkButton>
+            )}
           </>
         )}
       </div>
@@ -181,7 +226,7 @@ function PromptRowCard({
       <div className="mobile-card-actions prompt-list-card__mobile-actions">
         {promptPack ? (
           <>
-            <NativeLinkButton className="compact primary" href={`/prompts/${promptPack.id}`}>
+            <NativeLinkButton className="compact primary" href={promptDetailHref ?? `/prompts/${promptPack.id}`}>
               <Edit3 size={15} aria-hidden="true" />
               Buka
             </NativeLinkButton>
@@ -192,7 +237,7 @@ function PromptRowCard({
               </NativeLinkButton>
               <form action={savePromptPack}>
                 <input type="hidden" name="intent" value="archive" />
-                <input type="hidden" name="return_to" value="/prompts" />
+                <input type="hidden" name="return_to" value={returnHref} />
                 <input type="hidden" name="id" value={promptPack.id} />
                 <input type="hidden" name="product_id" value={promptPack.product_id} />
                 <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
@@ -210,13 +255,13 @@ function PromptRowCard({
                 sourceImage={sourceImage}
               />
             ) : (
-              <NativeLinkButton className="compact primary" href={`/products/${product.id}?tab=metadata`}>
+              <NativeLinkButton className="compact primary" href={productDetailHref}>
                 Produk
               </NativeLinkButton>
             )}
             {intakeSession ? (
               <OverflowActionMenu>
-                <NativeLinkButton className="compact" href={`/products/${product.id}?tab=metadata`}>
+                <NativeLinkButton className="compact" href={productDetailHref}>
                   Produk
                 </NativeLinkButton>
               </OverflowActionMenu>
@@ -240,6 +285,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
   const query = await searchParams;
   const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id);
+  const selectedPromptDetailId = firstParam(query.detail) ?? "";
   const requestedProductId = firstParam(query.product_id);
   const requestedIntakeId = firstParam(query.intake_id);
   const currentWorkspace = await getCurrentWorkspace();
@@ -305,9 +351,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const currentAffiliateProfile = await getDefaultAffiliateProfileForWorkspace(workspaceId ?? null);
   const currentAffiliateProfileLabel = currentAffiliateProfile?.profile_name ?? "Belum ada profile aktif";
   const currentWorkspaceLabel = currentWorkspace?.workspace_name ?? "Workspace aktif";
+  const selectedPromptPack = visiblePromptPacks.find((pack) => pack.id === selectedPromptDetailId) ?? null;
   const selectedProductId =
     (requestedProductId && productMap.has(requestedProductId) ? requestedProductId : null) ??
     (requestedIntakeId && intakeSessions.find((session) => session.id === requestedIntakeId)?.product_id) ??
+    selectedPromptPack?.product_id ??
     "";
   const promptTaskIds = Array.from(
     new Set(visiblePromptPacks.map((pack) => pack.ai_task_id).filter((value): value is string => Boolean(value))),
@@ -325,6 +373,25 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   }
 
   const promptTaskMap = new Map((promptTaskResult.data ?? []).map((task) => [task.id, task as PromptTaskRecord]));
+  const promptsCloseHref = buildPromptsHref({
+    affiliateProfileId: requestedAffiliateProfileId,
+    intakeId: requestedIntakeId,
+    productId: requestedProductId,
+  });
+  const promptDetailHref = selectedPromptDetailId
+    ? buildPromptsHref({
+        affiliateProfileId: requestedAffiliateProfileId,
+        detailId: selectedPromptDetailId,
+        intakeId: requestedIntakeId,
+        productId: requestedProductId,
+      })
+    : promptsCloseHref;
+  const selectedPromptProduct = selectedPromptPack ? productMap.get(selectedPromptPack.product_id) ?? null : null;
+  const selectedPromptTask = selectedPromptPack?.ai_task_id ? promptTaskMap.get(selectedPromptPack.ai_task_id) ?? null : null;
+  const hasPromptDetail = Boolean(selectedPromptPack);
+  const promptDetailSubtitle = selectedPromptPack
+    ? [`v${selectedPromptPack.version}`, selectedPromptPack.status, selectedPromptTask?.status ?? "Task belum ada"].join(" - ")
+    : null;
   const orderedProducts = [...visibleProducts].sort((left, right) => {
     if (selectedProductId) {
       if (left.id === selectedProductId) {
@@ -340,16 +407,17 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   });
 
   return (
-    <div className="stack prompt-page-stack">
-      <div className="settings-inline-summary prompt-inline-summary">
-        <span>{visibleProducts.length} produk</span>
-        <StatusBadge status={currentAffiliateProfileLabel} tone={currentAffiliateProfile ? "success" : "warning"} />
-      </div>
+    <div className="operator-detail-layout" data-has-detail={hasPromptDetail ? "true" : undefined}>
+      <div className="operator-detail-layout__list stack prompt-page-stack">
+        <div className="settings-inline-summary prompt-inline-summary">
+          <span>{visibleProducts.length} produk</span>
+          <StatusBadge status={currentAffiliateProfileLabel} tone={currentAffiliateProfile ? "success" : "warning"} />
+        </div>
 
-      <section className="stack" aria-label="Paket Prompt">
-        {orderedProducts.length ? (
-          <section className="stack prompt-list-stack">
-            {orderedProducts.map((product) => {
+        <section className="stack" aria-label="Paket Prompt">
+          {orderedProducts.length ? (
+            <section className="stack prompt-list-stack">
+              {orderedProducts.map((product) => {
               const promptPack = latestPromptPackByProductId.get(product.id) ?? null;
               const intakeSession = latestReviewedIntakeByProductId.get(product.id) ?? null;
               const affiliateProfile = promptPack?.affiliate_profile_id
@@ -363,38 +431,68 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                     null;
               const sourceImageDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
               const generationTask = promptPack?.ai_task_id ? promptTaskMap.get(promptPack.ai_task_id) ?? null : null;
+              const rowPromptDetailHref = promptPack
+                ? buildPromptsHref({
+                    affiliateProfileId: requestedAffiliateProfileId,
+                    detailId: promptPack.id,
+                    intakeId: requestedIntakeId,
+                    productId: requestedProductId,
+                  })
+                : null;
+              const productDetailSearchParams = new URLSearchParams({ detail: product.id, tab: "metadata" });
 
-              return (
-                <PromptRowCard
-                  affiliateProfile={affiliateProfile}
-                  defaultAffiliateProfileName={currentAffiliateProfileLabel}
-                  generationTask={generationTask}
-                  intakeSession={intakeSession}
-                  isSelected={selectedProductId === product.id}
-                  key={product.id}
-                  promptPack={promptPack}
-                  product={product}
-                  sourceImage={sourceImage}
-                  sourceImageDriveItem={sourceImageDriveItem}
-                  workspaceName={currentWorkspaceLabel}
-                />
-              );
-            })}
-          </section>
-        ) : (
-          <EmptyState
-            icon={Package}
-            title="Produk belum ada."
-            description="Buat produk dulu."
-            action={
-              <NativeLinkButton className="primary" href="/products/new">
-                <Plus size={16} aria-hidden="true" />
-                Produk Baru
-              </NativeLinkButton>
-            }
-          />
-        )}
-      </section>
+              if (requestedAffiliateProfileId) {
+                productDetailSearchParams.set("affiliate_profile_id", requestedAffiliateProfileId);
+              }
+
+              const productDetailHref = `/products?${productDetailSearchParams.toString()}`;
+
+                return (
+                  <PromptRowCard
+                    affiliateProfile={affiliateProfile}
+                    defaultAffiliateProfileName={currentAffiliateProfileLabel}
+                    generationTask={generationTask}
+                    intakeSession={intakeSession}
+                    isSelected={selectedProductId === product.id || selectedPromptDetailId === promptPack?.id}
+                    key={product.id}
+                    productDetailHref={productDetailHref}
+                    promptDetailHref={rowPromptDetailHref}
+                    promptPack={promptPack}
+                    product={product}
+                    returnHref={promptsCloseHref}
+                    sourceImage={sourceImage}
+                    sourceImageDriveItem={sourceImageDriveItem}
+                    workspaceName={currentWorkspaceLabel}
+                  />
+                );
+              })}
+            </section>
+          ) : (
+            <EmptyState
+              icon={Package}
+              title="Produk belum ada."
+              description="Buat produk dulu."
+              action={
+                <NativeLinkButton className="primary" href="/products/new">
+                  <Plus size={16} aria-hidden="true" />
+                  Produk Baru
+                </NativeLinkButton>
+              }
+            />
+          )}
+        </section>
+      </div>
+
+      {selectedPromptPack ? (
+        <OperatorDetailDrawer
+          ariaLabel="Detail prompt"
+          closeHref={promptsCloseHref}
+          subtitle={promptDetailSubtitle}
+          title={selectedPromptProduct?.product_name ?? "Detail prompt"}
+        >
+          <PromptDetailPanel detailHref={promptDetailHref} promptPackId={selectedPromptPack.id} />
+        </OperatorDetailDrawer>
+      ) : null}
     </div>
   );
 }

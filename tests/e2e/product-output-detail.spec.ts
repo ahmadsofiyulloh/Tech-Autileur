@@ -217,7 +217,7 @@ test("product output tab is primary and renders partial copy-ready data", async 
 
   try {
     await cleanupOutputReadinessData(state);
-    await page.goto(`/products/${state.product.id}`);
+    await page.goto(`/products?detail=${state.product.id}`);
     await expect(page.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toBeVisible();
     await expect(page.getByRole("link", { name: "Output" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByText("Metadata Ready")).toBeVisible();

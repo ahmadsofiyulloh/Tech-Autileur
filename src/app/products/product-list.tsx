@@ -12,6 +12,7 @@ import { ProductStatusSheet } from "./product-metadata-sheet";
 import type { ProductListRow, ProductUploadScope } from "./types";
 
 type ProductListProps = {
+  activeProductId?: string | null;
   products: ProductListRow[];
 };
 
@@ -137,7 +138,7 @@ function ProductThumbnail({
   );
 }
 
-export function ProductList({ products }: ProductListProps) {
+export function ProductList({ activeProductId, products }: ProductListProps) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ProductFilter>("all");
   const [activeUploadFilter, setActiveUploadFilter] = useState<ProductUploadScope | null>(null);
@@ -166,7 +167,7 @@ export function ProductList({ products }: ProductListProps) {
   );
 
   return (
-    <section className="product-master" aria-label="Daftar produk">
+    <section className="product-master" aria-label="Daftar produk" data-has-detail={activeProductId ? "true" : undefined}>
       <div className="product-master__list stack">
         <div className="settings-list-toolbar product-list-toolbar">
           <label className="product-search" htmlFor="product-search">
@@ -239,10 +240,19 @@ export function ProductList({ products }: ProductListProps) {
             </thead>
             <tbody>
               {filteredProducts.map((product) => (
-                <tr key={product.id}>
+                <tr data-active={activeProductId === product.id ? "true" : undefined} key={product.id}>
                   <td>
-                    <div className="stack-tight">
-                      <strong>{product.product_name}</strong>
+                    <div className="product-table-product-cell">
+                      <ProductThumbnail
+                        alt={product.product_name}
+                        className="product-table-thumb"
+                        fallbackSize={18}
+                        src={product.thumbnail_url}
+                      />
+                      <div className="stack-tight">
+                        <strong title={product.product_name}>{product.product_name}</strong>
+                        {product.marketplace ? <span className="settings-card-meta-line">{product.marketplace}</span> : null}
+                      </div>
                     </div>
                   </td>
                   <td>{product.workspace_label}</td>
@@ -264,30 +274,34 @@ export function ProductList({ products }: ProductListProps) {
                   </td>
                   <td>{product.created_at_label}</td>
                   <td>
-                    <div className="product-row-controls">
-                      <div className="product-row-actions">
-                        <NativeLinkButton className="compact" href={product.href}>
-                          <ArrowRight size={15} aria-hidden="true" />
-                          Detail
-                        </NativeLinkButton>
+                    <div className="product-row-actions product-row-actions--desktop">
+                      <NativeLinkButton className={`compact ${product.continue_href ? "primary" : ""}`.trim()} href={product.continue_href ?? product.href}>
+                        <ArrowRight size={15} aria-hidden="true" />
+                        {product.continue_href ? "Lanjutkan" : "Detail"}
+                      </NativeLinkButton>
+                      <OverflowActionMenu label="Aksi produk">
                         {product.continue_href ? (
-                          <NativeLinkButton className="compact primary" href={product.continue_href}>
+                          <NativeLinkButton className="compact" href={product.href}>
                             <ArrowRight size={15} aria-hidden="true" />
-                            Lanjutkan
+                            Detail
                           </NativeLinkButton>
                         ) : null}
+                        <NativeButton
+                          className="compact"
+                          type="button"
+                          onClick={() => {
+                            setActiveStatusProductId(product.id);
+                          }}
+                        >
+                          <Edit3 size={15} aria-hidden="true" />
+                          Ubah status
+                        </NativeButton>
                         <form action={saveProduct}>
                           <input type="hidden" name="intent" value="archive" />
                           <input type="hidden" name="id" value={product.id} />
                           <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
                         </form>
-                      </div>
-                      <ProductThumbnail
-                        alt={product.product_name}
-                        className="product-row-preview"
-                        fallbackSize={22}
-                        src={product.thumbnail_url}
-                      />
+                      </OverflowActionMenu>
                     </div>
                   </td>
                 </tr>
@@ -298,7 +312,7 @@ export function ProductList({ products }: ProductListProps) {
 
         <div className="products-cards-mobile">
           {filteredProducts.map((product) => (
-            <article className="visual-list-card" key={product.id}>
+            <article className="visual-list-card" data-active={activeProductId === product.id ? "true" : undefined} key={product.id}>
               <ProductThumbnail alt={product.product_name} className="visual-list-card__thumb" fallbackSize={28} src={product.thumbnail_url} />
               <div className="visual-list-card__body">
                 <div className="visual-list-card__header">
