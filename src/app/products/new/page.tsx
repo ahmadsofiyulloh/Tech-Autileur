@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
+import { BulkImportPanel } from "./bulk-import-panel";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PwaInstallCard } from "@/components/operator/pwa-install-card";
@@ -240,26 +241,31 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   return (
     <div className="stack intake-native-page">
-      <PwaInstallCard />
-      <section className="intake-native-surface" aria-label="Workflow intake produk">
-        <IntakeWorkflowForm
-          affiliateProfiles={affiliateProfilesWithAvatars}
-          currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
-          initialStep={initialStep}
-          savedSession={selectedSession}
-          savedSessionWorkspaceName={savedSessionWorkspaceName}
-          promptLaunchReadiness={promptLaunchReadiness}
-          selectedAffiliateProfileId={selectedAffiliateProfileId}
-          showAllWorkspaces={showAllWorkspaces}
-          postSaveDecisionOpen={postSaveDecisionOpen}
-          savedSessionEvidencePreviewUrls={{
-            productImage: selectedSessionProductPreviewUrl,
-            shopeeScreenshot: selectedSessionShopeePreviewUrl,
-            tiktokScreenshot: selectedSessionTiktokPreviewUrl,
-          }}
-          draftQueue={draftQueue}
-        />
-      </section>
+      <div className="intake-desktop-grid">
+        <div className="intake-desktop-primary stack">
+          <PwaInstallCard />
+          <section className="intake-native-surface" aria-label="Workflow intake produk">
+            <IntakeWorkflowForm
+              affiliateProfiles={affiliateProfilesWithAvatars}
+              currentWorkspaceName={currentWorkspace?.workspace_name ?? null}
+              initialStep={initialStep}
+              savedSession={selectedSession}
+              savedSessionWorkspaceName={savedSessionWorkspaceName}
+              promptLaunchReadiness={promptLaunchReadiness}
+              selectedAffiliateProfileId={selectedAffiliateProfileId}
+              showAllWorkspaces={showAllWorkspaces}
+              postSaveDecisionOpen={postSaveDecisionOpen}
+              savedSessionEvidencePreviewUrls={{
+                productImage: selectedSessionProductPreviewUrl,
+                shopeeScreenshot: selectedSessionShopeePreviewUrl,
+                tiktokScreenshot: selectedSessionTiktokPreviewUrl,
+              }}
+              draftQueue={draftQueue}
+            />
+          </section>
+        </div>
+        <BulkImportPanel />
+      </div>
     </div>
   );
 }

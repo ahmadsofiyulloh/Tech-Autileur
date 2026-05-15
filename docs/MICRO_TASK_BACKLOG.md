@@ -17,6 +17,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S7-001
 - S8-001, S8-002, S8-003, S8-004, S8-005, S8-006, S8-007
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
+- MT-DRIVE-HIERARCHY-01
 
 ## UI/UX Polish References
 - [UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md](UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md)
@@ -124,6 +125,12 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Scope:** QA evidence and docs progress only after runtime tasks land.
 **Acceptance:** verification results are documented; product save, metadata retry/failure, prompt readiness, and drawer reanalysis are covered.
 
+### MT-BULK-IMPORT-01 - Desktop bulk product import _(DONE)_
+**Goal:** Add desktop-only CSV/XLSX product import from scraping exports.
+**Owner:** Codex
+**Scope:** `/products/new` desktop panel, server Route Handlers, existing product/intake/Drive metadata paths, and product detail marketplace link action.
+**Acceptance:** CSV/XLSX preview normalizes required scrape fields, optional fields render collapsed, import downloads image bytes to Google Drive, creates draft products needing metadata review, and product detail shows `Buka link` only when a marketplace link exists.
+
 ### MT-AFFDRIVE-00 - Active affiliate and automatic Drive lock
 **Goal:** Lock that Akun Affiliate is the active operator namespace and Google Drive folder setup is static/automatic under `/AffiliateAI/`.
 **Owner:** Codex
@@ -177,6 +184,11 @@ Superseded follow-up: MT-INTAKE-02 and MT-INTAKE-04 replace the upload tab/profi
 **Goal:** Convert `/settings` overview into grouped native-style list sections.
 **Owner:** Codex
 **Acceptance:** Account, Affiliate Profiles, and Connected Services groups are visible when backed by app state, while nested settings routes remain intact.
+
+### MT-DRIVE-HIERARCHY-01 - Drive hierarchy and view mode _(DONE)_
+**Goal:** Make `/drive` browse like Drive from the active Affiliate Account workspace root instead of showing folder descendants in one flat level, and add Grid/List modes.
+**Owner:** Codex
+**Acceptance:** root starts at the active workspace folder, folder tap navigates into direct children, file tap keeps the preview behavior, search is global with path context, upload target follows the active folder, and mobile List mode remains compact rather than table-like.
 
 Known visual/backend gaps:
 

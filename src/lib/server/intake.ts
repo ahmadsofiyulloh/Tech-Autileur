@@ -1379,7 +1379,7 @@ async function ensureIntakeDriveFolderRecord(input: {
   })) as DriveItemRecord;
 }
 
-async function ensureIntakeDriveFolders(intakeCode: string) {
+export async function ensureIntakeDriveFolders(intakeCode: string) {
   const { workspace, rootFolder } = await resolveIntakeDriveRootFolder();
   const rootFolderId = rootFolder.drive_item_id;
 
