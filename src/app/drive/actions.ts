@@ -13,6 +13,10 @@ import {
   updateDriveItem,
   uploadDriveItemFile,
 } from "@/lib/server/drive-items";
+import {
+  requireDriveItemInActiveWorkspaceDriveScope,
+  requireDrivePathInActiveWorkspaceDriveScope,
+} from "@/lib/server/drive-workspace-scope";
 import { DRIVE_FOLDER_PURPOSES } from "@/lib/drive/validation";
 
 function readText(formData: FormData, key: string) {
@@ -22,6 +26,10 @@ function readText(formData: FormData, key: string) {
 
 function fail(message: string): never {
   redirect(`/drive?error=${encodeURIComponent(message)}`);
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Drive tidak tersedia.";
 }
 
 function parseOptionalNumber(value: string, fieldName: string) {
@@ -52,6 +60,30 @@ function isFolderPurpose(value: string) {
   return (DRIVE_FOLDER_PURPOSES as readonly string[]).includes(value);
 }
 
+async function requireScopedDriveItem(id: string, options?: { includeArchived?: boolean }) {
+  try {
+    return await requireDriveItemInActiveWorkspaceDriveScope(id, options);
+  } catch (error) {
+    fail(errorMessage(error));
+  }
+}
+
+async function requireScopedDriveFolder(id: string) {
+  try {
+    return await requireDriveItemInActiveWorkspaceDriveScope(id, { requireFolder: true });
+  } catch (error) {
+    fail(errorMessage(error));
+  }
+}
+
+async function requireScopedDrivePath(drivePath: string) {
+  try {
+    return await requireDrivePathInActiveWorkspaceDriveScope(drivePath);
+  } catch (error) {
+    fail(errorMessage(error));
+  }
+}
+
 export async function saveDriveItem(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
@@ -73,6 +105,7 @@ export async function saveDriveItem(formData: FormData) {
       fail("Missing Drive item id.");
     }
 
+    await requireScopedDriveItem(id);
     await archiveDriveItem(id);
     revalidatePath("/drive");
     redirect("/drive?message=Data%20dihapus.");
@@ -83,6 +116,7 @@ export async function saveDriveItem(formData: FormData) {
       fail("Missing Drive item id.");
     }
 
+    await requireScopedDriveItem(id);
     await refreshDriveItemFromGoogleDrive(id);
     revalidatePath("/drive");
     redirect("/drive?message=Drive item refreshed");
@@ -99,6 +133,7 @@ export async function saveDriveItem(formData: FormData) {
       fail("File wajib diisi.");
     }
 
+    await requireScopedDriveFolder(parentId);
     await uploadDriveItemFile({
       file,
       parentId,
@@ -117,9 +152,19 @@ export async function saveDriveItem(formData: FormData) {
       fail("URL atau ID file Drive wajib diisi.");
     }
 
+    if (!parentId) {
+      fail("Target folder wajib diisi.");
+    }
+
+    await requireScopedDriveFolder(parentId);
+
+    if (drivePath) {
+      await requireScopedDrivePath(drivePath);
+    }
+
     await attachGoogleDriveFile({
       driveItemIdOrUrl: driveItemUrl,
-      parentId: parentId || null,
+      parentId,
       purpose: purpose || "OTHER",
       drivePath: drivePath || null,
       notes: notes || null,
@@ -137,6 +182,7 @@ export async function saveDriveItem(formData: FormData) {
       fail("Nama file wajib diisi.");
     }
 
+    await requireScopedDriveItem(id);
     await renameDriveItemInGoogleDrive(id, name);
     revalidatePath("/drive");
     redirect("/drive?message=File Drive diganti nama");
@@ -153,6 +199,7 @@ export async function saveDriveItem(formData: FormData) {
       fail("Replacement file is required.");
     }
 
+    await requireScopedDriveItem(id);
     await replaceDriveItemFile(id, file);
     revalidatePath("/drive");
     redirect("/drive?message=Drive file replaced");
@@ -163,6 +210,7 @@ export async function saveDriveItem(formData: FormData) {
       fail("Missing Drive item id.");
     }
 
+    await requireScopedDriveItem(id);
     await trashDriveItemInGoogleDrive(id);
     revalidatePath("/drive");
     redirect("/drive?message=Drive item moved to trash");
@@ -181,10 +229,16 @@ export async function saveDriveItem(formData: FormData) {
     if (!drivePath) {
       fail("Drive path is required.");
     }
+    if (!parentId) {
+      fail("Target folder wajib diisi.");
+    }
     const normalizedPurpose = purpose || "OTHER";
     if (itemType === "FOLDER" && !isFolderPurpose(normalizedPurpose)) {
       fail(`Folder purpose must be one of: ${DRIVE_FOLDER_PURPOSES.join(", ")}.`);
     }
+
+    await requireScopedDriveFolder(parentId);
+    await requireScopedDrivePath(drivePath);
 
     await createDriveItem({
       item_type: itemType,
@@ -227,6 +281,14 @@ export async function saveDriveItem(formData: FormData) {
   if (itemType === "FOLDER" && !isFolderPurpose(normalizedPurpose)) {
     fail(`Folder purpose must be one of: ${DRIVE_FOLDER_PURPOSES.join(", ")}.`);
   }
+
+  await requireScopedDriveItem(id);
+
+  if (parentId) {
+    await requireScopedDriveFolder(parentId);
+  }
+
+  await requireScopedDrivePath(drivePath);
 
   await updateDriveItem(id, {
     item_type: itemType,

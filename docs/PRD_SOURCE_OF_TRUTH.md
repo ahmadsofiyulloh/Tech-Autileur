@@ -389,10 +389,12 @@ Connected Services > Google Drive:
 
 Primary `/drive` Phase 1 surface:
 
-- visual grid/gallery for all Drive items.
-- folder items and file items both render as touch-friendly tiles.
+- hierarchical Drive browser starting at the active Affiliate Account workspace root.
+- folder items navigate into their direct children instead of rendering descendants in the same level.
+- file/image items open preview; folder and file items both render as touch-friendly grid tiles.
+- Grid and List view modes are available; mobile List mode must stay compact and must not become a dense table.
 - image-like items prefer thumbnail/preview when available.
-- tap opens a bottom sheet with preview, metadata, status, path, and Open link action.
+- file tap opens a bottom sheet with preview, metadata, status, path, and Open link action on mobile; desktop may use the right-side preview drawer.
 - long-press enters client-side multi-select for select/preview state only.
 - no batch archive/delete mutation is required in the initial visual manager.
 
@@ -490,7 +492,7 @@ MVP means the system can:
 - Review and edit generated product metadata.
 - Use active Affiliate Account readiness for prompt handoff.
 - Generate, review copy-ready output, regenerate, persist, and version prompt packs.
-- Browse Google Drive metadata through a touch-friendly visual grid.
+- Browse Google Drive metadata through a touch-friendly hierarchical Drive browser with Grid/List modes.
 - Review compact Gemini usage versus model quota from Settings.
 - Review output package links and history in the app.
 - Show dashboard counts for Gemini, Drive, prompts, and outputs as a secondary route.

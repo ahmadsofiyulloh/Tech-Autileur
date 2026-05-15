@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleDriveFileContentBytes } from "@/lib/server/google-drive";
-import { getDriveItemById, type DriveItemRecord } from "@/lib/server/drive-items";
+import { type DriveItemRecord } from "@/lib/server/drive-items";
+import { requireDriveItemInActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,7 @@ function imageResponse(bytes: Uint8Array, contentType: string) {
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const item = await getDriveItemById(id);
-
-    if (!item) {
-      return NextResponse.json({ error: "Detail tidak tersedia." }, { status: 404 });
-    }
+    const { item } = await requireDriveItemInActiveWorkspaceDriveScope(id);
 
     if (!isDriveImageLike(item)) {
       return NextResponse.json({ error: "Detail tidak tersedia." }, { status: 404 });

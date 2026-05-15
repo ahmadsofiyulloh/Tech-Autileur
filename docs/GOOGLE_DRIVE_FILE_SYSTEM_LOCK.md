@@ -97,6 +97,8 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 - Match imported files to clip jobs using manifest data and prompt prefix.
 - Move unmatched metadata into manual attach state.
 - Copy Drive file and folder links.
+- Browse `/drive` hierarchically from the active Affiliate Account workspace root using `parent_id`/`parent_drive_item_id` metadata, with path-based fallback for older rows that only have `drive_path`.
+- Offer Grid and compact List view modes in `/drive`; mobile List mode must remain card/row-like, not a dense data table.
 
 2026-05-07 Intake refactor lock: Drive-backed product image availability does not mean metadata is ready. Source image and screenshot evidence are stored as file metadata/relations first, then Gemini metadata readiness is tracked separately through intake review/action state.
 
@@ -108,7 +110,7 @@ Google Drive connect/status lives in the `/settings` Connected Services row.
 - `/settings/drive` is a compatibility redirect only.
 - Drive folder provisioning is static and automatic under `/AffiliateAI/`.
 - Workspace settings must not expose manual Drive root URL, path, ref, or sync controls for normal setup.
-- The primary Drive manager stays `/drive`.
+- The primary Drive manager stays `/drive` and starts at the active Affiliate Account workspace root.
 - Drive codes are internal and hidden from the primary UI.
 
 ## Windows Helper Upload Path

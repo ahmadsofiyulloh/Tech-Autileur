@@ -109,8 +109,8 @@ Locked presentation:
 - desktop mutable master lists use searchable table + right side drawer.
 - mobile mutable master lists use compact cards + full-screen drawer or bottom sheet.
 - mobile primary surfaces must avoid dense data tables.
-- Drive visual manager uses a touch-friendly grid/gallery, not a table.
-- Drive preview opens in a bottom sheet with preview, metadata, status, path, and Open link action.
+- Drive visual manager uses a touch-friendly hierarchical browser with Grid/List modes, not a flat all-items table.
+- Drive file preview opens in a bottom sheet on mobile with preview, metadata, status, path, and Open link action; desktop may use the isolated right-side preview drawer.
 - Phase 1 gestures are limited to pull-to-refresh indicator, bottom-sheet dismiss, and Drive long-press select.
 - every gesture must have a tap/click fallback.
 - cards are for individual repeated items, modals, and framed tools only; do not put UI cards inside other UI cards.
@@ -143,7 +143,7 @@ Supabase Storage: not used for large video/image assets in MVP
 Intake image UX: upload cards with local preview, not link-only parsing
 Supabase stores: Drive item metadata, URL, path, MIME type, status, relationships
 Image-like Drive items may resolve server-side into transient preview data URLs for product thumbnails and Drive previews. This is render-time presentation only and does not create a new asset store.
-Drive Phase 1 UI: visual grid over all Drive item metadata
+Drive Phase 1 UI: hierarchical browser over Drive item metadata with Grid/List modes
 ```
 
 Google Drive stores real uploaded product images, marketplace screenshots, prompt references, raw clips, final clips, batch manifests, and upload package assets.
@@ -242,7 +242,7 @@ Settings detail grammar:
 - Settings overview may show a compact Gemini usage panel directly above the card groups.
 - Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.
 - Drive folder provisioning is automatic under `/AffiliateAI/`; Workspace settings must not expose manual Drive root URL/path/ref setup.
-- Drive primary route: visual all-items grid/gallery with bottom-sheet preview.
+- Drive primary route: hierarchical Grid/List browser rooted at the active Affiliate Account workspace folder, with mobile bottom-sheet preview and desktop right-side drawer preview.
 - Account: Chrome pairing, App API Token, and sign out.
 - Flow Accounts are controller-owned execution tools for Phase 2 and must not become a separate Settings CRUD surface.
 

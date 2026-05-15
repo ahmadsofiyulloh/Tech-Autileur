@@ -24,7 +24,8 @@ import {
   type AffiliateProfileRecord,
 } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
-import { listDriveItems, type DriveItemRecord } from "@/lib/server/drive-items";
+import { type DriveItemRecord } from "@/lib/server/drive-items";
+import { getActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope";
 import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
 import { getWorkspaceSelectionState } from "@/lib/server/workspaces";
@@ -219,9 +220,10 @@ export default async function SettingsPage() {
   }
 
   try {
-    driveItems = (await listDriveItems({ limit: 200 })).filter((item) => item.status !== "ARCHIVED");
+    const driveScope = await getActiveWorkspaceDriveScope({ limit: 200 });
+    driveItems = driveScope.items.filter((item) => item.status !== "ARCHIVED");
     const folders = driveItems.filter((item) => item.item_type === "FOLDER");
-    driveDetail = `${folders.length} folder, ${driveItems.length} item.`;
+    driveDetail = `${folders.length} folder, ${driveItems.length} item di workspace aktif.`;
   } catch (error) {
     driveDetail = errorMessage(error);
   }

@@ -267,9 +267,7 @@ function AffiliateProfileAssetReanalysisPanel({ isCreating }: { isCreating: bool
 
 export function AffiliateProfilesBoard({
   profiles,
-  workspaces,
   driveItems,
-  currentWorkspaceId,
 }: AffiliateProfilesBoardProps) {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
@@ -279,7 +277,6 @@ export function AffiliateProfilesBoard({
   const [assetLockEnabled, setAssetLockEnabled] = useState(true);
   const requestedProfileId = searchParams.get("profile_id")?.trim() ?? "";
 
-  const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.status === "ACTIVE"), [workspaces]);
   const visibleProfiles = useMemo(() => profiles.filter(isVisibleProfile), [profiles]);
   const filteredProfiles = useMemo(() => visibleProfiles.filter((profile) => profileMatchesQuery(profile, query)), [query, visibleProfiles]);
   const activeProfileCount = useMemo(() => visibleProfiles.filter((profile) => profile.status === "ACTIVE").length, [visibleProfiles]);
@@ -355,8 +352,7 @@ export function AffiliateProfilesBoard({
     setDrawerOpen(false);
   }
 
-  const namespaceWorkspaceId =
-    (selectedProfile?.default_workspace_id ?? selectedProfile?.workspace_ids[0] ?? currentWorkspaceId ?? activeWorkspaces[0]?.id ?? "") || "";
+  const namespaceWorkspaceId = isCreating ? "" : (selectedProfile?.default_workspace_id ?? selectedProfile?.workspace_ids[0] ?? "") || "";
   const selectedSeedCharacterDriveItem = useMemo(
     () => driveItems.find((item) => item.id === selectedProfile?.seed_character_drive_item_ref_id) ?? null,
     [driveItems, selectedProfile?.seed_character_drive_item_ref_id],
