@@ -2,7 +2,7 @@
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
-import { buildClipJobDraft, buildPromptContextSummary } from "@/lib/server/controller";
+import { buildClipJobDraft, buildPromptContextSummary, materializeFlowBatchClipJobs } from "@/lib/server/controller";
 import { createContent, archiveContent, updateContent } from "@/lib/server/contents";
 import { createFlowAccount, archiveFlowAccount, getFlowAccountPool, updateFlowAccount } from "@/lib/server/flow-accounts";
 import { archiveFlowBatch, buildFlowBatchCode, createFlowBatch, updateFlowBatch } from "@/lib/server/flow-batches";
@@ -11,7 +11,7 @@ import { archiveClipJob, createClipJob, markGeneratedFileImported, updateClipJob
 import { createGeneratedFile } from "@/lib/server/clip-jobs";
 import { getContentById } from "@/lib/server/contents";
 import { getFlowBatchById } from "@/lib/server/flow-batches";
-import { getPromptPackById } from "@/lib/server/prompt-packs";
+import { getPromptPackById, markPromptPackReadyForFlow } from "@/lib/server/prompt-packs";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -122,7 +122,7 @@ export async function saveController(formData: FormData) {
         throw new Error("Selected Flow account is unavailable.");
       }
 
-      await createFlowBatch({
+      const batch = await createFlowBatch({
         workspace_id: readNullableText(formData, "workspace_id"),
         product_id: readNullableText(formData, "product_id") ?? (promptPack ? promptPack.product_id : null),
         prompt_pack_id: promptPackId,
@@ -141,7 +141,17 @@ export async function saveController(formData: FormData) {
         helper_output_folder_key: readNullableText(formData, "helper_output_folder_key"),
         status: readText(formData, "status"),
       });
+      await materializeFlowBatchClipJobs(batch.id);
       done("Flow batch created.");
+    }
+
+    if (intent === "mark_prompt_ready") {
+      if (!id) {
+        throw new Error("Missing prompt pack id.");
+      }
+
+      await markPromptPackReadyForFlow(id);
+      done("Prompt siap Flow.");
     }
 
     if (intent === "update_flow_batch") {
@@ -168,6 +178,7 @@ export async function saveController(formData: FormData) {
         throw new Error("Missing flow batch id.");
       }
 
+      await materializeFlowBatchClipJobs(id);
       await exportFlowBatchManifest(id, {
         flow_url: readNullableText(formData, "flow_url"),
         drive_output_folder_id: readNullableText(formData, "drive_output_folder_id"),

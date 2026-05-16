@@ -1,0 +1,15 @@
+{
+  "name": "affiliate-flow-windows-helper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "affiliate-flow-helper": "src/index.mjs"
+  },
+  "scripts": {
+    "check": "node src/index.mjs --help"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

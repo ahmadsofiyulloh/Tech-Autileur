@@ -2,11 +2,14 @@ import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentWorkspace, type WorkspaceRecord } from "@/lib/server/workspaces";
-import { listProducts } from "@/lib/server/products";
-import { listPromptPacks } from "@/lib/server/prompt-packs";
+import { getProductById, listProducts } from "@/lib/server/products";
+import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
+import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
+import { PROMPT_CLIP_KEYS } from "@/lib/prompts/validation";
 import { listDriveItems } from "@/lib/server/drive-items";
-import { listContents, type ContentRecord } from "@/lib/server/contents";
+import { createContent, listContents, updateContent, type ContentRecord } from "@/lib/server/contents";
 import {
+  getFlowBatchById,
   listFlowBatches,
   type FlowBatchRecord,
 } from "@/lib/server/flow-batches";
@@ -271,6 +274,144 @@ function filterReadyPromptPacks(promptPacks: ControllerPromptPackRecord[]) {
 
 function buildExistingPromptPackBatchSet(batches: FlowBatchRecord[]) {
   return new Set(batches.filter((batch) => batch.prompt_pack_id && batch.status !== "CLOSED").map((batch) => batch.prompt_pack_id as string));
+}
+
+function normalizeControllerCode(value: string | null | undefined, fallback: string) {
+  const normalized = readText(value)
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase();
+
+  return normalized || fallback;
+}
+
+function controllerClipCode(index: number) {
+  return `CLIP${String(index).padStart(2, "0")}`;
+}
+
+async function ensureControllerContentForPromptPack(input: {
+  product: ControllerProductRecord;
+  promptPack: ControllerPromptPackRecord;
+}) {
+  const existingContents = await listContents({ productId: input.product.id, limit: 200 });
+  const matchingContent =
+    existingContents.find((content) => content.prompt_pack_id === input.promptPack.id) ??
+    existingContents.find((content) => !content.prompt_pack_id && content.content_code === input.product.product_code) ??
+    null;
+
+  if (matchingContent?.prompt_pack_id === input.promptPack.id) {
+    return matchingContent;
+  }
+
+  if (matchingContent) {
+    return await updateContent(matchingContent.id, {
+      prompt_pack_id: input.promptPack.id,
+      status: matchingContent.status,
+    });
+  }
+
+  try {
+    return await createContent({
+      product_id: input.product.id,
+      content_code: input.product.product_code,
+      platform: "SHOPEE_TIKTOK",
+      prompt_pack_id: input.promptPack.id,
+      status: "DRAFT",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    if (message.toLowerCase().includes("duplicate key value")) {
+      const refreshedContents = await listContents({ productId: input.product.id, limit: 200 });
+      const duplicateContent = refreshedContents.find((content) => !content.prompt_pack_id && content.content_code === input.product.product_code);
+
+      if (duplicateContent) {
+        return await updateContent(duplicateContent.id, {
+          prompt_pack_id: input.promptPack.id,
+          status: duplicateContent.status,
+        });
+      }
+
+      return await createContent({
+        product_id: input.product.id,
+        platform: "SHOPEE_TIKTOK",
+        prompt_pack_id: input.promptPack.id,
+        status: "DRAFT",
+      });
+    }
+
+    throw error;
+  }
+}
+
+export async function materializeFlowBatchClipJobs(batchId: string) {
+  const batch = await getFlowBatchById(batchId);
+
+  if (!batch) {
+    throw new Error("Flow batch tidak ditemukan.");
+  }
+
+  if (!batch.prompt_pack_id || !batch.product_id) {
+    throw new Error("Batch harus punya prompt pack dan produk.");
+  }
+
+  const [product, promptPack, existingClipJobs] = await Promise.all([
+    getProductById(batch.product_id),
+    getPromptPackById(batch.prompt_pack_id),
+    listClipJobs({ batchId: batch.id, limit: 20 }),
+  ]);
+
+  if (!product) {
+    throw new Error("Produk batch tidak ditemukan.");
+  }
+
+  if (!promptPack) {
+    throw new Error("Prompt pack batch tidak ditemukan.");
+  }
+
+  const content = await ensureControllerContentForPromptPack({ product, promptPack });
+  const promptSet = readPromptPackEditorPromptSet(promptPack);
+  const existingClipCodes = new Set(existingClipJobs.map((job) => job.clip_code));
+  const createdJobs: ClipJobRecord[] = [];
+
+  for (const [index, clipKey] of PROMPT_CLIP_KEYS.entries()) {
+    const clipCode = controllerClipCode(index + 1);
+
+    if (existingClipCodes.has(clipCode)) {
+      continue;
+    }
+
+    const clip = promptSet.clips[clipKey];
+    const promptParagraph =
+      readText(clip.i2v_prompt) ||
+      [clip.i2i_first_frame, clip.i2i_last_frame].map(readText).filter(Boolean).join(" ");
+
+    if (!promptParagraph) {
+      throw new Error("Prompt clip belum lengkap.");
+    }
+
+    createdJobs.push(
+      await createClipJob({
+        content_id: content.id,
+        prompt_pack_id: promptPack.id,
+        batch_id: batch.id,
+        job_code: `${normalizeControllerCode(batch.batch_code, "BATCH")}-${clipCode}`,
+        clip_code: clipCode,
+        version: "V01",
+        prompt_prefix: [promptPack.prompt_code, product.product_code, clipCode].filter(Boolean).join(" / "),
+        prompt_one_paragraph: promptParagraph,
+        status: "READY",
+      }),
+    );
+  }
+
+  return {
+    batch,
+    content,
+    createdCount: createdJobs.length,
+    existingCount: existingClipJobs.length,
+  };
 }
 
 function summarizeUnavailableFlowAccounts(accounts: FlowAccountPoolRecord[]) {

@@ -10,6 +10,7 @@ import {
   Settings,
   UserRound,
   Users,
+  Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -48,6 +49,7 @@ export const routeTitles = [
   { href: "/dashboard", label: "Dashboard", subtitle: "Metrik operasional.", icon: LayoutDashboard },
   { href: "/products", label: "Produk", subtitle: "List per workspace.", icon: Package },
   { href: "/prompts", label: "Paket Prompt", subtitle: "Editor prompt.", icon: FileText },
+  { href: "/controller", label: "Flow Control", subtitle: "Eksekusi desktop.", icon: Workflow },
   { href: "/settings", label: "Pengaturan", subtitle: "Hub konfigurasi.", icon: Settings },
   { href: "/drive", label: "Drive", subtitle: "Folder aset.", icon: HardDrive },
   { href: "/intake", label: "Intake", subtitle: "Upload dan analisis.", icon: Inbox },

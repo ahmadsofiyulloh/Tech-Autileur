@@ -19,3 +19,10 @@ gemini_prototype_design
 excel prototype/
 *.log
 *.temp.ts
+tools/windows-helper/config.json
+tools/windows-helper/config.local.json
+tools/windows-helper/*.local.json
+tools/windows-helper/work/
+tools/windows-helper/tokens/
+tools/windows-helper/downloads/
+tools/windows-helper/imported/

@@ -1,0 +1,19 @@
+{
+  "app_base_url": "http://localhost:3000",
+  "app_api_token": "<APP_API_TOKEN>",
+  "chrome_executable_path": "<CHROME_EXECUTABLE_PATH>",
+  "work_root": "./work",
+  "flow_accounts": {
+    "FLOW-EXAMPLE": {
+      "chrome_profile_path": "<CHROME_PROFILE_PATH>"
+    }
+  },
+  "output_folders": {
+    "default": "<LOCAL_OUTPUT_FOLDER_PATH>"
+  },
+  "google_oauth": {
+    "client_id": "<GOOGLE_OAUTH_CLIENT_ID>",
+    "client_secret": "<GOOGLE_OAUTH_CLIENT_SECRET>",
+    "refresh_token": "<GOOGLE_OAUTH_REFRESH_TOKEN>"
+  }
+}

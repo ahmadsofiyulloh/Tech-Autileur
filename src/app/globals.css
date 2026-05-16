@@ -1739,6 +1739,111 @@ input,textarea,select,[contenteditable=true]{-webkit-user-select:text;user-selec
   min-width: 0;
 }
 
+.controller-desktop-content {
+  gap: var(--space-3);
+}
+
+.controller-lane .section-card__header {
+  align-items: start;
+}
+
+.controller-lane__body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.controller-lane-card {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--color-border-standard);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted-soft);
+  padding: var(--space-3);
+}
+
+.controller-lane-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.controller-lane-card__header strong,
+.controller-list-row strong,
+.controller-stage-row strong {
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.controller-lane-card__header span,
+.controller-list-row span,
+.controller-stage-row span,
+.controller-lane-card__meta span {
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.controller-lane-card__meta,
+.controller-inline-badges,
+.controller-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.controller-stage-list {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.controller-stage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius);
+  background: var(--color-surface-base);
+  padding: var(--space-2);
+}
+
+.controller-action-row {
+  gap: var(--space-2);
+}
+
+.controller-action-row > form,
+.controller-inline-form {
+  min-width: 0;
+}
+
+.controller-action-row .button,
+.controller-inline-form .button {
+  width: 100%;
+}
+
+.controller-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .operator-detail-layout__list,
 .operator-detail-panel {
   min-width: 0;
