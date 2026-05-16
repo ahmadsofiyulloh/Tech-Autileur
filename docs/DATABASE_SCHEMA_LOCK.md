@@ -698,12 +698,19 @@ clip_job_id uuid nullable fk clip_jobs
 drive_item_id uuid fk drive_items
 file_name text
 detected_prefix text
+stage text default 'VIDEO' check in ('FIRST_FRAME', 'LAST_FRAME', 'VIDEO')
 match_status text
 helper_report_json jsonb nullable
 imported_at timestamptz
 created_at timestamptz
 updated_at timestamptz
 ```
+
+Phase 2 stage-aware helper callbacks use `stage` to distinguish image-frame imports from final video imports:
+
+- `FIRST_FRAME` updates `clip_jobs.start_frame_drive_item_id`.
+- `LAST_FRAME` updates `clip_jobs.last_frame_drive_item_id`.
+- `VIDEO` updates `clip_jobs.generated_drive_item_id`.
 
 ### `final_videos`
 
@@ -772,8 +779,10 @@ Minimum indexes:
 - `clip_jobs (user_id, prompt_pack_id)`.
 - `clip_jobs (user_id, status)`.
 - `generated_files (user_id, clip_job_id)`.
+- `generated_files (user_id, clip_job_id, stage)`.
 - `generated_files (user_id, drive_item_id)`.
 - `generated_files (user_id, match_status)`.
+- `generated_files (user_id, stage)`.
 - `helper_api_tokens (user_id, token_code)` unique.
 - `gemini_api_usage_events (user_id, request_started_at desc)`.
 - `gemini_api_usage_events (user_id, gemini_api_key_id, request_started_at desc)`.

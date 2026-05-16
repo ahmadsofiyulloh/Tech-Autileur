@@ -71,6 +71,17 @@ Untuk kontrak operator yang jelas, helper menulis file terpisah:
 
 Satu file per clip per mode membuat retry atomic dan memudahkan matching.
 
+Untuk manifest v2, helper boleh menulis file yang lebih spesifik dari `stage_jobs[]`:
+
+- `clip_1_i2i_first_frame.txt`
+- `clip_1_i2i_last_frame.txt`
+- `clip_1_i2v.txt`
+- `clip_2_i2i_first_frame.txt`
+- `clip_2_i2i_last_frame.txt`
+- `clip_2_i2v.txt`
+
+Nama lama tetap kompatibel sebagai grouping per mode, tetapi status app harus mengikuti stage `FIRST_FRAME`, `LAST_FRAME`, dan `VIDEO`.
+
 ### 3. Staging images
 
 Helper menyalin reference image yang dibutuhkan batch ke folder kerja lokal.
@@ -153,6 +164,14 @@ local_output_folder/
 3. Helper mengunggah file final ke Google Drive.
 4. Helper mengirim metadata callback ke app.
 5. App mengubah status batch menjadi imported atau closed sesuai hasil.
+
+Callback manifest v2 harus mengirim `stage` per file:
+
+- `FIRST_FRAME` untuk hasil image frame awal.
+- `LAST_FRAME` untuk hasil image frame akhir.
+- `VIDEO` untuk video final.
+
+Jika `stage` tidak dikirim, app memperlakukannya sebagai `VIDEO` agar helper lama tetap kompatibel.
 
 ## Kontrak Chrome Profile
 

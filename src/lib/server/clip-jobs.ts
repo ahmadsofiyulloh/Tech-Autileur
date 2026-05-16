@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { normalizeFlowManifestStage, type FlowManifestStage } from "@/lib/flow/stage-manifest";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getContentById } from "@/lib/server/contents";
 import { getDriveItemById } from "@/lib/server/drive-items";
@@ -50,7 +51,9 @@ export type GeneratedFileRecord = {
   drive_item_id: string;
   file_name: string;
   detected_prefix: string | null;
+  stage: FlowManifestStage | string;
   match_status: GeneratedFileMatchStatus | string;
+  helper_report_json: Record<string, unknown> | null;
   imported_at: string | null;
   created_at: string;
   updated_at: string;
@@ -78,7 +81,9 @@ type GeneratedFileInput = {
   drive_item_id: string;
   file_name?: string;
   detected_prefix?: string | null;
+  stage?: string | null;
   match_status?: string;
+  helper_report_json?: Record<string, unknown> | null;
   imported_at?: string | null;
 };
 
@@ -541,6 +546,7 @@ export async function createGeneratedFile(input: GeneratedFileInput) {
 
   const fileName = readText(input.file_name) || driveItem.name;
   const matchStatus = input.match_status ? (assertGeneratedFileMatchStatus(input.match_status), input.match_status) : "UNMATCHED";
+  const stage = normalizeFlowManifestStage(input.stage, "VIDEO");
   const importedAt = normalizeNullableText(input.imported_at);
 
   const { data, error } = await supabase
@@ -551,7 +557,9 @@ export async function createGeneratedFile(input: GeneratedFileInput) {
       drive_item_id: driveItemId,
       file_name: fileName,
       detected_prefix: normalizeNullableText(input.detected_prefix),
+      stage,
       match_status: matchStatus,
+      helper_report_json: input.helper_report_json ?? null,
       imported_at: importedAt,
     })
     .select("*")
@@ -607,10 +615,18 @@ export async function updateGeneratedFile(id: string, input: GeneratedFileUpdate
     patch.detected_prefix = normalizeNullableText(input.detected_prefix);
   }
 
+  if (input.stage !== undefined) {
+    patch.stage = normalizeFlowManifestStage(input.stage, "VIDEO");
+  }
+
   if (input.match_status !== undefined) {
     const matchStatus = normalizeStatus(input.match_status, current.match_status);
     assertGeneratedFileMatchStatus(matchStatus);
     patch.match_status = matchStatus;
+  }
+
+  if (input.helper_report_json !== undefined) {
+    patch.helper_report_json = input.helper_report_json;
   }
 
   if (input.imported_at !== undefined) {

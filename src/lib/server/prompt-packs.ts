@@ -189,6 +189,8 @@ type MockPromptContext = {
 
 type PromptPackGenerationMode = "mock" | "gemini";
 
+const CANCELABLE_PROMPT_TASK_STATUSES = new Set(["QUEUED", "RETRYING", "WAITING_FOR_KEY"]);
+
 type PromptPackGenerationContext = {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   serviceClient: ReturnType<typeof createSupabaseServiceRoleClient>;
@@ -1612,6 +1614,98 @@ export async function createPromptPackGenerationTask(
     task,
     taskInput,
     context,
+  };
+}
+
+export async function cancelPromptPackGenerationTask(promptPackId: string) {
+  const { supabase, user, promptPack } = await requireOwnedPromptPack(promptPackId);
+
+  if (!promptPack.ai_task_id) {
+    throw new Error("Prompt generation task not found.");
+  }
+
+  const { data: task, error: taskError } = await supabase
+    .from("ai_tasks")
+    .select("id, status, output_json, error_message, started_at, finished_at")
+    .eq("id", promptPack.ai_task_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (taskError) {
+    throw new Error(taskError.message);
+  }
+
+  if (!task) {
+    throw new Error("Prompt generation task not found.");
+  }
+
+  if (!CANCELABLE_PROMPT_TASK_STATUSES.has(task.status)) {
+    throw new Error("Prompt generation task sudah berjalan.");
+  }
+
+  const nowIso = new Date().toISOString();
+  const cancellationMessage = "Antrian prompt dibatalkan.";
+
+  const { error: cancelTaskError } = await supabase
+    .from("ai_tasks")
+    .update({
+      status: "CANCELLED",
+      output_json: null,
+      error_message: cancellationMessage,
+      finished_at: nowIso,
+    })
+    .eq("id", task.id)
+    .eq("user_id", user.id);
+
+  if (cancelTaskError) {
+    throw new Error(cancelTaskError.message);
+  }
+
+  const { data: updatedPromptPack, error: promptPackError } = await supabase
+    .from("prompt_packs")
+    .update({
+      ai_task_id: null,
+      status: "DRAFT",
+      error_message: cancellationMessage,
+    })
+    .eq("id", promptPack.id)
+    .eq("user_id", user.id)
+    .select("*")
+    .single();
+
+  if (promptPackError) {
+    const { error: revertTaskError } = await supabase
+      .from("ai_tasks")
+      .update({
+        status: task.status,
+        output_json: task.output_json,
+        error_message: task.error_message,
+        started_at: task.started_at,
+        finished_at: task.finished_at,
+      })
+      .eq("id", task.id)
+      .eq("user_id", user.id);
+
+    if (revertTaskError) {
+      throw new Error(`${promptPackError.message} / ${revertTaskError.message}`);
+    }
+
+    throw new Error(promptPackError.message);
+  }
+
+  revalidatePath("/prompts");
+  revalidatePath(`/products/${promptPack.product_id}`);
+
+  return {
+    task: {
+      ...task,
+      status: "CANCELLED" as const,
+      output_json: null,
+      error_message: cancellationMessage,
+      finished_at: nowIso,
+    },
+    promptPack: updatedPromptPack as PromptPackRecord,
+    message: cancellationMessage,
   };
 }
 

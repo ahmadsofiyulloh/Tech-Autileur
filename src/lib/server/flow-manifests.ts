@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  FLOW_MANIFEST_SCHEMA_VERSION,
+  buildFlowStageManifestJobs,
+  type FlowStageManifestJob,
+} from "@/lib/flow/stage-manifest";
 import { PROMPT_CLIP_KEYS } from "@/lib/prompts/validation";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import { listClipJobs, type ClipJobRecord } from "@/lib/server/clip-jobs";
@@ -23,6 +28,7 @@ export type FlowBatchManifestJob = {
 };
 
 export type FlowBatchManifest = {
+  schema_version: typeof FLOW_MANIFEST_SCHEMA_VERSION;
   batch_id: string;
   batch_code: string;
   target_date: string;
@@ -34,6 +40,8 @@ export type FlowBatchManifest = {
   drive_output_folder_url: string;
   helper_output_folder_key: string;
   rename_pattern: string;
+  prompt_context: unknown | null;
+  stage_jobs: FlowStageManifestJob[];
   jobs: FlowBatchManifestJob[];
 };
 
@@ -202,6 +210,7 @@ async function buildJobsFromPromptPack(input: {
   batch: FlowBatchRecord;
   productCode: string;
   promptPack: Awaited<ReturnType<typeof getPromptPackById>> | null;
+  promptSet?: ReturnType<typeof readPromptPackEditorPromptSet>;
 }) {
   const promptPack = input.promptPack;
 
@@ -209,7 +218,7 @@ async function buildJobsFromPromptPack(input: {
     throw new Error("Prompt pack tidak tersedia.");
   }
 
-  const promptSet = readPromptPackEditorPromptSet(promptPack);
+  const promptSet = input.promptSet ?? readPromptPackEditorPromptSet(promptPack);
 
   return PROMPT_CLIP_KEYS.map<FlowBatchManifestJob>((key, index) => {
     const currentClipCode = clipCode(index + 1);
@@ -240,6 +249,34 @@ async function buildJobsFromPromptPack(input: {
   });
 }
 
+function buildStageJobsFromPromptPack(input: {
+  batch: FlowBatchRecord;
+  productCode: string;
+  promptPack: Awaited<ReturnType<typeof getPromptPackById>> | null;
+}) {
+  if (!input.promptPack) {
+    return {
+      promptContext: null,
+      stageJobs: [],
+      promptSet: null,
+    };
+  }
+
+  const promptSet = readPromptPackEditorPromptSet(input.promptPack);
+
+  return {
+    promptContext: promptSet.prompt_context,
+    stageJobs: buildFlowStageManifestJobs({
+      batchCode: input.batch.batch_code,
+      productCode: input.productCode,
+      promptCode: input.promptPack.prompt_code,
+      promptSet,
+      version: "V01",
+    }),
+    promptSet,
+  };
+}
+
 async function buildManifest(input: {
   batch: FlowBatchRecord;
   flowUrl: string;
@@ -264,6 +301,11 @@ async function buildManifest(input: {
   const contentMap = new Map(contents.map((content) => [content.id, content]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const manifestClipJobs = [...clipJobs].sort(sortClipJobs).slice(0, PROMPT_CLIP_KEYS.length);
+  const stageManifest = buildStageJobsFromPromptPack({
+    batch: input.batch,
+    productCode,
+    promptPack,
+  });
   const jobs = manifestClipJobs.length === PROMPT_CLIP_KEYS.length
     ? await buildJobsFromClipJobs({
         batch: input.batch,
@@ -276,9 +318,11 @@ async function buildManifest(input: {
         batch: input.batch,
         productCode,
         promptPack,
+        promptSet: stageManifest.promptSet ?? undefined,
       });
 
   return {
+    schema_version: FLOW_MANIFEST_SCHEMA_VERSION,
     batch_id: input.batch.id,
     batch_code: input.batch.batch_code,
     target_date: input.batch.target_date,
@@ -295,6 +339,8 @@ async function buildManifest(input: {
       clipCode: "CLIP01",
       version: "V01",
     }),
+    prompt_context: stageManifest.promptContext,
+    stage_jobs: stageManifest.stageJobs,
     jobs,
   } satisfies FlowBatchManifest;
 }

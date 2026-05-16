@@ -46,6 +46,16 @@ import {
 } from "../../src/lib/affiliate-profiles/readiness";
 import { assertUploadedImage, prepareGeminiCompatibleUploadImage } from "../../src/lib/intake/upload-validation";
 import { getPromptLaunchReadiness } from "../../src/lib/prompts/prompt-launch-readiness";
+import { projectPromptReadiness } from "../../src/lib/prompts/prompt-readiness-projection";
+import {
+  countPromptWorkbenchRows,
+  filterPromptWorkbenchRows,
+  normalizePromptWorkbenchReadinessFilter,
+} from "../../src/lib/prompts/prompt-workbench";
+import {
+  buildFlowStageManifestJobs,
+  flowStageDrivePurpose,
+} from "../../src/lib/flow/stage-manifest";
 import { getGeminiFailureDisposition } from "../../src/lib/server/gemini-failure-policy";
 import sharp from "sharp";
 
@@ -129,6 +139,25 @@ function buildTestI2VPrompt<TSlot extends "clip_1" | "clip_2">(
     continuity: "start at @firstframe and end at @lastframe",
     negative_prompt: "no extra props",
   } as PromptPackGenerationOutput["i2v_prompts"][TSlot];
+}
+
+function buildReadyAffiliateProfile() {
+  return {
+    status: "ACTIVE",
+    workspace_ids: ["workspace-1"],
+    i2i_prompt_rules: "keep product shape",
+    i2v_prompt_rules: "keep continuity",
+    caption_rules: "short caption",
+    hashtag_rules: "#tag",
+    negative_prompt_rules: "avoid blur",
+    product_positioning_notes: "product-first",
+    lock_seed_character: false,
+    seed_character_drive_item_ref_id: null,
+    seed_character_analysis_json: null,
+    lock_environment: false,
+    environment_drive_item_ref_id: null,
+    environment_analysis_json: null,
+  };
 }
 
 function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
@@ -800,6 +829,143 @@ test("prompt launch readiness lists blockers for missing review and source image
   expect(readiness.blockers.some((blocker) => blocker.href.includes("/products/new?step=prompt"))).toBe(true);
 });
 
+test("prompt readiness projection does not trust raw product status alone", () => {
+  const projection = projectPromptReadiness({
+    product: { id: "product-1", status: "PROMPT_READY" },
+    sourceImages: [],
+    marketplaceSources: [],
+    intakeSessions: [
+      {
+        id: "intake-1",
+        status: "REVIEWED",
+        reviewed_metadata_json: { nama_produk: "Tas" },
+      },
+    ],
+    affiliateProfile: buildReadyAffiliateProfile(),
+  });
+
+  expect(projection.status).toBe("NEEDS_EVIDENCE");
+  expect(projection.label).toBe("Needs Evidence");
+  expect(projection.reasons.map((reason) => reason.key)).toEqual(
+    expect.arrayContaining(["source_image", "marketplace_evidence"]),
+  );
+  expect(projection.isBulkEnqueueEligible).toBe(false);
+});
+
+test("prompt readiness projection separates metadata analysis from metadata review", () => {
+  const needsMetadata = projectPromptReadiness({
+    product: { id: "product-1", status: "DRAFT" },
+    sourceImages: [{ id: "image-1", drive_item_ref_id: "drive-product", status: "ATTACHED" }],
+    marketplaceSources: [{ id: "source-1", screenshot_drive_item_ref_id: "drive-shot", status: "ACTIVE" }],
+    intakeSessions: [],
+    affiliateProfile: buildReadyAffiliateProfile(),
+  });
+  const needsReview = projectPromptReadiness({
+    product: { id: "product-1", status: "DRAFT" },
+    sourceImages: [{ id: "image-1", drive_item_ref_id: "drive-product", status: "ATTACHED" }],
+    marketplaceSources: [{ id: "source-1", screenshot_drive_item_ref_id: "drive-shot", status: "ACTIVE" }],
+    intakeSessions: [
+      {
+        id: "intake-1",
+        status: "NEEDS_REVIEW",
+        parsed_metadata_json: { nama_produk: "Tas" },
+      },
+    ],
+    affiliateProfile: buildReadyAffiliateProfile(),
+  });
+
+  expect(needsMetadata.status).toBe("NEEDS_METADATA");
+  expect(needsMetadata.label).toBe("Needs Metadata");
+  expect(needsMetadata.isBulkEnqueueEligible).toBe(false);
+  expect(needsReview.status).toBe("NEEDS_REVIEW");
+  expect(needsReview.label).toBe("Needs Review");
+  expect(needsReview.isBulkEnqueueEligible).toBe(false);
+});
+
+test("prompt readiness projection marks only ready rows as bulk enqueue eligible", () => {
+  const projection = projectPromptReadiness({
+    product: { id: "product-1", status: "DRAFT" },
+    sourceImages: [{ id: "image-1", drive_item_ref_id: "drive-product", status: "ATTACHED" }],
+    marketplaceSources: [{ id: "source-1", screenshot_drive_item_ref_id: "drive-shot", status: "ACTIVE" }],
+    intakeSessions: [
+      {
+        id: "intake-1",
+        status: "REVIEWED",
+        reviewed_metadata_json: { nama_produk: "Tas" },
+      },
+    ],
+    affiliateProfile: buildReadyAffiliateProfile(),
+  });
+
+  expect(projection.status).toBe("READY_FOR_PROMPT");
+  expect(projection.label).toBe("Ready for Prompt");
+  expect(projection.reasons).toHaveLength(0);
+  expect(projection.isBulkEnqueueEligible).toBe(true);
+});
+
+test("prompt readiness projection reflects queued generated and failed prompt states", () => {
+  const readyInput = {
+    product: { id: "product-1", status: "DRAFT" },
+    sourceImages: [{ id: "image-1", drive_item_ref_id: "drive-product", status: "ATTACHED" }],
+    marketplaceSources: [{ id: "source-1", screenshot_drive_item_ref_id: "drive-shot", status: "ACTIVE" }],
+    intakeSessions: [
+      {
+        id: "intake-1",
+        status: "REVIEWED",
+        reviewed_metadata_json: { nama_produk: "Tas" },
+      },
+    ],
+    affiliateProfile: buildReadyAffiliateProfile(),
+  };
+
+  expect(
+    projectPromptReadiness({
+      ...readyInput,
+      promptPacks: [{ id: "pack-1", status: "QUEUED", ai_task_id: "task-1" }],
+      aiTasks: [{ id: "task-1", task_type: "PROMPT_PACK_GENERATION", status: "RUNNING" }],
+    }).label,
+  ).toBe("Prompt Queued");
+  expect(
+    projectPromptReadiness({
+      ...readyInput,
+      promptPacks: [{ id: "pack-1", status: "GENERATED" }],
+    }).label,
+  ).toBe("Prompt Generated");
+  expect(
+    projectPromptReadiness({
+      ...readyInput,
+      promptPacks: [{ id: "pack-1", status: "ERROR", error_message: "Gemini failed" }],
+    }).label,
+  ).toBe("Prompt Failed");
+});
+
+test("prompt workbench readiness filter normalizes query values", () => {
+  expect(normalizePromptWorkbenchReadinessFilter("ready for prompt")).toBe("READY_FOR_PROMPT");
+  expect(normalizePromptWorkbenchReadinessFilter("prompt-failed")).toBe("PROMPT_FAILED");
+  expect(normalizePromptWorkbenchReadinessFilter("unknown")).toBe("ALL");
+});
+
+test("prompt workbench readiness counts and filters rows", () => {
+  const rows = [
+    { product: { id: "product-1" }, status: "NEEDS_EVIDENCE" },
+    { product: { id: "product-2" }, status: "READY_FOR_PROMPT" },
+    { product: { id: "product-3" }, status: "READY_FOR_PROMPT" },
+    { product: { id: "product-4" }, status: "PROMPT_GENERATED" },
+  ] as any;
+
+  const counts = countPromptWorkbenchRows(rows);
+
+  expect(counts.total).toBe(4);
+  expect(counts.NEEDS_EVIDENCE).toBe(1);
+  expect(counts.READY_FOR_PROMPT).toBe(2);
+  expect(counts.PROMPT_GENERATED).toBe(1);
+  expect(filterPromptWorkbenchRows(rows, "READY_FOR_PROMPT").map((row: any) => row.product.id)).toEqual([
+    "product-2",
+    "product-3",
+  ]);
+  expect(filterPromptWorkbenchRows(rows, "ALL")).toHaveLength(4);
+});
+
 test("intake upload validation accepts common JPG variants", () => {
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpeg" }), "Screenshot Shopee")).not.toThrow();
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpg" }), "Screenshot TikTok")).not.toThrow();
@@ -952,6 +1118,37 @@ test("prompt pack editor storage round-trips legacy prompts without drive_url", 
       legacyPack.personalization_json,
     ),
   ).not.toThrow();
+});
+
+test("flow stage manifest jobs split frame and video execution", () => {
+  const pack = buildPromptPackStoragePayload(buildPromptPackFixture());
+  const promptSet = readPromptPackEditorPromptSet(pack);
+  const jobs = buildFlowStageManifestJobs({
+    batchCode: "BATCH-01",
+    productCode: "PROD-01",
+    promptCode: "PROMPT-01",
+    promptSet,
+  });
+
+  expect(jobs.map((job) => job.stage)).toEqual([
+    "FIRST_FRAME",
+    "FIRST_FRAME",
+    "LAST_FRAME",
+    "LAST_FRAME",
+    "VIDEO",
+    "VIDEO",
+  ]);
+  expect(jobs).toHaveLength(6);
+  expect(jobs[0].input_handles).toEqual(["@character", "@environment", "@product"]);
+  expect(jobs[2].input_handles).toEqual(["@firstframe"]);
+  expect(jobs[4].input_handles).toEqual(["@firstframe", "@lastframe"]);
+  expect(jobs[2].depends_on_job_codes).toEqual([jobs[0].job_code]);
+  expect(jobs[4].depends_on_job_codes).toEqual([jobs[0].job_code, jobs[2].job_code]);
+  expect(jobs[0].output_file_name).toContain("_FIRSTFRAME.png");
+  expect(jobs[2].output_file_name).toContain("_LASTFRAME.png");
+  expect(jobs[4].output_file_name).toContain(".mp4");
+  expect(flowStageDrivePurpose("FIRST_FRAME")).toBe("I2I_RESULT");
+  expect(flowStageDrivePurpose("VIDEO")).toBe("FINAL_VIDEO");
 });
 
 test("prompt pack parser rejects missing product status", () => {

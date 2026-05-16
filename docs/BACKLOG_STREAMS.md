@@ -1,4 +1,14 @@
-# Backlog Streams - MVP
+# Backlog Streams - MVP and Phase 2
+
+## Phase Status
+
+```text
+Phase 1 MVP Baseline: PASS
+Current Active Phase: Phase 2 Micro-Task Implementation
+Phase 2 Lock Status: LOCKED FOR MICRO-TASK IMPLEMENTATION
+```
+
+The MVP streams below remain the Phase 1 completion model. Phase 2 streams are locked for ordered implementation but must not be marked complete until they receive task-backed implementation evidence.
 
 ## Stream Overview
 
@@ -43,3 +53,21 @@ Login
 
 Use `docs/BACKLOG_AUDIT.md` as the commit-backed evidence layer for stream progress.
 `docs/MICRO_TASK_BACKLOG.md` is the summary index; do not mark a stream complete there unless the audit has a matching commit row.
+
+## Phase 2 Locked Streams
+
+| Stream | Name | Purpose | Status |
+|---|---|---|---|
+| P2-S1 | Prompt Batch Workbench | Bulk prompt production from truly prompt-ready products, with readiness filters and batch enqueue controls | Locked next |
+| P2-S2 | AI Job Queue | Durable queue execution, quota-aware Gemini routing, retries, cancellation, and bulk progress tracking | Locked |
+| P2-S5 | Scale Hardening | Server-side pagination/search, readiness projections, indexes, realtime or polling strategy, and operational dashboards | Locked |
+| P2-S3 | Controller Reactivation | Desktop-only Flow Control reactivation with batch lanes, account recommendation, manifest export, and status reconciliation | Locked after prompt scale |
+| P2-S4 | Windows Helper Ops | Operator-controlled helper run loop for manifest import, Chrome profile launch, output watch, rename, Drive upload, and callback | Locked after Controller lanes |
+
+## Phase 2 Implementation Order
+
+```text
+P2-S1 -> P2-S2 -> P2-S5 -> P2-S3 -> P2-S4
+```
+
+Prompt production scale comes first because `Paket Prompt` is the current product output of the app. Controller and Helper work should follow after prompt bulk generation is reliable and observable.

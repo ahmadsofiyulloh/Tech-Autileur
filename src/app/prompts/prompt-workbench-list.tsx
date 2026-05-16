@@ -1,0 +1,619 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Check, Clock3, Edit3, ListChecks, Square } from "lucide-react";
+import type { AffiliateProfilePromptReadinessInput } from "@/lib/affiliate-profiles/readiness";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
+import { StatusBadge } from "@/components/operator/status-badge";
+import { DeleteActionButton } from "@/components/ui/delete-action-button";
+import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
+import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { getPromptLaunchReadiness, type PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
+import { type PromptReadinessProjection } from "@/lib/prompts/prompt-readiness-projection";
+import {
+  PROMPT_WORKBENCH_MOBILE_PAGE_SIZE,
+  type PromptWorkbenchReadinessFilter,
+} from "@/lib/prompts/prompt-workbench";
+import type { PromptQueueSnapshot, PromptQueueSummary } from "@/lib/prompts/prompt-queue-contract";
+import { bulkEnqueuePromptPacks, cancelPromptPackGeneration, savePromptPack } from "./actions";
+
+const PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY = "(min-width: 861px)";
+
+type PromptWorkbenchProduct = {
+  id: string;
+  product_name: string;
+};
+
+type PromptWorkbenchPromptPack = {
+  id: string;
+  product_id: string;
+  version: number;
+  status: string;
+  ai_task_id: string | null;
+  error_message: string | null;
+};
+
+type PromptWorkbenchIntakeSession = {
+  id: string;
+  status: string;
+  reviewed_metadata_json: unknown;
+};
+
+type PromptWorkbenchAffiliateProfile = AffiliateProfilePromptReadinessInput & {
+  id: string;
+  profile_name: string;
+};
+
+type PromptWorkbenchSourceImage = {
+  id: string;
+  drive_item_ref_id: string | null;
+};
+
+type PromptWorkbenchDriveItem = {
+  name: string;
+};
+
+type PromptWorkbenchTask = {
+  status: string;
+  error_message: string | null;
+  gemini_api_key_id: string | null;
+  gemini_key_label: string | null;
+};
+
+export type PromptWorkbenchRowData = {
+  product: PromptWorkbenchProduct;
+  workspaceName: string;
+  promptPack: PromptWorkbenchPromptPack | null;
+  intakeSession: PromptWorkbenchIntakeSession | null;
+  affiliateProfile: PromptWorkbenchAffiliateProfile | null;
+  sourceImage: PromptWorkbenchSourceImage | null;
+  sourceImageDriveItem: PromptWorkbenchDriveItem | null;
+  generationTask: PromptWorkbenchTask | null;
+  promptReadiness: PromptReadinessProjection | null;
+  defaultAffiliateProfileName: string;
+  productContinueHref: string | null;
+  productDetailHref: string;
+  promptDetailHref: string | null;
+  returnHref: string;
+  isOpen: boolean;
+};
+
+type PromptWorkbenchListProps = {
+  affiliateProfileId?: string | null;
+  intakeId?: string | null;
+  pagination: PromptWorkbenchPaginationState;
+  productId?: string | null;
+  queueHref: string;
+  queueSummary: PromptQueueSummary;
+  readiness: PromptWorkbenchReadinessFilter;
+  rows: PromptWorkbenchRowData[];
+  search: string;
+};
+
+type PromptWorkbenchPaginationState = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
+type PromptPackCreateFormProps = {
+  product: PromptWorkbenchProduct;
+  intakeSession: PromptWorkbenchIntakeSession | null;
+  affiliateProfile: PromptWorkbenchAffiliateProfile | null;
+  sourceImage: PromptWorkbenchSourceImage | null;
+  readiness: PromptLaunchReadiness;
+};
+
+type PromptWorkbenchRowCardProps = PromptWorkbenchRowData & {
+  selected: boolean;
+  onToggleSelected: (productId: string) => void;
+};
+
+function useIsDesktopPromptWorkbenchViewport() {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    if (!window.matchMedia) {
+      setIsDesktop(false);
+      return;
+    }
+
+    const media = window.matchMedia(PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY);
+    const updateViewportState = () => setIsDesktop(media.matches);
+
+    updateViewportState();
+    media.addEventListener("change", updateViewportState);
+
+    return () => media.removeEventListener("change", updateViewportState);
+  }, []);
+
+  return isDesktop;
+}
+
+function PromptPackCreateForm({ product, intakeSession, affiliateProfile, sourceImage, readiness }: PromptPackCreateFormProps) {
+  const readinessId = `prompt-launch-readiness-${product.id}`;
+
+  return (
+    <form className="prompt-list-card__action-form" action={savePromptPack}>
+      <input type="hidden" name="intent" value="create_generate" />
+      <input type="hidden" name="status" value="DRAFT" />
+      <input type="hidden" name="version" value={1} />
+      <input type="hidden" name="product_id" value={product.id} />
+      <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
+      <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
+      <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
+      <PendingActionButton
+        className="compact primary"
+        aria-describedby={!readiness.ready ? readinessId : undefined}
+        pendingLabel="Membuat"
+        disabled={!readiness.ready}
+      >
+        Buat Prompt
+      </PendingActionButton>
+    </form>
+  );
+}
+
+function PromptWorkbenchRowCard({
+  product,
+  workspaceName,
+  promptPack,
+  intakeSession,
+  affiliateProfile,
+  sourceImage,
+  sourceImageDriveItem,
+  generationTask,
+  promptReadiness,
+  defaultAffiliateProfileName,
+  selected,
+  onToggleSelected,
+  productContinueHref,
+  productDetailHref,
+  promptDetailHref,
+  returnHref,
+  isOpen,
+}: PromptWorkbenchRowCardProps) {
+  const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
+  const affiliateProfileName = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
+  const sourceImageLabel = sourceImageDriveItem?.name ?? sourceImage?.id ?? "Foto belum ada";
+  const promptLaunchReadiness = getPromptLaunchReadiness({
+    productId: product.id,
+    intakeSessionId: intakeSession?.id ?? null,
+    affiliateProfileId: affiliateProfile?.id ?? null,
+    hasReviewedMetadata: Boolean(intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED"),
+    sourceImageDriveItemRefId: sourceImage?.drive_item_ref_id ?? null,
+    affiliateProfile,
+  });
+  const isSelectable = Boolean(promptReadiness?.isBulkEnqueueEligible);
+  const canCancelPromptGeneration = ["QUEUED", "RETRYING", "WAITING_FOR_KEY"].includes(generationTask?.status ?? "");
+  const taskIssueMessage = generationTask?.error_message ?? promptPack?.error_message ?? null;
+  const selectedGeminiKeyLabel =
+    generationTask?.gemini_key_label ?? (generationTask?.gemini_api_key_id ? "Key belum terbaca" : null);
+  const canCreatePrompt = !promptPack && promptLaunchReadiness.ready;
+  const continueHref = !promptPack && !promptLaunchReadiness.ready ? productContinueHref : null;
+  const productActionHref = continueHref ?? productDetailHref;
+  const productActionLabel = continueHref ? "Lanjutkan" : "Detail";
+  const renderProductAction = () => (
+    <>
+      <NativeLinkButton className="compact primary" href={productActionHref}>
+        <ArrowRight size={15} aria-hidden="true" />
+        {productActionLabel}
+      </NativeLinkButton>
+      {continueHref ? (
+        <OverflowActionMenu label="Aksi prompt">
+          <NativeLinkButton className="compact" href={productDetailHref}>
+            <ArrowRight size={15} aria-hidden="true" />
+            Detail
+          </NativeLinkButton>
+        </OverflowActionMenu>
+      ) : null}
+    </>
+  );
+  const renderCreatePromptAction = () => (
+    <>
+      <PromptPackCreateForm
+        affiliateProfile={affiliateProfile}
+        intakeSession={intakeSession}
+        product={product}
+        readiness={promptLaunchReadiness}
+        sourceImage={sourceImage}
+      />
+        <OverflowActionMenu label="Aksi prompt">
+          <NativeLinkButton className="compact" href={productDetailHref}>
+            <ArrowRight size={15} aria-hidden="true" />
+          Detail
+        </NativeLinkButton>
+      </OverflowActionMenu>
+    </>
+  );
+
+  return (
+    <article className="prompt-list-card stack" data-open={isOpen ? "true" : undefined} data-selected={selected ? "true" : undefined}>
+      <div className="prompt-list-card__header">
+        <div className="prompt-list-card__copy">
+          <span>{promptPack ? `Paket Prompt v${promptPack.version}` : "Paket Prompt"}</span>
+          <strong title={product.product_name}>{product.product_name}</strong>
+          <small>{`Akun: ${affiliateProfileName}`}</small>
+        </div>
+        <StatusBadge status={statusLabel} />
+      </div>
+
+      <div className="prompt-list-card__meta-row">
+        {isSelectable ? (
+          <NativeButton
+            aria-pressed={selected}
+            className="compact tertiary prompt-workbench-select-button desktop-action-set"
+            data-active={selected ? "true" : undefined}
+            type="button"
+            onClick={() => onToggleSelected(product.id)}
+          >
+            {selected ? <Check size={15} aria-hidden="true" /> : <Square size={15} aria-hidden="true" />}
+            {selected ? "Dipilih" : "Pilih"}
+          </NativeButton>
+        ) : null}
+        <span>{workspaceName}</span>
+        <span>{sourceImageLabel}</span>
+        {promptReadiness ? <StatusBadge status={promptReadiness.label} /> : null}
+        {generationTask ? <StatusBadge status={generationTask.status} /> : null}
+        {selectedGeminiKeyLabel ? (
+          <StatusBadge
+            status={`Key: ${selectedGeminiKeyLabel}`}
+            tone={generationTask?.status === "WAITING_FOR_KEY" ? "warning" : "info"}
+          />
+        ) : null}
+        {!promptPack && !intakeSession ? <StatusBadge status="Review Gemini dulu" tone="warning" /> : null}
+      </div>
+
+      {taskIssueMessage ? (
+        <div className="prompt-list-card__task-note" aria-label="Alasan task">
+          <span>Alasan</span>
+          <strong>{taskIssueMessage}</strong>
+        </div>
+      ) : null}
+
+      {promptReadiness && !promptReadiness.isBulkEnqueueEligible ? (
+        <div className="prompt-list-card__reason-row" aria-label="Alasan belum siap">
+          <span>Blokir</span>
+          {promptReadiness.reasons.length ? (
+            promptReadiness.reasons.map((reason) => <StatusBadge key={reason.key} status={reason.label} tone="warning" />)
+          ) : (
+            <StatusBadge status="Belum siap" tone="warning" />
+          )}
+        </div>
+      ) : null}
+
+      <div className="prompt-list-card__divider" aria-hidden="true" />
+
+      <div className="prompt-list-card__actions prompt-list-card__desktop-actions desktop-action-set">
+        {promptPack ? (
+          <>
+            <NativeLinkButton className="compact primary" href={promptDetailHref ?? `/prompts/${promptPack.id}`}>
+              <Edit3 size={15} aria-hidden="true" />
+              Buka
+            </NativeLinkButton>
+            <OverflowActionMenu label="Aksi prompt">
+              <NativeLinkButton className="compact" href={`/prompts/${promptPack.id}/history`}>
+                <Clock3 size={15} aria-hidden="true" />
+                History
+              </NativeLinkButton>
+              {canCancelPromptGeneration ? (
+                <form action={cancelPromptPackGeneration}>
+                  <input type="hidden" name="return_to" value={returnHref} />
+                  <input type="hidden" name="id" value={promptPack.id} />
+                  <input type="hidden" name="product_id" value={promptPack.product_id} />
+                  <PendingActionButton className="compact" pendingLabel="Membatalkan">
+                    Batal
+                  </PendingActionButton>
+                </form>
+              ) : null}
+              <form action={savePromptPack}>
+                <input type="hidden" name="intent" value="archive" />
+                <input type="hidden" name="return_to" value={returnHref} />
+                <input type="hidden" name="id" value={promptPack.id} />
+                <input type="hidden" name="product_id" value={promptPack.product_id} />
+                <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
+              </form>
+            </OverflowActionMenu>
+          </>
+        ) : (
+          <>
+            {canCreatePrompt ? renderCreatePromptAction() : renderProductAction()}
+          </>
+        )}
+      </div>
+
+      <div className="mobile-card-actions prompt-list-card__mobile-actions">
+        {promptPack ? (
+          <>
+            <NativeLinkButton className="compact primary" href={promptDetailHref ?? `/prompts/${promptPack.id}`}>
+              <Edit3 size={15} aria-hidden="true" />
+              Buka
+            </NativeLinkButton>
+            <OverflowActionMenu>
+              <NativeLinkButton className="compact" href={`/prompts/${promptPack.id}/history`}>
+                <Clock3 size={15} aria-hidden="true" />
+                History
+              </NativeLinkButton>
+              {canCancelPromptGeneration ? (
+                <form action={cancelPromptPackGeneration}>
+                  <input type="hidden" name="return_to" value={returnHref} />
+                  <input type="hidden" name="id" value={promptPack.id} />
+                  <input type="hidden" name="product_id" value={promptPack.product_id} />
+                  <PendingActionButton className="compact" pendingLabel="Membatalkan">
+                    Batal
+                  </PendingActionButton>
+                </form>
+              ) : null}
+              <form action={savePromptPack}>
+                <input type="hidden" name="intent" value="archive" />
+                <input type="hidden" name="return_to" value={returnHref} />
+                <input type="hidden" name="id" value={promptPack.id} />
+                <input type="hidden" name="product_id" value={promptPack.product_id} />
+                <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
+              </form>
+            </OverflowActionMenu>
+          </>
+        ) : (
+          <>
+            {canCreatePrompt ? renderCreatePromptAction() : renderProductAction()}
+          </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function derivePromptMobilePagination(totalCount: number): PromptWorkbenchPaginationState {
+  const totalPages = Math.max(Math.ceil(totalCount / PROMPT_WORKBENCH_MOBILE_PAGE_SIZE), 1);
+
+  return {
+    page: 1,
+    pageSize: PROMPT_WORKBENCH_MOBILE_PAGE_SIZE,
+    totalCount,
+    totalPages,
+    hasPreviousPage: false,
+    hasNextPage: totalPages > 1,
+  };
+}
+
+export function PromptWorkbenchList({
+  affiliateProfileId,
+  rows,
+  intakeId,
+  pagination,
+  productId,
+  queueHref,
+  queueSummary,
+  readiness,
+  search,
+}: PromptWorkbenchListProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [mobileRows, setMobileRows] = useState<PromptWorkbenchRowData[]>(() => rows.slice(0, PROMPT_WORKBENCH_MOBILE_PAGE_SIZE));
+  const [mobilePagination, setMobilePagination] = useState<PromptWorkbenchPaginationState>(() => derivePromptMobilePagination(pagination.totalCount));
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [liveQueueSummary, setLiveQueueSummary] = useState(queueSummary);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const isDesktopPromptWorkbenchViewport = useIsDesktopPromptWorkbenchViewport();
+  const renderedRows = isDesktopPromptWorkbenchViewport ? rows : mobileRows;
+  const selectableRowIds = useMemo(
+    () => new Set(rows.filter((row) => row.promptReadiness?.isBulkEnqueueEligible).map((row) => row.product.id)),
+    [rows],
+  );
+  const selectedCount = selectedIds.size;
+  const selectedProductIds = Array.from(selectedIds);
+  const activeTaskCount = liveQueueSummary.queued + liveQueueSummary.running + liveQueueSummary.retrying + liveQueueSummary.waitingForKey;
+
+  useEffect(() => {
+    setMobileRows(rows.slice(0, PROMPT_WORKBENCH_MOBILE_PAGE_SIZE));
+    setMobilePagination(derivePromptMobilePagination(pagination.totalCount));
+    setLoadMoreError(null);
+  }, [pagination.totalCount, readiness, rows, search]);
+
+  useEffect(() => {
+    setLiveQueueSummary(queueSummary);
+  }, [queueSummary]);
+
+  useEffect(() => {
+    if (!isDesktopPromptWorkbenchViewport) {
+      return;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const response = await fetch("/api/prompts/queue", {
+          headers: {
+            accept: "application/json",
+          },
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as PromptQueueSnapshot & { error?: string };
+
+        if (response.ok) {
+          setLiveQueueSummary(payload.summary);
+        }
+      } catch {
+        // Keep the last known summary in the compact workbench bar.
+      }
+    }, 5_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isDesktopPromptWorkbenchViewport]);
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      if (!current.size) {
+        return current;
+      }
+
+      const next = new Set(Array.from(current).filter((id) => selectableRowIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [selectableRowIds]);
+
+  function toggleSelected(productId: string) {
+    if (!selectableRowIds.has(productId)) {
+      return;
+    }
+
+    setSelectedIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+
+      return next;
+    });
+  }
+
+  const loadMorePrompts = useCallback(async () => {
+    if (isLoadingMore || !mobilePagination.hasNextPage) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setLoadMoreError(null);
+
+    try {
+      const params = new URLSearchParams();
+
+      if (affiliateProfileId) {
+        params.set("affiliate_profile_id", affiliateProfileId);
+      }
+
+      if (productId) {
+        params.set("product_id", productId);
+      }
+
+      if (intakeId) {
+        params.set("intake_id", intakeId);
+      }
+
+      if (readiness !== "ALL") {
+        params.set("readiness", readiness);
+      }
+
+      if (search) {
+        params.set("q", search);
+      }
+
+      params.set("page", String(mobilePagination.page + 1));
+      params.set("page_size", String(PROMPT_WORKBENCH_MOBILE_PAGE_SIZE));
+
+      const response = await fetch(`/api/prompts/workbench?${params.toString()}`, {
+        headers: {
+          accept: "application/json",
+        },
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        pagination?: PromptWorkbenchPaginationState;
+        rows?: PromptWorkbenchRowData[];
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Prompt gagal dimuat.");
+      }
+
+      setMobileRows((current) => {
+        const existingIds = new Set(current.map((row) => row.product.id));
+        const nextRows = (payload.rows ?? []).filter((row) => !existingIds.has(row.product.id));
+        return [...current, ...nextRows];
+      });
+      setMobilePagination(payload.pagination ?? mobilePagination);
+    } catch (error) {
+      setLoadMoreError(error instanceof Error ? error.message : "Prompt gagal dimuat.");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [
+    affiliateProfileId,
+    intakeId,
+    isLoadingMore,
+    mobilePagination,
+    productId,
+    readiness,
+    search,
+  ]);
+
+  useEffect(() => {
+    if (isDesktopPromptWorkbenchViewport || !mobilePagination.hasNextPage || !loadMoreRef.current) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadMorePrompts();
+        }
+      },
+      {
+        rootMargin: "240px 0px",
+      },
+    );
+
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [isDesktopPromptWorkbenchViewport, loadMorePrompts, mobilePagination.hasNextPage]);
+
+  return (
+    <>
+      <div
+        className="settings-inline-summary prompt-workbench-selection-summary desktop-action-set"
+        role="group"
+        aria-label="Aksi bulk prompt"
+      >
+        <div className="prompt-workbench-selection-summary__copy">
+          <span aria-live="polite">{selectedCount} dipilih</span>
+          <StatusBadge
+            status={activeTaskCount ? `${activeTaskCount} task aktif` : "Queue kosong"}
+            tone={activeTaskCount ? "info" : "neutral"}
+          />
+        </div>
+        <div className="prompt-workbench-selection-summary__actions">
+          <NativeLinkButton className="compact tertiary" href={queueHref}>
+            <ListChecks size={15} aria-hidden="true" />
+            Antrian
+          </NativeLinkButton>
+          <form className="prompt-workbench-selection-summary__actions" action={bulkEnqueuePromptPacks}>
+            <input type="hidden" name="return_to" value={queueHref} />
+            <input type="hidden" name="generation_mode" value="gemini" />
+            {selectedProductIds.map((productId) => (
+              <input key={productId} type="hidden" name="product_ids" value={productId} />
+            ))}
+            <NativeButton className="compact tertiary" type="button" onClick={() => setSelectedIds(new Set())} disabled={!selectedCount}>
+              Bersihkan
+            </NativeButton>
+            <PendingActionButton className="compact primary prompt-workbench-enqueue-placeholder" disabled={!selectedCount} pendingLabel="Mengantrikan">
+              Antrikan Prompt
+            </PendingActionButton>
+          </form>
+        </div>
+      </div>
+
+      <section className="stack prompt-list-stack">
+        {renderedRows.map((row) => (
+          <PromptWorkbenchRowCard
+            {...row}
+            key={row.product.id}
+            onToggleSelected={toggleSelected}
+            selected={selectedIds.has(row.product.id)}
+          />
+        ))}
+        {loadMoreError ? <section className="muted-box">{loadMoreError}</section> : null}
+        <div ref={loadMoreRef} aria-hidden="true" />
+        {!isDesktopPromptWorkbenchViewport && mobilePagination.hasNextPage ? (
+          <NativeButton className="compact tertiary product-mobile-load-more" type="button" onClick={() => void loadMorePrompts()} disabled={isLoadingMore}>
+            {isLoadingMore ? "Memuat" : "Muat lagi"}
+          </NativeButton>
+        ) : null}
+      </section>
+    </>
+  );
+}

@@ -1,6 +1,16 @@
-# Micro Task Backlog - Phase Awal MVP
+# Micro Task Backlog - Phase Awal MVP and Phase 2
 
 This backlog replaces older sprint assumptions. Implement one micro-task at a time.
+
+## Phase Status
+
+```text
+Phase 1 MVP Baseline: PASS
+Current Active Phase: Phase 2 Micro-Task Implementation
+Phase 2 Lock Status: LOCKED FOR MICRO-TASK IMPLEMENTATION
+```
+
+Phase 1 pass is documented in `docs/PHASE_1_PASS_AUDIT_2026_05_15.md`. Phase 2 implementation is locked by `docs/PHASE_2_ARCHITECTURE_LOCK.md`. Implement only one Phase 2 micro-task at a time and keep Controller/Helper work behind prompt scale and queue readiness.
 
 ## Progress Snapshot
 
@@ -419,3 +429,72 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Goal:** Make intake Gemini analysis OCR-first and preserve exact per-image marketplace evidence for downstream prompt generation.
 **Owner:** Codex
 **Acceptance:** Gemini intake schema requires versioned OCR diagnostics, parser preserves exact OCR fields and review flags, marketplace source rows use Shopee/TikTok-specific evidence, prompt pack parsing rejects source product/status mismatches, and no link-only visual parsing is claimed.
+
+## Phase 2 Locked Micro-Task Queue
+
+### P2-LOCK-01 - Phase 2 architecture implementation lock _(DONE)_
+**Goal:** Promote Phase 2 from discussion to a source-of-truth implementation lock with sequencing and micro-task boundaries.
+**Owner:** Codex
+**Scope:** source-of-truth docs only.
+**Acceptance:** Phase 2 status is locked for micro-task implementation; prompt scale and queue work precede Controller reactivation; no mobile Flow, browser automation, or helper secret storage is introduced.
+
+### P2-S1-001 - Prompt readiness projection foundation _(DONE)_
+**Goal:** Add the server-side readiness projection used by the Prompt Batch Workbench.
+**Owner:** Codex
+**Scope:** prompt/product server helpers and targeted tests; no new UI route and no schema migration unless query evidence requires it.
+**Acceptance:** rows classify into `Needs Evidence`, `Needs Metadata`, `Needs Review`, `Ready for Prompt`, `Prompt Queued`, `Prompt Generated`, or `Prompt Failed`; raw `products.status` is never the only readiness source; only `Ready for Prompt` rows are eligible for bulk enqueue.
+**Implementation note:** Computed projection now lives in `src/lib/prompts/prompt-readiness-projection.ts` and server aggregation in `src/lib/server/prompt-readiness.ts`; no schema migration was required.
+
+### P2-S1-002 - Desktop Prompt Batch Workbench _(READY NEXT)_
+**Goal:** Upgrade `/prompts` desktop behavior into a batch workbench while preserving the mobile prompt list.
+**Owner:** Codex
+**Scope:** `/prompts` UI, readiness filters, selection, empty/loading/error states, and enqueue affordance placeholder only.
+**Acceptance:** desktop can filter and select prompt-ready products; non-ready rows show why they are blocked; mobile nav and mobile prompt behavior remain intact.
+
+### P2-S1-002B - Bulk Import auto-reviewed prompt handoff _(IN PROGRESS)_
+**Goal:** Let valid Bulk Import scraping rows skip manual metadata review and create prompts directly from the Bulk Import monitor panel.
+**Owner:** Codex
+**Scope:** Bulk Import metadata persistence/backfill, prompt readiness projection, `/products/new` Bulk Import monitor prompt action, and targeted docs/tests only.
+**Acceptance:** new and existing `bulk_import_v1` rows store reviewed metadata, Bulk Import marketplace sources are active evidence, ready imported rows show `Buat Prompt` in the monitor panel, OCR/Vision metadata still requires review, and no dedicated prompt batch table or Supabase Queues are introduced.
+
+### P2-S2-001 - AI task queue prompt enqueue contract
+**Goal:** Use existing `ai_tasks` for durable bulk prompt generation jobs.
+**Owner:** Codex
+**Scope:** enqueue server action/route, validation, idempotency, and tests; no Supabase Queues and no dedicated prompt batch table in this wave.
+**Acceptance:** selected ready products enqueue prompt-generation tasks with owner scope, selected Gemini routing metadata, retry counters, and cancel-before-run support.
+
+### P2-S2-002 - Prompt queue runner and progress
+**Goal:** Execute queued prompt jobs with quota-aware Gemini routing and observable progress.
+**Owner:** Codex
+**Scope:** server runner, retry/failure handling, progress polling, and targeted tests.
+**Acceptance:** jobs move through queued/running/success/failed/retrying/waiting states, preserve prompt pack versioning, and show progress without keeping prompt detail open.
+
+### P2-S5-001 - Large dataset prompt/workbench hardening
+**Goal:** Replace 200-row client assumptions with server-side pagination/search for prompt workbench inputs.
+**Owner:** Codex
+**Scope:** product/prompt list query helpers, pagination/search contracts, and index review.
+**Acceptance:** thousands of products can be paged and filtered by readiness/search without loading all rows client-side.
+
+### P2-S3-001A - Stage-aware manifest foundation _(DONE)_
+**Goal:** Add manifest/callback foundations for `FIRST_FRAME`, `LAST_FRAME`, and `VIDEO` without reactivating `/controller` UI.
+**Owner:** Codex
+**Scope:** manifest schema v2, helper callback stage metadata, generated file migration, and source-of-truth docs.
+**Acceptance:** manifest exports retain legacy `jobs[]` and add `stage_jobs[]`; helper callback can import frame/video stages; Chrome profile paths remain local-only; no Google Flow auto-click or auto-submit is added.
+
+### P2-S3-001B - Controller read-only stage lanes
+**Goal:** Reactivate `/controller` as a desktop-only read-only stage lane preview after prompt queue stability.
+**Owner:** Codex
+**Scope:** desktop Controller surface only; no mutating controls beyond existing retained backend paths.
+**Acceptance:** stage lanes show `FIRST_FRAME`, `LAST_FRAME`, `VIDEO`, import/review state, Flow account lane context, and no fake Google Flow live progress.
+
+### P2-S4-001A - Helper stage pack export contract
+**Goal:** Turn manifest `stage_jobs[]` into a precise helper staging contract for prompt TXT files and local folders.
+**Owner:** Codex
+**Scope:** helper docs/contracts and app manifest export contract only unless a helper repo is explicitly provided.
+**Acceptance:** helper can prepare stage prompt files and folder structure from manifest v2; local paths and OAuth tokens remain local-only.
+
+### P2-S3-001C - Multi Chrome profile controlled run workflow
+**Goal:** Add controlled multi-lane operator workflow for Flow accounts and Chrome profiles.
+**Owner:** Codex
+**Scope:** Controller/Helper contract and desktop UI after read-only lanes are stable.
+**Acceptance:** one Flow account maps to one Chrome profile lane in helper local config; operator chooses active lanes; app never auto-clicks or auto-submits Flow.

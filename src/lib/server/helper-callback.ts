@@ -2,6 +2,11 @@ import "server-only";
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import {
+  flowStageDrivePurpose,
+  normalizeFlowManifestStage,
+  type FlowManifestStage,
+} from "@/lib/flow/stage-manifest";
 import { HELPER_API_TOKEN_CODE } from "@/lib/helper-api-tokens";
 import { GENERATED_FILE_MATCH_STATUSES } from "@/lib/server/clip-jobs";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
@@ -34,6 +39,7 @@ export type HelperCallbackFileInput = {
   job_code?: string | null;
   clip_code?: string | null;
   version?: string | null;
+  stage?: string | null;
   file_name?: string | null;
   detected_prefix?: string | null;
   match_status?: string | null;
@@ -89,6 +95,8 @@ type ClipJobRecord = {
   job_code: string;
   clip_code: string;
   version: string;
+  start_frame_drive_item_id: string | null;
+  last_frame_drive_item_id: string | null;
   generated_drive_item_id: string | null;
   status: string;
 };
@@ -119,7 +127,9 @@ type GeneratedFileRecord = {
   drive_item_id: string;
   file_name: string;
   detected_prefix: string | null;
+  stage: FlowManifestStage;
   match_status: string;
+  helper_report_json: JsonRecord | null;
   imported_at: string | null;
 };
 
@@ -199,11 +209,11 @@ function readAllowedDriveItemType(value: string | null | undefined): DriveItemTy
   return normalized;
 }
 
-function readAllowedDriveItemPurpose(value: string | null | undefined): DriveItemPurpose {
+function readAllowedDriveItemPurpose(value: string | null | undefined, stage: FlowManifestStage): DriveItemPurpose {
   const normalized = readText(value).toUpperCase();
 
   if (!normalized) {
-    return "FINAL_VIDEO";
+    return flowStageDrivePurpose(stage);
   }
 
   if (!isDriveItemPurpose(normalized)) {
@@ -271,6 +281,7 @@ function readPayload(value: unknown) {
         job_code: readNullableString(file.job_code),
         clip_code: readNullableString(file.clip_code),
         version: readNullableString(file.version),
+        stage: readNullableString(file.stage),
         file_name: readNullableString(file.file_name),
         detected_prefix: readNullableString(file.detected_prefix),
         match_status: readNullableString(file.match_status),
@@ -371,10 +382,13 @@ async function loadClipJob(
   batchId: string,
   input: HelperCallbackFileInput,
 ) {
+  const selectColumns =
+    "id, user_id, batch_id, job_code, clip_code, version, start_frame_drive_item_id, last_frame_drive_item_id, generated_drive_item_id, status";
+
   if (input.clip_job_id) {
     const { data, error } = await serviceClient
       .from("clip_jobs")
-      .select("id, user_id, batch_id, job_code, clip_code, version, generated_drive_item_id, status")
+      .select(selectColumns)
       .eq("user_id", userId)
       .eq("batch_id", batchId)
       .eq("id", input.clip_job_id)
@@ -396,22 +410,31 @@ async function loadClipJob(
     return null;
   }
 
-  let query = serviceClient
-    .from("clip_jobs")
-    .select("id, user_id, batch_id, job_code, clip_code, version, generated_drive_item_id, status")
-    .eq("user_id", userId)
-    .eq("batch_id", batchId);
+  const baseQuery = () =>
+    serviceClient
+      .from("clip_jobs")
+      .select(selectColumns)
+      .eq("user_id", userId)
+      .eq("batch_id", batchId);
 
   if (jobCode) {
-    query = query.eq("job_code", jobCode);
-  } else if (clipCode) {
-    query = query.eq("clip_code", clipCode);
+    const { data, error } = await baseQuery().eq("job_code", jobCode).maybeSingle();
 
-    if (version) {
-      query = query.eq("version", version);
-    } else {
-      query = query.order("created_at", { ascending: false });
+    if (error) {
+      throw new Error(error.message);
     }
+
+    if (data || !clipCode) {
+      return (data ?? null) as ClipJobRecord | null;
+    }
+  }
+
+  let query = baseQuery().eq("clip_code", clipCode);
+
+  if (version) {
+    query = query.eq("version", version);
+  } else {
+    query = query.order("created_at", { ascending: false });
   }
 
   const { data, error } = await query.maybeSingle();
@@ -427,6 +450,7 @@ async function upsertDriveItem(
   serviceClient: ReturnType<typeof createSupabaseServiceRoleClient>,
   userId: string,
   input: HelperCallbackDriveItemInput,
+  stage: FlowManifestStage,
 ): Promise<DriveItemRecord> {
   const driveItemId = normalizeNullableText(input.drive_item_id);
   const name = readText(input.name);
@@ -456,7 +480,7 @@ async function upsertDriveItem(
     drive_path: drivePath,
     mime_type: normalizeNullableText(input.mime_type),
     size_bytes: typeof input.size_bytes === "number" && Number.isFinite(input.size_bytes) && input.size_bytes >= 0 ? Math.trunc(input.size_bytes) : null,
-    purpose: readAllowedDriveItemPurpose(input.purpose),
+    purpose: readAllowedDriveItemPurpose(input.purpose, stage),
     status: readAllowedDriveItemStatus(input.status),
     notes: normalizeNullableText(input.notes),
   };
@@ -512,22 +536,26 @@ async function upsertGeneratedFile(
     fileName: string;
     detectedPrefix: string | null;
     matchStatus: string;
+    stage: FlowManifestStage;
+    helperReport: JsonRecord;
     importedAt: string;
   },
 ) {
   const existingQuery = input.clipJobId
     ? serviceClient
         .from("generated_files")
-        .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, match_status, imported_at")
+        .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, stage, match_status, helper_report_json, imported_at")
         .eq("user_id", userId)
         .eq("clip_job_id", input.clipJobId)
         .eq("drive_item_id", input.driveItemId)
+        .eq("stage", input.stage)
         .maybeSingle()
     : serviceClient
         .from("generated_files")
-        .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, match_status, imported_at")
+        .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, stage, match_status, helper_report_json, imported_at")
         .eq("user_id", userId)
         .eq("drive_item_id", input.driveItemId)
+        .eq("stage", input.stage)
         .maybeSingle();
 
   const { data: existing, error: existingError } = await existingQuery;
@@ -542,7 +570,9 @@ async function upsertGeneratedFile(
     drive_item_id: input.driveItemId,
     file_name: input.fileName,
     detected_prefix: input.detectedPrefix,
+    stage: input.stage,
     match_status: input.matchStatus,
+    helper_report_json: input.helperReport,
     imported_at: input.importedAt,
   };
 
@@ -552,7 +582,7 @@ async function upsertGeneratedFile(
       .update(payload)
       .eq("id", existing.id)
       .eq("user_id", userId)
-      .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, match_status, imported_at")
+      .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, stage, match_status, helper_report_json, imported_at")
       .single();
 
     if (error) {
@@ -565,7 +595,7 @@ async function upsertGeneratedFile(
   const { data, error } = await serviceClient
     .from("generated_files")
     .insert(payload)
-    .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, match_status, imported_at")
+    .select("id, user_id, clip_job_id, drive_item_id, file_name, detected_prefix, stage, match_status, helper_report_json, imported_at")
     .single();
 
   if (error) {
@@ -581,13 +611,26 @@ async function updateClipJobImport(
   clipJob: ClipJobRecord,
   driveItemId: string,
   matchStatus: string,
+  stage: FlowManifestStage,
 ) {
-  const patch: Record<string, string | null> = {
-    generated_drive_item_id: driveItemId,
-  };
+  const patch: Record<string, string | null> = {};
 
-  if (clipJob.status === "RUNNING" || clipJob.status === "IMPORTING" || matchStatus === "IMPORTED" || matchStatus === "MATCHED") {
+  if (stage === "FIRST_FRAME") {
+    patch.start_frame_drive_item_id = driveItemId;
+  } else if (stage === "LAST_FRAME") {
+    patch.last_frame_drive_item_id = driveItemId;
+  } else {
+    patch.generated_drive_item_id = driveItemId;
+  }
+
+  if (matchStatus === "ERROR") {
+    patch.status = "ERROR";
+  } else if (matchStatus === "NEEDS_REVIEW" || matchStatus === "UNMATCHED") {
+    patch.status = "NEEDS_REVIEW";
+  } else if (stage === "VIDEO" && (clipJob.status === "RUNNING" || clipJob.status === "IMPORTING" || matchStatus === "IMPORTED" || matchStatus === "MATCHED")) {
     patch.status = "IMPORTED";
+  } else if (stage !== "VIDEO" && (matchStatus === "IMPORTED" || matchStatus === "MATCHED") && clipJob.status !== "IMPORTED" && clipJob.status !== "APPROVED") {
+    patch.status = "READY";
   }
 
   const { error } = await serviceClient
@@ -628,14 +671,22 @@ export async function processHelperCallback(rawToken: string, payload: unknown) 
 
   const savedFiles: GeneratedFileRecord[] = [];
   for (const fileInput of input.generated_files) {
-    const driveItem = await upsertDriveItem(serviceClient, userId, fileInput.drive_item);
+    const stage = normalizeFlowManifestStage(fileInput.stage, "VIDEO");
+    const driveItem = await upsertDriveItem(serviceClient, userId, fileInput.drive_item, stage);
     const clipJob = await loadClipJob(serviceClient, userId, batch.id, fileInput);
     const fileName = fileNameForDriveItem(fileInput, driveItem);
     const matchStatus = readAllowedMatchStatus(fileInput.match_status);
     const importedAt = normalizeTimestamp(fileInput.imported_at ?? helperEventAt);
+    const helperReport = {
+      stage,
+      job_code: normalizeNullableText(fileInput.job_code),
+      clip_code: normalizeNullableText(fileInput.clip_code),
+      version: normalizeNullableText(fileInput.version),
+      detected_prefix: normalizeNullableText(fileInput.detected_prefix),
+    };
 
     if (clipJob) {
-      await updateClipJobImport(serviceClient, userId, clipJob, driveItem.id, matchStatus);
+      await updateClipJobImport(serviceClient, userId, clipJob, driveItem.id, matchStatus, stage);
     }
 
     const generatedFile = await upsertGeneratedFile(serviceClient, userId, {
@@ -644,6 +695,8 @@ export async function processHelperCallback(rawToken: string, payload: unknown) 
       fileName,
       detectedPrefix: normalizeNullableText(fileInput.detected_prefix),
       matchStatus,
+      stage,
+      helperReport,
       importedAt,
     });
 

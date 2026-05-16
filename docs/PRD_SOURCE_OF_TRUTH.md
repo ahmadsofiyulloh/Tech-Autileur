@@ -1,12 +1,22 @@
 # PRD v1 Final - Affiliate AI Content OS MVP
 
-**Status:** LOCKED FOR MVP IMPLEMENTATION
+**Status:** PHASE 1 PASS BASELINE; PHASE 2 MICRO-TASK IMPLEMENTATION LOCK
 **Version:** 1.3 Phase 1 Visual PWA Override Lock
 **Date:** 2026-05-04
 **Primary Operator:** Single owner/operator
 **Implementation Target:** Next.js PWA + Supabase + Google Drive + Gemini API + Google Flow workflow + Windows Helper
 **Implementation Mode:** Codex CLI with strict source-of-truth docs and Git checkpoints
 **Visual Override:** The Visual PWA Mobile-First references approved on 2026-05-04 override older shell and UI baseline decisions when they conflict.
+
+## Phase Status
+
+```text
+Phase 1 MVP Baseline: PASS
+Current Active Phase: Phase 2 Micro-Task Implementation
+Phase 2 Lock Status: LOCKED FOR MICRO-TASK IMPLEMENTATION
+```
+
+This PRD remains the locked Phase 1 baseline. Phase 2 may extend the system only through `docs/PHASE_2_ARCHITECTURE_LOCK.md` and approved micro-task backlog updates. Phase 2 work must not silently change the Phase 1 route, mobile, storage, security, prompt, or Flow constraints documented here.
 
 ## 0. Executive Summary
 
@@ -497,8 +507,10 @@ MVP means the system can:
 - Review output package links and history in the app.
 - Show dashboard counts for Gemini, Drive, prompts, and outputs as a secondary route.
 
-Phase 2 / Backlog capabilities:
+Phase 2 / Backlog capabilities are now locked in `docs/PHASE_2_ARCHITECTURE_LOCK.md`. The locked sequence includes:
 
+- Scale prompt production through a controlled Prompt Batch Workbench and durable AI job queue.
+- Harden server-side product, prompt, Drive, and batch list behavior for large datasets.
 - Retain dormant controller compatibility for assigning ready prompt packs to global Flow accounts based on status, credit, and availability.
 - Export/download a batch manifest for Windows Helper.
 - Use Windows Helper to open the correct Chrome profile and Google Flow URL.

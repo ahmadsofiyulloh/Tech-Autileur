@@ -1,27 +1,42 @@
 # 01 - Start Here Before Sprint
 
 ## Purpose
-This folder is the implementation control pack for Codex CLI. It keeps the Phase awal MVP small, locked, and fast to ship.
+This folder is the implementation control pack for Codex CLI. It keeps the Phase 1 MVP baseline locked while Phase 2 is implemented through approved micro-tasks.
+
+## Phase Status
+
+```text
+Phase 1 MVP Baseline: PASS
+Current Active Phase: Phase 2 Micro-Task Implementation
+Phase 2 Lock Status: LOCKED FOR MICRO-TASK IMPLEMENTATION
+```
+
+Phase 1 pass means the mobile-first MVP baseline is accepted as the foundation for Phase 2. It does not mean the app is production-scale for thousands of products or automated video execution.
+
+Phase 2 is now locked as an implementation sequence. Do not implement broad Phase 2 systems; implement only the next approved micro-task in `docs/MICRO_TASK_BACKLOG.md`.
 
 ## Read Order
 Read these docs in order:
 
 1. `AGENTS.md`
-2. `docs/PRD_SOURCE_OF_TRUTH.md`
-3. `docs/ARCHITECTURE_LOCK.md`
-4. `docs/DATABASE_SCHEMA_LOCK.md`
-5. `docs/DO_NOT_BUILD.md`
-6. `docs/PROMPT_PIPELINE_LOCK.md`
-7. `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
-8. `docs/FLOW_BATCH_BRIDGE_LOCK.md`
-9. `docs/FLOW_HELPER_DESKTOP_WORKFLOW.md`
-10. `docs/GOOGLE_DRIVE_FILE_SYSTEM_LOCK.md`
-11. `docs/BACKLOG_STREAMS.md`
-12. `docs/BACKLOG_AUDIT.md`
-13. `docs/MICRO_TASK_BACKLOG.md`
-14. `docs/SUPABASE_MCP_RUNBOOK.md`
-15. `docs/SMOKE_E2E_RUNBOOK.md`
-16. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
+2. `docs/PHASE_1_PASS_AUDIT_2026_05_15.md`
+3. `docs/PHASE_2_ARCHITECTURE_LOCK.md`
+4. `docs/PHASE_2_ARCHITECTURE_DISCUSSION.md`
+5. `docs/PRD_SOURCE_OF_TRUTH.md`
+6. `docs/ARCHITECTURE_LOCK.md`
+7. `docs/DATABASE_SCHEMA_LOCK.md`
+8. `docs/DO_NOT_BUILD.md`
+9. `docs/PROMPT_PIPELINE_LOCK.md`
+10. `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
+11. `docs/FLOW_BATCH_BRIDGE_LOCK.md`
+12. `docs/FLOW_HELPER_DESKTOP_WORKFLOW.md`
+13. `docs/GOOGLE_DRIVE_FILE_SYSTEM_LOCK.md`
+14. `docs/BACKLOG_STREAMS.md`
+15. `docs/BACKLOG_AUDIT.md`
+16. `docs/MICRO_TASK_BACKLOG.md`
+17. `docs/SUPABASE_MCP_RUNBOOK.md`
+18. `docs/SMOKE_E2E_RUNBOOK.md`
+19. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
 
 ## MVP Core
 The MVP is not a generic affiliate planner. It is an AI production control center for one operator.
@@ -41,7 +56,7 @@ Core flow:
 11. Pengaturan hub through the topbar Settings gear, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
 12. Controller/Flow and Windows Helper execution remain retained backend/desktop surfaces, but are not primary Phase 1 mobile navigation.
 
-## Sprint Rule
+## Phase 1 Baseline Rule
 Do not start broad feature work. Start with the locked vertical slice:
 
 ```text
@@ -58,6 +73,20 @@ Do not start broad feature work. Start with the locked vertical slice:
 -> /settings grouped native list through topbar gear
 -> Output package/history
 ```
+
+## Phase 2 Working Rule
+
+Phase 2 implementation follows this locked order:
+
+```text
+Prompt production scale
+-> AI job queue
+-> large dataset hardening
+-> Controller reactivation
+-> Windows Helper operational loop
+```
+
+`docs/PHASE_2_ARCHITECTURE_LOCK.md` is the Phase 2 source of truth. `docs/PHASE_2_ARCHITECTURE_DISCUSSION.md` remains historical context only. Any implementation must still be one micro-task at a time and must not override Phase 1 constraints without an approved lock update.
 
 ## Human Owner Responsibilities
 The user must provide real product images, marketplace screenshots, workspace choices, affiliate profile details, Gemini keys, Supabase project access, Google Drive authorization, Google Flow account access, Windows Helper local config, manual Flow execution, video review, and manual upload to TikTok/Shopee.

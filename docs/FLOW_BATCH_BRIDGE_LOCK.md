@@ -124,12 +124,36 @@ start_frame_drive_url optional
 last_frame_drive_url optional
 ```
 
+Phase 2 stage-aware manifests keep the legacy `jobs[]` video list for helper compatibility and add `stage_jobs[]` for the operator run loop. `stage_jobs[]` must contain:
+
+```text
+job_code
+content_code
+clip_code
+version
+stage FIRST_FRAME | LAST_FRAME | VIDEO
+stage_order
+prompt_file_name
+prompt_copy_text
+input_handles
+output_purpose
+output_file_name
+depends_on_job_codes
+```
+
+Stage rules:
+
+- `FIRST_FRAME` uses `@character`, `@environment`, and `@product`.
+- `LAST_FRAME` depends on `FIRST_FRAME` and uses only `@firstframe`.
+- `VIDEO` depends on both frame stages and uses only `@firstframe` and `@lastframe`.
+
 ## Manifest JSON
 
 The app manifest must include the minimum data Windows Helper needs:
 
 ```json
 {
+  "schema_version": "flow_manifest_v2",
   "batch_code": "",
   "flow_account_code": "",
   "flow_url": "",
@@ -137,6 +161,8 @@ The app manifest must include the minimum data Windows Helper needs:
   "drive_output_folder_url": "",
   "helper_output_folder_key": "",
   "rename_pattern": "PRODUCTCODE_BATCHCODE_CLIP01_V01.mp4",
+  "prompt_context": {},
+  "stage_jobs": [],
   "jobs": []
 }
 ```
@@ -155,6 +181,7 @@ Helper may:
 - import/read manifest JSON.
 - open selected Chrome profile.
 - open Google Flow URL.
+- prepare stage prompt TXT files from `stage_jobs`.
 - watch local output folder.
 - rename generated files.
 - upload renamed files to Google Drive with local OAuth.

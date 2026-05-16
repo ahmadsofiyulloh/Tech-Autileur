@@ -1,9 +1,21 @@
 # Architecture Lock - MVP
 
 ## Status
-LOCKED for Phase 1 Mobile PWA Pivot implementation.
+Phase 1 Mobile PWA Pivot is `PASS` and remains the locked baseline architecture.
+
+Current active work is Phase 2 micro-task implementation under `docs/PHASE_2_ARCHITECTURE_LOCK.md`.
 
 Visual override: the Visual PWA Mobile-First references approved on 2026-05-04 override older shell and UI baseline decisions when they conflict.
+
+## Phase Status
+
+```text
+Phase 1 MVP Baseline: PASS
+Current Active Phase: Phase 2 Micro-Task Implementation
+Phase 2 Lock Status: LOCKED FOR MICRO-TASK IMPLEMENTATION
+```
+
+Phase 2 implementation must preserve this architecture unless a later source-of-truth lock explicitly changes it. The Phase 2 lock does not unfreeze mobile Flow surfaces, browser automation, large asset storage rules, secret handling, or the single-owner model.
 
 ## Frontend
 
@@ -198,6 +210,8 @@ Phase 1 state: Dormant/Frozen
 Account recommendation uses status, observed credit, and available slot. User confirms before execution when Flow returns in Phase 2.
 
 During Phase 1, Controller and Flow orchestration are hidden from primary UI and direct route access redirects to `/products/new`. Do not build a complex visual flow builder, drag-and-drop node editor, or mobile Flow queue manager.
+
+Phase 2 implementation order now lives in `docs/PHASE_2_ARCHITECTURE_LOCK.md`. The retained Flow/Controller backend remains governed by this architecture, `docs/FLOW_BATCH_BRIDGE_LOCK.md`, and `docs/FLOW_HELPER_DESKTOP_WORKFLOW.md`.
 
 ## Windows Helper
 

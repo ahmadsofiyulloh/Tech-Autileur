@@ -1,0 +1,104 @@
+# Phase 2 Architecture Lock
+
+## Status
+
+`LOCKED FOR MICRO-TASK IMPLEMENTATION`.
+
+Locked on 2026-05-15 after Phase 1 MVP baseline pass. This lock promotes the Phase 2 discussion brief into an implementation sequence, but it does not approve broad feature work. Every Phase 2 change still lands as one micro-task with its own acceptance criteria.
+
+## Goal
+
+Make the app efficient for large product volumes while keeping the single operator in control.
+
+Phase 2 priority order is locked:
+
+```text
+Prompt production scale
+-> AI job queue
+-> large dataset hardening
+-> Controller reactivation
+-> Windows Helper operational loop
+```
+
+Prompt production stays first because the current product output is `Paket Prompt`. Controller and Google Flow execution must not become the primary workstream until prompt generation is bulk-ready, queue-backed, reviewable, and observable.
+
+## Non-Negotiable Constraints
+
+- Keep the app single-owner/operator.
+- Keep Supabase as metadata source of truth.
+- Keep Google Drive as file/asset source of truth.
+- Keep large image/video bytes out of Supabase Storage.
+- Keep Gemini keys, Google secrets, service role keys, refresh tokens, and helper secrets server-only or local-only.
+- Do not auto-click, auto-select, or auto-submit Google Flow.
+- Do not auto-upload to TikTok or Shopee.
+- Do not add a mobile Flow queue manager as a primary mobile surface.
+- Do not turn Flow Accounts into a separate Settings CRUD surface.
+- Do not store Chrome profile paths, helper local folder paths, or helper Drive OAuth tokens in Supabase.
+- Do not bypass Gemini, Google Flow, Google Drive, TikTok, Shopee, or browser quota/rate limits.
+
+## Locked Decisions
+
+### P2-S1 - Prompt Batch Workbench
+
+- `/prompts` becomes the desktop-first bulk prompt workbench while preserving the existing mobile prompt list behavior.
+- Readiness is derived from actual product, intake, image, metadata review or approved metadata source, affiliate profile, and prompt pack state; do not use raw `products.status` alone.
+- Initial readiness labels are locked: `Needs Evidence`, `Needs Metadata`, `Needs Review`, `Ready for Prompt`, `Prompt Queued`, `Prompt Generated`, `Prompt Failed`.
+- Bulk enqueue accepts only `Ready for Prompt` rows.
+- Initial batch size default is `25`, maximum `50`, and Gemini quota pressure may lower the effective runnable count.
+- Gemini OCR/Vision metadata still requires operator review in the first Phase 2 implementation.
+- Bulk Import scraping metadata with `schema_version: "bulk_import_v1"` is the approved exception: it is auto-reviewed at import/backfill time and may proceed directly to prompt creation from the Bulk Import monitor panel.
+
+### P2-S2 - AI Job Queue
+
+- Use the existing `ai_tasks` table first for prompt generation jobs.
+- Do not introduce Supabase Queues or a dedicated prompt batch table in the first queue wave.
+- Gemini Batch API is deferred to a later P2.1 evaluation and must not replace the existing prompt pack contract.
+- Queue behavior must support enqueue, running, retry, cancel-before-run, failure reason, selected Gemini key, and progress visible away from prompt detail pages.
+
+### P2-S5 - Scale Hardening
+
+- Add server-side pagination/search before relying on client-side 200-row caps.
+- Start with computed readiness projection from existing tables.
+- Add cached projection tables or extra indexes only after query evidence shows they are needed.
+- Realtime is allowed only where it improves operational feedback; polling is acceptable for large list stability.
+
+### P2-S3 - Controller Reactivation
+
+- `/controller` returns only as a desktop Flow Control surface after P2-S1 and P2-S2 are stable.
+- Mobile nav remains `Intake`, `Produk`, `Prompt`, `Drive`.
+- The locked board columns remain: `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
+- First reactivation is read-only stage lanes over real Flow batch/helper state; mutating controls return in later micro-tasks.
+- Stage execution remains manual-assisted: `FIRST_FRAME`, `LAST_FRAME`, `VIDEO`.
+- One Flow account maps to one Chrome profile lane through Windows Helper local config only.
+
+### P2-S4 - Windows Helper Operational Loop
+
+- Helper reads manifest v2 and prepares stage prompt files from `stage_jobs[]`.
+- Helper may open the mapped Chrome profile and Flow URL.
+- Helper may watch local output folders, rename files, upload to Drive, and callback the app.
+- Helper must not click, select, upload into, or submit inside Google Flow automatically.
+- First helper hardening target is reliable stage pack/export and callback reconciliation, not full local helper status telemetry.
+
+## Micro-Task Order
+
+0. `P2-S3-001A` - Stage-aware manifest foundation, already landed as a backend/doc foundation before this lock.
+1. `P2-LOCK-01` - Phase 2 architecture implementation lock.
+2. `P2-S1-001` - Prompt readiness projection foundation.
+3. `P2-S1-002` - Desktop Prompt Batch Workbench.
+3B. `P2-S1-002B` - Bulk Import auto-reviewed prompt handoff.
+4. `P2-S2-001` - AI task queue prompt enqueue contract.
+5. `P2-S2-002` - Queue runner and retry/cancel behavior.
+6. `P2-S5-001` - Large dataset pagination/search hardening.
+7. `P2-S3-001B` - Controller read-only stage lanes.
+8. `P2-S4-001A` - Helper stage pack export contract.
+9. `P2-S3-001C` - Multi Chrome profile controlled run workflow.
+
+## Acceptance
+
+Phase 2 lock is satisfied when source-of-truth docs agree that:
+
+- Phase 1 remains the mobile-first MVP baseline.
+- Phase 2 is implementation-locked only through the sequence above.
+- Prompt scale and queue work precede full Controller reactivation.
+- Controller and Helper remain manual-assisted and desktop-only.
+- All future Phase 2 runtime changes are decomposed into micro-tasks before implementation.

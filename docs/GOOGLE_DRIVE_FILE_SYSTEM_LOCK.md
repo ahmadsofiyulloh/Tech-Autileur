@@ -95,7 +95,7 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 - Resolve image-like Drive items server-side into transient preview data URLs for thumbnails and bottom-sheet previews. The same preview path may be reused by compact product list rows so mobile surfaces stay visually consistent.
 - Store prompt reference file metadata.
 - Store batch manifest metadata.
-- Store helper-uploaded output clip metadata.
+- Store helper-uploaded frame and output clip metadata.
 - Match imported files to clip jobs using manifest data and prompt prefix.
 - Move unmatched metadata into manual attach state.
 - Copy Drive file and folder links.
