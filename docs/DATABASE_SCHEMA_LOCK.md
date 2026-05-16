@@ -328,6 +328,8 @@ updated_at timestamptz
 
 Do not require Gemini success before creating durable product/intake records.
 
+Phase 2 Bulk Import exception: `parsed_metadata_json.schema_version = "bulk_import_v1"` or `parsed_metadata_json.source_import.schema_version = "bulk_import_v1"` is trusted scraping metadata. Bulk Import writes the same payload into `reviewed_metadata_json` and stores `status = REVIEWED` so prompt generation can start without OCR/Vision metadata review.
+
 ### `product_marketplace_sources`
 
 Marketplace evidence rows for Shopee and/or TikTok screenshots.
@@ -357,6 +359,8 @@ updated_at timestamptz
 Rows are unique per `(user_id, product_id, platform)`. OCR-derived fields must come from uploaded image bytes and `parsed_metadata_json` must retain the diagnostic OCR evidence when Gemini vision is used.
 
 Do not claim visual parsing from `product_url` or `affiliate_url` when image bytes are not available.
+
+Bulk Import scraping sources are not OCR-derived. When `parsed_metadata_json.source_import.schema_version = "bulk_import_v1"`, the row may use `status = ACTIVE` without `screenshot_drive_item_ref_id`; the scraping payload is the marketplace metadata evidence for prompt readiness.
 
 ### `bulk_import_jobs`
 

@@ -1,4 +1,5 @@
 import type { MarketplacePlatform } from "@/lib/intake/validation";
+import type { PromptReadinessReason, PromptReadinessStatus } from "@/lib/prompts/prompt-readiness-projection";
 
 export type BulkImportOptionalFields = {
   availableColors: string | null;
@@ -29,6 +30,18 @@ export type BulkImportPreviewRow = {
   productId?: string;
   intakeSessionId?: string;
   driveItemId?: string;
+  promptReadiness?: BulkImportPromptReadiness | null;
+};
+
+export type BulkImportPromptReadiness = {
+  affiliateProfileId: string | null;
+  isBulkEnqueueEligible: boolean;
+  label: string;
+  promptPackId: string | null;
+  promptPackStatus: string | null;
+  reasons: PromptReadinessReason[];
+  sourceProductImageId: string | null;
+  status: PromptReadinessStatus;
 };
 
 export type BulkImportSummary = {

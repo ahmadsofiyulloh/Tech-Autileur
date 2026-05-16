@@ -17,6 +17,8 @@ This lock defines how uploaded product evidence becomes generated prompt packs. 
 -> Output/history
 ```
 
+Bulk Import scraping is the approved Phase 2 exception to this OCR/Vision review step. Rows imported with `schema_version: "bulk_import_v1"` are treated as scraped structured metadata, auto-filled into `reviewed_metadata_json`, and may proceed directly to `Buat Prompt` from the Bulk Import monitor panel.
+
 ## Required Intake Inputs
 
 Before `Simpan Produk`, only upload evidence is required and no manual metadata fields are shown.
@@ -67,7 +69,7 @@ Target Viewer
 
 Prompt generation must consume:
 
-- reviewed product metadata.
+- reviewed product metadata. For Bulk Import, `bulk_import_v1` scraped metadata is auto-reviewed at import/backfill time.
 - uploaded product image and screenshot context when bytes are available.
 - active Affiliate Profile.
 - the active Affiliate Profile's internal workspace/folder namespace.
@@ -93,7 +95,7 @@ Retryable Gemini temporary-unavailable failures from intake and prompt actions s
 - active Affiliate Profile is required.
 - the profile's internal namespace must resolve.
 - source product image with Drive reference is required.
-- reviewed Gemini metadata is required.
+- reviewed Gemini metadata is required for OCR/Vision intake. Auto-reviewed `bulk_import_v1` scraping metadata satisfies this blocker for Bulk Import products.
 - all six rule groups must be non-empty: i2i, i2v, caption, hashtag, negative, product positioning.
 - if `Lock Character` is ON, character Drive reference and `seed_character_analysis_json` are required.
 - if `Lock Environment` is ON, environment Drive reference and `environment_analysis_json` are required.

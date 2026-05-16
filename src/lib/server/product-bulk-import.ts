@@ -7,6 +7,7 @@ import { createDriveItem } from "@/lib/server/drive-items";
 import { ensureIntakeDriveFolders } from "@/lib/server/intake";
 import { createMarketplaceSource } from "@/lib/server/product-marketplace-sources";
 import { attachProductSourceImage, createProduct } from "@/lib/server/products";
+import { listPromptReadinessProjections } from "@/lib/server/prompt-readiness";
 import { uploadBufferToGoogleDrive } from "@/lib/server/google-drive";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createIntakeSession } from "@/lib/server/intake";
@@ -21,6 +22,7 @@ import type {
   BulkImportLogLevel,
   BulkImportOptionalFields,
   BulkImportPreviewRow,
+  BulkImportPromptReadiness,
   BulkImportResponse,
   BulkImportRowStatus,
   BulkImportSummary,
@@ -636,7 +638,7 @@ function sourceImportJson(row: BulkImportPreviewRow, sourceFileName: string): Js
 
 function parsedMetadataJson(row: BulkImportPreviewRow, sourceFileName: string): JsonRecord {
   return {
-    confidence_notes: ["Metadata awal dari bulk import scraping. Review manual sebelum prompt."],
+    confidence_notes: ["Metadata scraping bulk import siap untuk prompt."],
     deskripsi_visual: row.optional.description ?? "",
     keyword_cari_etalase: "",
     nama_produk: row.productName,
@@ -706,9 +708,10 @@ async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string,
     product_title: row.productName,
     product_photo_drive_item_ref_id: driveItem.id,
     parsed_metadata_json: metadata,
+    reviewed_metadata_json: metadata,
     shopee_url: row.platform === "SHOPEE" ? row.productUrl : null,
     tiktok_url: row.platform === "TIKTOK" ? row.productUrl : null,
-    status: "NEEDS_REVIEW",
+    status: "REVIEWED",
   });
 
   await createMarketplaceSource({
@@ -724,8 +727,8 @@ async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string,
     parsed_metadata_json: {
       source_import: sourceImportJson(row, sourceFileName),
     },
-    status: "NEEDS_REVIEW",
-    notes: "Saved from bulk import.",
+    status: "ACTIVE",
+    notes: "Saved from bulk import scraping.",
   });
 
   return {
@@ -826,7 +829,7 @@ function previewStatusFromJobRowStatus(status: BulkImportJobRowStatus): BulkImpo
   return "ready";
 }
 
-function previewRowFromRecord(row: BulkImportJobRowRecord): BulkImportPreviewRow {
+function previewRowFromRecord(row: BulkImportJobRowRecord, promptReadiness?: BulkImportPromptReadiness | null): BulkImportPreviewRow {
   return {
     rowNumber: row.row_number,
     status: previewStatusFromJobRowStatus(row.status),
@@ -842,12 +845,13 @@ function previewRowFromRecord(row: BulkImportJobRowRecord): BulkImportPreviewRow
     ...(row.product_id ? { productId: row.product_id } : {}),
     ...(row.intake_session_id ? { intakeSessionId: row.intake_session_id } : {}),
     ...(row.drive_item_id ? { driveItemId: row.drive_item_id } : {}),
+    ...(promptReadiness ? { promptReadiness } : {}),
   };
 }
 
-function jobRowFromRecord(row: BulkImportJobRowRecord): BulkImportJobRow {
+function jobRowFromRecord(row: BulkImportJobRowRecord, promptReadiness?: BulkImportPromptReadiness | null): BulkImportJobRow {
   return {
-    ...previewRowFromRecord(row),
+    ...previewRowFromRecord(row, promptReadiness),
     id: row.id,
     jobId: row.job_id,
     jobStatus: row.status,
@@ -873,16 +877,55 @@ function logFromRecord(log: BulkImportJobLogRecord): BulkImportJobLog {
   };
 }
 
-function snapshotFromRecords(
+function promptReadinessFromProjection(
+  projection: Awaited<ReturnType<typeof listPromptReadinessProjections>>[number],
+): BulkImportPromptReadiness {
+  return {
+    affiliateProfileId: projection.affiliateProfileId,
+    isBulkEnqueueEligible: projection.isBulkEnqueueEligible,
+    label: projection.label,
+    promptPackId: projection.promptPack?.id ?? null,
+    promptPackStatus: projection.promptPack?.status ?? null,
+    reasons: projection.reasons,
+    sourceProductImageId: projection.sourceImage?.id ?? null,
+    status: projection.status,
+  };
+}
+
+async function promptReadinessByProductId(
+  job: BulkImportJobRecord,
+  rows: BulkImportJobRowRecord[],
+): Promise<Map<string, BulkImportPromptReadiness>> {
+  const productIds = Array.from(new Set(rows.map((row) => row.product_id).filter((value): value is string => Boolean(value))));
+
+  if (!productIds.length) {
+    return new Map();
+  }
+
+  try {
+    const projections = await listPromptReadinessProjections({
+      productIds,
+      workspaceId: job.workspace_id ?? null,
+      limit: productIds.length,
+    });
+
+    return new Map(projections.map((projection) => [projection.product.id, promptReadinessFromProjection(projection)]));
+  } catch {
+    return new Map();
+  }
+}
+
+async function snapshotFromRecords(
   job: BulkImportJobRecord,
   rows: BulkImportJobRowRecord[],
   logs: BulkImportJobLogRecord[],
-): BulkImportJobSnapshot {
-  const previewRows = rows.map(previewRowFromRecord);
+): Promise<BulkImportJobSnapshot> {
+  const promptReadinessMap = await promptReadinessByProductId(job, rows);
+  const previewRows = rows.map((row) => previewRowFromRecord(row, row.product_id ? promptReadinessMap.get(row.product_id) ?? null : null));
 
   return {
     job: jobFromRecord(job),
-    rows: rows.map(jobRowFromRecord),
+    rows: rows.map((row) => jobRowFromRecord(row, row.product_id ? promptReadinessMap.get(row.product_id) ?? null : null)),
     logs: logs.map(logFromRecord),
     result: {
       fileName: job.file_name,
@@ -965,7 +1008,7 @@ async function loadJobSnapshotForContext(
     loadJobLogs(supabase, userId, jobId),
   ]);
 
-  return snapshotFromRecords(job, rows, logs);
+  return await snapshotFromRecords(job, rows, logs);
 }
 
 export async function getProductBulkImportJob(jobId: string) {
@@ -1508,9 +1551,10 @@ async function processBulkImportJobRow(
         product_title: row.product_name,
         product_photo_drive_item_ref_id: driveItemId,
         parsed_metadata_json: metadata,
+        reviewed_metadata_json: metadata,
         shopee_url: row.platform === "SHOPEE" ? row.product_url : null,
         tiktok_url: row.platform === "TIKTOK" ? row.product_url : null,
-        status: "NEEDS_REVIEW",
+        status: "REVIEWED",
       });
       intakeSessionId = session.id;
     }
@@ -1546,8 +1590,8 @@ async function processBulkImportJobRow(
     parsed_metadata_json: {
       source_import: sourceImportJson(previewRow, job.file_name),
     },
-    status: "NEEDS_REVIEW",
-    notes: "Saved from bulk import.",
+    status: "ACTIVE",
+    notes: "Saved from bulk import scraping.",
   });
 
   await updateJobRow(supabase, userId, row.id, {
@@ -1805,6 +1849,7 @@ export async function runProductBulkImportJob(jobId: string) {
     revalidatePath("/products");
     revalidatePath("/products/new");
     revalidatePath("/intake");
+    revalidatePath("/prompts");
     return await loadJobSnapshotForContext(supabase, user.id, jobId);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Bulk import gagal.";
@@ -1857,6 +1902,7 @@ export async function importProductBulkFile(file: File): Promise<BulkImportRespo
   revalidatePath("/products");
   revalidatePath("/products/new");
   revalidatePath("/intake");
+  revalidatePath("/prompts");
 
   return {
     fileName: preview.fileName,

@@ -2,10 +2,11 @@
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, ListChecks, Loader2, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, FileText, ListChecks, Loader2, UploadCloud, X } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { NativeButton } from "@/components/ui/native-button";
+import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type {
   BulkImportJobRow,
@@ -16,6 +17,7 @@ import type {
   BulkImportResponse,
   BulkImportSummary,
 } from "@/lib/bulk-import/types";
+import { savePromptPack } from "@/app/prompts/actions";
 
 type BulkImportMode = "preview" | "import" | "cancel";
 type BulkImportProgressStatus = "running" | "success" | "error" | "cancelled";
@@ -552,6 +554,78 @@ function BulkImportSummary({ result }: { result: BulkImportResponse }) {
   );
 }
 
+function promptReadinessTone(status?: string) {
+  if (status === "READY_FOR_PROMPT" || status === "PROMPT_GENERATED") {
+    return "success" as const;
+  }
+
+  if (status === "PROMPT_FAILED") {
+    return "danger" as const;
+  }
+
+  if (status === "PROMPT_QUEUED") {
+    return "info" as const;
+  }
+
+  return "warning" as const;
+}
+
+function BulkImportPromptCell({ row }: { row: BulkImportPreviewRow }) {
+  const readiness = row.promptReadiness ?? null;
+  const promptPackId = readiness?.promptPackId ?? null;
+  const canCreatePrompt =
+    row.status === "imported" &&
+    Boolean(row.productId && row.intakeSessionId && readiness?.affiliateProfileId && readiness?.sourceProductImageId) &&
+    Boolean(readiness?.isBulkEnqueueEligible);
+
+  if (promptPackId) {
+    return (
+      <div className="bulk-import-prompt-cell">
+        <StatusBadge status={readiness?.promptPackStatus ?? "Prompt dibuat"} tone="success" />
+        <NativeLinkButton className="compact" href={`/prompts?detail=${promptPackId}`}>
+          <FileText size={14} aria-hidden="true" />
+          Buka
+        </NativeLinkButton>
+      </div>
+    );
+  }
+
+  if (!row.productId) {
+    return <span className="settings-card-meta-line">-</span>;
+  }
+
+  if (!readiness) {
+    return <StatusBadge status="Prompt belum dicek" tone="info" />;
+  }
+
+  return (
+    <div className="bulk-import-prompt-cell">
+      <StatusBadge status={readiness.label} tone={promptReadinessTone(readiness.status)} />
+      {canCreatePrompt ? (
+        <form action={savePromptPack}>
+          <input type="hidden" name="intent" value="create_generate" />
+          <input type="hidden" name="status" value="DRAFT" />
+          <input type="hidden" name="version" value={1} />
+          <input type="hidden" name="product_id" value={row.productId ?? ""} />
+          <input type="hidden" name="intake_session_id" value={row.intakeSessionId ?? ""} />
+          <input type="hidden" name="affiliate_profile_id" value={readiness.affiliateProfileId ?? ""} />
+          <input type="hidden" name="source_product_image_id" value={readiness.sourceProductImageId ?? ""} />
+          <input type="hidden" name="return_to" value="/products/new" />
+          <PendingActionButton className="compact primary" pendingLabel="Membuat">
+            Buat Prompt
+          </PendingActionButton>
+        </form>
+      ) : readiness.reasons.length ? (
+        <div className="bulk-import-prompt-cell__reasons" aria-label="Alasan prompt belum siap">
+          {readiness.reasons.slice(0, 2).map((reason) => (
+            <StatusBadge key={reason.key} status={reason.label} tone="warning" />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BulkImportPreviewTable({ rows }: { rows: BulkImportPreviewRow[] }) {
   return (
     <div className="table-wrap bulk-import-table-wrap">
@@ -561,6 +635,7 @@ function BulkImportPreviewTable({ rows }: { rows: BulkImportPreviewRow[] }) {
             <th>Produk</th>
             <th>Source</th>
             <th>Status</th>
+            <th>Prompt</th>
             <th>Opsional</th>
           </tr>
         </thead>
@@ -602,6 +677,9 @@ function BulkImportPreviewTable({ rows }: { rows: BulkImportPreviewRow[] }) {
                       </ul>
                     ) : null}
                   </div>
+                </td>
+                <td>
+                  <BulkImportPromptCell row={row} />
                 </td>
                 <td>
                   {optional.length ? (

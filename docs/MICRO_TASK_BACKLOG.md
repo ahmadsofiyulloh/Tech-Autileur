@@ -129,7 +129,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Goal:** Add desktop-only CSV/XLSX product import from scraping exports.
 **Owner:** Codex
 **Scope:** `/products/new` desktop panel, server Route Handlers, existing product/intake/Drive metadata paths, and product detail marketplace link action.
-**Acceptance:** CSV/XLSX preview normalizes required scrape fields, optional fields render collapsed, import downloads image bytes to Google Drive, creates draft products needing metadata review, and product detail shows `Buka link` only when a marketplace link exists.
+**Acceptance:** CSV/XLSX preview normalizes required scrape fields, optional fields render collapsed, import downloads image bytes to Google Drive, creates draft products with auto-reviewed `bulk_import_v1` scraping metadata, and product detail shows `Buka link` only when a marketplace link exists.
 
 ### MT-BULK-IMPORT-02 - Durable bulk import job progress _(DONE)_
 **Goal:** Make desktop bulk upload survive route changes and refresh, support explicit cancel, and show detailed realtime process logs.

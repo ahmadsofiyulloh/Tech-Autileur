@@ -239,11 +239,12 @@ export async function savePromptPack(formData: FormData) {
   if (intent === "create_generate" || intent === "create") {
     const productId = readText(formData, "product_id");
     const status = readText(formData, "status") || "DRAFT";
-      let message = "Prompt pack disimpan";
-      let createdPromptPackId = "";
+    const returnTo = readSafeReturnTo(formData);
+    let message = "Prompt pack disimpan";
+    let createdPromptPackId = "";
 
-      if (!productId) {
-        failFromForm(formData, "Produk wajib dipilih.");
+    if (!productId) {
+      failFromForm(formData, "Produk wajib dipilih.");
     }
 
     try {
@@ -284,6 +285,9 @@ export async function savePromptPack(formData: FormData) {
     } catch (error) {
       if (createdPromptPackId) {
         revalidatePromptRoutes(createdPromptPackId, productId);
+        if (returnTo) {
+          redirect(appendRedirectMessage(returnTo, "error", errorMessage(error)));
+        }
         redirect(promptDetailRedirect(createdPromptPackId, "error", errorMessage(error)));
       }
 
@@ -292,6 +296,9 @@ export async function savePromptPack(formData: FormData) {
 
     if (createdPromptPackId) {
       revalidatePromptRoutes(createdPromptPackId, productId);
+      if (returnTo) {
+        redirect(appendRedirectMessage(returnTo, "message", message));
+      }
       redirect(promptDetailRedirect(createdPromptPackId, "message", message));
     }
 
