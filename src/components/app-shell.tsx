@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
 import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
+import { BulkImportJobRunner } from "@/components/operator/bulk-import-job-runner";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
 import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
@@ -204,6 +205,7 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
         })}
       </nav>
       <FeedbackDock />
+      <BulkImportJobRunner />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { createProductBulkImportJob, runProductBulkImportJob } from "@/lib/server/product-bulk-import";
+import { createProductBulkImportJob } from "@/lib/server/product-bulk-import";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,10 +16,9 @@ function readBulkFile(formData: FormData) {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const job = await createProductBulkImportJob(readBulkFile(formData));
-    const snapshot = await runProductBulkImportJob(job.job.id);
+    const snapshot = await createProductBulkImportJob(readBulkFile(formData));
 
-    return Response.json(snapshot.result);
+    return Response.json(snapshot);
   } catch (error) {
     return Response.json(
       {

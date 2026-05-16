@@ -38,6 +38,9 @@ create type product_anchor_status as enum ('DRAFT', 'READY', 'USED_FOR_PROMPT', 
 create type affiliate_platform as enum ('TIKTOK', 'SHOPEE', 'OTHER');
 create type affiliate_profile_status as enum ('ACTIVE', 'PAUSED', 'ARCHIVED');
 create type upload_status as enum ('DRAFT', 'READY_TO_UPLOAD', 'UPLOADED', 'FAILED');
+create type bulk_import_job_status as enum ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED', 'CANCELLED', 'COMPLETED', 'FAILED');
+create type bulk_import_job_row_status as enum ('READY', 'RUNNING', 'IMAGE_DOWNLOADING', 'IMAGE_UPLOADING', 'PRODUCT_CREATING', 'IMPORTED', 'SKIPPED', 'ERROR', 'CANCELLED');
+create type bulk_import_log_level as enum ('INFO', 'SUCCESS', 'WARNING', 'ERROR');
 ```
 
 ## Required Tables
@@ -354,6 +357,89 @@ updated_at timestamptz
 Rows are unique per `(user_id, product_id, platform)`. OCR-derived fields must come from uploaded image bytes and `parsed_metadata_json` must retain the diagnostic OCR evidence when Gemini vision is used.
 
 Do not claim visual parsing from `product_url` or `affiliate_url` when image bytes are not available.
+
+### `bulk_import_jobs`
+
+Persistent desktop bulk product import job state.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+workspace_id uuid nullable composite fk workspaces(id, user_id)
+file_name text
+status bulk_import_job_status
+total_rows int
+ready_rows int
+duplicate_rows int
+error_rows int
+imported_rows int
+skipped_rows int
+cancelled_rows int
+error_message text nullable
+runner_id text nullable
+lease_expires_at timestamptz nullable
+last_heartbeat_at timestamptz nullable
+started_at timestamptz nullable
+finished_at timestamptz nullable
+cancel_requested_at timestamptz nullable
+created_at timestamptz
+updated_at timestamptz
+```
+
+Bulk import jobs are resumable after page refresh/navigation. `workspace_id` locks the active Affiliate Account namespace used for all rows in that job.
+
+### `bulk_import_job_rows`
+
+Per-row import progress and idempotency checkpoints.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+job_id uuid composite fk bulk_import_jobs(id, user_id)
+workspace_id uuid nullable composite fk workspaces(id, user_id)
+row_number int
+status bulk_import_job_row_status
+errors text[]
+product_name text
+product_url text
+image_url text
+marketplace_label text
+platform marketplace_platform nullable
+source_domain text nullable
+optional_json jsonb
+raw_columns_json jsonb
+product_id uuid nullable composite fk products(id, user_id)
+intake_session_id uuid nullable composite fk product_intake_sessions(id, user_id)
+drive_item_id uuid nullable composite fk drive_items(id, user_id)
+intake_code text nullable
+current_stage text nullable
+error_message text nullable
+started_at timestamptz nullable
+finished_at timestamptz nullable
+created_at timestamptz
+updated_at timestamptz
+```
+
+Rows that already reached Drive/product/intake checkpoints must resume from those saved refs instead of starting over. Cancelling a job keeps already imported rows and marks only pending/running rows as `CANCELLED`.
+
+### `bulk_import_job_logs`
+
+Realtime operator log for bulk import jobs.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+job_id uuid composite fk bulk_import_jobs(id, user_id)
+row_id uuid nullable composite fk bulk_import_job_rows(id, user_id)
+sequence bigint identity
+level bulk_import_log_level
+title text
+message text
+metadata_json jsonb nullable
+created_at timestamptz
+```
+
+`bulk_import_jobs`, `bulk_import_job_rows`, and `bulk_import_job_logs` are included in `supabase_realtime` for live progress updates.
 
 ### `product_anchors`
 
@@ -688,6 +774,13 @@ Minimum indexes:
 - `gemini_api_usage_events (user_id, request_started_at desc)`.
 - `gemini_api_usage_events (user_id, gemini_api_key_id, request_started_at desc)`.
 - `gemini_api_usage_events (user_id, project_label, model_name, request_started_at desc)`.
+- `bulk_import_jobs (user_id, status, updated_at desc)`.
+- `bulk_import_jobs (user_id, workspace_id)`.
+- `bulk_import_job_rows (user_id, job_id, row_number)`.
+- `bulk_import_job_rows (user_id, job_id, status)`.
+- `bulk_import_job_rows (user_id, product_id)`.
+- `bulk_import_job_rows (user_id, intake_session_id)`.
+- `bulk_import_job_logs (user_id, job_id, sequence desc)`.
 
 Minimum foreign keys:
 
@@ -701,6 +794,14 @@ Minimum foreign keys:
 - `generated_files (drive_item_id, user_id)` -> `drive_items (id, user_id)`.
 - `gemini_api_usage_events (gemini_api_key_id, user_id)` -> `gemini_api_keys (id, user_id)`.
 - `gemini_api_usage_events (ai_task_id, user_id)` -> `ai_tasks (id, user_id)`.
+- `bulk_import_jobs (workspace_id, user_id)` -> `workspaces (id, user_id)`.
+- `bulk_import_job_rows (job_id, user_id)` -> `bulk_import_jobs (id, user_id)`.
+- `bulk_import_job_rows (workspace_id, user_id)` -> `workspaces (id, user_id)`.
+- `bulk_import_job_rows (product_id, user_id)` -> `products (id, user_id)`.
+- `bulk_import_job_rows (intake_session_id, user_id)` -> `product_intake_sessions (id, user_id)`.
+- `bulk_import_job_rows (drive_item_id, user_id)` -> `drive_items (id, user_id)`.
+- `bulk_import_job_logs (job_id, user_id)` -> `bulk_import_jobs (id, user_id)`.
+- `bulk_import_job_logs (row_id, user_id)` -> `bulk_import_job_rows (id, user_id)`.
 
 ## RLS Policy Pattern
 

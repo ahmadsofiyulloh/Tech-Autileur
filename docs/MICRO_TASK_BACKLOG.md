@@ -131,6 +131,12 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Scope:** `/products/new` desktop panel, server Route Handlers, existing product/intake/Drive metadata paths, and product detail marketplace link action.
 **Acceptance:** CSV/XLSX preview normalizes required scrape fields, optional fields render collapsed, import downloads image bytes to Google Drive, creates draft products needing metadata review, and product detail shows `Buka link` only when a marketplace link exists.
 
+### MT-BULK-IMPORT-02 - Durable bulk import job progress _(DONE)_
+**Goal:** Make desktop bulk upload survive route changes and refresh, support explicit cancel, and show detailed realtime process logs.
+**Owner:** Codex
+**Scope:** bulk import job migration, `/api/products/bulk-import/jobs/**`, `/products/new` desktop panel, shell resume runner, and docs/schema lock only.
+**Acceptance:** import state persists in Supabase, refresh/navigation reconnects to the same job, cancel keeps already imported rows and marks remaining rows cancelled, logs stream through Supabase Realtime with polling fallback, and verification commands pass or blockers are documented.
+
 ### MT-AFFDRIVE-00 - Active affiliate and automatic Drive lock
 **Goal:** Lock that Akun Affiliate is the active operator namespace and Google Drive folder setup is static/automatic under `/AffiliateAI/`.
 **Owner:** Codex

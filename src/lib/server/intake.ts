@@ -873,8 +873,8 @@ function buildIntakeDraftProductTitle(file: File) {
   return baseName || "Draf Produk";
 }
 
-async function resolveIntakeDriveRootFolder() {
-  return await getOrProvisionWorkspaceDriveRoot();
+async function resolveIntakeDriveRootFolder(input?: { workspaceId?: string | null }) {
+  return await getOrProvisionWorkspaceDriveRoot({ workspaceId: input?.workspaceId });
 }
 
 async function uploadIntakeDriveImage(input: {
@@ -1379,8 +1379,8 @@ async function ensureIntakeDriveFolderRecord(input: {
   })) as DriveItemRecord;
 }
 
-export async function ensureIntakeDriveFolders(intakeCode: string) {
-  const { workspace, rootFolder } = await resolveIntakeDriveRootFolder();
+export async function ensureIntakeDriveFolders(intakeCode: string, input?: { workspaceId?: string | null }) {
+  const { workspace, rootFolder } = await resolveIntakeDriveRootFolder({ workspaceId: input?.workspaceId });
   const rootFolderId = rootFolder.drive_item_id;
 
   if (!rootFolderId) {

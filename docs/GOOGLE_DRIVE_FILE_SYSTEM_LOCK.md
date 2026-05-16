@@ -85,6 +85,7 @@ product_id, intake_session_id, prompt_pack_id, clip_job_id, or batch_id relation
 
 - Create standard folders.
 - Upload product image bytes and store Drive metadata before Gemini metadata success when the operator uses `Simpan Produk`.
+- Bulk product import stores Drive/product/intake checkpoints per row; cancelling an import keeps already uploaded Drive files and saved product metadata instead of deleting or rolling back them.
 - For every new Intake, create one folder under the active Affiliate Account workspace root, with `/product` and `/evidence_screenshot` subfolders.
 - Upload marketplace screenshot bytes and store Drive metadata before `Analisis Metadata`; at least one Shopee or TikTok screenshot is required.
 - Upload affiliate profile character and environment assets from the Affiliate Profile drawer into the profile-owned admin folders.

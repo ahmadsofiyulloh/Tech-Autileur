@@ -12,12 +12,20 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createIntakeSession } from "@/lib/server/intake";
 import type { JsonRecord, MarketplacePlatform } from "@/lib/intake/validation";
 import type {
+  BulkImportJob,
+  BulkImportJobLog,
+  BulkImportJobRow,
+  BulkImportJobRowStatus,
+  BulkImportJobSnapshot,
+  BulkImportJobStatus,
+  BulkImportLogLevel,
   BulkImportOptionalFields,
   BulkImportPreviewRow,
   BulkImportResponse,
   BulkImportRowStatus,
   BulkImportSummary,
 } from "@/lib/bulk-import/types";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 
 const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_IMPORT_ROWS = 200;
@@ -49,6 +57,71 @@ type DownloadedImage = {
   bytes: Buffer;
   extension: string;
   mimeType: string;
+};
+
+type BulkImportJobRecord = {
+  id: string;
+  user_id: string;
+  workspace_id: string | null;
+  file_name: string;
+  status: BulkImportJobStatus;
+  total_rows: number;
+  ready_rows: number;
+  duplicate_rows: number;
+  error_rows: number;
+  imported_rows: number;
+  skipped_rows: number;
+  cancelled_rows: number;
+  error_message: string | null;
+  runner_id: string | null;
+  lease_expires_at: string | null;
+  last_heartbeat_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  cancel_requested_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type BulkImportJobRowRecord = {
+  id: string;
+  user_id: string;
+  job_id: string;
+  workspace_id: string | null;
+  row_number: number;
+  status: BulkImportJobRowStatus;
+  errors: string[] | null;
+  product_name: string;
+  product_url: string;
+  image_url: string;
+  marketplace_label: string;
+  platform: MarketplacePlatform | null;
+  source_domain: string | null;
+  optional_json: BulkImportOptionalFields | JsonRecord | null;
+  raw_columns_json: Record<string, string> | JsonRecord | null;
+  product_id: string | null;
+  intake_session_id: string | null;
+  drive_item_id: string | null;
+  intake_code: string | null;
+  current_stage: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type BulkImportJobLogRecord = {
+  id: string;
+  user_id: string;
+  job_id: string;
+  row_id: string | null;
+  sequence: number;
+  level: BulkImportLogLevel;
+  title: string;
+  message: string;
+  metadata_json: JsonRecord | null;
+  created_at: string;
 };
 
 function readText(value: string | null | undefined) {
@@ -389,6 +462,7 @@ function summarize(rows: BulkImportPreviewRow[]): BulkImportSummary {
     errorRows: rows.filter((row) => row.status === "error").length,
     importedRows: rows.filter((row) => row.status === "imported").length,
     skippedRows: rows.filter((row) => row.status === "skipped").length,
+    cancelledRows: rows.filter((row) => row.status === "cancelled").length,
   };
 }
 
@@ -576,13 +650,13 @@ function parsedMetadataJson(row: BulkImportPreviewRow, sourceFileName: string): 
   };
 }
 
-async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string) {
+async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string, workspaceId?: string | null) {
   if (!row.platform) {
     throw new Error("Marketplace belum didukung.");
   }
 
   const intakeCode = buildBulkIntakeCode(row.rowNumber);
-  const folders = await ensureIntakeDriveFolders(intakeCode);
+  const folders = await ensureIntakeDriveFolders(intakeCode, { workspaceId });
   const image = await downloadImage(row.imageUrl);
   const fileName = sanitizeDriveLeafName(`${row.productName}-${row.rowNumber}.${image.extension}`);
   const uploaded = await uploadBufferToGoogleDrive({
@@ -661,6 +735,1084 @@ async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string)
   };
 }
 
+const ACTIVE_BULK_JOB_STATUSES: BulkImportJobStatus[] = ["QUEUED", "RUNNING", "CANCEL_REQUESTED"];
+const TERMINAL_BULK_JOB_STATUSES: BulkImportJobStatus[] = ["CANCELLED", "COMPLETED", "FAILED"];
+const ACTIVE_BULK_ROW_STATUSES: BulkImportJobRowStatus[] = [
+  "READY",
+  "RUNNING",
+  "IMAGE_DOWNLOADING",
+  "IMAGE_UPLOADING",
+  "PRODUCT_CREATING",
+];
+const BULK_IMPORT_LEASE_MS = 5 * 60 * 1000;
+const BULK_IMPORT_RECENT_JOB_MS = 24 * 60 * 60 * 1000;
+
+function isTerminalBulkJobStatus(status: BulkImportJobStatus) {
+  return TERMINAL_BULK_JOB_STATUSES.includes(status);
+}
+
+function leaseExpiryIso() {
+  return new Date(Date.now() + BULK_IMPORT_LEASE_MS).toISOString();
+}
+
+function summaryFromJobRecord(job: BulkImportJobRecord): BulkImportSummary {
+  return {
+    totalRows: job.total_rows,
+    readyRows: job.ready_rows,
+    duplicateRows: job.duplicate_rows,
+    errorRows: job.error_rows,
+    importedRows: job.imported_rows,
+    skippedRows: job.skipped_rows,
+    cancelledRows: job.cancelled_rows,
+  };
+}
+
+function jobFromRecord(job: BulkImportJobRecord): BulkImportJob {
+  return {
+    id: job.id,
+    status: job.status,
+    fileName: job.file_name,
+    summary: summaryFromJobRecord(job),
+    errorMessage: job.error_message,
+    startedAt: job.started_at,
+    finishedAt: job.finished_at,
+    cancelRequestedAt: job.cancel_requested_at,
+    createdAt: job.created_at,
+    updatedAt: job.updated_at,
+  };
+}
+
+function optionalFieldsFromJson(value: unknown): BulkImportOptionalFields {
+  const record = typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const empty = emptyOptionalFields();
+
+  return (Object.keys(empty) as Array<keyof BulkImportOptionalFields>).reduce<BulkImportOptionalFields>((fields, key) => {
+    const current = record[key];
+    fields[key] = typeof current === "string" && current.trim() ? current.trim() : null;
+    return fields;
+  }, { ...empty });
+}
+
+function rawColumnsFromJson(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string>>((record, [key, current]) => {
+    if (typeof current === "string") {
+      record[key] = current;
+    }
+    return record;
+  }, {});
+}
+
+function previewStatusFromJobRowStatus(status: BulkImportJobRowStatus): BulkImportRowStatus {
+  if (status === "IMPORTED") {
+    return "imported";
+  }
+
+  if (status === "SKIPPED") {
+    return "skipped";
+  }
+
+  if (status === "ERROR") {
+    return "error";
+  }
+
+  if (status === "CANCELLED") {
+    return "cancelled";
+  }
+
+  return "ready";
+}
+
+function previewRowFromRecord(row: BulkImportJobRowRecord): BulkImportPreviewRow {
+  return {
+    rowNumber: row.row_number,
+    status: previewStatusFromJobRowStatus(row.status),
+    errors: row.errors ?? (row.error_message ? [row.error_message] : []),
+    productName: row.product_name,
+    productUrl: row.product_url,
+    imageUrl: row.image_url,
+    marketplaceLabel: row.marketplace_label,
+    platform: row.platform,
+    sourceDomain: row.source_domain,
+    optional: optionalFieldsFromJson(row.optional_json),
+    rawColumns: rawColumnsFromJson(row.raw_columns_json),
+    ...(row.product_id ? { productId: row.product_id } : {}),
+    ...(row.intake_session_id ? { intakeSessionId: row.intake_session_id } : {}),
+    ...(row.drive_item_id ? { driveItemId: row.drive_item_id } : {}),
+  };
+}
+
+function jobRowFromRecord(row: BulkImportJobRowRecord): BulkImportJobRow {
+  return {
+    ...previewRowFromRecord(row),
+    id: row.id,
+    jobId: row.job_id,
+    jobStatus: row.status,
+    currentStage: row.current_stage,
+    errorMessage: row.error_message,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function logFromRecord(log: BulkImportJobLogRecord): BulkImportJobLog {
+  return {
+    id: log.id,
+    jobId: log.job_id,
+    rowId: log.row_id,
+    sequence: log.sequence,
+    level: log.level,
+    title: log.title,
+    message: log.message,
+    createdAt: log.created_at,
+  };
+}
+
+function snapshotFromRecords(
+  job: BulkImportJobRecord,
+  rows: BulkImportJobRowRecord[],
+  logs: BulkImportJobLogRecord[],
+): BulkImportJobSnapshot {
+  const previewRows = rows.map(previewRowFromRecord);
+
+  return {
+    job: jobFromRecord(job),
+    rows: rows.map(jobRowFromRecord),
+    logs: logs.map(logFromRecord),
+    result: {
+      fileName: job.file_name,
+      rows: previewRows,
+      summary: summaryFromJobRecord(job),
+    },
+  };
+}
+
+async function loadJobRecord(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const { data, error } = await supabase
+    .from("bulk_import_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Job bulk import tidak ditemukan.");
+  }
+
+  return data as BulkImportJobRecord;
+}
+
+async function loadJobRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const { data, error } = await supabase
+    .from("bulk_import_job_rows")
+    .select("*")
+    .eq("job_id", jobId)
+    .eq("user_id", userId)
+    .order("row_number", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as BulkImportJobRowRecord[];
+}
+
+async function loadJobLogs(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const { data, error } = await supabase
+    .from("bulk_import_job_logs")
+    .select("*")
+    .eq("job_id", jobId)
+    .eq("user_id", userId)
+    .order("sequence", { ascending: false })
+    .limit(80);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as BulkImportJobLogRecord[]).sort((left, right) => left.sequence - right.sequence);
+}
+
+async function loadJobSnapshotForContext(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const [job, rows, logs] = await Promise.all([
+    loadJobRecord(supabase, userId, jobId),
+    loadJobRows(supabase, userId, jobId),
+    loadJobLogs(supabase, userId, jobId),
+  ]);
+
+  return snapshotFromRecords(job, rows, logs);
+}
+
+export async function getProductBulkImportJob(jobId: string) {
+  const { supabase, user } = await requireUser();
+  return await loadJobSnapshotForContext(supabase, user.id, jobId);
+}
+
+export async function getActiveProductBulkImportJob() {
+  const { supabase, user } = await requireUser();
+  const { data: active, error: activeError } = await supabase
+    .from("bulk_import_jobs")
+    .select("*")
+    .eq("user_id", user.id)
+    .in("status", ACTIVE_BULK_JOB_STATUSES)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeError) {
+    throw new Error(activeError.message);
+  }
+
+  if (active) {
+    return await loadJobSnapshotForContext(supabase, user.id, (active as BulkImportJobRecord).id);
+  }
+
+  const recentCutoff = new Date(Date.now() - BULK_IMPORT_RECENT_JOB_MS).toISOString();
+  const { data: recent, error: recentError } = await supabase
+    .from("bulk_import_jobs")
+    .select("*")
+    .eq("user_id", user.id)
+    .gte("created_at", recentCutoff)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentError) {
+    throw new Error(recentError.message);
+  }
+
+  if (!recent) {
+    return null;
+  }
+
+  return await loadJobSnapshotForContext(supabase, user.id, (recent as BulkImportJobRecord).id);
+}
+
+async function insertJobLog(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  input: {
+    jobId: string;
+    rowId?: string | null;
+    level: BulkImportLogLevel;
+    title: string;
+    message: string;
+    metadata?: JsonRecord | null;
+  },
+) {
+  const { error } = await supabase.from("bulk_import_job_logs").insert({
+    user_id: userId,
+    job_id: input.jobId,
+    row_id: input.rowId ?? null,
+    level: input.level,
+    title: input.title,
+    message: input.message,
+    metadata_json: input.metadata ?? null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+function rowCounters(rows: BulkImportJobRowRecord[], duplicateRows: number): BulkImportSummary {
+  return {
+    totalRows: rows.length,
+    readyRows: rows.filter((row) => ACTIVE_BULK_ROW_STATUSES.includes(row.status)).length,
+    duplicateRows,
+    errorRows: rows.filter((row) => row.status === "ERROR").length,
+    importedRows: rows.filter((row) => row.status === "IMPORTED").length,
+    skippedRows: rows.filter((row) => row.status === "SKIPPED").length,
+    cancelledRows: rows.filter((row) => row.status === "CANCELLED").length,
+  };
+}
+
+async function refreshJobCounters(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const [job, rows] = await Promise.all([loadJobRecord(supabase, userId, jobId), loadJobRows(supabase, userId, jobId)]);
+  const counts = rowCounters(rows, job.duplicate_rows);
+  const { data, error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      total_rows: counts.totalRows,
+      ready_rows: counts.readyRows,
+      error_rows: counts.errorRows,
+      imported_rows: counts.importedRows,
+      skipped_rows: counts.skippedRows,
+      cancelled_rows: counts.cancelledRows,
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as BulkImportJobRecord;
+}
+
+function initialJobRowStatus(row: BulkImportPreviewRow): BulkImportJobRowStatus {
+  if (row.status === "error") {
+    return "ERROR";
+  }
+
+  if (row.status === "duplicate" || row.status === "skipped") {
+    return "SKIPPED";
+  }
+
+  return "READY";
+}
+
+function initialJobRowErrors(row: BulkImportPreviewRow) {
+  if (row.status === "duplicate" && !row.errors.length) {
+    return ["URL Produk sudah tersimpan."];
+  }
+
+  return row.errors;
+}
+
+export async function createProductBulkImportJob(file: File) {
+  const preview = await previewProductBulkImport(file);
+  const { supabase, user } = await requireUser();
+  const currentWorkspace = await getCurrentWorkspace();
+
+  if (!currentWorkspace) {
+    throw new Error("Aktifkan Akun Affiliate dulu.");
+  }
+
+  const { data: jobData, error: jobError } = await supabase
+    .from("bulk_import_jobs")
+    .insert({
+      user_id: user.id,
+      workspace_id: currentWorkspace.id,
+      file_name: preview.fileName,
+      total_rows: preview.summary.totalRows,
+      ready_rows: preview.summary.readyRows,
+      duplicate_rows: preview.summary.duplicateRows,
+      error_rows: preview.summary.errorRows,
+      imported_rows: 0,
+      skipped_rows: preview.summary.duplicateRows,
+      cancelled_rows: 0,
+      status: "QUEUED",
+    })
+    .select("*")
+    .single();
+
+  if (jobError) {
+    throw new Error(jobError.message);
+  }
+
+  const job = jobData as BulkImportJobRecord;
+  const rowPayloads = preview.rows.map((row) => ({
+    user_id: user.id,
+    job_id: job.id,
+    workspace_id: currentWorkspace.id,
+    row_number: row.rowNumber,
+    status: initialJobRowStatus(row),
+    errors: initialJobRowErrors(row),
+    product_name: row.productName,
+    product_url: row.productUrl,
+    image_url: row.imageUrl,
+    marketplace_label: row.marketplaceLabel,
+    platform: row.platform,
+    source_domain: row.sourceDomain,
+    optional_json: row.optional,
+    raw_columns_json: row.rawColumns,
+    intake_code: buildBulkIntakeCode(row.rowNumber),
+    current_stage:
+      row.status === "error" ? "Row tidak valid" : row.status === "duplicate" ? "Duplikat dilewati" : "Menunggu import",
+    error_message: row.status === "error" ? row.errors.join(" ") || "Row tidak valid." : null,
+    finished_at: row.status === "error" || row.status === "duplicate" ? new Date().toISOString() : null,
+  }));
+
+  if (rowPayloads.length) {
+    const { error: rowsError } = await supabase.from("bulk_import_job_rows").insert(rowPayloads);
+
+    if (rowsError) {
+      throw new Error(rowsError.message);
+    }
+  }
+
+  await insertJobLog(supabase, user.id, {
+    jobId: job.id,
+    level: "INFO",
+    title: "File terbaca",
+    message: `${preview.summary.totalRows} row ditemukan, ${preview.summary.readyRows} siap import.`,
+  });
+
+  for (const row of preview.rows) {
+    if (row.status === "duplicate") {
+      await insertJobLog(supabase, user.id, {
+        jobId: job.id,
+        level: "WARNING",
+        title: "Row dilewati",
+        message: `Row ${row.rowNumber} - ${row.productName || "Produk tanpa nama"}. URL Produk sudah tersimpan.`,
+      });
+    }
+
+    if (row.status === "error") {
+      await insertJobLog(supabase, user.id, {
+        jobId: job.id,
+        level: "ERROR",
+        title: "Row error",
+        message: `Row ${row.rowNumber} - ${row.productName || "Produk tanpa nama"}. ${row.errors.join(" ") || "Row tidak valid."}`,
+      });
+    }
+  }
+
+  await refreshJobCounters(supabase, user.id, job.id);
+  return await loadJobSnapshotForContext(supabase, user.id, job.id);
+}
+
+async function updateJobRow(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  rowId: string,
+  patch: Partial<{
+    status: BulkImportJobRowStatus;
+    errors: string[];
+    product_id: string | null;
+    intake_session_id: string | null;
+    drive_item_id: string | null;
+    current_stage: string | null;
+    error_message: string | null;
+    started_at: string | null;
+    finished_at: string | null;
+  }>,
+) {
+  const { data, error } = await supabase
+    .from("bulk_import_job_rows")
+    .update(patch)
+    .eq("id", rowId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as BulkImportJobRowRecord;
+}
+
+async function heartbeatBulkImportJob(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+  runnerId: string,
+) {
+  const { error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      runner_id: runnerId,
+      lease_expires_at: leaseExpiryIso(),
+      last_heartbeat_at: new Date().toISOString(),
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function claimBulkImportJob(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+  runnerId: string,
+) {
+  const { data, error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      status: "RUNNING",
+      runner_id: runnerId,
+      lease_expires_at: leaseExpiryIso(),
+      last_heartbeat_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+      error_message: null,
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .in("status", ["QUEUED", "RUNNING"])
+    .or(`runner_id.is.null,lease_expires_at.lt.${new Date().toISOString()}`)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? null) as BulkImportJobRecord | null;
+}
+
+async function findExistingProductByLink(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  productUrl: string,
+) {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("marketplace_product_link", productUrl)
+    .neq("status", "ARCHIVED")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return typeof data?.id === "string" ? data.id : null;
+}
+
+async function ensureProductSourceImage(productId: string, driveItemId: string) {
+  const { supabase, user } = await requireUser();
+  const { data: existing, error: existingError } = await supabase
+    .from("product_images")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("product_id", productId)
+    .eq("drive_item_ref_id", driveItemId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (existing) {
+    return;
+  }
+
+  const { data: primary, error: primaryError } = await supabase
+    .from("product_images")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("product_id", productId)
+    .eq("is_primary", true)
+    .in("status", ["ATTACHED", "ANALYZED"])
+    .limit(1)
+    .maybeSingle();
+
+  if (primaryError) {
+    throw new Error(primaryError.message);
+  }
+
+  await attachProductSourceImage({
+    productId,
+    driveItemRefId: driveItemId,
+    isPrimary: !primary,
+    status: "ATTACHED",
+    notes: "Auto-attached from bulk import.",
+  });
+}
+
+async function findExistingIntakeSessionByCode(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  intakeCode: string,
+) {
+  const { data, error } = await supabase
+    .from("product_intake_sessions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("intake_code", intakeCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return typeof data?.id === "string" ? data.id : null;
+}
+
+async function processBulkImportJobRow(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  job: BulkImportJobRecord,
+  row: BulkImportJobRowRecord,
+  runnerId: string,
+) {
+  const previewRow = previewRowFromRecord(row);
+  const rowLabelText = `Row ${row.row_number} - ${row.product_name || "Produk tanpa nama"}`;
+  const nowIso = new Date().toISOString();
+
+  await updateJobRow(supabase, userId, row.id, {
+    status: "RUNNING",
+    current_stage: "Menyiapkan row",
+    started_at: row.started_at ?? nowIso,
+    error_message: null,
+  });
+  await insertJobLog(supabase, userId, {
+    jobId: job.id,
+    rowId: row.id,
+    level: "INFO",
+    title: "Row dimulai",
+    message: rowLabelText,
+  });
+  await heartbeatBulkImportJob(supabase, userId, job.id, runnerId);
+
+  let driveItemId = row.drive_item_id;
+  if (!driveItemId) {
+    const intakeCode = row.intake_code || buildBulkIntakeCode(row.row_number);
+    await updateJobRow(supabase, userId, row.id, {
+      status: "IMAGE_DOWNLOADING",
+      current_stage: "Mengunduh gambar",
+    });
+    await insertJobLog(supabase, userId, {
+      jobId: job.id,
+      rowId: row.id,
+      level: "INFO",
+      title: "Download gambar",
+      message: rowLabelText,
+    });
+
+    const folders = await ensureIntakeDriveFolders(intakeCode, { workspaceId: row.workspace_id ?? job.workspace_id });
+    const image = await downloadImage(row.image_url);
+
+    await updateJobRow(supabase, userId, row.id, {
+      status: "IMAGE_UPLOADING",
+      current_stage: "Upload ke Drive",
+    });
+    await insertJobLog(supabase, userId, {
+      jobId: job.id,
+      rowId: row.id,
+      level: "INFO",
+      title: "Upload Drive",
+      message: rowLabelText,
+    });
+
+    const fileName = sanitizeDriveLeafName(`${row.product_name}-${row.row_number}.${image.extension}`);
+    const uploaded = await uploadBufferToGoogleDrive({
+      bytes: image.bytes,
+      description: "Bulk import product image.",
+      mimeType: image.mimeType,
+      name: fileName,
+      parentFolderId: folders.productFolder.drive_item_id ?? "",
+    });
+    const driveItem = await createDriveItem({
+      item_type: "FILE",
+      drive_item_id: uploaded.driveItemId,
+      name: uploaded.name,
+      drive_url: uploaded.driveUrl,
+      drive_path: joinDrivePath(folders.productFolder.drive_path, uploaded.name),
+      mime_type: uploaded.mimeType,
+      size_bytes: uploaded.sizeBytes,
+      checksum: uploaded.checksum,
+      drive_modified_at: uploaded.driveModifiedAt,
+      purpose: "SOURCE_IMAGE",
+      status: "ACTIVE",
+      notes: "Bulk import product image.",
+      parent_id: folders.productFolder.id,
+      parent_drive_item_id: folders.productFolder.drive_item_id,
+    });
+    driveItemId = driveItem.id;
+    await updateJobRow(supabase, userId, row.id, {
+      drive_item_id: driveItemId,
+      current_stage: "Upload ke Drive selesai",
+    });
+    await insertJobLog(supabase, userId, {
+      jobId: job.id,
+      rowId: row.id,
+      level: "SUCCESS",
+      title: "Gambar masuk Drive",
+      message: rowLabelText,
+      metadata: { drive_item_id: driveItemId },
+    });
+  }
+
+  let productId = row.product_id;
+  if (!productId) {
+    await updateJobRow(supabase, userId, row.id, {
+      status: "PRODUCT_CREATING",
+      current_stage: "Membuat draft produk",
+    });
+    await insertJobLog(supabase, userId, {
+      jobId: job.id,
+      rowId: row.id,
+      level: "INFO",
+      title: "Simpan produk",
+      message: rowLabelText,
+    });
+
+    productId = await findExistingProductByLink(supabase, userId, row.product_url);
+    if (!productId) {
+      const product = await createProduct({
+        workspace_id: row.workspace_id ?? job.workspace_id,
+        product_name: row.product_name,
+        marketplace: row.marketplace_label,
+        marketplace_product_link: row.product_url,
+        status: "DRAFT",
+      });
+      productId = product.id;
+    }
+
+    await updateJobRow(supabase, userId, row.id, {
+      product_id: productId,
+      current_stage: "Draft produk tersimpan",
+    });
+    await insertJobLog(supabase, userId, {
+      jobId: job.id,
+      rowId: row.id,
+      level: "SUCCESS",
+      title: "Produk dibuat",
+      message: rowLabelText,
+      metadata: { product_id: productId },
+    });
+  }
+
+  await ensureProductSourceImage(productId, driveItemId);
+
+  let intakeSessionId = row.intake_session_id;
+  if (!intakeSessionId) {
+    const intakeCode = row.intake_code || buildBulkIntakeCode(row.row_number);
+    intakeSessionId = await findExistingIntakeSessionByCode(supabase, userId, intakeCode);
+    if (!intakeSessionId) {
+      const metadata = parsedMetadataJson(previewRow, job.file_name);
+      const session = await createIntakeSession({
+        workspace_id: row.workspace_id ?? job.workspace_id,
+        intake_code: intakeCode,
+        product_id: productId,
+        product_title: row.product_name,
+        product_photo_drive_item_ref_id: driveItemId,
+        parsed_metadata_json: metadata,
+        shopee_url: row.platform === "SHOPEE" ? row.product_url : null,
+        tiktok_url: row.platform === "TIKTOK" ? row.product_url : null,
+        status: "NEEDS_REVIEW",
+      });
+      intakeSessionId = session.id;
+    }
+
+    await updateJobRow(supabase, userId, row.id, {
+      intake_session_id: intakeSessionId,
+      current_stage: "Intake tersimpan",
+    });
+    await insertJobLog(supabase, userId, {
+      jobId: job.id,
+      rowId: row.id,
+      level: "SUCCESS",
+      title: "Intake dibuat",
+      message: rowLabelText,
+      metadata: { intake_session_id: intakeSessionId },
+    });
+  }
+
+  if (!row.platform) {
+    throw new Error("Marketplace belum didukung.");
+  }
+
+  await createMarketplaceSource({
+    product_id: productId,
+    workspace_id: row.workspace_id ?? job.workspace_id,
+    platform: row.platform,
+    product_url: row.product_url,
+    title: row.product_name,
+    price_text: previewRow.optional.priceText,
+    rating_text: previewRow.optional.ratingText,
+    sold_count_text: previewRow.optional.soldCountText,
+    shop_name: previewRow.optional.shopName,
+    parsed_metadata_json: {
+      source_import: sourceImportJson(previewRow, job.file_name),
+    },
+    status: "NEEDS_REVIEW",
+    notes: "Saved from bulk import.",
+  });
+
+  await updateJobRow(supabase, userId, row.id, {
+    status: "IMPORTED",
+    errors: [],
+    current_stage: "Row selesai",
+    error_message: null,
+    finished_at: new Date().toISOString(),
+  });
+  await insertJobLog(supabase, userId, {
+    jobId: job.id,
+    rowId: row.id,
+    level: "SUCCESS",
+    title: "Import sukses",
+    message: rowLabelText,
+  });
+  await heartbeatBulkImportJob(supabase, userId, job.id, runnerId);
+}
+
+async function markRemainingRowsCancelled(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const { error } = await supabase
+    .from("bulk_import_job_rows")
+    .update({
+      status: "CANCELLED",
+      current_stage: "Dibatalkan",
+      error_message: null,
+      finished_at: new Date().toISOString(),
+    })
+    .eq("job_id", jobId)
+    .eq("user_id", userId)
+    .in("status", ACTIVE_BULK_ROW_STATUSES);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function markJobCancelled(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  await markRemainingRowsCancelled(supabase, userId, jobId);
+  const counts = summaryFromJobRecord(await refreshJobCounters(supabase, userId, jobId));
+  const { error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      status: "CANCELLED",
+      runner_id: null,
+      lease_expires_at: null,
+      finished_at: new Date().toISOString(),
+      error_message: null,
+      ready_rows: counts.readyRows,
+      error_rows: counts.errorRows,
+      imported_rows: counts.importedRows,
+      skipped_rows: counts.skippedRows,
+      cancelled_rows: counts.cancelledRows,
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await insertJobLog(supabase, userId, {
+    jobId,
+    level: "WARNING",
+    title: "Import dibatalkan",
+    message: `${counts.importedRows} row sudah tersimpan, ${counts.cancelledRows} row dibatalkan.`,
+  });
+}
+
+async function markJobCompleted(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+) {
+  const counts = summaryFromJobRecord(await refreshJobCounters(supabase, userId, jobId));
+  const { error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      status: "COMPLETED",
+      runner_id: null,
+      lease_expires_at: null,
+      finished_at: new Date().toISOString(),
+      error_message: null,
+      ready_rows: counts.readyRows,
+      error_rows: counts.errorRows,
+      imported_rows: counts.importedRows,
+      skipped_rows: counts.skippedRows,
+      cancelled_rows: counts.cancelledRows,
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await insertJobLog(supabase, userId, {
+    jobId,
+    level: counts.errorRows ? "WARNING" : "SUCCESS",
+    title: "Import selesai",
+    message: `${counts.importedRows} import, ${counts.skippedRows} dilewati, ${counts.errorRows} error.`,
+  });
+}
+
+async function markJobFailed(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  jobId: string,
+  errorMessage: string,
+) {
+  const { error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      status: "FAILED",
+      runner_id: null,
+      lease_expires_at: null,
+      finished_at: new Date().toISOString(),
+      error_message: errorMessage,
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await insertJobLog(supabase, userId, {
+    jobId,
+    level: "ERROR",
+    title: "Import gagal",
+    message: errorMessage,
+  });
+}
+
+export async function cancelProductBulkImportJob(jobId: string) {
+  const { supabase, user } = await requireUser();
+  const job = await loadJobRecord(supabase, user.id, jobId);
+
+  if (isTerminalBulkJobStatus(job.status)) {
+    return await loadJobSnapshotForContext(supabase, user.id, jobId);
+  }
+
+  const nowIso = new Date().toISOString();
+  const leaseExpired = !job.lease_expires_at || Date.parse(job.lease_expires_at) < Date.now();
+  const nextStatus: BulkImportJobStatus = job.status === "QUEUED" || leaseExpired ? "CANCELLED" : "CANCEL_REQUESTED";
+  const { error } = await supabase
+    .from("bulk_import_jobs")
+    .update({
+      status: nextStatus,
+      cancel_requested_at: job.cancel_requested_at ?? nowIso,
+      ...(nextStatus === "CANCELLED"
+        ? {
+            runner_id: null,
+            lease_expires_at: null,
+            finished_at: nowIso,
+          }
+        : {}),
+    })
+    .eq("id", jobId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await insertJobLog(supabase, user.id, {
+    jobId,
+    level: "WARNING",
+    title: "Batal diminta",
+    message: "Import akan berhenti setelah row aktif selesai.",
+  });
+
+  if (nextStatus === "CANCELLED") {
+    await markJobCancelled(supabase, user.id, jobId);
+  }
+
+  return await loadJobSnapshotForContext(supabase, user.id, jobId);
+}
+
+export async function runProductBulkImportJob(jobId: string) {
+  const { supabase, user } = await requireUser();
+  const initialJob = await loadJobRecord(supabase, user.id, jobId);
+
+  if (isTerminalBulkJobStatus(initialJob.status)) {
+    return await loadJobSnapshotForContext(supabase, user.id, jobId);
+  }
+
+  if (initialJob.status === "CANCEL_REQUESTED") {
+    const leaseExpired = !initialJob.lease_expires_at || Date.parse(initialJob.lease_expires_at) < Date.now();
+    if (leaseExpired) {
+      await markJobCancelled(supabase, user.id, jobId);
+    }
+    return await loadJobSnapshotForContext(supabase, user.id, jobId);
+  }
+
+  const runnerId = crypto.randomUUID();
+  const claimedJob = await claimBulkImportJob(supabase, user.id, jobId, runnerId);
+
+  if (!claimedJob) {
+    return await loadJobSnapshotForContext(supabase, user.id, jobId);
+  }
+
+  try {
+    const rows = await loadJobRows(supabase, user.id, jobId);
+
+    for (const row of rows) {
+      const currentJob = await loadJobRecord(supabase, user.id, jobId);
+      if (currentJob.status === "CANCEL_REQUESTED") {
+        await markJobCancelled(supabase, user.id, jobId);
+        return await loadJobSnapshotForContext(supabase, user.id, jobId);
+      }
+
+      if (!ACTIVE_BULK_ROW_STATUSES.includes(row.status)) {
+        continue;
+      }
+
+      try {
+        await processBulkImportJobRow(supabase, user.id, currentJob, row, runnerId);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Import row gagal.";
+        await updateJobRow(supabase, user.id, row.id, {
+          status: "ERROR",
+          errors: [errorMessage],
+          current_stage: "Row error",
+          error_message: errorMessage,
+          finished_at: new Date().toISOString(),
+        });
+        await insertJobLog(supabase, user.id, {
+          jobId,
+          rowId: row.id,
+          level: "ERROR",
+          title: "Row error",
+          message: `Row ${row.row_number} - ${row.product_name || "Produk tanpa nama"}. ${errorMessage}`,
+        });
+      } finally {
+        await refreshJobCounters(supabase, user.id, jobId);
+      }
+    }
+
+    const finalJob = await loadJobRecord(supabase, user.id, jobId);
+    if (finalJob.status === "CANCEL_REQUESTED") {
+      await markJobCancelled(supabase, user.id, jobId);
+    } else {
+      await markJobCompleted(supabase, user.id, jobId);
+    }
+
+    revalidatePath("/products");
+    revalidatePath("/products/new");
+    revalidatePath("/intake");
+    return await loadJobSnapshotForContext(supabase, user.id, jobId);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Bulk import gagal.";
+    await markJobFailed(supabase, user.id, jobId, errorMessage);
+    return await loadJobSnapshotForContext(supabase, user.id, jobId);
+  }
+}
+
 export async function importProductBulkFile(file: File): Promise<BulkImportResponse> {
   const preview = await previewProductBulkImport(file);
   const rows: BulkImportPreviewRow[] = [];
@@ -673,28 +1825,32 @@ export async function importProductBulkFile(file: File): Promise<BulkImportRespo
     }
 
     if (row.status === "duplicate" || importedLinks.has(row.productUrl)) {
-      rows.push({
+      const skippedRow: BulkImportPreviewRow = {
         ...row,
         status: "skipped",
-      });
+      };
+      rows.push(skippedRow);
       continue;
     }
 
     try {
       const result = await importReadyRow(row, preview.fileName);
       importedLinks.add(row.productUrl);
-      rows.push({
+      const importedRow: BulkImportPreviewRow = {
         ...row,
         ...result,
         status: "imported",
         errors: [],
-      });
+      };
+      rows.push(importedRow);
     } catch (error) {
-      rows.push({
+      const errorMessage = error instanceof Error ? error.message : "Import row gagal.";
+      const errorRow: BulkImportPreviewRow = {
         ...row,
         status: "error",
-        errors: [error instanceof Error ? error.message : "Import row gagal."],
-      });
+        errors: [errorMessage],
+      };
+      rows.push(errorRow);
     }
   }
 
