@@ -4,9 +4,7 @@ type SupabaseEnvName =
   | "NEXT_PUBLIC_SUPABASE_ANON_KEY"
   | "NEXT_PUBLIC_APP_URL";
 
-function readEnv(name: SupabaseEnvName): string {
-  const value = process.env[name];
-
+function readEnv(name: SupabaseEnvName, value: string | undefined): string {
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
@@ -22,11 +20,11 @@ export function getSupabaseConfig() {
   }
 
   return {
-    url: readEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    url: readEnv("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL),
     publishableKey,
   };
 }
 
 export function getAppUrl() {
-  return readEnv("NEXT_PUBLIC_APP_URL");
+  return readEnv("NEXT_PUBLIC_APP_URL", process.env.NEXT_PUBLIC_APP_URL);
 }
