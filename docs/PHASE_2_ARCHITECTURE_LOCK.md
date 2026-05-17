@@ -65,7 +65,7 @@ Prompt production stays first because the current product output is `Paket Promp
 ### P2-S3 - Controller Reactivation
 
 - `/controller` returns only as a desktop Flow Control surface after P2-S1 and P2-S2 are stable.
-- Mobile nav remains `Intake`, `Produk`, `Prompt`, `Drive`.
+- Mobile nav remains `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
 - The locked board columns remain: `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
 - First reactivation is read-only stage lanes over real Flow batch/helper state; mutating controls return in later micro-tasks.
 - Stage execution remains manual-assisted: `FIRST_FRAME`, `LAST_FRAME`, `VIDEO`.

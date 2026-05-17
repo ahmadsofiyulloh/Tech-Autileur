@@ -24,7 +24,7 @@ Framework: Next.js PWA
 Language: TypeScript strict
 UI language: Indonesian operational copy
 Mobile priority: intake, review, prompt, Drive visual management
-Primary nav: Intake, Produk, Prompt, Drive
+Shell nav: Dashboard, Intake, Produk, Prompt, Drive
 Phase 1 entrypoint: /products/new
 Dashboard: secondary analytics route
 Controller/Flow: Dormant/Frozen, backend retained
@@ -37,7 +37,7 @@ Shell rules:
 - the Settings gear is the only global Settings entry point and is not a duplicate navigation stack.
 - workspace picker must not be shown in the global shell.
 - `Sign out` lives only in `Pengaturan > Account`.
-- mobile app shell uses fixed bottom navigation for Intake, Produk, Prompt, and Drive.
+- mobile app shell uses fixed bottom navigation for Dashboard, Intake, Produk, Prompt, and Drive.
 - bottom navigation must use safe-area padding and stay above page content.
 - bottom sheets must use safe-area padding and render above bottom navigation.
 - `/controller` and `/flow` direct access redirect to `/products/new` during Phase 1.
@@ -62,7 +62,7 @@ Shell rules:
 /gemini         -> primarily accessed from /settings
 ```
 
-`/controller` must not be exposed in primary navigation during Phase 1. Existing backend Controller/Flow logic must not be deleted by the freeze unless a future task explicitly approves removal.
+`/controller` must not be exposed in shell navigation during Phase 1. Existing backend Controller/Flow logic must not be deleted by the freeze unless a future task explicitly approves removal.
 
 `/settings` is the configuration hub and overview-only surface. Section work must live in locked nested settings routes, not in one long flat settings page. The app must not create a second global settings navigation.
 
@@ -221,7 +221,7 @@ In scope:
 
 - app downloads or exposes batch manifest JSON.
 - helper reads/imports the manifest.
-- helper maps `flow_account_code` to a local Chrome profile path from local config.
+- helper maps `flow_account_code` and `chrome_profile_lane_key` to a local Chrome profile path from local config.
 - helper opens the correct Chrome profile and Google Flow URL.
 - helper watches a local output folder configured locally.
 - helper renames output files using the manifest.

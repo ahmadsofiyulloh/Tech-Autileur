@@ -14,6 +14,7 @@ This document is the evidence layer for backlog progress. Use it before editing 
 
 | Date | Commit | Task IDs | Scope note |
 |---|---|---|---|
+| 2026-05-02 | 0b99ffa | P2-S2-001 | Legacy evidence: added the `ai_tasks` queue foundation, status validation, and migration that later prompt queue work builds on. |
 | 2026-05-03 | b5a7d65 | S0-001, S6-005, S8-004 | Locked phase awal surface grammar and backlog guards. |
 | 2026-05-03 | 774f6a3 | S6-003, S8-001 | Added picker primitive and compact UI copy. |
 | 2026-05-03 | 118e6ff | S6-001, S6-002 | Wired settings tool surfaces. |
@@ -75,6 +76,9 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-06 | 962b7b9 | support | Follow-up on S8-006 and S6-006; tightened affiliate drawer fallback UX, pending state, and mobile preview density. |
 | 2026-05-06 | 353300d | support | Follow-up on S2-003 and S3-002; routed retryable Gemini temporary-unavailable responses as warnings in intake and prompt actions. |
 | 2026-05-09 | c379ab9 | S8-006 | Follow-up on native feedback scope; centralized visual button wrappers and converted button-styled links/anchors. |
+| 2026-05-16 | 973fc6e | P2-S1-002B | Legacy evidence: added bulk-import prompt handoff, readiness projection, and auto-reviewed `bulk_import_v1` backfill/test coverage. |
+| 2026-05-16 | d9ac721 | P2-S1-002, P2-S2-001, P2-S2-002 | Legacy evidence: added the prompt workbench, queue drawer, server queue routes, and smoke coverage for enqueue/retry/cancel/pagination. |
+| 2026-05-17 | 650c4db | P2-S3-001B, P2-S4-001A | Stabilized controller/helper stage lanes and the manifest/helper staging contract. |
 
 ## Legacy Foundation Checkpoints
 

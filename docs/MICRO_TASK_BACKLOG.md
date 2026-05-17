@@ -28,6 +28,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - S8-001, S8-002, S8-003, S8-004, S8-005, S8-006, S8-007
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 - MT-DRIVE-HIERARCHY-01
+- P2-LOCK-01, P2-S1-001, P2-S1-002, P2-S1-002B, P2-S2-001, P2-S2-002, P2-S3-001A, P2-S3-001B, P2-S4-001A
 
 ## UI/UX Polish References
 - [UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md](UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md)
@@ -85,7 +86,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 **Goal:** Refactor generated prompt copy JSON so I2I/I2V outputs are explicit operator instructions instead of raw rule/reference dumps.
 **Owner:** Codex
 **Scope:** prompt generation contract, Gemini schema, parser/reader, targeted tests, and prompt/Flow lock docs only.
-**Acceptance:** new generation emits v2 copy JSON; I2I First Frame uses `@character`, `@environment`, and product reference; I2I Last Frame uses `@firstframe`; I2V uses `@firstframe` and `@lastframe` with 8-second 4-part timeline; legacy prompt packs remain readable.
+**Acceptance:** new generation emits v2 copy JSON; I2I First Frame generates one 2x2 storyboard image with 4 panels using `@character`, `@environment`, and product reference; I2I Last Frame uses `@firstframe` and remains hidden/persisted for compatibility; I2V uses the `@firstframe` storyboard plus legacy `@lastframe` with 8-second 4-part timeline, treating grid borders and panel numbers as guidance only; legacy prompt packs remain readable.
 
 ### MT-INTAKE-00 - Intake metadata refactor contract
 **Goal:** Lock the 2026-05-07 save-vs-metadata lifecycle, active account behavior, drawer fallback, and mobile preview contract before runtime refactor.
@@ -218,9 +219,9 @@ Known visual/backend gaps:
 ## S1 - Navigation and Route Lock
 
 ### S1-001 - Lock desktop and mobile nav _(DONE)_
-**Goal:** Primary navigation is Intake, Produk, Prompt, Drive. Mobile bottom nav is Intake, Produk, Prompt, Drive.
+**Goal:** Shell navigation is Dashboard, Intake, Produk, Prompt, Drive. Mobile bottom nav is Dashboard, Intake, Produk, Prompt, Drive.
 **Owner:** Codex
-**Acceptance:** `/controller` is hidden from primary nav, `/flow` and `/controller` redirect to `/products/new`, Settings is reached by the approved topbar gear on non-Settings routes, and `/settings` has no right-side topbar action.
+**Acceptance:** `/controller` is hidden from shell nav, `/flow` and `/controller` redirect to `/products/new`, Settings is reached by the approved topbar gear on non-Settings routes, and `/settings` has no right-side topbar action.
 
 ### S1-002 - Route compatibility _(DONE)_
 **Goal:** Keep `/intake`, `/flow`, and `/outputs` compatibility behavior without creating duplicate primary funnels.
@@ -445,31 +446,35 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Acceptance:** rows classify into `Needs Evidence`, `Needs Metadata`, `Needs Review`, `Ready for Prompt`, `Prompt Queued`, `Prompt Generated`, or `Prompt Failed`; raw `products.status` is never the only readiness source; only `Ready for Prompt` rows are eligible for bulk enqueue.
 **Implementation note:** Computed projection now lives in `src/lib/prompts/prompt-readiness-projection.ts` and server aggregation in `src/lib/server/prompt-readiness.ts`; no schema migration was required.
 
-### P2-S1-002 - Desktop Prompt Batch Workbench _(READY NEXT)_
+### P2-S1-002 - Desktop Prompt Batch Workbench _(DONE)_
 **Goal:** Upgrade `/prompts` desktop behavior into a batch workbench while preserving the mobile prompt list.
 **Owner:** Codex
 **Scope:** `/prompts` UI, readiness filters, selection, empty/loading/error states, and enqueue affordance placeholder only.
 **Acceptance:** desktop can filter and select prompt-ready products; non-ready rows show why they are blocked; mobile nav and mobile prompt behavior remain intact.
+**Implementation note:** Verified by `tests/e2e/prompt-workbench.spec.ts` and the prompt-readiness checks in `tests/e2e/gemini-backend-hardening.spec.ts`; the desktop workbench filters, selects, paginates, and keeps mobile behavior intact.
 
-### P2-S1-002B - Bulk Import auto-reviewed prompt handoff _(IN PROGRESS)_
+### P2-S1-002B - Bulk Import auto-reviewed prompt handoff _(DONE)_
 **Goal:** Let valid Bulk Import scraping rows skip manual metadata review and create prompts directly from the Bulk Import monitor panel.
 **Owner:** Codex
 **Scope:** Bulk Import metadata persistence/backfill, prompt readiness projection, `/products/new` Bulk Import monitor prompt action, and targeted docs/tests only.
 **Acceptance:** new and existing `bulk_import_v1` rows store reviewed metadata, Bulk Import marketplace sources are active evidence, ready imported rows show `Buat Prompt` in the monitor panel, OCR/Vision metadata still requires review, and no dedicated prompt batch table or Supabase Queues are introduced.
+**Implementation note:** Verified by `tests/e2e/bulk-import-prompt-readiness.spec.ts`; `bulk_import_v1` rows store reviewed metadata, surface prompt readiness, and expose `Buat Prompt` from the monitor panel without adding a prompt batch table.
 
-### P2-S2-001 - AI task queue prompt enqueue contract
+### P2-S2-001 - AI task queue prompt enqueue contract _(DONE)_
 **Goal:** Use existing `ai_tasks` for durable bulk prompt generation jobs.
 **Owner:** Codex
 **Scope:** enqueue server action/route, validation, idempotency, and tests; no Supabase Queues and no dedicated prompt batch table in this wave.
 **Acceptance:** selected ready products enqueue prompt-generation tasks with owner scope, selected Gemini routing metadata, retry counters, and cancel-before-run support.
+**Implementation note:** Verified by `tests/e2e/prompt-workbench.spec.ts`; ready products enqueue owner-scoped `ai_tasks` with Gemini metadata and cancel-before-run support.
 
-### P2-S2-002 - Prompt queue runner and progress
+### P2-S2-002 - Prompt queue runner and progress _(DONE)_
 **Goal:** Execute queued prompt jobs with quota-aware Gemini routing and observable progress.
 **Owner:** Codex
 **Scope:** server runner, retry/failure handling, progress polling, and targeted tests.
 **Acceptance:** jobs move through queued/running/success/failed/retrying/waiting states, preserve prompt pack versioning, and show progress without keeping prompt detail open.
+**Implementation note:** Verified by `tests/e2e/prompt-workbench.spec.ts`; queue rows expose selected Gemini keys, retry/cancel actions, and live progress without requiring prompt-detail focus.
 
-### P2-S5-001 - Large dataset prompt/workbench hardening
+### P2-S5-001 - Large dataset prompt/workbench hardening _(READY NEXT)_
 **Goal:** Replace 200-row client assumptions with server-side pagination/search for prompt workbench inputs.
 **Owner:** Codex
 **Scope:** product/prompt list query helpers, pagination/search contracts, and index review.
@@ -481,17 +486,19 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Scope:** manifest schema v2, helper callback stage metadata, generated file migration, and source-of-truth docs.
 **Acceptance:** manifest exports retain legacy `jobs[]` and add `stage_jobs[]`; helper callback can import frame/video stages; Chrome profile paths remain local-only; no Google Flow auto-click or auto-submit is added.
 
-### P2-S3-001B - Controller read-only stage lanes
+### P2-S3-001B - Controller read-only stage lanes _(DONE)_
 **Goal:** Reactivate `/controller` as a desktop-only read-only stage lane preview after prompt queue stability.
 **Owner:** Codex
 **Scope:** desktop Controller surface only; no mutating controls beyond existing retained backend paths.
 **Acceptance:** stage lanes show `FIRST_FRAME`, `LAST_FRAME`, `VIDEO`, import/review state, Flow account lane context, and no fake Google Flow live progress.
+**Implementation note:** Verified by `src/app/controller/page.tsx`, `src/lib/server/controller.ts`, and the stage-manifest contract in `src/lib/flow/stage-manifest.ts`; the lanes render real batch/helper state without fake live progress.
 
-### P2-S4-001A - Helper stage pack export contract
+### P2-S4-001A - Helper stage pack export contract _(DONE)_
 **Goal:** Turn manifest `stage_jobs[]` into a precise helper staging contract for prompt TXT files and local folders.
 **Owner:** Codex
 **Scope:** helper docs/contracts and app manifest export contract only unless a helper repo is explicitly provided.
 **Acceptance:** helper can prepare stage prompt files and folder structure from manifest v2; local paths and OAuth tokens remain local-only.
+**Implementation note:** Verified by `tools/windows-helper/README.md` and `tools/windows-helper/src/index.mjs`; `prepare` writes manifest/prompt folders from `stage_jobs[]` and keeps local paths/config local-only.
 
 ### P2-S3-001C - Multi Chrome profile controlled run workflow
 **Goal:** Add controlled multi-lane operator workflow for Flow accounts and Chrome profiles.

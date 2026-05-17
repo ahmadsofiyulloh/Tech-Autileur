@@ -4,8 +4,9 @@
 
 - User can log in with Supabase Auth.
 - User sees a protected dashboard.
-- Primary app navigation is exactly `Intake`, `Produk`, `Prompt`, `Drive`.
-- Mobile bottom nav is exactly `Intake`, `Produk`, `Prompt`, `Drive`.
+- Workflow navigation is exactly `Intake`, `Produk`, `Prompt`, `Drive`.
+- Mobile bottom nav is exactly `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
+- `Dashboard` is the secondary analytics route in the shell nav.
 - `/controller` is hidden from mobile bottom nav.
 - Topbar shows one Settings gear on every non-Settings route.
 - `/settings` has no right-side topbar gear/action.
@@ -44,7 +45,7 @@
 
 - Prompt surface label is `Paket Prompt`.
 - Required fields exist: `Prompt Clip 1`, `Prompt Clip 2`, `Caption`, `Tags`, `Target Marketplace`, `Instruksi Revisi`.
-- Each clip panel exposes `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt`.
+- Each clip panel exposes `Storyboard Image` and `I2V Prompt`; hidden `I2I Last Frame` remains persisted for legacy compatibility.
 - Generated prompt fields are read-only, copy-ready, and grouped by collapsible clip section.
 - Required actions exist: `Buat Prompt` and `Buat Ulang`.
 - Prompt list row action for existing prompts opens `History`; prompt detail opens the generated output/editor route.

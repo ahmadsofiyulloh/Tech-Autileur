@@ -119,7 +119,7 @@ Tags
 Target Marketplace
 ```
 
-Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. The UI surface stays the same; only the copied value changes. Generated copy fields use `schema_version: "prompt_pack_v2"` and must not expose raw `visual_references` or raw `prompt_rules`.
+Prompt Clip 1 and Prompt Clip 2 are copy-ready read-only JSON prompt payloads in the UI, not prose text. Generated copy fields use `schema_version: "prompt_pack_v2"` and must not expose raw `visual_references` or raw `prompt_rules`.
 
 Editable regeneration field:
 
@@ -140,10 +140,14 @@ Prompt set structure:
 - `/prompts/[id]` is the prompt detail/editor surface.
 - `/prompts/[id]/history` is the prompt-only generation history surface, grouped by `prompt_code`.
 - Prompt Clip 1 and Prompt Clip 2 are separate collapsed clip panels that can expand.
-- Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready JSON fields.
-- `I2I First Frame` must use three image inputs: `@character`, `@environment`, and the product mention from the source product image/reference card.
-- `I2I Last Frame` must use only `@firstframe`; it must not repeat the original three reference images.
-- `I2V Prompt` must use only `@firstframe` and `@lastframe`; it must not include character/environment/product reference images again.
+- Each clip panel must expose `Storyboard Image` and `I2V Prompt` as read-only copy-ready JSON fields.
+- `Storyboard Image` is stored in the legacy `i2i_prompts.clip_n.first_frame` field and must use three image inputs: `@character`, `@environment`, and the product mention from the source product image/reference card.
+- `Storyboard Image` must generate exactly one image: a 2x2 storyboard grid with 4 numbered panels for one clip, read left-to-right and top-to-bottom.
+- `I2I Last Frame` remains required in persistence and hidden form fields for legacy compatibility, but it is hidden from the operator UI and generated TXT export.
+- `I2I Last Frame` must use only `@firstframe`; it must not repeat the original three reference images or create a separate visible Last Frame output.
+- `I2V Prompt` must keep legacy `frame_inputs: ["@firstframe", "@lastframe"]`, but it must treat `@firstframe` as the completed 2x2 storyboard image and map panels 1-4 into one continuous video.
+- `I2V Prompt` must treat grid borders and panel numbers as storyboard guidance only, not visible video elements.
+- `I2V Prompt` must not include character/environment/product reference images again, and `@lastframe` is retained only for compatibility.
 - I2V duration is locked to `8` seconds with four timeline windows: `00:00-00:02`, `00:02-00:04`, `00:04-00:06`, `00:06-00:08`.
 - Clip 1 is the hook/hero look. Clip 2 is the detail/benefit/use-case look.
 - Caption is shared across the prompt set and is read-only copy-ready after generation.
@@ -272,6 +276,8 @@ Prompt generation must persist structured JSON with at least:
   }
 }
 ```
+
+The persistence shape stays legacy-compatible: `first_frame`, `last_frame`, and `frame_inputs: ["@firstframe", "@lastframe"]` remain required. The semantic change is only in generated copy and visible output: `first_frame.prompt_text` is the single 4-panel storyboard image prompt, `last_frame.prompt_text` is hidden compatibility copy, and I2V maps the `@firstframe` storyboard panels.
 
 `product_analysis.product.status` is mandatory and must be copied from the source product record. The model must not infer or invent this value.
 

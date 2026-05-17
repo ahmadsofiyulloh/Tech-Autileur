@@ -8,7 +8,7 @@ The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a 
 ## Current Visual Decisions
 
 - The 2026-05-04 Visual PWA Mobile-First references override older shell and UI baseline conflicts.
-- Bottom navigation is `Intake`, `Produk`, `Prompt`, `Drive`.
+- Bottom navigation is `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
 - Settings is opened through one topbar gear on non-Settings routes.
 - `/settings` has no right-side topbar action.
 - The workspace picker has been removed from the global shell.

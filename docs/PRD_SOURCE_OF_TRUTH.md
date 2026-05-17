@@ -69,7 +69,7 @@ Locked decisions:
 
 ### 1.1 Main Navigation
 
-Primary Phase 1 navigation labels are exactly:
+Workflow navigation labels are exactly:
 
 ```text
 Intake
@@ -81,13 +81,14 @@ Drive
 Mobile bottom navigation labels are exactly:
 
 ```text
+Dashboard
 Intake
 Produk
 Prompt
 Drive
 ```
 
-`Dashboard` remains available only as a secondary analytics route. `Flow Control` and `Controller` are dormant/frozen for Phase 1 and must not appear in primary navigation.
+`Dashboard` remains available as the secondary analytics route in the shell nav. `Flow Control` and `Controller` are dormant/frozen for Phase 1 and must not appear in the workflow navigation.
 
 ### 1.2 Route Lock
 
@@ -218,7 +219,7 @@ Editable regeneration field:
 Instruksi Revisi
 ```
 
-Each clip panel must expose `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` as read-only copy-ready fields after generation. `Caption` is shared and copy-ready, `Tags` render as a copy-ready hashtag string, and `Target Marketplace` is a fixed read-only chip for `Shopee + TikTok`.
+Each clip panel must expose `Storyboard Image` and `I2V Prompt` as read-only copy-ready fields after generation. `Storyboard Image` is stored in the legacy `I2I First Frame` field as one 2x2 storyboard image with 4 panels, while `I2I Last Frame` remains persisted and hidden for legacy compatibility. `I2V Prompt` maps the 4 storyboard panels as temporal guidance and must not preserve grid borders or panel numbers as visible video elements. `Caption` is shared and copy-ready, `Tags` render as a copy-ready hashtag string, and `Target Marketplace` is a fixed read-only chip for `Shopee + TikTok`.
 
 Required actions:
 
@@ -309,7 +310,7 @@ The app must store Drive links and metadata. Phase awal does not create server-s
 
 ### 1.10 Dashboard
 
-Dashboard is a secondary analytics route in Phase 1. It is not the primary entrypoint and does not appear in primary mobile navigation. Phase 1 analytics priority:
+Dashboard is a secondary analytics route in Phase 1. It appears in the shell nav and is not the primary workflow entrypoint. Phase 1 analytics priority:
 
 - Gemini task count and status.
 - Gemini estimated token/cost if available.
@@ -464,7 +465,7 @@ Locked baseline:
 - CRUD create entrypoints appear only in page header and empty state CTA.
 - row actions are `Open` plus edit/archive/delete in overflow.
 - archive-first lifecycle is required; hard delete is rare and never the default.
-- primary mobile navigation is fixed bottom navigation with safe-area padding.
+- mobile shell navigation is fixed bottom navigation with safe-area padding.
 - bottom sheets must account for `env(safe-area-inset-bottom)` and sit above the bottom nav.
 - Phase 1 native-feel gestures are limited to pull-to-refresh indicator, bottom-sheet dismiss, and Drive long-press select.
 - every gesture must have a tap/click fallback.
@@ -525,7 +526,7 @@ Phase 2 / Backlog capabilities are now locked in `docs/PHASE_2_ARCHITECTURE_LOCK
 Framework: Next.js PWA
 Language: TypeScript strict
 UI: mobile-first PWA shell for intake, prompt, and Drive visual management
-Primary nav: Intake, Produk, Prompt, Drive
+Shell nav: Dashboard, Intake, Produk, Prompt, Drive
 Phase 1 entrypoint: /products/new
 ```
 
@@ -581,7 +582,7 @@ Windows Helper is in Phase awal scope as a local companion, not a hosted service
 Helper responsibilities:
 
 - read/import app batch manifest JSON.
-- resolve `flow_account_code` to a local Chrome profile path from local helper config.
+- resolve `flow_account_code` and `chrome_profile_lane_key` to a local Chrome profile path from local helper config.
 - open the selected Chrome profile and Google Flow URL.
 - watch the configured local output folder.
 - rename output files using the locked naming pattern.

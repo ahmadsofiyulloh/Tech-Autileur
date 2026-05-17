@@ -14,12 +14,14 @@ Visual override: the Visual PWA Mobile-First references approved on 2026-05-04 d
 Mobile bottom navigation labels are exactly:
 
 ```text
+Dashboard
 Intake
 Produk
 Prompt
 Drive
 ```
 
+`Dashboard` is the secondary analytics route in the mobile shell.
 `Flow Control` is hidden from mobile bottom navigation.
 
 Settings is not a mobile bottom navigation item in Phase 1. Mobile uses one global Settings gear in the topbar on every non-Settings route. `/settings` renders no right-side topbar gear.
@@ -28,6 +30,7 @@ Settings is not a mobile bottom navigation item in Phase 1. Mobile uses one glob
 
 In scope on mobile:
 
+- Dashboard analytics route through the shell nav.
 - `/products/new` Intake as the primary entrypoint.
 - Produk list.
 - durable product capture through `Simpan Produk`.
@@ -75,7 +78,7 @@ Mobile prompt must support:
 
 - prompt preview.
 - read-only copy-ready prompt fields.
-- collapsible clip-level `I2I First Frame`, `I2I Last Frame`, and `I2V Prompt` fields.
+- collapsible clip-level `Storyboard Image` and `I2V Prompt` fields; hidden `I2I Last Frame` remains persisted for legacy compatibility.
 - `Instruksi Revisi`.
 - `Buat Prompt`.
 - `Buat Ulang`.

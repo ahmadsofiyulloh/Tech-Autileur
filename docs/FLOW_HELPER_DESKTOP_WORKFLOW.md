@@ -112,7 +112,7 @@ Catatan:
 ### B. Helper menyiapkan local working set
 
 1. Helper membaca manifest JSON.
-2. Helper memetakan `flow_account_code` ke `chrome_profile_path` dari local config.
+2. Helper memetakan `flow_account_code` dan `chrome_profile_lane_key` ke `chrome_profile_path` dari local config.
 3. Helper memetakan `helper_output_folder_key` ke local output folder.
 4. Helper membuat folder kerja lokal per batch.
 5. Helper menyiapkan staging images.

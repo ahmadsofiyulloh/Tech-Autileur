@@ -156,6 +156,7 @@ The app manifest must include the minimum data Windows Helper needs:
   "schema_version": "flow_manifest_v2",
   "batch_code": "",
   "flow_account_code": "",
+  "chrome_profile_lane_key": null,
   "flow_url": "",
   "drive_output_folder_id": "",
   "drive_output_folder_url": "",
@@ -172,7 +173,7 @@ The app manifest must include the minimum data Windows Helper needs:
 Helper local config maps:
 
 ```text
-flow_account_code -> chrome_profile_path
+flow_account_code + chrome_profile_lane_key -> chrome_profile_path
 helper_output_folder_key -> local_output_folder_path
 ```
 
