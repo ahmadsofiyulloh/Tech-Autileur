@@ -106,8 +106,9 @@ Catatan:
 
 1. Operator menyelesaikan intake dan prompt pack di app.
 2. Operator menekan `Tandai Siap Flow`.
-3. Di controller surface, operator memilih rekomendasi akun Flow jika sesuai.
-4. Operator mengekspor manifest batch.
+3. Di controller surface, operator memilih `Prompt Ready` rows dari active workspace dan memilih akun Flow yang tersedia dari pool.
+4. App membuat batch per prompt pack yang lolos, melewati prompt pack yang sudah punya open batch, dan menampilkan ringkasan created/skipped.
+5. Operator mengekspor manifest per batch sebagai langkah terpisah.
 
 ### B. Helper menyiapkan local working set
 
@@ -175,6 +176,9 @@ Jika `stage` tidak dikirim, app memperlakukannya sebagai `VIDEO` agar helper lam
 
 ## Kontrak Chrome Profile
 
+- `chrome_profile_lane_key` adalah label lane yang terlihat di app; `chrome_profile_path` tetap local-only di helper config.
+- App tidak boleh menandai Flow account sebagai paired sampai helper mengembalikan `Helper verified`.
+- Status runtime lane mengikuti label `Not paired`, `Lane key set`, `Helper verified`, `Session expired`, dan `Unavailable`.
 - 1 Chrome profile = 1 Flow account.
 - 1 profile hanya dipakai oleh 1 batch aktif pada satu waktu.
 - Profile bersifat reusable lintas batch selama sesi masih valid.
@@ -182,6 +186,7 @@ Jika `stage` tidak dikirim, app memperlakukannya sebagai `VIDEO` agar helper lam
 - Profile path tidak boleh disimpan di Supabase.
 - Jangan buat profile baru hanya karena batch baru dibuat.
 - Jika sesi expired, buka profile yang sama lalu lanjutkan dari manifest terbaru.
+- Konsep handshake/konfirmasi tetap sederhana: app mengirim `flow_account_code` dan `chrome_profile_lane_key`, helper mengembalikan status verifikasi serta alasan jika lane tidak tersedia; path lokal tidak pernah dikirim balik ke app.
 
 ## Kontrak Prompt File
 

@@ -59,6 +59,33 @@ Flow Control recommends an account only when:
 
 The user confirms the recommendation. The app must not silently bind workspace to an account.
 
+## Chrome Profile Lane Contract
+
+- Supabase may store `chrome_profile_lane_key` as an app-visible label, but never absolute `chrome_profile_path` values.
+- Helper local config owns the real mapping: `flow_account_code + chrome_profile_lane_key -> chrome_profile_path`.
+- The app must not claim a Flow account is paired until helper verification confirms that the lane is available.
+- Runtime lane labels are:
+  - `Not paired`: no lane key label has been assigned yet.
+  - `Lane key set`: the app has a lane label, but helper verification is still pending.
+  - `Helper verified`: helper confirmed the mapped Chrome profile is available.
+  - `Session expired`: helper previously verified the lane, but the local Chrome session is no longer valid.
+  - `Unavailable`: helper cannot bind the lane to a usable local profile right now.
+- Conceptual handshake only, not an implementation contract:
+  - app sends `flow_account_code`, `chrome_profile_lane_key`, and a request id.
+  - helper returns `status`, `verified_at`, `reason`, and `session_state`.
+  - `chrome_profile_path` never leaves helper local config.
+
+## Controlled Multi-Select Batch Creation
+
+- Multi-select source is active workspace `Prompt Ready` rows only.
+- Default selection cap is `25`; hard cap is `50`, matching the locked Phase 2 batch ceiling already approved for bulk work.
+- Prompt packs that already have open batches are skipped, not blocked, and the skipped count is shown to the operator.
+- Batch creation uses the available Flow account pool only.
+- The app must not silently assign an unavailable Flow account.
+- Flow accounts remain global execution tools and are not workspace-bound.
+- Batch creation returns created batch count, skipped count, and reasons per selected prompt pack.
+- Manifest export remains a separate operator step after batch creation. Batch creation does not write manifest JSON or helper files.
+
 ## Board Columns
 
 Columns are exactly:
@@ -168,6 +195,8 @@ The app manifest must include the minimum data Windows Helper needs:
 }
 ```
 
+`chrome_profile_lane_key` is an app-visible label only. It may travel in the manifest and app metadata, but the absolute Chrome profile path must stay local to helper config.
+
 ## Windows Helper Contract
 
 Helper local config maps:
@@ -187,6 +216,7 @@ Helper may:
 - rename generated files.
 - upload renamed files to Google Drive with local OAuth.
 - callback app metadata endpoint with App API Token.
+- report lane verification state to the app using the lane key label, without exposing local profile paths.
 
 Helper must not:
 

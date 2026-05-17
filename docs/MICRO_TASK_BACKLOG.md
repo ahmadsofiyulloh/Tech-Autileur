@@ -505,3 +505,15 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Scope:** Controller/Helper contract and desktop UI after read-only lanes are stable.
 **Acceptance:** one Flow account maps to one Chrome profile lane in helper local config; operator chooses active lanes; app never auto-clicks or auto-submits Flow.
+
+### P2-S3-001D - Chrome profile lane labels and pairing states
+**Goal:** Separate app-visible lane labels from helper-local Chrome profile paths and define the pairing states operators can see.
+**Owner:** Codex
+**Scope:** Settings account surface, controller support panel, and source-of-truth docs only; no migration.
+**Acceptance:** Supabase may store lane key labels but never absolute Chrome profile paths; the app shows `Not paired`, `Lane key set`, `Helper verified`, `Session expired`, and `Unavailable`; the app only claims paired when helper verification is current.
+
+### P2-S3-001E - Helper lane verification handshake
+**Goal:** Define the helper confirmation flow for lane availability and session expiry without exposing local profile paths.
+**Owner:** Codex
+**Scope:** helper callback/handshake contract, operator status wiring, and docs only; no helper runtime implementation.
+**Acceptance:** the helper can report `status`, `verified_at`, `reason`, and `session_state` for a `flow_account_code` plus `chrome_profile_lane_key` request, and the app uses that confirmation to update pairing state instead of inferring pairing from stored metadata alone.

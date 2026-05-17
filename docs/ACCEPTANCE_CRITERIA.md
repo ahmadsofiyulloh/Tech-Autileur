@@ -69,16 +69,40 @@
 - Any workspace, product, or prompt can use any available Flow account.
 - Flow account count is dynamic and never hardcoded.
 - Account recommendation uses status, observed credit, cooldown, and available slot.
+- Flow account lane availability in the controller is estimated accounting state only.
+- Real Chrome profile binding is clearly labeled unavailable until implemented.
+- App-visible lane states are `Not paired`, `Lane key set`, `Helper verified`, `Session expired`, and `Unavailable`.
+- Chrome profile paths stay local to helper config; Supabase may store lane keys only.
 - User confirms the selected account.
 - No browser automation or Google Flow auto-run exists.
 - No UI claims automatic Google Flow progress unless helper/extension data reports it.
 - Windows Helper pairing and Chrome profile controls live in `Pengaturan > Account`, not in `/controller`.
 - Chrome pairing actions are `Buat`, `Salin`, `Unduh JSON`, and `Lepas Pairing`.
 
+## Desktop Batch Production
+
+- `/controller` only shows prompt packs, products, batches, clip jobs, and generated files connected to the active workspace.
+- Prompt Ready rows are never mixed across workspaces in the controller.
+- Controlled multi-select batch creation only uses active workspace `Prompt Ready` rows, defaults to a 25-row selection cap, and hard caps at 50.
+- Rows with open batches are skipped with a visible skipped count and per-row reasons.
+- Batch creation uses the available Flow account pool only, never silently binds an unavailable Flow account, keeps Flow accounts global, and leaves manifest export as a separate step.
+- The desktop controller uses one horizontal stepper shell.
+- The current stage is always visible.
+- Each step has its own content area.
+- The primary desktop layout is not a four-lane grid.
+- Batch creation supports selected prompt packs from the active workspace.
+- Batch creation refuses prompt packs from inactive workspaces.
+- Batch creation refuses already-open prompt packs.
+- Manifest export is blocked if `jobs[]` is empty.
+- Manifest export is blocked if `stage_jobs[]` is empty.
+- Manifest export is blocked if any stage prompt text is empty.
+- Manifest export is blocked if the `FIRST_FRAME` / `LAST_FRAME` / `VIDEO` dependency contract is invalid.
+
 ## Windows Helper
 
 - App can produce a batch manifest JSON.
 - Manifest includes batch code, Flow account code, Drive output folder, helper output folder key, rename pattern, and jobs.
+- `chrome_profile_lane_key` is an app-visible label only; the local helper resolves it to a Chrome profile path.
 - Helper local config owns Chrome profile path mapping.
 - Helper local config owns local output folder path mapping.
 - App API Token authenticates helper metadata callback.

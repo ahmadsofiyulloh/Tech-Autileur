@@ -221,12 +221,15 @@ In scope:
 
 - app downloads or exposes batch manifest JSON.
 - helper reads/imports the manifest.
-- helper maps `flow_account_code` and `chrome_profile_lane_key` to a local Chrome profile path from local config.
+- helper maps `flow_account_code` and app-visible `chrome_profile_lane_key` labels to a local Chrome profile path from local config.
 - helper opens the correct Chrome profile and Google Flow URL.
 - helper watches a local output folder configured locally.
 - helper renames output files using the manifest.
 - helper uploads output files directly to Google Drive with local OAuth.
 - helper posts metadata callback to the app using App API Token.
+- Supabase may store lane key labels for operator visibility, but never absolute Chrome profile paths.
+- The app-visible pairing state is derived from helper verification; the app must not claim a Flow account is paired until the helper confirms lane availability.
+- Lane states are `Not paired`, `Lane key set`, `Helper verified`, `Session expired`, or `Unavailable`.
 
 Out of scope:
 
@@ -257,7 +260,7 @@ Settings detail grammar:
 - Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.
 - Drive folder provisioning is automatic under `/AffiliateAI/`; Workspace settings must not expose manual Drive root URL/path/ref setup.
 - Drive primary route: hierarchical Grid/List browser rooted at the active Affiliate Account workspace folder, with mobile bottom-sheet preview and desktop right-side drawer preview.
-- Account: Chrome pairing, App API Token, and sign out.
+- Account: Chrome pairing labels, App API Token, and sign out.
 - Flow Accounts are controller-owned execution tools for Phase 2 and must not become a separate Settings CRUD surface.
 
 ## Deployment
