@@ -2,16 +2,24 @@
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
-import { buildClipJobDraft, buildPromptContextSummary, materializeFlowBatchClipJobs } from "@/lib/server/controller";
+import {
+  buildClipJobDraft,
+  buildFlowAssignmentPlan,
+  CONTROLLER_BATCH_SELECTION_HARD_CAP,
+  buildPromptContextSummary,
+  materializeFlowBatchClipJobs,
+} from "@/lib/server/controller";
 import { createContent, archiveContent, updateContent } from "@/lib/server/contents";
 import { createFlowAccount, archiveFlowAccount, getFlowAccountPool, updateFlowAccount } from "@/lib/server/flow-accounts";
-import { archiveFlowBatch, buildFlowBatchCode, createFlowBatch, updateFlowBatch } from "@/lib/server/flow-batches";
+import { archiveFlowBatch, buildFlowBatchCode, createFlowBatch, listFlowBatches, updateFlowBatch } from "@/lib/server/flow-batches";
 import { exportFlowBatchManifest } from "@/lib/server/flow-manifests";
 import { archiveClipJob, createClipJob, markGeneratedFileImported, updateClipJob, updateGeneratedFile } from "@/lib/server/clip-jobs";
 import { createGeneratedFile } from "@/lib/server/clip-jobs";
 import { getContentById } from "@/lib/server/contents";
 import { getFlowBatchById } from "@/lib/server/flow-batches";
-import { getPromptPackById, markPromptPackReadyForFlow } from "@/lib/server/prompt-packs";
+import { getPromptPackById, listPromptPacks, markPromptPackReadyForFlow } from "@/lib/server/prompt-packs";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -31,8 +39,23 @@ function readOptionalNullableText(formData: FormData, key: string) {
   return formData.has(key) ? readNullableText(formData, key) : undefined;
 }
 
+function readMultiText(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+}
+
+function todayInJakarta() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+}
+
 function done(message: string): never {
   redirect(`/controller?message=${encodeURIComponent(message)}`);
+}
+
+function warn(message: string): never {
+  redirect(`/controller?warning=${encodeURIComponent(message)}`);
 }
 
 function fail(message: string): never {
@@ -57,6 +80,28 @@ function readOptionalNumber(formData: FormData, key: string) {
   return formData.has(key) ? readNumber(formData, key) : undefined;
 }
 
+function summarizeSkippedReasons(reasons: string[]) {
+  const reasonCounts = new Map<string, number>();
+
+  for (const reason of reasons) {
+    reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+  }
+
+  return Array.from(reasonCounts.entries())
+    .slice(0, 3)
+    .map(([reason, count]) => (count > 1 ? `${count}x ${reason}` : reason))
+    .join("; ");
+}
+
+function summarizeBatchCreationResult(createdCount: number, skippedReasons: string[]) {
+  const skippedCount = skippedReasons.length;
+  const summary = createdCount > 0 ? `${createdCount} batch dibuat` : "0 batch dibuat";
+  const skippedSummary = skippedCount > 0 ? `, ${skippedCount} dilewati` : "";
+  const reasonSummary = skippedCount > 0 ? `: ${summarizeSkippedReasons(skippedReasons)}` : "";
+
+  return skippedCount > 0 ? `${summary}${skippedSummary}${reasonSummary}` : `${summary}.`;
+}
+
 export async function saveController(formData: FormData) {
   const intent = readText(formData, "intent");
   const id = readText(formData, "id");
@@ -65,6 +110,7 @@ export async function saveController(formData: FormData) {
     if (intent === "create_flow_account") {
       await createFlowAccount({
         account_type: readText(formData, "account_type"),
+        chrome_profile_lane_key: readNullableText(formData, "chrome_profile_lane_key"),
         observed_daily_credit: readNumber(formData, "observed_daily_credit"),
         observed_monthly_credit: readNumber(formData, "observed_monthly_credit"),
         credit_per_generation: readNumber(formData, "credit_per_generation"),
@@ -82,6 +128,7 @@ export async function saveController(formData: FormData) {
 
       await updateFlowAccount(id, {
         account_type: readOptionalText(formData, "account_type"),
+        chrome_profile_lane_key: readNullableText(formData, "chrome_profile_lane_key"),
         observed_daily_credit: readNumber(formData, "observed_daily_credit"),
         observed_monthly_credit: readNumber(formData, "observed_monthly_credit"),
         credit_per_generation: readNumber(formData, "credit_per_generation"),
@@ -105,30 +152,36 @@ export async function saveController(formData: FormData) {
       const flowAccountId = readText(formData, "flow_account_id");
       const confirmed = formData.get("confirm_flow_account") === "on";
       const promptPackId = readNullableText(formData, "prompt_pack_id");
-      const promptPack = promptPackId ? await getPromptPackById(promptPackId) : null;
       const targetDate = readNullableText(formData, "target_date");
-      const flowAccountPool = await getFlowAccountPool({ targetDate });
-      const selectedAccount = flowAccountPool.find((account) => account.id === flowAccountId) ?? null;
+
+      if (!promptPackId) {
+        throw new Error("Prompt pack wajib dipilih.");
+      }
+
+      const promptPack = await getPromptPackById(promptPackId);
+      if (!flowAccountId) {
+        throw new Error("Akun Flow wajib dipilih.");
+      }
 
       if (!confirmed) {
         throw new Error("Konfirmasi akun Flow diperlukan.");
       }
 
-      if (!flowAccountId) {
-        throw new Error("Flow account is required.");
-      }
+      const flowAccountPool = await getFlowAccountPool({ targetDate });
+      const selectedAccount = flowAccountPool.find((account) => account.id === flowAccountId) ?? null;
 
+      // Lane key labels are stored on the account; helper verification remains a separate runtime step.
       if (!selectedAccount || !selectedAccount.is_available) {
-        throw new Error("Selected Flow account is unavailable.");
+        throw new Error("Akun Flow tidak tersedia.");
       }
 
       const batch = await createFlowBatch({
         workspace_id: readNullableText(formData, "workspace_id"),
-        product_id: readNullableText(formData, "product_id") ?? (promptPack ? promptPack.product_id : null),
+        product_id: readNullableText(formData, "product_id") ?? promptPack.product_id,
         prompt_pack_id: promptPackId,
         flow_account_id: flowAccountId,
         batch_code: buildFlowBatchCode({
-          promptPackCode: promptPack?.prompt_code ?? "FLOW",
+          promptPackCode: promptPack.prompt_code,
           accountCode: selectedAccount.account_code,
           targetDate: targetDate ?? undefined,
         }),
@@ -143,6 +196,89 @@ export async function saveController(formData: FormData) {
       });
       await materializeFlowBatchClipJobs(batch.id);
       done("Flow batch created.");
+    }
+
+    if (intent === "create_flow_batch_many") {
+      const currentWorkspace = await getCurrentWorkspace();
+      const targetDate = readNullableText(formData, "target_date") ?? todayInJakarta();
+      const selectedPromptPackIds = Array.from(new Set(readMultiText(formData, "prompt_pack_ids")));
+
+      if (!currentWorkspace) {
+        throw new Error("Choose an active workspace.");
+      }
+
+      if (!selectedPromptPackIds.length) {
+        throw new Error("Prompt pack wajib dipilih.");
+      }
+
+      if (selectedPromptPackIds.length > CONTROLLER_BATCH_SELECTION_HARD_CAP) {
+        throw new Error(`Maksimal ${CONTROLLER_BATCH_SELECTION_HARD_CAP} prompt pack.`);
+      }
+
+      const activePromptPacks = (await listPromptPacks({
+        workspaceId: currentWorkspace.id,
+        status: PROMPT_READY_FOR_FLOW_STATUS,
+        limit: 200,
+      })) as Parameters<typeof buildFlowAssignmentPlan>[0]["promptPacks"];
+      const selectedPromptPackIdSet = new Set(selectedPromptPackIds);
+      const selectedPromptPacks = activePromptPacks.filter((promptPack) => selectedPromptPackIdSet.has(promptPack.id));
+
+      if (selectedPromptPacks.length !== selectedPromptPackIds.length) {
+        throw new Error("Prompt pack tidak aktif.");
+      }
+
+      const flowAccountPool = await getFlowAccountPool({ targetDate });
+      const openPromptPackBatchIds = new Set(
+        (await listFlowBatches({ workspaceId: currentWorkspace.id, limit: 200 }))
+          .filter((batch) => batch.prompt_pack_id && batch.status !== "CLOSED")
+          .map((batch) => batch.prompt_pack_id as string),
+      );
+      const assignmentPlan = buildFlowAssignmentPlan({
+        promptPacks: selectedPromptPacks,
+        accounts: flowAccountPool,
+        existingPromptPackIds: openPromptPackBatchIds,
+      });
+      const skippedReasons = assignmentPlan.filter((item) => item.status === "SKIPPED").map((item) => item.reason);
+      const createdBatchIds: string[] = [];
+
+      for (const planItem of assignmentPlan) {
+        if (planItem.status !== "READY") {
+          continue;
+        }
+
+        const promptPack = selectedPromptPacks.find((item) => item.id === planItem.promptPackId);
+
+        if (!promptPack) {
+          throw new Error("Prompt pack tidak aktif.");
+        }
+
+        const batch = await createFlowBatch({
+          workspace_id: currentWorkspace.id,
+          product_id: promptPack.product_id,
+          prompt_pack_id: promptPack.id,
+          flow_account_id: planItem.recommendedAccountId,
+          batch_code: buildFlowBatchCode({
+            promptPackCode: planItem.promptPackCode,
+            accountCode: planItem.recommendedAccountCode,
+            targetDate,
+          }),
+          target_date: targetDate,
+          model: "google-flow",
+          max_jobs: planItem.recommendedMaxJobs,
+          status: "READY_TO_EXPORT",
+        });
+
+        await materializeFlowBatchClipJobs(batch.id);
+        createdBatchIds.push(batch.id);
+      }
+
+      const summary = summarizeBatchCreationResult(createdBatchIds.length, skippedReasons);
+
+      if (skippedReasons.length > 0) {
+        warn(summary);
+      }
+
+      done(summary);
     }
 
     if (intent === "mark_prompt_ready") {

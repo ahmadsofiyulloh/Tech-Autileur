@@ -6,11 +6,12 @@ import { getProductById, listProducts } from "@/lib/server/products";
 import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import { PROMPT_CLIP_KEYS } from "@/lib/prompts/validation";
-import { listDriveItems } from "@/lib/server/drive-items";
+import { listDriveItemsByIds } from "@/lib/server/drive-items";
 import { createContent, listContents, updateContent, type ContentRecord } from "@/lib/server/contents";
 import {
   getFlowBatchById,
   listFlowBatches,
+  assertFlowBatchPromptPackReady,
   type FlowBatchRecord,
 } from "@/lib/server/flow-batches";
 import {
@@ -19,10 +20,14 @@ import {
   type FlowAccountPoolRecord,
   estimateRecommendedMaxJobs,
 } from "@/lib/server/flow-accounts";
-import { createClipJob, listClipJobs, listGeneratedFiles, type ClipJobRecord, type GeneratedFileRecord } from "@/lib/server/clip-jobs";
+import { createClipJob, listClipJobs, type ClipJobRecord, type GeneratedFileRecord } from "@/lib/server/clip-jobs";
 import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
 
 export const READY_CONTROLLER_PROMPT_PACK_STATUSES = [PROMPT_READY_FOR_FLOW_STATUS] as const;
+export const CONTROLLER_BATCH_SELECTION_DEFAULT_CAP = 25;
+export const CONTROLLER_BATCH_SELECTION_HARD_CAP = 50;
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+const CONTROLLER_RELATION_CHUNK_SIZE = 150;
 
 export type ControllerPromptPackRecord = {
   id: string;
@@ -290,6 +295,147 @@ function controllerClipCode(index: number) {
   return `CLIP${String(index).padStart(2, "0")}`;
 }
 
+function chunkValues<T>(values: readonly T[], size = CONTROLLER_RELATION_CHUNK_SIZE) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function uniqueTextValues(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
+async function loadWorkspaceContents(input: {
+  supabase: SupabaseServerClient;
+  userId: string;
+  productIds: string[];
+}) {
+  if (!input.productIds.length) {
+    return [] as ContentRecord[];
+  }
+
+  const rows: ContentRecord[] = [];
+
+  for (const productIds of chunkValues(input.productIds)) {
+    const { data, error } = await input.supabase
+      .from("contents")
+      .select("*")
+      .eq("user_id", input.userId)
+      .in("product_id", productIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...((data ?? []) as ContentRecord[]));
+  }
+
+  return rows.sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
+}
+
+async function loadWorkspaceClipJobs(input: {
+  supabase: SupabaseServerClient;
+  userId: string;
+  contentIds: string[];
+  batchIds: string[];
+}) {
+  const rowsById = new Map<string, ClipJobRecord>();
+
+  for (const contentIds of chunkValues(input.contentIds)) {
+    const { data, error } = await input.supabase
+      .from("clip_jobs")
+      .select("*")
+      .eq("user_id", input.userId)
+      .in("content_id", contentIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const clipJob of (data ?? []) as ClipJobRecord[]) {
+      rowsById.set(clipJob.id, clipJob);
+    }
+  }
+
+  for (const batchIds of chunkValues(input.batchIds)) {
+    const { data, error } = await input.supabase
+      .from("clip_jobs")
+      .select("*")
+      .eq("user_id", input.userId)
+      .in("batch_id", batchIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const clipJob of (data ?? []) as ClipJobRecord[]) {
+      rowsById.set(clipJob.id, clipJob);
+    }
+  }
+
+  return Array.from(rowsById.values()).sort(
+    (left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id),
+  );
+}
+
+async function loadWorkspaceGeneratedFiles(input: {
+  supabase: SupabaseServerClient;
+  userId: string;
+  clipJobIds: string[];
+}) {
+  if (!input.clipJobIds.length) {
+    return [] as GeneratedFileRecord[];
+  }
+
+  const rows: GeneratedFileRecord[] = [];
+
+  for (const clipJobIds of chunkValues(input.clipJobIds)) {
+    const { data, error } = await input.supabase
+      .from("generated_files")
+      .select("*")
+      .eq("user_id", input.userId)
+      .in("clip_job_id", clipJobIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...((data ?? []) as GeneratedFileRecord[]));
+  }
+
+  return rows.sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
+}
+
+async function loadWorkspaceDriveItems(ids: Array<string | null | undefined>) {
+  const driveItems = new Map<string, ControllerDriveItemRecord>();
+
+  for (const driveItemIds of chunkValues(uniqueTextValues(ids))) {
+    const batch = await listDriveItemsByIds(driveItemIds);
+
+    for (const driveItem of batch) {
+      driveItems.set(driveItem.id, driveItem as ControllerDriveItemRecord);
+    }
+  }
+
+  return Array.from(driveItems.values()).sort(
+    (left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id),
+  );
+}
+
 async function ensureControllerContentForPromptPack(input: {
   product: ControllerProductRecord;
   promptPack: ControllerPromptPackRecord;
@@ -369,6 +515,8 @@ export async function materializeFlowBatchClipJobs(batchId: string) {
   if (!promptPack) {
     throw new Error("Prompt pack batch tidak ditemukan.");
   }
+
+  assertFlowBatchPromptPackReady(promptPack);
 
   const content = await ensureControllerContentForPromptPack({ product, promptPack });
   const promptSet = readPromptPackEditorPromptSet(promptPack);
@@ -509,6 +657,27 @@ export function buildFlowAssignmentPlan(input: {
 }
 
 export async function getControllerDashboardState() {
+  const currentWorkspace = await getCurrentWorkspace();
+  const targetDate = todayInJakarta();
+  const flowAccountsPromise = getFlowAccountPool({ targetDate });
+
+  if (!currentWorkspace) {
+    const flowAccounts = await flowAccountsPromise;
+
+    return {
+      currentWorkspace: null,
+      products: [],
+      promptPacks: [],
+      readyPromptPacks: [],
+      flowAccounts,
+      flowBatches: [],
+      contents: [],
+      clipJobs: [],
+      generatedFiles: [],
+      driveItems: [],
+    } satisfies ControllerDashboardState;
+  }
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -518,23 +687,41 @@ export async function getControllerDashboardState() {
     throw new Error("Autentikasi diperlukan.");
   }
 
-  const targetDate = todayInJakarta();
-  const [currentWorkspace, products, promptPacks, flowAccounts, flowBatches, contents, clipJobs, generatedFiles, driveItems] =
-    await Promise.all([
-      getCurrentWorkspace(),
-      listProducts({ limit: 200 }),
-      listPromptPacks({ limit: 200 }),
-      getFlowAccountPool({ targetDate }),
-      listFlowBatches({ limit: 200 }),
-      listContents({ limit: 200 }),
-      listClipJobs({ limit: 200 }),
-      listGeneratedFiles({ limit: 200 }),
-      listDriveItems({ limit: 200 }),
-    ]);
+  const [products, promptPacks, flowBatches, flowAccounts] = await Promise.all([
+    listProducts({ workspaceId: currentWorkspace.id, limit: 200 }),
+    listPromptPacks({ workspaceId: currentWorkspace.id, limit: 200 }),
+    listFlowBatches({ workspaceId: currentWorkspace.id, limit: 200 }),
+    flowAccountsPromise,
+  ]);
+
+  const workspaceProducts = products as ControllerProductRecord[];
+  const workspaceProductIds = workspaceProducts.map((product) => product.id);
+  const contents = await loadWorkspaceContents({
+    supabase,
+    userId: user.id,
+    productIds: workspaceProductIds,
+  });
+  const workspaceContentIds = contents.map((content) => content.id);
+  const workspaceBatchIds = flowBatches.map((batch) => batch.id);
+  const clipJobs = await loadWorkspaceClipJobs({
+    supabase,
+    userId: user.id,
+    contentIds: workspaceContentIds,
+    batchIds: workspaceBatchIds,
+  });
+  const generatedFiles = await loadWorkspaceGeneratedFiles({
+    supabase,
+    userId: user.id,
+    clipJobIds: clipJobs.map((clipJob) => clipJob.id),
+  });
+  const driveItems = await loadWorkspaceDriveItems([
+    ...clipJobs.flatMap((clipJob) => [clipJob.start_frame_drive_item_id, clipJob.last_frame_drive_item_id, clipJob.generated_drive_item_id]),
+    ...generatedFiles.map((file) => file.drive_item_id),
+  ]);
 
   return {
     currentWorkspace,
-    products: products as ControllerProductRecord[],
+    products: workspaceProducts,
     promptPacks: promptPacks as ControllerPromptPackRecord[],
     readyPromptPacks: filterReadyPromptPacks(promptPacks as ControllerPromptPackRecord[]),
     flowAccounts,
@@ -542,6 +729,6 @@ export async function getControllerDashboardState() {
     contents,
     clipJobs,
     generatedFiles,
-    driveItems: driveItems as ControllerDriveItemRecord[],
+    driveItems,
   } satisfies ControllerDashboardState;
 }

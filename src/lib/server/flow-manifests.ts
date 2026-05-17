@@ -3,6 +3,7 @@ import "server-only";
 import {
   FLOW_MANIFEST_SCHEMA_VERSION,
   buildFlowStageManifestJobs,
+  isFlowManifestStage,
   type FlowStageManifestJob,
 } from "@/lib/flow/stage-manifest";
 import { PROMPT_CLIP_KEYS } from "@/lib/prompts/validation";
@@ -10,7 +11,7 @@ import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contrac
 import { listClipJobs, type ClipJobRecord } from "@/lib/server/clip-jobs";
 import { listContents, type ContentRecord } from "@/lib/server/contents";
 import { listDriveItems, writeGeneratedDriveFile, type DriveItemRecord } from "@/lib/server/drive-items";
-import { getFlowAccountById } from "@/lib/server/flow-accounts";
+import { getFlowAccountById, normalizeChromeProfileLaneKey, readChromeProfileLaneKey } from "@/lib/server/flow-accounts";
 import { getFlowBatchById, updateFlowBatch, type FlowBatchRecord } from "@/lib/server/flow-batches";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";
@@ -74,7 +75,227 @@ function readManifestLaneKey(value: unknown) {
 
   const laneKey = value.chrome_profile_lane_key;
 
-  return typeof laneKey === "string" && laneKey.trim() ? laneKey.trim() : null;
+  return typeof laneKey === "string" ? normalizeChromeProfileLaneKey(laneKey) : null;
+}
+
+const SAFE_MANIFEST_FILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+const REQUIRED_STAGE_INPUT_HANDLES = {
+  FIRST_FRAME: ["@character", "@environment", "@product"],
+  LAST_FRAME: ["@firstframe"],
+  VIDEO: ["@firstframe", "@lastframe"],
+} as const satisfies Record<FlowStageManifestJob["stage"], readonly string[]>;
+
+function sameTextArray(left: readonly string[], right: readonly string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function normalizeTextArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const normalized = value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean);
+
+  return normalized.length === value.length ? normalized : null;
+}
+
+function isSafeManifestFileName(value: string) {
+  const trimmed = readText(value);
+
+  return Boolean(trimmed) && SAFE_MANIFEST_FILE_NAME_PATTERN.test(trimmed) && !trimmed.includes("..");
+}
+
+function validateManifestFileName(value: string | null | undefined, label: string) {
+  const trimmed = readText(value);
+
+  if (!trimmed) {
+    throw new Error(`${label} wajib diisi.`);
+  }
+
+  if (!isSafeManifestFileName(trimmed)) {
+    throw new Error(`${label} tidak valid.`);
+  }
+
+  return trimmed;
+}
+
+function hasRequiredPromptContext(value: unknown) {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const product = value.product;
+  const affiliateProfile = value.affiliate_profile ?? value.affiliateProfile;
+  const referenceCards = value.reference_cards;
+
+  return isRecord(product) && isRecord(affiliateProfile) && Array.isArray(referenceCards) && referenceCards.length > 0;
+}
+
+function validateStageJobGroup(clipCode: string, stageJobs: FlowStageManifestJob[]) {
+  const jobsByStage = new Map<FlowStageManifestJob["stage"], FlowStageManifestJob>();
+
+  for (const stageJob of stageJobs) {
+    if (!isRecord(stageJob)) {
+      throw new Error("Kontrak stage manifest belum valid.");
+    }
+
+    if (!isFlowManifestStage(stageJob.stage)) {
+      throw new Error("Kontrak stage manifest belum valid.");
+    }
+
+    if (jobsByStage.has(stageJob.stage)) {
+      throw new Error("Kontrak stage manifest belum lengkap.");
+    }
+
+    jobsByStage.set(stageJob.stage, stageJob);
+  }
+
+  const firstFrame = jobsByStage.get("FIRST_FRAME");
+  const lastFrame = jobsByStage.get("LAST_FRAME");
+  const video = jobsByStage.get("VIDEO");
+
+  if (!firstFrame || !lastFrame || !video) {
+    throw new Error("Kontrak stage manifest belum lengkap.");
+  }
+
+  const expectedFirstFrameHandles = REQUIRED_STAGE_INPUT_HANDLES.FIRST_FRAME;
+  const expectedLastFrameHandles = REQUIRED_STAGE_INPUT_HANDLES.LAST_FRAME;
+  const expectedVideoHandles = REQUIRED_STAGE_INPUT_HANDLES.VIDEO;
+
+  const firstFrameInputHandles = normalizeTextArray(firstFrame.input_handles);
+  const lastFrameInputHandles = normalizeTextArray(lastFrame.input_handles);
+  const videoInputHandles = normalizeTextArray(video.input_handles);
+  const firstFrameDependsOn = normalizeTextArray(firstFrame.depends_on_job_codes);
+  const lastFrameDependsOn = normalizeTextArray(lastFrame.depends_on_job_codes);
+  const videoDependsOn = normalizeTextArray(video.depends_on_job_codes);
+
+  if (!readText(firstFrame.job_code) || !readText(lastFrame.job_code) || !readText(video.job_code)) {
+    throw new Error("Kontrak stage manifest belum lengkap.");
+  }
+
+  if (!readText(firstFrame.content_code) || !readText(lastFrame.content_code) || !readText(video.content_code)) {
+    throw new Error("Kontrak stage manifest belum lengkap.");
+  }
+
+  if (!readText(firstFrame.version) || !readText(lastFrame.version) || !readText(video.version)) {
+    throw new Error("Kontrak stage manifest belum lengkap.");
+  }
+
+  if (!readText(firstFrame.prompt_prefix) || !readText(lastFrame.prompt_prefix) || !readText(video.prompt_prefix)) {
+    throw new Error("Kontrak stage manifest belum lengkap.");
+  }
+
+  if (readText(firstFrame.clip_code) !== clipCode) {
+    throw new Error("Kontrak stage manifest belum valid.");
+  }
+
+  if (readText(lastFrame.clip_code) !== clipCode || readText(video.clip_code) !== clipCode) {
+    throw new Error("Kontrak stage manifest belum valid.");
+  }
+
+  if (!readText(firstFrame.prompt_copy_text)) {
+    throw new Error("Teks prompt stage belum lengkap.");
+  }
+
+  if (!readText(lastFrame.prompt_copy_text)) {
+    throw new Error("Teks prompt stage belum lengkap.");
+  }
+
+  if (!readText(video.prompt_copy_text)) {
+    throw new Error("Teks prompt stage belum lengkap.");
+  }
+
+  validateManifestFileName(firstFrame.prompt_file_name, "Nama file prompt");
+  validateManifestFileName(lastFrame.prompt_file_name, "Nama file prompt");
+  validateManifestFileName(video.prompt_file_name, "Nama file prompt");
+  validateManifestFileName(firstFrame.output_file_name, "Nama file output");
+  validateManifestFileName(lastFrame.output_file_name, "Nama file output");
+  validateManifestFileName(video.output_file_name, "Nama file output");
+
+  if (!firstFrameInputHandles || !sameTextArray(firstFrameInputHandles, expectedFirstFrameHandles)) {
+    throw new Error("Kontrak FIRST_FRAME belum valid.");
+  }
+
+  if (!lastFrameInputHandles || !sameTextArray(lastFrameInputHandles, expectedLastFrameHandles)) {
+    throw new Error("Kontrak LAST_FRAME belum valid.");
+  }
+
+  if (!videoInputHandles || !sameTextArray(videoInputHandles, expectedVideoHandles)) {
+    throw new Error("Kontrak VIDEO belum valid.");
+  }
+
+  if (!firstFrameDependsOn || !sameTextArray(firstFrameDependsOn, [])) {
+    throw new Error("Kontrak FIRST_FRAME belum valid.");
+  }
+
+  if (!lastFrameDependsOn || !sameTextArray(lastFrameDependsOn, [firstFrame.job_code])) {
+    throw new Error("Kontrak LAST_FRAME belum valid.");
+  }
+
+  if (!videoDependsOn || !sameTextArray(videoDependsOn, [firstFrame.job_code, lastFrame.job_code])) {
+    throw new Error("Kontrak VIDEO belum valid.");
+  }
+
+  if (firstFrame.output_purpose !== "I2I_RESULT" || lastFrame.output_purpose !== "I2I_RESULT" || video.output_purpose !== "FINAL_VIDEO") {
+    throw new Error("Kontrak stage manifest belum valid.");
+  }
+}
+
+export function validateFlowBatchManifest(manifest: FlowBatchManifest) {
+  if (manifest.schema_version !== FLOW_MANIFEST_SCHEMA_VERSION) {
+    throw new Error("Versi manifest tidak didukung.");
+  }
+
+  if (!Array.isArray(manifest.jobs) || manifest.jobs.length === 0) {
+    throw new Error("Manifest belum punya jobs.");
+  }
+
+  if (!Array.isArray(manifest.stage_jobs) || manifest.stage_jobs.length === 0) {
+    throw new Error("Manifest belum punya stage jobs.");
+  }
+
+  if (!hasRequiredPromptContext(manifest.prompt_context)) {
+    throw new Error("Konteks prompt belum lengkap.");
+  }
+
+  if (manifest.chrome_profile_lane_key !== null) {
+    normalizeChromeProfileLaneKey(manifest.chrome_profile_lane_key);
+  }
+
+  for (const job of manifest.jobs) {
+    if (!isRecord(job) || !readText(job.job_code) || !readText(job.content_code) || !readText(job.clip_code) || !readText(job.version) || !readText(job.prompt_prefix) || !readText(job.prompt_one_paragraph)) {
+      throw new Error("Jobs manifest belum lengkap.");
+    }
+
+    validateManifestFileName(job.output_file_name, "Nama file output");
+  }
+
+  const stageJobsByClip = new Map<string, FlowStageManifestJob[]>();
+
+  for (const stageJob of manifest.stage_jobs) {
+    if (!isRecord(stageJob)) {
+      throw new Error("Kontrak stage manifest belum valid.");
+    }
+
+    const clipCode = readText(stageJob.clip_code);
+
+    if (!clipCode) {
+      throw new Error("Kontrak stage manifest belum valid.");
+    }
+
+    const clipJobs = stageJobsByClip.get(clipCode) ?? [];
+    clipJobs.push(stageJob);
+    stageJobsByClip.set(clipCode, clipJobs);
+  }
+
+  for (const [clipCode, clipStageJobs] of stageJobsByClip) {
+    validateStageJobGroup(clipCode, clipStageJobs);
+  }
 }
 
 function normalizeUrl(value: string | null | undefined, label: string, required: boolean) {
@@ -319,6 +540,10 @@ async function buildManifest(input: {
   const contentMap = new Map(contents.map((content) => [content.id, content]));
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
   const manifestClipJobs = [...clipJobs].sort(sortClipJobs).slice(0, PROMPT_CLIP_KEYS.length);
+  const chromeProfileLaneKey =
+    normalizeChromeProfileLaneKey(input.chromeProfileLaneKey) ??
+    readManifestLaneKey(input.batch.manifest_json) ??
+    readChromeProfileLaneKey(flowAccount.notes);
   const stageManifest = buildStageJobsFromPromptPack({
     batch: input.batch,
     productCode,
@@ -347,7 +572,7 @@ async function buildManifest(input: {
     model: input.batch.model,
     max_jobs: input.batch.max_jobs,
     flow_account_code: flowAccount.account_code,
-    chrome_profile_lane_key: input.chromeProfileLaneKey,
+    chrome_profile_lane_key: chromeProfileLaneKey,
     flow_url: input.flowUrl,
     drive_output_folder_id: input.driveOutputFolderId,
     drive_output_folder_url: input.driveOutputFolderUrl,
@@ -423,6 +648,8 @@ export async function exportFlowBatchManifest(batchId: string, input: ExportFlow
     helperOutputFolderKey,
     chromeProfileLaneKey,
   });
+
+  validateFlowBatchManifest(manifest);
 
   await persistManifestFileToDrive({
     batch,

@@ -2,9 +2,11 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getCurrentWorkspace, getWorkspaceById } from "@/lib/server/workspaces";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";
+import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
+import { PROMPT_CLIP_KEYS, PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
 
 export const FLOW_BATCH_STATUSES = [
   "DRAFT",
@@ -45,7 +47,7 @@ export type FlowBatchRecord = {
 type FlowBatchInput = {
   workspace_id?: string | null;
   product_id?: string | null;
-  prompt_pack_id?: string | null;
+  prompt_pack_id: string;
   batch_code?: string;
   flow_account_id: string;
   target_date?: string;
@@ -139,6 +141,108 @@ function normalizeBatchCode(value: string) {
   return trimmed.toUpperCase();
 }
 
+type FlowBatchPromptPackRecord = NonNullable<Awaited<ReturnType<typeof getPromptPackById>>>;
+type FlowBatchProductRecord = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
+type FlowAccountBatchRecord = Pick<FlowBatchRecord, "status" | "max_jobs" | "target_date" | "created_at" | "updated_at">;
+
+export function assertFlowBatchPromptPackReady(promptPack: FlowBatchPromptPackRecord) {
+  if (promptPack.status !== PROMPT_READY_FOR_FLOW_STATUS) {
+    throw new Error("Prompt pack belum siap Flow.");
+  }
+
+  let promptSet: ReturnType<typeof readPromptPackEditorPromptSet>;
+
+  try {
+    promptSet = readPromptPackEditorPromptSet(promptPack);
+  } catch {
+    throw new Error("Prompt pack belum lengkap.");
+  }
+
+  for (const clipKey of PROMPT_CLIP_KEYS) {
+    const clip = promptSet.clips[clipKey];
+
+    if (!readText(clip.i2i_first_frame) || !readText(clip.i2i_last_frame) || !readText(clip.i2v_prompt)) {
+      throw new Error("Prompt pack belum lengkap.");
+    }
+  }
+
+  if (!readText(promptSet.caption) || !readText(promptSet.tags)) {
+    throw new Error("Prompt pack belum lengkap.");
+  }
+}
+
+export function assertFlowBatchWorkspaceConstraints(input: {
+  currentWorkspace: { id: string } | null;
+  promptPack: Pick<FlowBatchPromptPackRecord, "product_id">;
+  product: Pick<FlowBatchProductRecord, "id" | "workspace_id">;
+  openBatchExists: boolean;
+}) {
+  if (!input.currentWorkspace) {
+    throw new Error("Choose an active workspace.");
+  }
+
+  if (input.promptPack.product_id !== input.product.id) {
+    throw new Error("Prompt pack must belong to the selected product.");
+  }
+
+  if (input.product.workspace_id !== input.currentWorkspace.id) {
+    throw new Error("Workspace tidak aktif.");
+  }
+
+  if (input.openBatchExists) {
+    throw new Error("Batch prompt pack sudah aktif.");
+  }
+}
+
+export function assertFlowAccountAvailableForBatchCreation(
+  account: Pick<
+    Awaited<ReturnType<typeof requireOwnedFlowAccount>>,
+    "status" | "observed_daily_credit" | "credit_per_generation" | "max_parallel_allowed" | "cooldown_minutes"
+  >,
+  batches: FlowAccountBatchRecord[],
+  targetDate: string,
+) {
+  const nowMs = Date.now();
+  let openBatchCount = 0;
+  let batchCreditLoad = 0;
+  let lastBatchAtMs: number | null = null;
+
+  for (const batch of batches) {
+    const batchUpdatedAtMs = Date.parse(batch.updated_at || batch.created_at);
+
+    if (OPEN_FLOW_BATCH_STATUSES.has(batch.status)) {
+      openBatchCount += 1;
+
+      if (batch.target_date === targetDate) {
+        batchCreditLoad += batch.max_jobs;
+      }
+    }
+
+    if (!Number.isNaN(batchUpdatedAtMs) && (lastBatchAtMs === null || batchUpdatedAtMs > lastBatchAtMs)) {
+      lastBatchAtMs = batchUpdatedAtMs;
+    }
+  }
+
+  const creditsUsed = batchCreditLoad * account.credit_per_generation;
+  const creditsRemaining = Math.max(account.observed_daily_credit - creditsUsed, 0);
+  const slotsRemaining = Math.max(account.max_parallel_allowed - openBatchCount, 0);
+  const cooldownUntilMs =
+    account.cooldown_minutes > 0 && lastBatchAtMs !== null ? lastBatchAtMs + account.cooldown_minutes * 60 * 1000 : null;
+  const cooldownRemainingMinutes = cooldownUntilMs && cooldownUntilMs > nowMs ? Math.ceil((cooldownUntilMs - nowMs) / 60000) : 0;
+
+  const eligibilityReasons = [
+    account.status !== "ACTIVE" ? `Status ${account.status}` : null,
+    creditsRemaining < account.credit_per_generation ? `Kredit tersisa ${creditsRemaining}/${account.credit_per_generation}` : null,
+    slotsRemaining <= 0 ? "Slot aktif penuh" : null,
+    cooldownRemainingMinutes > 0 ? `Cooldown ${cooldownRemainingMinutes} menit` : null,
+  ].filter((reason): reason is string => Boolean(reason));
+
+  // Lane labels are app-visible metadata only; helper verification stays separate for now.
+  if (eligibilityReasons.length > 0) {
+    throw new Error("Akun Flow tidak tersedia.");
+  }
+}
+
 async function requireUser() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -189,51 +293,82 @@ async function resolveBatchReferences(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   userId: string,
   input: FlowBatchInput,
+  currentWorkspace: Awaited<ReturnType<typeof getCurrentWorkspace>>,
 ) {
+  if (!currentWorkspace) {
+    throw new Error("Choose an active workspace.");
+  }
+
   const promptPackId = normalizeNullableText(input.prompt_pack_id);
   const productIdInput = normalizeNullableText(input.product_id);
-  const workspaceIdInput = normalizeNullableText(input.workspace_id);
 
-  const promptPack = promptPackId ? ((await getPromptPackById(promptPackId)) as { id: string; product_id: string; prompt_code: string }) : null;
-  const productId = productIdInput ?? promptPack?.product_id ?? null;
-  const product = productId ? await getProductById(productId) : null;
+  if (!promptPackId) {
+    throw new Error("Prompt pack wajib dipilih.");
+  }
 
-  if (productId && !product) {
+  const promptPack = await getPromptPackById(promptPackId);
+  assertFlowBatchPromptPackReady(promptPack);
+
+  const productId = productIdInput ?? promptPack.product_id;
+  const product = await getProductById(productId);
+
+  if (!product) {
     throw new Error("Product not found.");
   }
 
-  if (promptPack && product && promptPack.product_id !== product.id) {
+  if (promptPack.product_id !== product.id) {
     throw new Error("Prompt pack must belong to the selected product.");
   }
 
-  const currentWorkspace = await getCurrentWorkspace();
-  const workspaceId = workspaceIdInput ?? product?.workspace_id ?? currentWorkspace?.id ?? null;
+  const openBatchQuery = supabase
+    .from("flow_batches")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("prompt_pack_id", promptPack.id)
+    .in("status", Array.from(OPEN_FLOW_BATCH_STATUSES))
+    .limit(1);
 
-  if (workspaceId) {
-    const workspace = await getWorkspaceById(workspaceId);
+  const { data: openBatchData, error: openBatchError } = await openBatchQuery;
 
-    if (!workspace) {
-      throw new Error("Workspace not found.");
-    }
-
-    if (product?.workspace_id && product.workspace_id !== workspace.id) {
-      throw new Error("Product must belong to the selected workspace.");
-    }
+  if (openBatchError) {
+    throw new Error(openBatchError.message);
   }
+
+  assertFlowBatchWorkspaceConstraints({
+    currentWorkspace,
+    promptPack,
+    product,
+    openBatchExists: (openBatchData ?? []).length > 0,
+  });
 
   const flowAccountId = readText(input.flow_account_id);
   if (!flowAccountId) {
-    throw new Error("Flow account is required.");
+    throw new Error("Akun Flow wajib dipilih.");
   }
 
   const flowAccount = await requireOwnedFlowAccount(supabase, userId, flowAccountId);
+  const { data: flowAccountBatches, error: flowAccountBatchesError } = await supabase
+    .from("flow_batches")
+    .select("status, max_jobs, target_date, created_at, updated_at")
+    .eq("user_id", userId)
+    .eq("flow_account_id", flowAccount.id);
+
+  if (flowAccountBatchesError) {
+    throw new Error(flowAccountBatchesError.message);
+  }
+
+  assertFlowAccountAvailableForBatchCreation(
+    flowAccount,
+    (flowAccountBatches ?? []) as FlowAccountBatchRecord[],
+    normalizeDate(input.target_date),
+  );
 
   return {
-    workspace_id: workspaceId,
-    product_id: product?.id ?? null,
-    prompt_pack_id: promptPack?.id ?? null,
-    prompt_pack_code: promptPack?.prompt_code ?? null,
-    product_code: product?.product_code ?? null,
+    workspace_id: currentWorkspace.id,
+    product_id: product.id,
+    prompt_pack_id: promptPack.id,
+    prompt_pack_code: promptPack.prompt_code,
+    product_code: product.product_code,
     flow_account: flowAccount,
   };
 }
@@ -327,10 +462,17 @@ export async function getFlowBatchById(id: string) {
 
 export async function createFlowBatch(input: FlowBatchInput) {
   const { supabase, user } = await requireUser();
+  const currentWorkspace = await getCurrentWorkspace();
+
+  if (!currentWorkspace) {
+    throw new Error("Choose an active workspace.");
+  }
+
   const status = input.status ? (assertFlowBatchStatus(input.status), input.status) : "DRAFT";
   const maxJobs = Math.min(parsePositiveInt(input.max_jobs, "max_jobs", 5), 5);
   const targetDate = normalizeDate(input.target_date);
-  const resolved = await resolveBatchReferences(supabase, user.id, input);
+
+  const resolved = await resolveBatchReferences(supabase, user.id, input, currentWorkspace);
   const batchCode = normalizeBatchCode(input.batch_code ?? buildFlowBatchCode({
     promptPackCode: resolved.prompt_pack_code,
     accountCode: resolved.flow_account.account_code,

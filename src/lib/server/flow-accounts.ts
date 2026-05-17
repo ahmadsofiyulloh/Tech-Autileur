@@ -41,6 +41,7 @@ export type FlowAccountPoolRecord = FlowAccountRecord & {
 type FlowAccountInput = {
   account_code?: string | null;
   account_type: FlowAccountType | string;
+  chrome_profile_lane_key?: string | null;
   observed_daily_credit?: number | string | null;
   observed_monthly_credit?: number | string | null;
   credit_per_generation?: number | string | null;
@@ -51,6 +52,8 @@ type FlowAccountInput = {
 };
 
 type FlowAccountUpdateInput = Partial<FlowAccountInput>;
+
+const SAFE_CHROME_PROFILE_LANE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 const OPEN_BATCH_STATUSES = new Set<FlowBatchStatus>([
   "DRAFT",
@@ -69,6 +72,47 @@ function readText(value: string | null | undefined) {
 function normalizeNullableText(value: string | null | undefined) {
   const trimmed = readText(value);
   return trimmed.length > 0 ? trimmed : null;
+}
+
+export function isSafeChromeProfileLaneKey(value: string) {
+  return SAFE_CHROME_PROFILE_LANE_KEY_PATTERN.test(value) && !value.includes("..");
+}
+
+export function normalizeChromeProfileLaneKey(value: string | null | undefined) {
+  const trimmed = readText(value);
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!isSafeChromeProfileLaneKey(trimmed)) {
+    throw new Error("Lane key tidak valid.");
+  }
+
+  return trimmed;
+}
+
+export function readChromeProfileLaneKey(value: string | null | undefined) {
+  const trimmed = readText(value);
+
+  if (!trimmed || !isSafeChromeProfileLaneKey(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+// Flow accounts do not have a dedicated lane column yet; keep the safe label in the existing metadata field.
+function resolveStoredLaneKey(input: { chrome_profile_lane_key?: string | null; notes?: string | null }) {
+  if (input.chrome_profile_lane_key !== undefined) {
+    return normalizeChromeProfileLaneKey(input.chrome_profile_lane_key);
+  }
+
+  if (input.notes !== undefined) {
+    return normalizeChromeProfileLaneKey(input.notes);
+  }
+
+  return undefined;
 }
 
 function parseIntField(value: number | string | null | undefined, fieldName: string, fallback: number) {
@@ -190,6 +234,7 @@ export function buildFlowAccountCode(value?: string | null) {
 export async function createFlowAccount(input: FlowAccountInput) {
   const { supabase, user } = await requireUser();
   const accountType = readText(input.account_type).toUpperCase();
+  const laneKey = resolveStoredLaneKey(input);
 
   assertAccountType(accountType);
 
@@ -211,7 +256,7 @@ export async function createFlowAccount(input: FlowAccountInput) {
       max_parallel_allowed: Math.max(parseIntField(input.max_parallel_allowed, "max_parallel_allowed", 1), 1),
       cooldown_minutes: parseIntField(input.cooldown_minutes, "cooldown_minutes", 0),
       status,
-      notes: normalizeNullableText(input.notes),
+      notes: laneKey ?? normalizeNullableText(input.notes),
     })
     .select("*")
     .single();
@@ -228,6 +273,7 @@ export async function updateFlowAccount(id: string, input: FlowAccountUpdateInpu
   const { supabase, user } = await requireUser();
   const current = await requireOwnedFlowAccount(supabase, user.id, id);
   const patch: Partial<FlowAccountRecord> = {};
+  const laneKey = resolveStoredLaneKey(input);
 
   if (input.account_code !== undefined) {
     patch.account_code = buildFlowAccountCode(input.account_code);
@@ -268,7 +314,9 @@ export async function updateFlowAccount(id: string, input: FlowAccountUpdateInpu
   }
 
   if (input.notes !== undefined) {
-    patch.notes = normalizeNullableText(input.notes);
+    patch.notes = laneKey ?? normalizeNullableText(input.notes);
+  } else if (laneKey !== undefined) {
+    patch.notes = laneKey;
   }
 
   if (!Object.keys(patch).length) {
