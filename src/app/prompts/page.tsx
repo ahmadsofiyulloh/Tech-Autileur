@@ -357,6 +357,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
   if (selectedProductId && !visiblePromptReadinessRows.some((row) => row.product.id === selectedProductId)) {
     const selectedRows = await listPromptReadinessProjections({
+      affiliateProfileContext: {
+        defaultAffiliateProfile: currentAffiliateProfile,
+        affiliateProfiles,
+      },
       workspaceId,
       productIds: [selectedProductId],
       limit: 1,

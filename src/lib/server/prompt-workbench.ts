@@ -1,15 +1,19 @@
 import "server-only";
 
-import { listPromptReadinessProjections, type PromptReadinessProjectionRow } from "@/lib/server/prompt-readiness";
+import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
+import {
+  listPromptReadinessProjections,
+  type PromptReadinessProjectionContext,
+  type PromptReadinessProjectionRow,
+} from "@/lib/server/prompt-readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PROMPT_WORKBENCH_PAGE_SIZE,
-  countPromptWorkbenchRows,
-  filterPromptWorkbenchRows,
   normalizePromptWorkbenchSearch,
   type PromptWorkbenchReadinessCounts,
   type PromptWorkbenchReadinessFilter,
 } from "@/lib/prompts/prompt-workbench";
+import { createPromptWorkbenchPageCollector } from "@/lib/prompts/prompt-workbench-collector";
 
 export type PromptWorkbenchPageInput = {
   workspaceId?: string | null;
@@ -60,13 +64,12 @@ function chunkValues<T>(values: readonly T[], size: number) {
   return chunks;
 }
 
-async function loadPromptWorkbenchProductIds(input: {
+async function* loadPromptWorkbenchProductIdBatches(input: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   userId: string;
   workspaceId?: string | null;
   search: string;
 }) {
-  const productIds: string[] = [];
   let from = 0;
 
   while (true) {
@@ -95,7 +98,11 @@ async function loadPromptWorkbenchProductIds(input: {
     }
 
     const batch = (data ?? []).map((row) => row.id as string);
-    productIds.push(...batch);
+    if (!batch.length) {
+      break;
+    }
+
+    yield batch;
 
     if (batch.length < PROMPT_WORKBENCH_PRODUCT_ID_BATCH_SIZE) {
       break;
@@ -103,8 +110,45 @@ async function loadPromptWorkbenchProductIds(input: {
 
     from += PROMPT_WORKBENCH_PRODUCT_ID_BATCH_SIZE;
   }
+}
 
-  return productIds;
+async function collectPromptWorkbenchPageRows(input: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  userId: string;
+  workspaceId?: string | null;
+  search: string;
+  page: number;
+  pageSize: number;
+  readiness: PromptWorkbenchReadinessFilter;
+  affiliateProfileContext: PromptReadinessProjectionContext;
+}) {
+  const collector = createPromptWorkbenchPageCollector<PromptReadinessProjectionRow>({
+    page: input.page,
+    pageSize: input.pageSize,
+    readiness: input.readiness,
+  });
+
+  for await (const productIdChunk of loadPromptWorkbenchProductIdBatches({
+    supabase: input.supabase,
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    search: input.search,
+  })) {
+    for (const productIdBatch of chunkValues(productIdChunk, PROMPT_WORKBENCH_PROJECTION_CHUNK_SIZE)) {
+      const rows = await listPromptReadinessProjections({
+        workspaceId: input.workspaceId,
+        productIds: productIdBatch,
+        limit: productIdBatch.length,
+        affiliateProfileContext: input.affiliateProfileContext,
+      });
+
+      const orderMap = new Map(productIdBatch.map((productId, index) => [productId, index]));
+      rows.sort((left, right) => (orderMap.get(left.product.id) ?? 0) - (orderMap.get(right.product.id) ?? 0));
+      collector.addBatch(rows);
+    }
+  }
+
+  return collector.finish();
 }
 
 export async function listPromptWorkbenchPage(input?: PromptWorkbenchPageInput): Promise<PromptWorkbenchPageResult> {
@@ -120,48 +164,49 @@ export async function listPromptWorkbenchPage(input?: PromptWorkbenchPageInput):
   const search = normalizePromptWorkbenchSearch(input?.search);
   const pageSize = clampPageSize(input?.pageSize);
   let page = normalizePage(input?.page);
-  const productIds = await loadPromptWorkbenchProductIds({
+  const [defaultAffiliateProfile, affiliateProfiles] = await Promise.all([
+    getDefaultAffiliateProfileForWorkspace(input?.workspaceId ?? null),
+    listAffiliateProfiles({ workspaceId: input?.workspaceId, status: "ACTIVE", limit: 200 }),
+  ]);
+  const affiliateProfileContext: PromptReadinessProjectionContext = {
+    defaultAffiliateProfile,
+    affiliateProfiles,
+  };
+  let scanResult = await collectPromptWorkbenchPageRows({
     supabase,
     userId: user.id,
     workspaceId: input?.workspaceId,
     search,
-  });
-  const orderMap = new Map(productIds.map((productId, index) => [productId, index]));
-  const projectedRows: PromptReadinessProjectionRow[] = [];
-
-  for (const productIdChunk of chunkValues(productIds, PROMPT_WORKBENCH_PROJECTION_CHUNK_SIZE)) {
-    const rows = await listPromptReadinessProjections({
-      workspaceId: input?.workspaceId,
-      productIds: productIdChunk,
-      limit: productIdChunk.length,
-    });
-
-    projectedRows.push(...rows);
-  }
-
-  projectedRows.sort((left, right) => (orderMap.get(left.product.id) ?? 0) - (orderMap.get(right.product.id) ?? 0));
-
-  const counts = countPromptWorkbenchRows(projectedRows);
-  const filteredRows = filterPromptWorkbenchRows(projectedRows, input?.readiness ?? "ALL");
-  const totalCount = filteredRows.length;
-  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
-
-  if (totalCount > 0 && page > totalPages) {
-    page = totalPages;
-  }
-
-  const from = (page - 1) * pageSize;
-  const rows = filteredRows.slice(from, from + pageSize);
-  const resolvedTotalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
-
-  return {
-    rows,
-    totalCount,
     page,
     pageSize,
-    totalPages: resolvedTotalPages,
+    readiness: input?.readiness ?? "ALL",
+    affiliateProfileContext,
+  });
+  let totalPages = Math.max(Math.ceil(scanResult.totalCount / pageSize), 1);
+
+  if (scanResult.totalCount > 0 && page > totalPages) {
+    page = totalPages;
+    scanResult = await collectPromptWorkbenchPageRows({
+      supabase,
+      userId: user.id,
+      workspaceId: input?.workspaceId,
+      search,
+      page,
+      pageSize,
+      readiness: input?.readiness ?? "ALL",
+      affiliateProfileContext,
+    });
+    totalPages = Math.max(Math.ceil(scanResult.totalCount / pageSize), 1);
+  }
+
+  return {
+    rows: scanResult.rows,
+    totalCount: scanResult.totalCount,
+    page,
+    pageSize,
+    totalPages,
     hasPreviousPage: page > 1,
-    hasNextPage: page < resolvedTotalPages,
-    counts,
+    hasNextPage: page < totalPages,
+    counts: scanResult.counts,
   };
 }

@@ -424,7 +424,7 @@ test("desktop prompt workbench can enqueue selected ready products", async ({ pa
 
 test("desktop prompt workbench paginates and searches server-side", async ({ page }) => {
   const state = await readSmokeBootstrapState();
-  const seededProducts = await seedPromptWorkbenchProducts(state, 30);
+  const seededProducts = await seedPromptWorkbenchProducts(state, 120);
 
   try {
     await cleanupPromptWorkbenchArtifacts(state);

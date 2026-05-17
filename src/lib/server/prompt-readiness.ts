@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { AffiliateProfilePromptReadinessInput } from "@/lib/affiliate-profiles/readiness";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { getPromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
@@ -91,6 +92,15 @@ type AiTaskReadinessRow = PromptReadinessAiTaskInput & {
   updated_at: string;
 };
 
+type AffiliateProfileReadinessRow = AffiliateProfilePromptReadinessInput & {
+  id: string;
+};
+
+export type PromptReadinessProjectionContext = {
+  defaultAffiliateProfile?: AffiliateProfileReadinessRow | null;
+  affiliateProfiles?: readonly AffiliateProfileReadinessRow[] | null;
+};
+
 export type PromptReadinessProjectionRow = PromptReadinessProjection & {
   product: ProductReadinessRow;
   sourceImage: SourceImageReadinessRow | null;
@@ -104,6 +114,7 @@ export type ListPromptReadinessProjectionsInput = {
   workspaceId?: string | null;
   productIds?: readonly string[];
   limit?: number;
+  affiliateProfileContext?: PromptReadinessProjectionContext;
 };
 
 function clampLimit(value: number | undefined) {
@@ -180,6 +191,30 @@ function selectAffiliateProfileId(promptPack: PromptPackReadinessRow | null, def
   return promptPack?.affiliate_profile_id ?? defaultAffiliateProfileId;
 }
 
+async function loadPromptReadinessAffiliateProfileContext(input: {
+  workspaceId: string | null;
+  context?: PromptReadinessProjectionContext;
+}) {
+  const defaultAffiliateProfilePromise =
+    input.context?.defaultAffiliateProfile !== undefined
+      ? Promise.resolve(input.context.defaultAffiliateProfile)
+      : getDefaultAffiliateProfileForWorkspace(input.workspaceId ?? null);
+  const affiliateProfilesPromise =
+    input.context?.affiliateProfiles !== undefined
+      ? Promise.resolve(input.context.affiliateProfiles ?? [])
+      : listAffiliateProfiles({ workspaceId: input.workspaceId, status: "ACTIVE", limit: 200 });
+
+  const [defaultAffiliateProfile, affiliateProfiles] = await Promise.all([
+    defaultAffiliateProfilePromise,
+    affiliateProfilesPromise,
+  ]);
+
+  return {
+    defaultAffiliateProfile,
+    affiliateProfiles,
+  };
+}
+
 export async function listPromptReadinessProjections(
   input?: ListPromptReadinessProjectionsInput,
 ): Promise<PromptReadinessProjectionRow[]> {
@@ -230,41 +265,43 @@ export async function listPromptReadinessProjections(
     return [];
   }
 
-  const [imageResult, marketplaceResult, intakeResult, promptPackResult, defaultAffiliateProfile, affiliateProfiles] =
-    await Promise.all([
-      supabase
-        .from("product_images")
-        .select("id, user_id, product_id, drive_item_ref_id, source_type, is_primary, status, created_at, updated_at")
-        .eq("user_id", user.id)
-        .in("product_id", productIds)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("product_marketplace_sources")
-        .select(
-          "id, user_id, workspace_id, product_id, platform, screenshot_drive_item_ref_id, parsed_metadata_json, status, created_at, updated_at",
-        )
-        .eq("user_id", user.id)
-        .in("product_id", productIds)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("product_intake_sessions")
-        .select(
-          "id, user_id, workspace_id, product_id, product_photo_drive_item_ref_id, screenshot_drive_item_ref_id, parsed_metadata_json, reviewed_metadata_json, status, created_at, updated_at",
-        )
-        .eq("user_id", user.id)
-        .in("product_id", productIds)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("prompt_packs")
-        .select(
-          "id, user_id, product_id, intake_session_id, affiliate_profile_id, source_product_image_id, prompt_code, version, status, ai_task_id, error_message, created_at, updated_at",
-        )
-        .eq("user_id", user.id)
-        .in("product_id", productIds)
-        .order("created_at", { ascending: false }),
-      getDefaultAffiliateProfileForWorkspace(workspaceId ?? null),
-      listAffiliateProfiles({ workspaceId, status: "ACTIVE", limit: 200 }),
-    ]);
+  const { defaultAffiliateProfile, affiliateProfiles } = await loadPromptReadinessAffiliateProfileContext({
+    workspaceId,
+    context: input?.affiliateProfileContext,
+  });
+
+  const [imageResult, marketplaceResult, intakeResult, promptPackResult] = await Promise.all([
+    supabase
+      .from("product_images")
+      .select("id, user_id, product_id, drive_item_ref_id, source_type, is_primary, status, created_at, updated_at")
+      .eq("user_id", user.id)
+      .in("product_id", productIds)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("product_marketplace_sources")
+      .select(
+        "id, user_id, workspace_id, product_id, platform, screenshot_drive_item_ref_id, parsed_metadata_json, status, created_at, updated_at",
+      )
+      .eq("user_id", user.id)
+      .in("product_id", productIds)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("product_intake_sessions")
+      .select(
+        "id, user_id, workspace_id, product_id, product_photo_drive_item_ref_id, screenshot_drive_item_ref_id, parsed_metadata_json, reviewed_metadata_json, status, created_at, updated_at",
+      )
+      .eq("user_id", user.id)
+      .in("product_id", productIds)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("prompt_packs")
+      .select(
+        "id, user_id, product_id, intake_session_id, affiliate_profile_id, source_product_image_id, prompt_code, version, status, ai_task_id, error_message, created_at, updated_at",
+      )
+      .eq("user_id", user.id)
+      .in("product_id", productIds)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (imageResult.error) {
     throw new Error(imageResult.error.message);
