@@ -1,4 +1,7 @@
 import { createProductBulkImportJob, runProductBulkImportJob } from "@/lib/server/product-bulk-import";
+import { apiAuthenticationErrorResponse, requireApiUser } from "@/lib/server/api-auth";
+import { fail, ok } from "@/lib/server/api-response";
+import { toSafeErrorMessage } from "@/lib/server/safe-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,19 +18,25 @@ function readBulkFile(formData: FormData) {
 
 export async function POST(request: Request) {
   try {
+    await requireApiUser();
+
     const formData = await request.formData();
     const job = await createProductBulkImportJob(readBulkFile(formData));
     const snapshot = await runProductBulkImportJob(job.job.id);
 
-    return Response.json(snapshot.result);
+    return ok(snapshot.result);
   } catch (error) {
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Bulk import gagal.",
-      },
-      {
-        status: 400,
-      },
+    const authResponse = apiAuthenticationErrorResponse(error);
+    if (authResponse) {
+      return authResponse;
+    }
+
+    return fail(
+      toSafeErrorMessage(error, {
+        context: "api.products.bulk-import",
+        fallbackMessage: "Bulk import gagal.",
+      }),
+      400,
     );
   }
 }

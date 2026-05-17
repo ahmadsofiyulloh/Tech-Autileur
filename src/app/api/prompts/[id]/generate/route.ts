@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { NextRequest } from "next/server";
+import { apiAuthenticationErrorResponse, requireApiUser } from "@/lib/server/api-auth";
+import { fail, ok } from "@/lib/server/api-response";
 import { runMockPromptPackTask, runRealPromptPackTask } from "@/lib/server/prompt-packs";
+import { toSafeErrorMessage } from "@/lib/server/safe-error";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +25,7 @@ function isRunnableStatus(status: string) {
 export async function POST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-    }
+    const { supabase, user } = await requireApiUser();
 
     const { data: promptPack, error: promptPackError } = await supabase
       .from("prompt_packs")
@@ -40,15 +35,21 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
       .maybeSingle();
 
     if (promptPackError) {
-      return NextResponse.json({ error: promptPackError.message }, { status: 400 });
+      return fail(
+        toSafeErrorMessage(promptPackError, {
+          context: "api.prompts.generate.prompt-pack",
+          fallbackMessage: "Prompt pack generation failed.",
+        }),
+        400,
+      );
     }
 
     if (!promptPack) {
-      return NextResponse.json({ error: "Prompt pack not found." }, { status: 404 });
+      return fail("Prompt pack not found.", 404);
     }
 
     if (!promptPack.ai_task_id) {
-      return NextResponse.json({ error: "Prompt generation task not ready." }, { status: 409 });
+      return fail("Prompt generation task not ready.", 409);
     }
 
     const { data: task, error: taskError } = await supabase
@@ -59,25 +60,31 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
       .maybeSingle();
 
     if (taskError) {
-      return NextResponse.json({ error: taskError.message }, { status: 400 });
+      return fail(
+        toSafeErrorMessage(taskError, {
+          context: "api.prompts.generate.task",
+          fallbackMessage: "Prompt pack generation failed.",
+        }),
+        400,
+      );
     }
 
     if (!task) {
-      return NextResponse.json({ error: "Prompt generation task not found." }, { status: 404 });
+      return fail("Prompt generation task not found.", 404);
     }
 
     const typedTask = task as PromptPackTaskRecord;
 
     if (typedTask.status === "SUCCESS") {
-      return NextResponse.json({ status: typedTask.status, started: false }, { status: 200 });
+      return ok({ status: typedTask.status, started: false }, 200);
     }
 
     if (typedTask.status === "RUNNING") {
-      return NextResponse.json({ status: typedTask.status, started: false }, { status: 202 });
+      return ok({ status: typedTask.status, started: false }, 202);
     }
 
     if (!isRunnableStatus(typedTask.status)) {
-      return NextResponse.json({ status: typedTask.status, started: false }, { status: 409 });
+      return fail("Prompt generation task not ready.", 409, "PROMPT_TASK_NOT_RUNNABLE");
     }
 
     const generationMode = readGenerationMode(typedTask.input_json);
@@ -86,19 +93,26 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
         ? await runMockPromptPackTask(id, typedTask.id)
         : await runRealPromptPackTask(id, typedTask.id);
 
-    return NextResponse.json(
+    return ok(
       {
         status: result.task.status,
         started: true,
         message: result.message,
         promptPackId: result.promptPack.id,
       },
-      { status: 200 },
+      200,
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Prompt pack generation failed.";
-    const status = message.includes("Authentication") ? 401 : 400;
+    const authResponse = apiAuthenticationErrorResponse(error);
+    if (authResponse) {
+      return authResponse;
+    }
 
-    return NextResponse.json({ error: message }, { status });
+    const message = toSafeErrorMessage(error, {
+      context: "api.prompts.generate",
+      fallbackMessage: "Prompt pack generation failed.",
+    });
+
+    return fail(message, 400);
   }
 }

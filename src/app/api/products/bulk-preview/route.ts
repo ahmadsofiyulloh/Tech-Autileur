@@ -1,4 +1,7 @@
 import { previewProductBulkImport } from "@/lib/server/product-bulk-import";
+import { apiAuthenticationErrorResponse, requireApiUser } from "@/lib/server/api-auth";
+import { fail, ok } from "@/lib/server/api-response";
+import { toSafeErrorMessage } from "@/lib/server/safe-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,18 +18,24 @@ function readBulkFile(formData: FormData) {
 
 export async function POST(request: Request) {
   try {
+    await requireApiUser();
+
     const formData = await request.formData();
     const result = await previewProductBulkImport(readBulkFile(formData));
 
-    return Response.json(result);
+    return ok(result);
   } catch (error) {
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Preview bulk import gagal.",
-      },
-      {
-        status: 400,
-      },
+    const authResponse = apiAuthenticationErrorResponse(error);
+    if (authResponse) {
+      return authResponse;
+    }
+
+    return fail(
+      toSafeErrorMessage(error, {
+        context: "api.products.bulk-preview",
+        fallbackMessage: "Preview bulk import gagal.",
+      }),
+      400,
     );
   }
 }

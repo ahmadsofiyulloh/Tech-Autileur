@@ -16,7 +16,8 @@ test("login page uses desktop split auth layout", async ({ page }) => {
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Email", { exact: true })).toBeFocused();
   await expect(page.getByRole("button", { name: "Masuk" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Buat akun" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Buat akun" })).toBeHidden();
+  await expect(page.getByText("Belum punya akun?")).toBeHidden();
   await expect(page.getByText("Lupa Kata Sandi?")).toBeVisible();
 
   const visualBox = await page.locator(".auth-visual-panel").boundingBox();

@@ -7,6 +7,7 @@ import { PendingActionButton } from "@/components/operator/pending-action-button
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
+import { unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getPromptLaunchReadiness, type PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 import { type PromptReadinessProjection } from "@/lib/prompts/prompt-readiness-projection";
@@ -430,10 +431,11 @@ export function PromptWorkbenchList({
           },
           cache: "no-store",
         });
-        const payload = (await response.json()) as PromptQueueSnapshot & { error?: string };
+        const payload = (await response.json()) as unknown;
 
         if (response.ok) {
-          setLiveQueueSummary(payload.summary);
+          const data = unwrapJsonApiData<PromptQueueSnapshot>(payload as PromptQueueSnapshot | JsonApiResponse<PromptQueueSnapshot>);
+          setLiveQueueSummary(data.summary);
         }
       } catch {
         // Keep the last known summary in the compact workbench bar.

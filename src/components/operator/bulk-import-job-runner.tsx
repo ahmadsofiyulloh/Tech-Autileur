@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import type { BulkImportJobSnapshot, BulkImportJobStatus } from "@/lib/bulk-import/types";
 
 const ACTIVE_JOB_STATUSES: BulkImportJobStatus[] = ["QUEUED", "RUNNING", "CANCEL_REQUESTED"];
@@ -13,13 +14,17 @@ async function readActiveSnapshot() {
   const response = await fetch("/api/products/bulk-import/jobs/active", {
     cache: "no-store",
   });
-  const payload = (await response.json()) as { snapshot?: BulkImportJobSnapshot | null; error?: string };
+  const payload = (await response.json()) as unknown;
 
   if (!response.ok) {
     return null;
   }
 
-  return payload.snapshot ?? null;
+  const data = unwrapJsonApiData<{ snapshot?: BulkImportJobSnapshot | null }>(
+    payload as { snapshot?: BulkImportJobSnapshot | null } | JsonApiResponse<{ snapshot?: BulkImportJobSnapshot | null }>,
+  );
+
+  return data.snapshot ?? null;
 }
 
 export function BulkImportJobRunner() {

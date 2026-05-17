@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "./config";
 
 const protectedRoutes = [
+  "/",
   "/dashboard",
   "/gemini",
   "/drive",
@@ -14,16 +15,33 @@ const protectedRoutes = [
   "/flow",
   "/controller",
 ];
-const authRoutes = ["/login", "/auth"];
+const loginRoutes = ["/login"];
+const publicAuthRoutes = ["/auth/confirm"];
 
 function startsWithRoute(pathname: string, routes: string[]) {
   return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
+function isPublicRoute(pathname: string) {
+  return startsWithRoute(pathname, publicAuthRoutes);
+}
+
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const isProtectedRoute = startsWithRoute(pathname, protectedRoutes);
+  const isLoginRoute = startsWithRoute(pathname, loginRoutes);
+  const shouldCheckSession = isProtectedRoute || isLoginRoute;
+
+  if (!shouldCheckSession || isPublicRoute(pathname)) {
+    return NextResponse.next({
+      request,
+    });
+  }
+
   let response = NextResponse.next({
     request,
   });
+
   const { url, publishableKey } = getSupabaseConfig();
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -44,29 +62,21 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const pathname = request.nextUrl.pathname;
-  const isProtectedRoute = startsWithRoute(pathname, protectedRoutes);
-  const isAuthRoute = startsWithRoute(pathname, authRoutes);
-  const shouldCheckUser = isProtectedRoute || isAuthRoute;
+  const { data, error } = await supabase.auth.getClaims();
+  const isAuthenticated = Boolean(data?.claims) && !error;
 
-  if (shouldCheckUser) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  if (!isAuthenticated && isProtectedRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
 
-    if (!user && isProtectedRoute) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/login";
-      redirectUrl.search = "";
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    if (user && pathname.startsWith("/login")) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/dashboard";
-      redirectUrl.search = "";
-      return NextResponse.redirect(redirectUrl);
-    }
+  if (isAuthenticated && isLoginRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/dashboard";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
   }
 
   return response;

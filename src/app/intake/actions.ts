@@ -19,6 +19,7 @@ import {
   isGeminiTemporaryUnavailableMessage,
 } from "@/lib/gemini/error-message";
 import { parseIntakeClientContextJson } from "@/lib/intake/analysis-telemetry";
+import { logServerError, toSafeUrlErrorMessage } from "@/lib/server/safe-error";
 
 const INTAKE_RETURN_PATH = "/products/new";
 
@@ -301,10 +302,17 @@ export async function saveIntake(formData: FormData) {
         : undefined;
 
     if (isGeminiTemporaryUnavailableMessage(errorMessage)) {
+      logServerError("intake.saveIntake", error);
       redirectWithWarning(getGeminiTemporaryUnavailableRetryMessage(), errorParams);
     }
 
-    redirectWithError(errorMessage, errorParams);
+    redirectWithError(
+      toSafeUrlErrorMessage(error, {
+        context: "intake.saveIntake",
+        fallbackMessage: "Unable to save intake.",
+      }),
+      errorParams,
+    );
   }
 
   revalidatePath("/intake");

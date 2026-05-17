@@ -81,12 +81,6 @@ export function LoginForm({ bannerMessage = null, bannerError = null }: LoginFor
         </NativeButton>
       </div>
       <div className="auth-footer-row">
-        <p className="auth-inline-cta">
-          <span>Belum punya akun?</span>
-          <button className="auth-inline-cta__button" type="submit" name="intent" value="signup" disabled={isPending}>
-            {isPending ? "Memproses..." : "Buat akun"}
-          </button>
-        </p>
         <span className="auth-inline-link" aria-disabled="true">
           Lupa Kata Sandi?
         </span>

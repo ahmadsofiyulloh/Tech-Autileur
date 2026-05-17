@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowRight, Pause, Play, RefreshCcw } from "lucide-react
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
+import { readJsonApiErrorMessage, unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import {
   EMPTY_PROMPT_QUEUE_SUMMARY,
   type PromptQueueItem,
@@ -22,7 +23,6 @@ type PromptQueueDrawerProps = {
 };
 
 type RunNextResponse = {
-  error?: string;
   snapshot?: PromptQueueSnapshot;
   started?: boolean;
   reason?: string;
@@ -202,13 +202,13 @@ export function PromptQueueDrawer({ initialSnapshot, queueHref, snapshotUrl = "/
         },
         cache: "no-store",
       });
-      const payload = (await response.json()) as PromptQueueSnapshot & { error?: string };
+      const payload = (await response.json()) as unknown;
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Antrian prompt tidak tersedia.");
+        throw new Error(readJsonApiErrorMessage(payload, "Antrian prompt tidak tersedia."));
       }
 
-      setSnapshot(payload);
+      setSnapshot(unwrapJsonApiData<PromptQueueSnapshot>(payload as PromptQueueSnapshot | JsonApiResponse<PromptQueueSnapshot>));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Antrian prompt tidak tersedia.");
     } finally {
@@ -231,14 +231,16 @@ export function PromptQueueDrawer({ initialSnapshot, queueHref, snapshotUrl = "/
           accept: "application/json",
         },
       });
-      const payload = (await response.json()) as RunNextResponse;
+      const payload = (await response.json()) as unknown;
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Antrian prompt gagal dijalankan.");
+        throw new Error(readJsonApiErrorMessage(payload, "Antrian prompt gagal dijalankan."));
       }
 
-      if (payload.snapshot) {
-        setSnapshot(payload.snapshot);
+      const data = unwrapJsonApiData<RunNextResponse>(payload as RunNextResponse | JsonApiResponse<RunNextResponse>);
+
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
       } else {
         await refreshSnapshot();
       }

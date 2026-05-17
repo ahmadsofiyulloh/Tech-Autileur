@@ -1,4 +1,5 @@
 import { getProductBulkImportJob } from "@/lib/server/product-bulk-import";
+import { fail, ok, unauthorized } from "@/lib/server/api-response";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,15 +15,10 @@ export async function GET(_request: Request, context: RouteContext) {
     const { jobId } = await context.params;
     const snapshot = await getProductBulkImportJob(jobId);
 
-    return Response.json(snapshot);
+    return ok(snapshot);
   } catch (error) {
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Bulk import gagal.",
-      },
-      {
-        status: 400,
-      },
-    );
+    const message = error instanceof Error ? error.message : "Bulk import gagal.";
+
+    return message.includes("Authentication") ? unauthorized() : fail(message, 400);
   }
 }

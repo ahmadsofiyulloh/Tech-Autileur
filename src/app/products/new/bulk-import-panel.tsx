@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
+import { readJsonApiErrorMessage, unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type {
   BulkImportJobRow,
@@ -698,23 +699,27 @@ function BulkImportPreviewTable({ rows }: { rows: BulkImportPreviewRow[] }) {
 }
 
 async function readSnapshotResponse(response: Response) {
-  const payload = (await response.json()) as BulkImportJobSnapshot | { error?: string };
+  const payload = (await response.json()) as unknown;
 
   if (!response.ok) {
-    throw new Error("error" in payload && payload.error ? payload.error : "Bulk import gagal.");
+    throw new Error(readJsonApiErrorMessage(payload, "Bulk import gagal."));
   }
 
-  return payload as BulkImportJobSnapshot;
+  return unwrapJsonApiData<BulkImportJobSnapshot>(payload as BulkImportJobSnapshot | JsonApiResponse<BulkImportJobSnapshot>);
 }
 
 async function readActiveSnapshotResponse(response: Response) {
-  const payload = (await response.json()) as { snapshot?: BulkImportJobSnapshot | null; error?: string };
+  const payload = (await response.json()) as unknown;
 
   if (!response.ok) {
-    throw new Error(payload.error || "Bulk import gagal.");
+    throw new Error(readJsonApiErrorMessage(payload, "Bulk import gagal."));
   }
 
-  return payload.snapshot ?? null;
+  const data = unwrapJsonApiData<{ snapshot?: BulkImportJobSnapshot | null }>(
+    payload as { snapshot?: BulkImportJobSnapshot | null } | JsonApiResponse<{ snapshot?: BulkImportJobSnapshot | null }>,
+  );
+
+  return data.snapshot ?? null;
 }
 
 export function BulkImportPanel() {
@@ -897,13 +902,13 @@ export function BulkImportPanel() {
       body: formData,
       method: "POST",
     });
-    const payload = (await response.json()) as BulkImportResponse | { error?: string };
+    const payload = (await response.json()) as unknown;
 
     if (!response.ok) {
-      throw new Error("error" in payload && payload.error ? payload.error : "Bulk preview gagal.");
+      throw new Error(readJsonApiErrorMessage(payload, "Bulk preview gagal."));
     }
 
-    setResult(payload as BulkImportResponse);
+    setResult(unwrapJsonApiData<BulkImportResponse>(payload as BulkImportResponse | JsonApiResponse<BulkImportResponse>));
   }
 
   async function submitImport(selectedFile: File) {
