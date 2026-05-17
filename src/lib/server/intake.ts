@@ -15,19 +15,11 @@ import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/l
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
   buildIntakeTelemetryPayload,
-  classifyIntakeAnalysisPath,
-  classifyIntakeEvidenceOrigin,
   classifyIntakeFailureKind,
-  normalizeIntakeClientContext,
   type IntakeClientContextInput,
-  type IntakeTelemetryPayload,
 } from "@/lib/intake/analysis-telemetry";
 import {
-  INTAKE_VISION_PROMPT_VERSION,
-  INTAKE_VISION_SCHEMA_VERSION,
   appendUniqueNote,
-  normalizeIntakeVisionOutput,
-  type IntakeOcrEvidenceBlock,
   type IntakeVisionParseOutput,
 } from "@/lib/intake/vision-contract";
 import { parseIntakeVisionOutputWithRepair } from "@/lib/intake/vision-repair";
@@ -54,6 +46,37 @@ import {
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
 import { getGeminiFailureDisposition } from "@/lib/server/gemini-failure-policy";
+import {
+  buildProductImageSnapshot,
+  joinIntakeDrivePath,
+  sanitizeDriveLeafName,
+} from "@/lib/server/intake-drive-helpers";
+import {
+  INTAKE_VISION_SYSTEM_INSTRUCTION,
+  applyMarketplaceEvidenceAvailability,
+  assertHasMarketplaceScreenshot,
+  buildIntakeParsePrompt,
+  buildIntakeTaskInput,
+  buildIntakeVisionFailureMessage,
+  buildIntakeVisionTaskDiagnostics,
+  buildMissingImageSummary,
+  buildParsedMetadataTaskSnapshot,
+  buildUploadedImageSummary,
+  summarizeIntakeVisionResponseText,
+} from "@/lib/server/intake-gemini-parse-helpers";
+import {
+  buildIntakeDraftProductTitle,
+  buildIntakeProductTitle,
+  buildReviewedMetadataFromInput,
+  manualMetadata,
+  marketplaceSourceFieldsForPlatform,
+  metadataFromSession,
+  productMarketplaceFromIntake,
+  productNicheFromMetadata,
+  sourceMarketplacesFromMetadata,
+  toReviewedMetadataJson,
+  visionMarketplaceMetadata,
+} from "@/lib/server/intake-metadata-mapping";
 import {
   createDriveItem,
   getDriveItemByDriveItemId,
@@ -201,131 +224,8 @@ type IntakeAnalysisUploadInput = {
   tiktokScreenshot?: File | null;
 };
 
-const INTAKE_VISION_SYSTEM_INSTRUCTION = [
-  "You are an OCR-first product evidence extractor for a private affiliate content workflow.",
-  "Never invent marketplace facts. Literal OCR fields must be copied exactly from visible image text.",
-  "Separate literal OCR evidence from inferred Indonesian operator metadata.",
-  "Use empty strings and quality flags when evidence is missing, blurry, cropped, rotated, or unreadable.",
-  "Return only JSON matching the response schema.",
-].join("\n");
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function readText(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function readJsonText(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function readJsonRecord(value: unknown) {
-  return isRecord(value) ? (value as JsonRecord) : null;
-}
-
-function splitLines(value: string) {
-  return value
-    .split(/\r?\n+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
-
-function readTextArray(value: unknown) {
-  return readStringArrayLike(value);
-}
-
-function readStringArrayItem(value: unknown) {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return "";
-  }
-
-  const record = value as Record<string, unknown>;
-
-  for (const key of ["label", "name", "value", "text", "title"] as const) {
-    const candidate = record[key];
-
-    if (typeof candidate === "string") {
-      const trimmed = candidate.trim();
-      if (trimmed) {
-        return trimmed;
-      }
-    }
-  }
-
-  return "";
-}
-
-function readStringArrayLike(value: unknown) {
-  if (!Array.isArray(value)) {
-    if (typeof value === "string") {
-      return splitLines(value);
-    }
-
-    const singleValue = readStringArrayItem(value);
-    return singleValue ? [singleValue] : [];
-  }
-
-  return value
-    .map((item) => readStringArrayItem(item))
-    .filter((item) => item.length > 0);
-}
-
-function buildReviewedMetadataFromInput(metadata: JsonRecord, fallback?: JsonRecord | null) {
-  const source = (fallback ?? {}) as JsonRecord;
-  const ocrEvidence = readJsonRecord(metadata.ocr_evidence) ?? readJsonRecord(source.ocr_evidence);
-  const extractionQuality = readJsonRecord(metadata.extraction_quality) ?? readJsonRecord(source.extraction_quality);
-
-  return normalizeIntakeVisionOutput({
-    schema_version: readJsonText(metadata.schema_version) || readJsonText(source.schema_version) || INTAKE_VISION_SCHEMA_VERSION,
-    prompt_version: readJsonText(metadata.prompt_version) || readJsonText(source.prompt_version) || INTAKE_VISION_PROMPT_VERSION,
-    nama_produk:
-      readJsonText(metadata.nama_produk) ||
-      readJsonText(metadata.product_title) ||
-      readJsonText(source.nama_produk) ||
-      readJsonText(source.product_title),
-    keyword_cari_etalase:
-      readJsonText(metadata.keyword_cari_etalase) ||
-      readJsonText(metadata.category) ||
-      readJsonText(source.keyword_cari_etalase) ||
-      readJsonText(source.category),
-    deskripsi_visual: readJsonText(metadata.deskripsi_visual) || readJsonText(source.deskripsi_visual),
-    use_case: readJsonText(metadata.use_case) || readJsonText(source.use_case),
-    pain_point: readJsonText(metadata.pain_point) || readJsonText(source.pain_point),
-    selling_angle: readJsonText(metadata.selling_angle) || readJsonText(source.selling_angle),
-    target_viewer: readJsonText(metadata.target_viewer) || readJsonText(source.target_viewer),
-    product_title: readJsonText(metadata.product_title) || readJsonText(source.product_title),
-    marketplace: readJsonText(metadata.marketplace) || readJsonText(source.marketplace),
-    category: readJsonText(metadata.category) || readJsonText(source.category),
-    rating_text: readJsonText(metadata.rating_text) || readJsonText(source.rating_text),
-    sold_count_text: readJsonText(metadata.sold_count_text) || readJsonText(source.sold_count_text),
-    price_text: readJsonText(metadata.price_text) || readJsonText(source.price_text),
-    shop_name: readJsonText(metadata.shop_name) || readJsonText(source.shop_name),
-    visible_product_attributes: readTextArray(metadata.visible_product_attributes).length
-      ? readTextArray(metadata.visible_product_attributes)
-      : readTextArray(source.visible_product_attributes),
-    risk_notes: readTextArray(metadata.risk_notes).length ? readTextArray(metadata.risk_notes) : readTextArray(source.risk_notes),
-    confidence_notes: readTextArray(metadata.confidence_notes).length
-      ? readTextArray(metadata.confidence_notes)
-      : readTextArray(source.confidence_notes),
-    ...(ocrEvidence ? { ocr_evidence: ocrEvidence } : {}),
-    ...(extractionQuality ? { extraction_quality: extractionQuality } : {}),
-  });
-}
-
-function toReviewedMetadataJson(metadata: IntakeVisionParseOutput) {
-  return {
-    ...metadata,
-  } as JsonRecord;
-}
-
-function hasSourceMarketplace(value: string) {
-  return value === "SHOPEE" || value === "TIKTOK";
 }
 
 function safeErrorMessage(error: unknown) {
@@ -401,34 +301,6 @@ function nextProductStatusForIntake(currentStatus: string, intakeStatus: string)
   }
 
   return currentStatus;
-}
-
-function metadataFromSession(session: IntakeSessionRecord) {
-  return buildReviewedMetadataFromInput((session.reviewed_metadata_json ?? session.parsed_metadata_json ?? {}) as JsonRecord);
-}
-
-function productMarketplaceFromIntake(session: IntakeSessionRecord, metadata: IntakeVisionParseOutput) {
-  if (hasSourceMarketplace(metadata.marketplace)) {
-    return metadata.marketplace;
-  }
-
-  if (session.shopee_url && session.tiktok_url) {
-    return "SHOPEE + TIKTOK";
-  }
-
-  if (session.shopee_url) {
-    return "SHOPEE";
-  }
-
-  if (session.tiktok_url) {
-    return "TIKTOK";
-  }
-
-  return "SHOPEE + TIKTOK";
-}
-
-function productNicheFromMetadata(metadata: IntakeVisionParseOutput, fallback?: string | null) {
-  return normalizeIntakeText(fallback) ?? normalizeIntakeText(metadata.category) ?? normalizeIntakeText(metadata.keyword_cari_etalase);
 }
 
 async function loadIntakeSessionById(
@@ -558,40 +430,6 @@ async function loadIntakeWorkspace(
   };
 }
 
-function buildDriveItemSnapshot(item: DriveItemRecord | null) {
-  if (!item) {
-    return null;
-  }
-
-  return {
-    id: item.id,
-    name: item.name,
-    drive_path: item.drive_path,
-    drive_url: item.drive_url,
-    mime_type: item.mime_type,
-    purpose: item.purpose,
-    status: item.status,
-    notes: item.notes,
-  };
-}
-
-function buildProductImageSnapshot(image: ProductImageRecord | null, driveItem: DriveItemRecord | null) {
-  if (!image) {
-    return null;
-  }
-
-  return {
-    id: image.id,
-    drive_item_ref_id: image.drive_item_ref_id,
-    source_type: image.source_type,
-    is_primary: image.is_primary,
-    status: image.status,
-    notes: image.notes,
-    analysis_json: image.analysis_json,
-    drive_item: buildDriveItemSnapshot(driveItem),
-  };
-}
-
 function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
   return {
     id: source.id,
@@ -609,268 +447,6 @@ function buildMarketplaceSourceSnapshot(source: MarketplaceSourceRecord) {
     notes: source.notes,
     parsed_metadata_json: source.parsed_metadata_json,
   };
-}
-
-function buildIntakeParsePrompt(input: {
-  productImage: { name: string; mimeType: string; size: number };
-  shopeeScreenshot: { name: string; mimeType: string; size: number } | null;
-  tiktokScreenshot: { name: string; mimeType: string; size: number } | null;
-}) {
-  const imageOrder = [
-    "1. product_image",
-    input.shopeeScreenshot ? "2. shopee_screenshot" : null,
-    input.tiktokScreenshot ? `${input.shopeeScreenshot ? "3" : "2"}. tiktok_screenshot` : null,
-  ].filter((value): value is string => Boolean(value));
-  const uploadedEvidence = {
-    product_image: input.productImage,
-    shopee_screenshot: input.shopeeScreenshot ?? { missing: true },
-    tiktok_screenshot: input.tiktokScreenshot ?? { missing: true },
-  };
-  const marketplaceRule =
-    input.shopeeScreenshot && input.tiktokScreenshot
-      ? '- Set marketplace to "Shopee + TikTok" when both marketplace screenshots are present, even if one has weaker OCR.'
-      : input.shopeeScreenshot
-        ? '- Set marketplace to "SHOPEE" because only Shopee screenshot evidence is present.'
-        : '- Set marketplace to "TIKTOK" because only TikTok screenshot evidence is present.';
-
-  return [
-    "Task: extract OCR evidence and prompt-ready product metadata from the uploaded bytes.",
-    `schema_version must be "${INTAKE_VISION_SCHEMA_VERSION}".`,
-    `prompt_version must be "${INTAKE_VISION_PROMPT_VERSION}".`,
-    "",
-    "Image order:",
-    ...imageOrder,
-    "",
-    "Literal OCR rules:",
-    "- Copy visible marketplace text exactly for title, category, rating, sold count, price, and shop/account name.",
-    "- Do not translate, normalize currency, round ratings, or rewrite sold count abbreviations in literal fields.",
-    "- If text is unreadable or absent, use an empty string and add a quality flag.",
-    "- visible_text_lines should contain concise exact text lines seen in each image.",
-    '- For a missing marketplace screenshot, return an empty OCR evidence block for that platform and add the quality flag "missing_source_image".',
-    "",
-    "Inference rules:",
-    "- Use short operator-friendly Indonesian for nama_produk, keyword_cari_etalase, deskripsi_visual, use_case, pain_point, selling_angle, and target_viewer.",
-    marketplaceRule,
-    "- Set extraction_quality.review_required to true when any key marketplace field is unreadable, cropped, blurry, or inferred.",
-    "- Do not claim visual parsing from links.",
-    "- Return JSON only. No markdown, code fences, or commentary.",
-    "",
-    "Uploaded evidence:",
-    JSON.stringify(
-      uploadedEvidence,
-      null,
-      2,
-    ),
-  ].join("\n");
-}
-
-function missingMarketplaceOcrEvidenceBlock(): IntakeOcrEvidenceBlock {
-  return {
-    visible_text_lines: [],
-    extracted_fields: {
-      product_title: "",
-      category: "",
-      rating_text: "",
-      sold_count_text: "",
-      price_text: "",
-      shop_name: "",
-    },
-    confidence: "low",
-    quality_flags: ["missing_source_image"],
-  };
-}
-
-function appendUniqueValues(values: string[], additions: string[]) {
-  return [...new Set([...values, ...additions].map((value) => value.trim()).filter(Boolean))];
-}
-
-function applyMarketplaceEvidenceAvailability(
-  metadata: IntakeVisionParseOutput,
-  availability: { shopee: boolean; tiktok: boolean },
-): IntakeVisionParseOutput {
-  const missingFlags = [
-    availability.shopee ? null : "missing_shopee_screenshot",
-    availability.tiktok ? null : "missing_tiktok_screenshot",
-  ].filter((value): value is string => Boolean(value));
-  const marketplace =
-    availability.shopee && availability.tiktok ? metadata.marketplace || "Shopee + TikTok" : availability.shopee ? "SHOPEE" : "TIKTOK";
-  let confidenceNotes = metadata.confidence_notes;
-
-  if (!availability.shopee) {
-    confidenceNotes = appendUniqueNote(confidenceNotes, "Screenshot Shopee tidak tersedia saat analisis.");
-  }
-
-  if (!availability.tiktok) {
-    confidenceNotes = appendUniqueNote(confidenceNotes, "Screenshot TikTok tidak tersedia saat analisis.");
-  }
-
-  return {
-    ...metadata,
-    marketplace,
-    confidence_notes: confidenceNotes,
-    ocr_evidence: {
-      ...metadata.ocr_evidence,
-      shopee_screenshot: availability.shopee ? metadata.ocr_evidence.shopee_screenshot : missingMarketplaceOcrEvidenceBlock(),
-      tiktok_screenshot: availability.tiktok ? metadata.ocr_evidence.tiktok_screenshot : missingMarketplaceOcrEvidenceBlock(),
-    },
-    extraction_quality: {
-      ...metadata.extraction_quality,
-      review_required: metadata.extraction_quality.review_required || missingFlags.length > 0,
-      blocking_flags: appendUniqueValues(metadata.extraction_quality.blocking_flags, missingFlags),
-      notes: appendUniqueValues(
-        metadata.extraction_quality.notes,
-        missingFlags.length ? ["Analisis memakai satu screenshot marketplace."] : [],
-      ),
-    },
-  };
-}
-
-function summarizeIntakeVisionResponseText(value: string | null | undefined, maxLength = 320) {
-  const trimmed = readText(value);
-
-  if (!trimmed) {
-    return "";
-  }
-
-  const singleLine = trimmed.replace(/\s+/g, " ");
-
-  if (singleLine.length <= maxLength) {
-    return singleLine;
-  }
-
-  return `${singleLine.slice(0, maxLength).trimEnd()}...`;
-}
-
-function buildIntakeVisionTaskDiagnostics(input: {
-  repairAttempted: boolean;
-  responseText: string;
-  repairResponseText?: string | null;
-  modelName?: string | null;
-}) {
-  return {
-    pipeline: "intake_vision",
-    analysis_mode: "LIVE_IMAGE_BYTES",
-    repair_attempted: input.repairAttempted,
-    model_name: input.modelName ?? null,
-    response_text: input.responseText,
-    response_text_excerpt: summarizeIntakeVisionResponseText(input.responseText),
-    repair_response_text: input.repairResponseText ?? null,
-    repair_response_text_excerpt: summarizeIntakeVisionResponseText(input.repairResponseText ?? null),
-  } satisfies JsonRecord;
-}
-
-function buildIntakeVisionFailureMessage(
-  errorMessage: string,
-  diagnostics?: {
-    responseText?: string | null;
-    repairAttempted?: boolean;
-    repairResponseText?: string | null;
-  },
-) {
-  const parts = [errorMessage.trim()];
-
-  const primaryExcerpt = summarizeIntakeVisionResponseText(diagnostics?.responseText ?? null);
-  if (primaryExcerpt) {
-    parts.push(`Primary excerpt: ${primaryExcerpt}`);
-  }
-
-  const repairExcerpt = summarizeIntakeVisionResponseText(diagnostics?.repairResponseText ?? null);
-  if (diagnostics?.repairAttempted && repairExcerpt) {
-    parts.push(`Repair excerpt: ${repairExcerpt}`);
-  }
-
-  return parts.join(" | ");
-}
-
-function buildParsedMetadataTaskSnapshot(
-  metadata: IntakeVisionParseOutput,
-  selectedModelName?: string | null,
-  telemetry?: IntakeTelemetryPayload | null,
-  diagnostics?: JsonRecord,
-) {
-  return {
-    pipeline: "intake_vision",
-    schema_version: metadata.schema_version,
-    prompt_version: metadata.prompt_version,
-    analysis_mode: "LIVE_IMAGE_BYTES",
-    image_bytes_available: true,
-    selected_model_name: selectedModelName ?? null,
-    nama_produk: metadata.nama_produk,
-    keyword_cari_etalase: metadata.keyword_cari_etalase,
-    deskripsi_visual: metadata.deskripsi_visual,
-    use_case: metadata.use_case,
-    pain_point: metadata.pain_point,
-    selling_angle: metadata.selling_angle,
-    target_viewer: metadata.target_viewer,
-    product_title: metadata.product_title,
-    marketplace: metadata.marketplace,
-    category: metadata.category,
-    rating_text: metadata.rating_text,
-    sold_count_text: metadata.sold_count_text,
-    price_text: metadata.price_text,
-    shop_name: metadata.shop_name,
-    visible_product_attributes: metadata.visible_product_attributes,
-    risk_notes: metadata.risk_notes,
-    confidence_notes: metadata.confidence_notes,
-    ocr_evidence: metadata.ocr_evidence,
-    extraction_quality: metadata.extraction_quality,
-    ...(telemetry ? { telemetry } : {}),
-    ...(diagnostics ? { diagnostics } : {}),
-  } satisfies JsonRecord;
-}
-
-function buildIntakeTaskInput(input: {
-  productImage: { name: string; mimeType: string; size: number };
-  shopeeScreenshot: { name: string; mimeType: string; size: number };
-  tiktokScreenshot: { name: string; mimeType: string; size: number };
-  clientContext?: IntakeClientContextInput | null;
-  analysisPath: "saved_capture" | "live_upload";
-  freshEvidenceCount: number;
-  savedEvidenceCount: number;
-  clientUploadBytes: number;
-  totalUploadBytes: number;
-  maxFileBytes: number;
-  requestStartedAt: string;
-}) {
-  return {
-    pipeline: "intake_vision",
-    analysis_mode: "LIVE_IMAGE_BYTES",
-    image_bytes_available: true,
-    schema_version: INTAKE_VISION_SCHEMA_VERSION,
-    prompt_version: INTAKE_VISION_PROMPT_VERSION,
-    analysis_path: classifyIntakeAnalysisPath(input.analysisPath),
-    evidence_origin: classifyIntakeEvidenceOrigin({
-      freshEvidenceCount: input.freshEvidenceCount,
-      savedEvidenceCount: input.savedEvidenceCount,
-    }),
-    client_context: input.clientContext ? normalizeIntakeClientContext(input.clientContext) : normalizeIntakeClientContext(null),
-    telemetry: buildIntakeTelemetryPayload({
-      clientContext: input.clientContext ?? null,
-      analysisPath: input.analysisPath,
-      freshEvidenceCount: input.freshEvidenceCount,
-      savedEvidenceCount: input.savedEvidenceCount,
-      clientUploadBytes: input.clientUploadBytes,
-      totalUploadBytes: input.totalUploadBytes,
-      maxFileBytes: input.maxFileBytes,
-      requestStartedAt: input.requestStartedAt,
-      repairAttempted: false,
-      repairSuccess: false,
-      failureKind: null,
-    }),
-    product_image: input.productImage,
-    shopee_screenshot: input.shopeeScreenshot,
-    tiktok_screenshot: input.tiktokScreenshot,
-  } satisfies JsonRecord;
-}
-
-function buildIntakeProductTitle(metadata: IntakeVisionParseOutput) {
-  return readIntakeText(metadata.nama_produk) || readIntakeText(metadata.keyword_cari_etalase) || "Intake Tanpa Nama";
-}
-
-function buildIntakeDraftProductTitle(file: File) {
-  const baseName = readText(file.name).replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
-
-  return baseName || "Draf Produk";
 }
 
 async function resolveIntakeDriveRootFolder(input?: { workspaceId?: string | null }) {
@@ -1294,47 +870,6 @@ async function updateIntakeSessionRecord(
   }
 
   return data as IntakeSessionRecord;
-}
-
-function buildUploadedImageSummary(file: File) {
-  return {
-    name: file.name,
-    mimeType: file.type || "application/octet-stream",
-    size: file.size,
-  };
-}
-
-function buildMissingImageSummary(name: string) {
-  return {
-    name,
-    mimeType: "application/octet-stream",
-    size: 0,
-  };
-}
-
-function assertHasMarketplaceScreenshot(input: { shopeeScreenshot?: unknown; tiktokScreenshot?: unknown }) {
-  if (!input.shopeeScreenshot && !input.tiktokScreenshot) {
-    throw new Error("Tambahkan minimal satu screenshot Shopee atau TikTok.");
-  }
-}
-
-function sanitizeDriveLeafName(value: string) {
-  const trimmed = readText(value);
-
-  if (!trimmed) {
-    return "upload.bin";
-  }
-
-  return trimmed.replace(/[\\/:*?"<>|]+/g, "-");
-}
-
-function joinIntakeDrivePath(...segments: Array<string | null | undefined>) {
-  return `/${segments
-    .map((segment) => readText(segment))
-    .filter(Boolean)
-    .map((segment) => segment.replace(/^\/+|\/+$/g, ""))
-    .filter(Boolean)
-    .join("/")}`;
 }
 
 async function ensureIntakeDriveFolderRecord(input: {
@@ -2365,58 +1900,6 @@ export async function createProductFromIntake(
   revalidatePath("/intake");
   revalidatePath(`/products/${product.id}`);
   return product;
-}
-
-function manualMetadata(platform: string, session: IntakeSessionRecord): JsonRecord {
-  return {
-    entry_mode: "manual",
-    platform,
-    intake_session_id: session.id,
-  };
-}
-
-function sourceMarketplacesFromMetadata(metadata: IntakeVisionParseOutput): MarketplacePlatform[] {
-  if (metadata.marketplace === "Shopee + TikTok") {
-    return ["SHOPEE", "TIKTOK"];
-  }
-
-  return hasSourceMarketplace(metadata.marketplace) ? [metadata.marketplace] : [];
-}
-
-function ocrEvidenceForPlatform(metadata: IntakeVisionParseOutput, platform: MarketplacePlatform): IntakeOcrEvidenceBlock {
-  return platform === "SHOPEE" ? metadata.ocr_evidence.shopee_screenshot : metadata.ocr_evidence.tiktok_screenshot;
-}
-
-function marketplaceSourceFieldsForPlatform(
-  platform: MarketplacePlatform,
-  metadata: IntakeVisionParseOutput,
-  fallbackTitle: string,
-) {
-  const extracted = ocrEvidenceForPlatform(metadata, platform).extracted_fields;
-
-  return {
-    title: readIntakeText(extracted.product_title) || metadata.product_title || metadata.nama_produk || fallbackTitle,
-    category: readIntakeText(extracted.category) || metadata.category,
-    rating_text: readIntakeText(extracted.rating_text) || metadata.rating_text,
-    sold_count_text: readIntakeText(extracted.sold_count_text) || metadata.sold_count_text,
-    price_text: readIntakeText(extracted.price_text) || metadata.price_text,
-    shop_name: readIntakeText(extracted.shop_name) || metadata.shop_name,
-  };
-}
-
-function visionMarketplaceMetadata(platform: MarketplacePlatform, session: IntakeSessionRecord, metadata: IntakeVisionParseOutput) {
-  const evidence = platform === "SHOPEE" ? metadata.ocr_evidence.shopee_screenshot : metadata.ocr_evidence.tiktok_screenshot;
-
-  return {
-    entry_mode: "gemini_vision",
-    platform,
-    intake_session_id: session.id,
-    schema_version: metadata.schema_version,
-    prompt_version: metadata.prompt_version,
-    ocr_evidence: evidence,
-    extraction_quality: metadata.extraction_quality,
-    reviewed_metadata: toReviewedMetadataJson(metadata),
-  } satisfies JsonRecord;
 }
 
 async function createMarketplaceSourcesFromVisionEvidence(input: {
