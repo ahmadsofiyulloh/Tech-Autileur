@@ -5,7 +5,20 @@
   "work_root": "./work",
   "flow_accounts": {
     "FLOW-EXAMPLE": {
-      "chrome_profile_path": "<CHROME_PROFILE_PATH>"
+      "lanes": [
+        {
+          "lane_key": "utama",
+          "label": "Profil utama",
+          "chrome_profile_path": "<CHROME_PROFILE_PATH_MAIN>",
+          "active": true
+        },
+        {
+          "lane_key": "cadangan",
+          "label": "Profil cadangan",
+          "chrome_profile_path": "<CHROME_PROFILE_PATH_BACKUP>",
+          "active": false
+        }
+      ]
     }
   },
   "output_folders": {

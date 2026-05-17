@@ -37,6 +37,7 @@ export const desktopNavItems = [
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },
+  { href: "/controller", label: "Flow Control", icon: Workflow },
   { href: "/drive", label: "Drive", icon: HardDrive },
 ] satisfies OperatorNavItem[];
 

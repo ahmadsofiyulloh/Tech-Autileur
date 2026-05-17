@@ -676,6 +676,69 @@ function buildPromptRulesFromContext(context: JsonObject | null) {
   } satisfies PromptPackPromptRulesJson;
 }
 
+const STORYBOARD_FIRST_FRAME_INSTRUCTION =
+  "Create exactly one image: a 2x2 storyboard grid with 4 numbered panels for this single clip, read left-to-right and top-to-bottom.";
+const LEGACY_LAST_FRAME_INSTRUCTION =
+  "Legacy compatibility last-frame payload only: keep @firstframe as the storyboard source and do not create a separate visible Last Frame output.";
+const STORYBOARD_I2V_INSTRUCTION =
+  "Use @firstframe as the completed 2x2 storyboard image and map panels 1-4 left-to-right, top-to-bottom into one continuous 8-second video. Treat grid borders and panel numbers as storyboard guidance only, not visible video elements.";
+
+function hasStoryboardInstruction(value: string) {
+  const lowered = value.toLowerCase();
+  return (
+    lowered.includes("2x2") ||
+    lowered.includes("4 panel") ||
+    lowered.includes("4 numbered") ||
+    lowered.includes("panels 1-4") ||
+    lowered.includes("panel 1") ||
+    lowered.includes("panel 2") ||
+    lowered.includes("panel 3") ||
+    lowered.includes("panel 4")
+  );
+}
+
+function rewriteStoryboardPanelLanguage(value: string) {
+  return value
+    .replace(/\b3x3\b/gi, "2x2")
+    .replace(/\b9 numbered panels\b/gi, "4 numbered panels")
+    .replace(/\b9 panels\b/gi, "4 panels")
+    .replace(/\b9 panel\b/gi, "4 panel")
+    .replace(/\bpanels 1-9\b/gi, "panels 1-4")
+    .replace(/\bpanel 9\b/gi, "panel 4")
+    .replace(/\bpanels 8-9\b/gi, "panel 4")
+    .replace(/\bpanels 5-7\b/gi, "panel 3")
+    .replace(/\bpanels 3-4\b/gi, "panel 2");
+}
+
+function ensurePromptInstruction(value: string, instruction: string, maxLength = 520) {
+  const rewritten = rewriteStoryboardPanelLanguage(value);
+
+  if (!rewritten) {
+    return compactText(instruction, maxLength);
+  }
+
+  if (hasStoryboardInstruction(rewritten)) {
+    return compactText(rewritten, maxLength);
+  }
+
+  return compactText(`${instruction} ${rewritten}`, maxLength);
+}
+
+function ensureLegacyLastFrameInstruction(value: string, maxLength = 520) {
+  const compacted = compactText(value, maxLength);
+  const lowered = compacted.toLowerCase();
+
+  if (!compacted) {
+    return compactText(LEGACY_LAST_FRAME_INSTRUCTION, maxLength);
+  }
+
+  if (lowered.includes("legacy") || lowered.includes("compatibility")) {
+    return compacted;
+  }
+
+  return compactText(`${LEGACY_LAST_FRAME_INSTRUCTION} ${compacted}`, maxLength);
+}
+
 function buildFallbackPromptText(input: {
   kind: "I2I" | "I2V";
   clipKey: PromptClipKey;
@@ -692,15 +755,22 @@ function buildFallbackPromptText(input: {
   const clipObjective = buildClipObjective(input.clipKey);
 
   if (input.kind === "I2I") {
+    if (input.frame === "last_frame") {
+      return compactText(
+        `${input.productName} ${input.promptCode} v${input.version} last_frame. ${LEGACY_LAST_FRAME_INSTRUCTION} Preserve identity, outfit, product details, lighting, and environment continuity for legacy Flow compatibility.`,
+        520,
+      );
+    }
+
     return compactText(
-      `${input.productName} ${input.promptCode} v${input.version} ${input.frame ?? "first_frame"}. ${clipObjective}. Show ${productLabel} clearly with locked character, outfit, lighting, and industrial warm-orange room continuity.`,
-      360,
+      `${input.productName} ${input.promptCode} v${input.version} first_frame. ${STORYBOARD_FIRST_FRAME_INSTRUCTION} ${clipObjective}. Show ${productLabel} clearly with locked character, outfit, lighting, and industrial warm-orange room continuity.`,
+      520,
     );
   }
 
   return compactText(
-    `${input.productName} ${input.promptCode} v${input.version}. ${clipObjective}. Animate only from @firstframe to @lastframe for 8 seconds, preserving product graphics, character identity, lighting, and background continuity.`,
-    360,
+    `${input.productName} ${input.promptCode} v${input.version}. ${STORYBOARD_I2V_INSTRUCTION} ${clipObjective}. Preserve product graphics, character identity, lighting, and background continuity; @lastframe is retained for legacy compatibility only.`,
+    520,
   );
 }
 
@@ -762,13 +832,16 @@ function buildI2IMustKeep(input: {
   const characterReference = readReferenceByKind(input.visualReferences, "CHARACTER");
   const frameInstruction =
     input.frame === "first_frame"
-      ? "Use @character, @environment, and the product reference together in one coherent fashion frame."
-      : "Use only @firstframe as the visual source; adjust pose/framing lightly without redesigning identity or outfit.";
+      ? "Use @character, @environment, and the product reference together to create one 2x2 storyboard image with 4 numbered panels."
+      : "Keep @firstframe as the storyboard source; this last-frame payload is retained for legacy compatibility only.";
 
   return dedupeCompactList(
     [
       frameInstruction,
       buildClipObjective(input.clipKey),
+      input.frame === "first_frame"
+        ? "Each panel must be a distinct beat for the same clip while preserving product, character, outfit, environment, and lighting continuity."
+        : "Do not redesign the storyboard, identity, outfit, product, or environment.",
       `Primary product must remain ${productReference?.summary || input.productName}.`,
       ...(productReference?.must_keep ?? []),
       characterReference?.summary ? `Preserve character identity: ${characterReference.summary}.` : "",
@@ -787,7 +860,8 @@ function buildI2IMustAvoid(input: {
     [
       ...(input.visualReferences.flatMap((reference) => reference.must_avoid) ?? []),
       "Do not change the person, hairstyle, body proportions, product color, logo/text placement, room layout, or warm-orange lighting.",
-      input.frame === "last_frame" ? "Do not introduce new image references beyond @firstframe." : "",
+      input.frame === "first_frame" ? "Do not output four separate files, a video, or a single non-grid frame." : "",
+      input.frame === "last_frame" ? "Do not introduce new image references beyond @firstframe or create a separate visible Last Frame output." : "",
       "Avoid blurry output, warped hands, distorted face, floating limbs, duplicate body parts, and unreadable product graphics.",
     ],
     6,
@@ -798,7 +872,10 @@ function buildContinuityText(continuity?: { first_frame_hint: string; last_frame
   const firstHint = readString(continuity?.first_frame_hint) || "first frame";
   const lastHint = readString(continuity?.last_frame_hint) || "last frame";
 
-  return compactText(`Start at @firstframe (${firstHint}) and end at @lastframe (${lastHint}) with no identity, outfit, product, lighting, or background drift.`, 320);
+  return compactText(
+    `Use @firstframe as one 2x2 storyboard image; follow panels 1-4 from left-to-right and top-to-bottom (${firstHint} to ${lastHint}) with no identity, outfit, product, lighting, or background drift. Treat grid borders and panel numbers as storyboard guidance only. @lastframe is legacy-compatible only and must not override storyboard order.`,
+    520,
+  );
 }
 
 function buildNegativePrompt(rules: PromptPackPromptRulesJson, override?: string | null) {
@@ -824,29 +901,34 @@ function buildFallbackTimeline(input: {
   clipKey: PromptClipKey;
   continuity?: { first_frame_hint: string; last_frame_hint: string };
 }) {
-  const firstHint = input.continuity?.first_frame_hint || "hold @firstframe composition";
-  const lastHint = input.continuity?.last_frame_hint || "arrive at @lastframe composition";
+  const firstHint = input.continuity?.first_frame_hint || "open with storyboard panel 1";
+  const lastHint = input.continuity?.last_frame_hint || "resolve on storyboard panel 4";
   const objective = buildClipObjective(input.clipKey);
 
   return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => {
     const action =
       index === 0
-        ? `Begin from @firstframe: ${firstHint}.`
+        ? `Read @firstframe storyboard panel 1 as the opening beat: ${firstHint}.`
         : index === 1
-          ? `${objective}; add subtle model posture shift while preserving product details.`
+          ? `Continue through storyboard panel 2 for ${objective}; add subtle model posture shift while preserving product details.`
           : index === 2
-            ? "Use a controlled slow push-in or slight parallax; keep garment graphics readable."
-            : `Settle into @lastframe: ${lastHint}.`;
+            ? "Move through storyboard panel 3 with controlled slow push-in or slight parallax; keep garment graphics readable."
+            : `Resolve with storyboard panel 4: ${lastHint}. Treat grid borders and panel numbers as guidance only; keep @lastframe only as a legacy compatibility input.`;
 
     return { time, action: compactText(action, 180) } satisfies PromptPackI2VTimelineSegmentJson;
   });
 }
 
-function readTimeline(value: unknown, input: {
-  clipKey: PromptClipKey;
-  continuity?: { first_frame_hint: string; last_frame_hint: string };
-}) {
+function readTimeline(
+  value: unknown,
+  input: {
+    clipKey: PromptClipKey;
+    continuity?: { first_frame_hint: string; last_frame_hint: string };
+  },
+  options?: { enforceStoryboardInstruction?: boolean },
+) {
   const fallback = buildFallbackTimeline(input);
+  const enforceStoryboardInstruction = options?.enforceStoryboardInstruction ?? true;
 
   if (!Array.isArray(value)) {
     return fallback;
@@ -862,7 +944,13 @@ function readTimeline(value: unknown, input: {
 
     return {
       time,
-      action: normalizeTimelineAction(segment.action, fallback[index].action),
+      action: enforceStoryboardInstruction
+        ? ensurePromptInstruction(
+            normalizeTimelineAction(segment.action, fallback[index].action),
+            fallback[index].action,
+            220,
+          )
+        : normalizeTimelineAction(segment.action, fallback[index].action),
     } satisfies PromptPackI2VTimelineSegmentJson;
   });
 }
@@ -877,7 +965,7 @@ function buildPromptFramePromptJson(input: {
   promptCode: string;
   version: number;
 }) {
-  const promptText = readString(input.promptText) || buildFallbackPromptText({
+  const rawPromptText = readString(input.promptText) || buildFallbackPromptText({
     kind: "I2I",
     clipKey: input.clipKey,
     frame: input.frame,
@@ -887,6 +975,10 @@ function buildPromptFramePromptJson(input: {
     visualReferences: input.visualReferences,
     rules: input.rules,
   });
+  const promptText =
+    input.frame === "first_frame"
+      ? ensurePromptInstruction(rawPromptText, STORYBOARD_FIRST_FRAME_INSTRUCTION)
+      : ensureLegacyLastFrameInstruction(rawPromptText);
 
   return {
     schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
@@ -921,7 +1013,7 @@ function buildPromptI2VPromptJson(input: {
   cameraMotion?: string | null;
   negativePrompt?: string | null;
 }) {
-  const promptText = readString(input.promptText) || buildFallbackPromptText({
+  const rawPromptText = readString(input.promptText) || buildFallbackPromptText({
     kind: "I2V",
     clipKey: input.clipKey,
     productName: input.productName,
@@ -931,6 +1023,7 @@ function buildPromptI2VPromptJson(input: {
     rules: input.rules,
     continuity: input.continuity,
   });
+  const promptText = ensurePromptInstruction(rawPromptText, STORYBOARD_I2V_INSTRUCTION);
   const continuity = buildContinuityText(input.continuity);
 
   return {
@@ -943,7 +1036,7 @@ function buildPromptI2VPromptJson(input: {
       clipKey: input.clipKey,
       continuity: input.continuity,
     }),
-    motion_prompt: readString(input.motionPrompt) || promptText,
+    motion_prompt: ensurePromptInstruction(readString(input.motionPrompt) || promptText, STORYBOARD_I2V_INSTRUCTION),
     camera_motion:
       readString(input.cameraMotion) ||
       "Natural slow push-in with subtle handheld parallax; no hard cuts, no fast zoom, no scene jump.",
@@ -1638,7 +1731,7 @@ function requireI2VTimeline(value: unknown, label: string, clipKey: PromptClipKe
     throw new Error(`${label} must contain exactly ${PROMPT_PACK_I2V_TIMELINE_WINDOWS.length} timeline segments.`);
   }
 
-  return readTimeline(value, { clipKey });
+  return readTimeline(value, { clipKey }, { enforceStoryboardInstruction: false });
 }
 
 function requireI2IFramePromptJson(value: unknown, label: string, clipKey: PromptClipKey, frame: "first_frame" | "last_frame") {

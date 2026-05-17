@@ -35,6 +35,7 @@ export type FlowBatchManifest = {
   model: string;
   max_jobs: number;
   flow_account_code: string;
+  chrome_profile_lane_key: string | null;
   flow_url: string;
   drive_output_folder_id: string;
   drive_output_folder_url: string;
@@ -50,14 +51,30 @@ type ExportFlowBatchManifestInput = {
   drive_output_folder_id?: string | null;
   drive_output_folder_url?: string | null;
   helper_output_folder_key?: string | null;
+  chrome_profile_lane_key?: string | null;
 };
 
 function readText(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeNullableText(value: string | null | undefined) {
+  const trimmed = readText(value);
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readManifestLaneKey(value: unknown) {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const laneKey = value.chrome_profile_lane_key;
+
+  return typeof laneKey === "string" && laneKey.trim() ? laneKey.trim() : null;
 }
 
 function normalizeUrl(value: string | null | undefined, label: string, required: boolean) {
@@ -283,6 +300,7 @@ async function buildManifest(input: {
   driveOutputFolderId: string;
   driveOutputFolderUrl: string;
   helperOutputFolderKey: string;
+  chromeProfileLaneKey: string | null;
 }) {
   const [flowAccount, product, promptPack, clipJobs, contents, driveItems] = await Promise.all([
     getFlowAccountById(input.batch.flow_account_id),
@@ -329,6 +347,7 @@ async function buildManifest(input: {
     model: input.batch.model,
     max_jobs: input.batch.max_jobs,
     flow_account_code: flowAccount.account_code,
+    chrome_profile_lane_key: input.chromeProfileLaneKey,
     flow_url: input.flowUrl,
     drive_output_folder_id: input.driveOutputFolderId,
     drive_output_folder_url: input.driveOutputFolderUrl,
@@ -394,6 +413,7 @@ export async function exportFlowBatchManifest(batchId: string, input: ExportFlow
 
   const flowUrl = normalizeUrl(input.flow_url ?? batch.flow_url, "Flow URL", true);
   const helperOutputFolderKey = normalizeHelperOutputFolderKey(input.helper_output_folder_key ?? batch.helper_output_folder_key);
+  const chromeProfileLaneKey = normalizeNullableText(input.chrome_profile_lane_key ?? readManifestLaneKey(batch.manifest_json));
   const { driveOutputFolderId, driveOutputFolderUrl } = normalizeDriveFolder(input, batch);
   const manifest = await buildManifest({
     batch,
@@ -401,6 +421,7 @@ export async function exportFlowBatchManifest(batchId: string, input: ExportFlow
     driveOutputFolderId,
     driveOutputFolderUrl,
     helperOutputFolderKey,
+    chromeProfileLaneKey,
   });
 
   await persistManifestFileToDrive({

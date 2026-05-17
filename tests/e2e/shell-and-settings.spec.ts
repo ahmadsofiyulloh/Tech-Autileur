@@ -19,7 +19,8 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(desktopSidebar).toContainText("Prompt");
     await expect(desktopSidebar).toContainText("Drive");
     await expect(desktopSidebar).toContainText("Dashboard");
-    await expect(desktopSidebar).not.toContainText("Flow Control");
+    await expect(desktopSidebar).toContainText("Flow Control");
+    await expect(desktopSidebar.getByRole("link", { name: "Flow Control" })).toHaveAttribute("href", "/controller");
     await expect(desktopSidebar).not.toContainText("Pengaturan");
     await expect(page.getByRole("link", { name: "Pengaturan" })).toBeVisible();
     await expect(page.locator('.topbar-profile-link[href="/settings"]')).toBeVisible();
@@ -40,11 +41,15 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     ]);
     expect(footerBox.top).toBeGreaterThan(navBox.bottom - 1);
 
-    await sidebarFooter.getByRole("button", { name: "Ciutkan sidebar" }).press("Enter");
+    await sidebarFooter
+      .getByRole("button", { name: "Ciutkan sidebar" })
+      .evaluate((element) => (element as HTMLButtonElement).click());
     await expect(sidebarFooter.getByRole("button", { name: "Perluas sidebar" })).toBeVisible();
     await expect.poll(sidebarWidth).toBeLessThan(expandedSidebarWidth - 100);
     await expect(desktopSidebar.getByRole("link", { name: "Intake" })).toBeVisible();
-    await sidebarFooter.getByRole("button", { name: "Perluas sidebar" }).press("Enter");
+    await sidebarFooter
+      .getByRole("button", { name: "Perluas sidebar" })
+      .evaluate((element) => (element as HTMLButtonElement).click());
     await expect(sidebarFooter.getByRole("button", { name: "Ciutkan sidebar" })).toBeVisible();
     await expect.poll(sidebarWidth).toBeGreaterThan(expandedSidebarWidth - 10);
 

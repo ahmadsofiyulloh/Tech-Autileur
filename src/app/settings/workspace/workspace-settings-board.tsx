@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderKanban, PanelRightOpen, Plus, Save, Search, X } from "lucide-react";
+import { FolderKanban, PanelRightOpen, Plus, RefreshCcw, Save, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
@@ -261,6 +261,20 @@ export function WorkspaceSettingsBoard({ workspaces, currentWorkspaceId }: Works
 
         {drawerOpen ? (
           <div className="stack">
+            {!isCreating && initialWorkspace ? (
+              <div className="controller-action-row">
+                <form action={saveWorkspace}>
+                  <input type="hidden" name="intent" value="provision_workspace_drive" />
+                  <input type="hidden" name="return_to" value="/settings/workspace" />
+                  <input type="hidden" name="id" value={initialWorkspace.id} />
+                  <NativeButton className="compact tertiary" type="submit">
+                    <RefreshCcw size={15} aria-hidden="true" />
+                    Buat Folder Drive
+                  </NativeButton>
+                </form>
+              </div>
+            ) : null}
+
             <form key={formKey} className="stack" action={saveWorkspace}>
               <input type="hidden" name="intent" value={isCreating ? "create_workspace" : "update_workspace"} />
               <input type="hidden" name="return_to" value="/settings/workspace" />

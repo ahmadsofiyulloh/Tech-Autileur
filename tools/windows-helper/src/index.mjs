@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const VALID_STAGES = new Set(["FIRST_FRAME", "LAST_FRAME", "VIDEO"]);
 const DEFAULT_CONFIG_PATH = "config.json";
@@ -13,7 +14,7 @@ function printHelp() {
 
 Commands:
   prepare   Write manifest and prompt TXT files into the local work folder.
-  open      Open the manifest Flow URL with the mapped Chrome profile.
+  open      Open the manifest Flow URL with the mapped Chrome profile lane.
   import    Upload one local output file to Drive and callback the app.
   watch     Process exact manifest output file names from the mapped output folder.
   callback  Post metadata for a file already uploaded to Drive.
@@ -21,6 +22,7 @@ Commands:
 Common flags:
   --manifest <path>  Flow manifest JSON from the app.
   --config <path>    Local helper config. Defaults to config.json.
+  --lane <key>       Optional Chrome profile lane key for multi-lane accounts.
 `);
 }
 
@@ -101,14 +103,74 @@ function getWorkDir(config, manifest) {
   return join(localPath(config.work_root || "./work"), manifest.batch_code);
 }
 
-function getFlowAccountConfig(config, manifest) {
+function normalizeLaneKey(value) {
+  return readFlag({ lane: value }, "lane")
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase();
+}
+
+function normalizeLaneRecord(lane, index) {
+  const laneKey = readFlag({ lane: lane?.lane_key ?? lane?.key ?? lane?.label }, "lane") || `LANE-${index + 1}`;
+  const laneLabel = readFlag({ lane: lane?.label ?? lane?.name ?? laneKey }, "lane") || laneKey;
+
+  return {
+    lane_key: laneKey,
+    lane_label: laneLabel,
+    chrome_profile_path: readFlag({ path: lane?.chrome_profile_path }, "path"),
+    active: lane?.active === true || lane?.is_active === true,
+  };
+}
+
+export function getFlowAccountConfig(config, manifest, requestedLaneKey = "") {
   const account = config.flow_accounts?.[manifest.flow_account_code];
 
-  if (!account?.chrome_profile_path) {
+  if (!account) {
+    throw new Error(`Missing local flow account config for ${manifest.flow_account_code}.`);
+  }
+
+  const laneKey = normalizeLaneKey(requestedLaneKey || manifest.chrome_profile_lane_key || "");
+  const lanes = Array.isArray(account.lanes) ? account.lanes.map(normalizeLaneRecord).filter((lane) => lane.chrome_profile_path) : [];
+
+  if (lanes.length) {
+    let selectedLane = null;
+
+    if (laneKey) {
+      selectedLane = lanes.find((lane) => normalizeLaneKey(lane.lane_key) === laneKey) || null;
+
+      if (!selectedLane) {
+        throw new Error(
+          `Missing local chrome_profile_path for ${manifest.flow_account_code} lane ${requestedLaneKey || manifest.chrome_profile_lane_key}.`,
+        );
+      }
+    } else {
+      const activeLanes = lanes.filter((lane) => lane.active);
+
+      if (activeLanes.length === 1) {
+        selectedLane = activeLanes[0];
+      } else if (activeLanes.length > 1) {
+        throw new Error(`Multiple active lanes configured for ${manifest.flow_account_code}. Pass --lane to select one.`);
+      } else if (lanes.length === 1) {
+        selectedLane = lanes[0];
+      } else {
+        throw new Error(`No active lane configured for ${manifest.flow_account_code}. Pass --lane to select one.`);
+      }
+    }
+
+    return selectedLane;
+  }
+
+  if (!account.chrome_profile_path) {
     throw new Error(`Missing local chrome_profile_path for ${manifest.flow_account_code}.`);
   }
 
-  return account;
+  return {
+    lane_key: "DEFAULT",
+    lane_label: "DEFAULT",
+    chrome_profile_path: readFlag({ path: account.chrome_profile_path }, "path"),
+    active: true,
+  };
 }
 
 function getOutputFolder(config, manifest) {
@@ -229,8 +291,8 @@ async function prepare({ manifest, config }) {
   console.log(`Prepared ${manifest.stage_jobs.length} stage prompt files in ${workDir}`);
 }
 
-function openChrome({ manifest, config }) {
-  const account = getFlowAccountConfig(config, manifest);
+function openChrome({ manifest, config }, flags = {}) {
+  const account = getFlowAccountConfig(config, manifest, readFlag(flags, "lane", ""));
   const chromePath = localPath(config.chrome_executable_path || "chrome");
   const profilePath = localPath(account.chrome_profile_path);
   const flowUrl = manifest.flow_url;
@@ -252,7 +314,7 @@ function openChrome({ manifest, config }) {
     }).unref();
   }
 
-  console.log(`Opened Flow for ${manifest.flow_account_code}`);
+  console.log(`Opened Flow for ${manifest.flow_account_code} lane ${account.lane_label || account.lane_key}`);
 }
 
 function mimeTypeForFile(filePath, stage) {
@@ -353,6 +415,28 @@ function stagePurpose(stage) {
   return stage === "VIDEO" ? "FINAL_VIDEO" : "I2I_RESULT";
 }
 
+function unwrapAppApiPayload(payload) {
+  if (payload && typeof payload === "object" && payload.ok === true && "data" in payload) {
+    return payload.data;
+  }
+
+  return payload;
+}
+
+function readAppApiErrorMessage(payload, fallback) {
+  if (payload && typeof payload === "object") {
+    if (payload.ok === false && payload.error && typeof payload.error.message === "string") {
+      return payload.error.message;
+    }
+
+    if (typeof payload.error === "string") {
+      return payload.error;
+    }
+  }
+
+  return fallback;
+}
+
 function buildDrivePath(manifest, outputName) {
   return `/AffiliateAI/03_BATCHES/${manifest.target_date}/${manifest.batch_code}/${manifest.flow_account_code}/${outputName}`;
 }
@@ -404,10 +488,10 @@ async function postCallback(config, manifest, job, driveItem, fileName, matchSta
   const result = await response.json();
 
   if (!response.ok) {
-    throw new Error(`App callback failed: ${result.error || response.status}`);
+    throw new Error(`App callback failed: ${readAppApiErrorMessage(result, response.status)}`);
   }
 
-  return result;
+  return unwrapAppApiPayload(result);
 }
 
 async function importOutput({ manifest, config }, flags) {
@@ -487,7 +571,7 @@ async function main() {
   }
 
   if (command === "open") {
-    openChrome(inputs);
+    openChrome(inputs, flags);
     return;
   }
 
@@ -509,7 +593,11 @@ async function main() {
   throw new Error(`Unsupported command: ${command}`);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+const executedFileUrl = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";
+
+if (import.meta.url === executedFileUrl) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

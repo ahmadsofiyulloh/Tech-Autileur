@@ -502,7 +502,7 @@ function buildPromptContextSnapshot(context: {
     ...promptContext,
     reference_cards: buildPromptReferenceCardsFromContext(promptContext),
     prompt_writing_contract: {
-      mode: "FLOW_I2I_I2V_PROMPT_PACK_V2",
+      mode: "FLOW_I2I_STORYBOARD_I2V_PROMPT_PACK_V2",
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       first_frame_image_inputs: ["@character", "@environment", "@product"],
       last_frame_image_inputs: ["@firstframe"],
@@ -886,6 +886,13 @@ function buildMockClipObjective(clipKey: "clip_1" | "clip_2") {
     : "detail/benefit/use-case look focused on polo fit, fabric, and readable front graphic";
 }
 
+const MOCK_STORYBOARD_FIRST_FRAME_INSTRUCTION =
+  "Create exactly one image: a 2x2 storyboard grid with 4 numbered panels for this single clip, read left-to-right and top-to-bottom.";
+const MOCK_LEGACY_LAST_FRAME_INSTRUCTION =
+  "Legacy compatibility last-frame payload only: keep @firstframe as the storyboard source and do not create a separate visible Last Frame output.";
+const MOCK_STORYBOARD_I2V_INSTRUCTION =
+  "Use @firstframe as the completed 2x2 storyboard image and map panels 1-4 left-to-right, top-to-bottom into one continuous 8-second video. Treat grid borders and panel numbers as storyboard guidance only, not visible video elements.";
+
 function readProductReference(visualReferences: PromptPackVisualReferenceJson[]) {
   return visualReferences.find((reference) => reference.kind === "PRODUCT") ?? null;
 }
@@ -903,12 +910,15 @@ function buildMockI2IMustKeep(input: {
   const productReference = readProductReference(input.visualReferences);
   const frameRule =
     input.frame === "first_frame"
-      ? "Use @character, @environment, and the product reference together in one coherent fashion image."
-      : "Use only @firstframe as the visual source and change only the final pose/framing endpoint.";
+      ? "Use @character, @environment, and the product reference together to create one 2x2 storyboard image with 4 numbered panels."
+      : "Keep @firstframe as the storyboard source; this last-frame payload is retained for legacy compatibility only.";
 
   return [
     frameRule,
     buildMockClipObjective(input.clipKey),
+    input.frame === "first_frame"
+      ? "Each panel must be a distinct beat for the same clip while preserving product, character, outfit, environment, and lighting continuity."
+      : "Do not redesign the storyboard, identity, outfit, product, or environment.",
     `Keep the product accurate: ${productReference?.summary || input.productName}.`,
     ...((productReference?.must_keep ?? []).slice(0, 3)),
     "Preserve character identity, product color, collar, short sleeves, fabric texture, front graphic placement, warm-orange lighting, and industrial room continuity.",
@@ -918,7 +928,7 @@ function buildMockI2IMustKeep(input: {
 function buildMockI2IMustAvoid(frame: "first_frame" | "last_frame") {
   return [
     "Do not change the person, hairstyle, body proportions, product color, front graphic placement, room layout, or warm-orange lighting.",
-    frame === "last_frame" ? "Do not introduce @character, @environment, or product reference images again; use @firstframe only." : "Do not ignore any of the three required image inputs.",
+    frame === "first_frame" ? "Do not output four separate files, a video, or a single non-grid frame." : "Do not introduce @character, @environment, or product reference images again; use @firstframe only for legacy compatibility.",
     "Avoid blurry output, distorted face, warped hands, duplicate limbs, and unreadable product graphics.",
   ];
 }
@@ -929,12 +939,12 @@ function buildMockTimeline(clipKey: "clip_1" | "clip_2") {
   return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => {
     const action =
       index === 0
-        ? `Begin from @firstframe and hold the established character, outfit, lighting, and room.`
+        ? "Read @firstframe storyboard panel 1 as the opening beat with established character, outfit, lighting, and room."
         : index === 1
-          ? `${objective}; add a subtle posture shift without changing product details.`
+          ? `Continue through storyboard panel 2 for ${objective}; add a subtle posture shift without changing product details.`
           : index === 2
-            ? "Use slow controlled camera movement with slight parallax; keep the polo graphic readable."
-            : "Settle naturally into @lastframe with the same identity, product, and background.";
+            ? "Move through storyboard panel 3 with slow controlled camera movement and slight parallax; keep the polo graphic readable."
+            : "Resolve with storyboard panel 4 with the same identity, product, and background; grid borders and panel numbers are guidance only, @lastframe remains legacy compatibility only.";
 
     return { time, action };
   });
@@ -967,7 +977,7 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
         stage: "i2i_first_frame",
         image_inputs: ["@character", "@environment", productMention],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Create a ${buildMockClipObjective("clip_1")} in the locked industrial warm-orange room. ${continuityInstruction}`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_STORYBOARD_FIRST_FRAME_INSTRUCTION} Build the ${buildMockClipObjective("clip_1")} in the locked industrial warm-orange room. ${continuityInstruction}`,
           420,
         ),
         must_keep: buildMockI2IMustKeep({
@@ -984,7 +994,7 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
         stage: "i2i_last_frame",
         image_inputs: ["@firstframe"],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use @firstframe only and create the ending pose for the ${buildMockClipObjective("clip_1")}; keep identity, product, lighting, and room stable.`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_LEGACY_LAST_FRAME_INSTRUCTION} Keep identity, product, lighting, and room stable for ${buildMockClipObjective("clip_1")}.`,
           420,
         ),
         must_keep: buildMockI2IMustKeep({
@@ -1004,7 +1014,7 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
         stage: "i2i_first_frame",
         image_inputs: ["@character", "@environment", productMention],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Create a ${buildMockClipObjective("clip_2")} in the same locked industrial warm-orange room. PRODUCT stays primary and readable.`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_STORYBOARD_FIRST_FRAME_INSTRUCTION} Build the ${buildMockClipObjective("clip_2")} in the same locked industrial warm-orange room. PRODUCT stays primary and readable.`,
           420,
         ),
         must_keep: buildMockI2IMustKeep({
@@ -1021,7 +1031,7 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
         stage: "i2i_last_frame",
         image_inputs: ["@firstframe"],
         prompt_text: compactText(
-          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use @firstframe only and end with a clean product-first composition for the ${buildMockClipObjective("clip_2")}.`,
+          `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_LEGACY_LAST_FRAME_INSTRUCTION} Keep a clean product-first compatibility payload for ${buildMockClipObjective("clip_2")}.`,
           420,
         ),
         must_keep: buildMockI2IMustKeep({
@@ -1052,15 +1062,15 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
       frame_inputs: ["@firstframe", "@lastframe"],
       timeline: buildMockTimeline("clip_1"),
       motion_prompt: compactText(
-        `Animate the ${buildMockClipObjective("clip_1")} from @firstframe to @lastframe with a subtle confident posture shift. ${continuityHint}`,
+        `${MOCK_STORYBOARD_I2V_INSTRUCTION} Animate the ${buildMockClipObjective("clip_1")} with a subtle confident posture shift. ${continuityHint}`,
         420,
       ),
       camera_motion: "Natural slow push-in with subtle handheld parallax; no hard cuts, no fast zoom, no scene jump.",
       prompt_text: compactText(
-        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use only @firstframe and @lastframe as anchors for an 8-second ${buildMockClipObjective("clip_1")}.`,
+        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_STORYBOARD_I2V_INSTRUCTION} @lastframe remains a legacy compatibility input and must not override storyboard order for ${buildMockClipObjective("clip_1")}.`,
         420,
       ),
-      continuity: "Start at @firstframe and end at @lastframe with no identity, outfit, product, lighting, or background drift.",
+      continuity: "Use @firstframe as one 2x2 storyboard image; follow panels 1-4 with no identity, outfit, product, lighting, or background drift. Grid borders and panel numbers are guidance only; @lastframe is legacy-compatible only.",
       negative_prompt: buildMockNegativePrompt(promptRules),
     },
     clip_2: {
@@ -1071,15 +1081,15 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
       frame_inputs: ["@firstframe", "@lastframe"],
       timeline: buildMockTimeline("clip_2"),
       motion_prompt: compactText(
-        `Animate the ${buildMockClipObjective("clip_2")} from @firstframe to @lastframe with restrained movement that keeps product details readable. ${continuityHint}`,
+        `${MOCK_STORYBOARD_I2V_INSTRUCTION} Animate the ${buildMockClipObjective("clip_2")} with restrained movement that keeps product details readable. ${continuityHint}`,
         420,
       ),
       camera_motion: "Controlled slow push-in or slight lateral parallax; keep the shirt graphic readable throughout.",
       prompt_text: compactText(
-        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Use only @firstframe and @lastframe as anchors for an 8-second ${buildMockClipObjective("clip_2")}.`,
+        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_STORYBOARD_I2V_INSTRUCTION} @lastframe remains a legacy compatibility input and must not override storyboard order for ${buildMockClipObjective("clip_2")}.`,
         420,
       ),
-      continuity: "Start at @firstframe and end at @lastframe with no identity, outfit, product, lighting, or background drift.",
+      continuity: "Use @firstframe as one 2x2 storyboard image; follow panels 1-4 with no identity, outfit, product, lighting, or background drift. Grid borders and panel numbers are guidance only; @lastframe is legacy-compatible only.",
       negative_prompt: buildMockNegativePrompt(promptRules),
     },
   } as PromptPackGenerationOutput["i2v_prompts"];
@@ -1321,7 +1331,7 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
     consistency_rules: consistencyRules,
     reference_cards: referenceCards,
     prompt_writing_contract: {
-      mode: "FLOW_I2I_I2V_PROMPT_PACK_V2",
+      mode: "FLOW_I2I_STORYBOARD_I2V_PROMPT_PACK_V2",
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       first_frame_image_inputs: ["@character", "@environment", "@product"],
       last_frame_image_inputs: ["@firstframe"],
@@ -1399,6 +1409,8 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Use it as writing guidance, but do not copy raw reference_cards or prompt_rules into output objects.",
     "reference_cards are ordered CHARACTER, ENVIRONMENT, PRODUCT. PRODUCT is the primary subject. CHARACTER is support only. ENVIRONMENT is the background anchor.",
     "Output compact Gemini fields only; the server will map them into final v2 JSON with I2I First Frame = @character + @environment + product mention, I2I Last Frame = @firstframe only, and I2V = @firstframe + @lastframe only.",
+    "I2I first_frame.prompt_text must generate exactly one image: a 2x2 storyboard grid with 4 numbered panels for one clip, read left-to-right and top-to-bottom. Do not ask for four separate image files.",
+    "I2I last_frame.prompt_text must remain non-empty for legacy compatibility, but it is hidden from the operator UI. Treat it as a compatibility payload from @firstframe, not as a separate visible output.",
     "Clip roles are locked: clip_1 is a hook/hero look; clip_2 is a detail/benefit/use-case look. Make prompt_text meaningfully different between clips.",
     "Apply affiliate rules internally as policy, not as raw copied prompt_rules:",
     "- i2i_prompt_rules must shape every i2i_prompts.clip_n.first_frame.prompt_text and i2i_prompts.clip_n.last_frame.prompt_text.",
@@ -1413,7 +1425,7 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "Each i2i clip object must include slot, first_frame, and last_frame, and each frame must include slot, frame, and prompt_text.",
     "Each i2v clip object must include slot, prompt_text, duration_seconds, timeline, motion_prompt, camera_motion, continuity, and negative_prompt.",
     "For every i2v clip, duration_seconds must be 8 and timeline must contain exactly four segments with these time values in order: 00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08.",
-    "I2V prompt text must describe movement from the generated @firstframe to generated @lastframe only. Do not ask I2V to use the three original reference images.",
+    "I2V prompt text must use @firstframe as the completed 2x2 storyboard image and map panels 1-4 into one continuous 8-second video. Treat grid borders and panel numbers as storyboard guidance only, not visible video elements. Keep @lastframe as a legacy compatibility input only; do not ask I2V to use the three original reference images.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
     "product_analysis.product must echo the source product fields from prompt_context_for_model.product and must copy product.status exactly from the source product record.",
     "product_analysis.source_image must echo the compact source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, and source_image.drive_item_ref_id exactly. Do not expand source_image.analysis_json; the server restores cached analysis JSON.",
@@ -1460,6 +1472,8 @@ function buildPromptPackRepairPrompt(
     "Keep the repaired output compact. The server compiles final v2 copy JSON after validation, so do not copy raw rules into any output object.",
     "Use prompt_context_for_model.reference_cards as the visual reference source when repairing prompt text.",
     "Keep clip_1 as a hook/hero look and clip_2 as a detail/benefit/use-case look.",
+    "Each i2i first_frame.prompt_text must describe one 2x2 storyboard image with 4 numbered panels for one clip. Each last_frame.prompt_text must remain non-empty as hidden legacy compatibility from @firstframe.",
+    "Each i2v prompt must use @firstframe as the completed storyboard grid and map panels 1-4 into one continuous 8-second video while keeping @lastframe only as a legacy compatibility input. Grid borders and panel numbers are guidance only, not visible video elements.",
     "Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, and negative_prompt.",
     "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
     "Use the provided context to normalize structure; do not invent new assets or rules.",

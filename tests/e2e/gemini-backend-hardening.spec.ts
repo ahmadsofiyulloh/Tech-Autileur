@@ -52,6 +52,7 @@ import {
   filterPromptWorkbenchRows,
   normalizePromptWorkbenchReadinessFilter,
 } from "../../src/lib/prompts/prompt-workbench";
+import { createPromptWorkbenchPageCollector } from "../../src/lib/prompts/prompt-workbench-collector";
 import {
   buildFlowStageManifestJobs,
   flowStageDrivePurpose,
@@ -102,7 +103,12 @@ function buildCompactReferenceCard(
 function buildTestI2VTimeline() {
   return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => ({
     time,
-    action: index === 0 ? "start at @firstframe" : index === 3 ? "end at @lastframe" : "keep smooth product motion",
+    action:
+      index === 0
+        ? "read @firstframe storyboard panel 1"
+        : index === 3
+          ? "resolve on storyboard panel 4 with @lastframe kept for compatibility"
+          : "map the next storyboard panels into smooth product motion",
   }));
 }
 
@@ -136,7 +142,7 @@ function buildTestI2VPrompt<TSlot extends "clip_1" | "clip_2">(
     motion_prompt: `${promptText} motion`,
     camera_motion: "slow push-in",
     prompt_text: promptText,
-    continuity: "start at @firstframe and end at @lastframe",
+    continuity: "use @firstframe storyboard panels 1-4 while @lastframe stays legacy-compatible",
     negative_prompt: "no extra props",
   } as PromptPackGenerationOutput["i2v_prompts"][TSlot];
 }
@@ -287,7 +293,7 @@ function buildPromptPackServerContextFixture(): JsonObject {
     mode: "server_injected",
     reference_cards: sharedReferenceCards,
     prompt_writing_contract: {
-      mode: "FLOW_I2I_I2V_PROMPT_PACK_V2",
+      mode: "FLOW_I2I_STORYBOARD_I2V_PROMPT_PACK_V2",
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       first_frame_image_inputs: ["@character", "@environment", "@product"],
       last_frame_image_inputs: ["@firstframe"],
@@ -966,6 +972,57 @@ test("prompt workbench readiness counts and filters rows", () => {
   expect(filterPromptWorkbenchRows(rows, "ALL")).toHaveLength(4);
 });
 
+test("prompt workbench collector keeps counts while streaming batches", () => {
+  const collector = createPromptWorkbenchPageCollector({
+    page: 2,
+    pageSize: 1,
+    readiness: "READY_FOR_PROMPT",
+  });
+
+  collector.addBatch([
+    {
+      product: { id: "product-1" },
+      status: "READY_FOR_PROMPT",
+      label: "Ready for Prompt",
+      reasons: [],
+      isBulkEnqueueEligible: true,
+    } as any,
+    {
+      product: { id: "product-2" },
+      status: "NEEDS_REVIEW",
+      label: "Needs Review",
+      reasons: [],
+      isBulkEnqueueEligible: false,
+    } as any,
+  ]);
+
+  collector.addBatch([
+    {
+      product: { id: "product-3" },
+      status: "READY_FOR_PROMPT",
+      label: "Ready for Prompt",
+      reasons: [],
+      isBulkEnqueueEligible: true,
+    } as any,
+    {
+      product: { id: "product-4" },
+      status: "PROMPT_GENERATED",
+      label: "Prompt Generated",
+      reasons: [],
+      isBulkEnqueueEligible: false,
+    } as any,
+  ]);
+
+  const result = collector.finish();
+
+  expect(result.totalCount).toBe(2);
+  expect(result.counts.total).toBe(4);
+  expect(result.counts.READY_FOR_PROMPT).toBe(2);
+  expect(result.counts.NEEDS_REVIEW).toBe(1);
+  expect(result.counts.PROMPT_GENERATED).toBe(1);
+  expect(result.rows.map((row) => row.product.id)).toEqual(["product-3"]);
+});
+
 test("intake upload validation accepts common JPG variants", () => {
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpeg" }), "Screenshot Shopee")).not.toThrow();
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpg" }), "Screenshot TikTok")).not.toThrow();
@@ -1248,6 +1305,8 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
     "@environment",
     "@product.png",
   ]);
+  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).toContain("2x2 storyboard");
+  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).toContain("4 numbered panels");
   expect(parsed.i2i_prompts.clip_1.first_frame.must_keep).toEqual(expect.arrayContaining([
     expect.stringContaining("Use @character, @environment"),
     expect.stringContaining("keep product shape"),
@@ -1255,6 +1314,7 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
   expect(parsed.i2i_prompts.clip_1.first_frame.must_avoid.length).toBeGreaterThan(0);
   expect(parsed.i2i_prompts.clip_1.first_frame.must_avoid.join(" ")).not.toContain("{");
   expect(parsed.i2i_prompts.clip_1.last_frame.image_inputs).toEqual(["@firstframe"]);
+  expect(parsed.i2i_prompts.clip_1.last_frame.prompt_text).toContain("Legacy compatibility");
   expect(parsed.i2v_prompts.clip_2.schema_version).toBe(PROMPT_PACK_COPY_SCHEMA_VERSION);
   expect(parsed.i2v_prompts.clip_2.frame_inputs).toEqual(["@firstframe", "@lastframe"]);
   expect(parsed.i2v_prompts.clip_2.duration_seconds).toBe(PROMPT_PACK_I2V_DURATION_SECONDS);
@@ -1264,6 +1324,11 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
     "00:04-00:06",
     "00:06-00:08",
   ]);
+  expect(parsed.i2v_prompts.clip_2.prompt_text).toContain("@firstframe as the completed 2x2 storyboard");
+  expect(parsed.i2v_prompts.clip_2.prompt_text).toContain("not visible video elements");
+  expect(parsed.i2v_prompts.clip_2.continuity).toContain("panels 1-4");
+  expect(parsed.i2v_prompts.clip_2.prompt_text).not.toContain("3x3");
+  expect(parsed.i2v_prompts.clip_2.prompt_text).not.toContain("panels 1-9");
   expect(parsed.i2v_prompts.clip_2.negative_prompt).toContain("no extra props");
   expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("visual_references");
   expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("prompt_rules");

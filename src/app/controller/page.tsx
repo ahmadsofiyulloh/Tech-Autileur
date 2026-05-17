@@ -199,6 +199,20 @@ function HiddenInput({ name, value }: { name: string; value: string | number | n
   return <input type="hidden" name={name} value={value ?? ""} />;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readManifestChromeProfileLaneKey(manifestJson: unknown) {
+  if (!isRecord(manifestJson)) {
+    return null;
+  }
+
+  const laneKey = manifestJson.chrome_profile_lane_key;
+
+  return typeof laneKey === "string" && laneKey.trim() ? laneKey.trim() : null;
+}
+
 function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord[] }) {
   return (
     <details className="controller-support-panel panel">
@@ -321,11 +335,14 @@ function ReadyPromptCard({
 }
 
 function ExportManifestPanel({ batch }: { batch: FlowBatchRecord }) {
+  const chromeProfileLaneKey = readManifestChromeProfileLaneKey(batch.manifest_json);
+
   return (
     <details className="controller-manifest-panel muted-box">
       <summary>
         <span>Manifest</span>
         <StatusBadge status={batch.manifest_json ? "Tersedia" : "Belum"} tone={batch.manifest_json ? "success" : "warning"} />
+        {chromeProfileLaneKey ? <StatusBadge status={`Lane ${chromeProfileLaneKey}`} tone="neutral" /> : null}
       </summary>
       <form action={saveController} className="controller-manifest-panel__body stack">
         <HiddenInput name="intent" value="export_flow_manifest" />
@@ -333,6 +350,10 @@ function ExportManifestPanel({ batch }: { batch: FlowBatchRecord }) {
         <label className="auth-field">
           <span>Flow URL</span>
           <input name="flow_url" defaultValue={batch.flow_url ?? ""} placeholder="https://labs.google.com/fx/tools/flow" />
+        </label>
+        <label className="auth-field">
+          <span>Lane Chrome</span>
+          <input name="chrome_profile_lane_key" defaultValue={chromeProfileLaneKey ?? ""} placeholder="utama" />
         </label>
         <div className="grid two-up">
           <label className="auth-field">
@@ -388,6 +409,7 @@ function BatchCard({
   const canStart = batch.status === "EXPORTED" || batch.status === "READY_TO_EXPORT";
   const canMarkImported = OUTPUT_BATCH_STATUSES.has(batch.status) || batch.status === "RUNNING";
   const canClose = batch.status !== "CLOSED";
+  const chromeProfileLaneKey = readManifestChromeProfileLaneKey(batch.manifest_json);
 
   return (
     <article className="controller-lane-card">
@@ -401,6 +423,7 @@ function BatchCard({
       <div className="controller-lane-card__meta">
         <span>{accountLabel}</span>
         <span>{`${clipCount} clip`}</span>
+        {chromeProfileLaneKey ? <span>{`Lane ${chromeProfileLaneKey}`}</span> : null}
         <span>{formatActionTime(batch.updated_at)}</span>
       </div>
       <StageImportRows clipJobs={clipJobs} generatedFileMap={generatedFileMap} clipCount={clipCount} />

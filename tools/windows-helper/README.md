@@ -14,6 +14,26 @@ node src/index.mjs watch --manifest path/to/manifest.json --config config.json
 node src/index.mjs callback --manifest path/to/manifest.json --config config.json --stage VIDEO --clip CLIP01 --drive-item-id <ID> --drive-url <URL> --name clip01.mp4
 ```
 
+`open` can also accept `--lane <key>` to pick a specific Chrome profile lane when the local config defines more than one lane for the same Flow account.
+
 `watch` only processes files that already match manifest `stage_jobs[].output_file_name`. The helper never clicks, selects, uploads into, or submits inside Google Flow.
 
 `prepare` creates one batch work folder with `manifest/`, `prompts/i2i/`, `prompts/i2v/`, `staging/i2i/`, `staging/i2v/`, `downloads/`, `imported/`, and `expected-outputs.json`.
+
+Helper local config supports both the legacy single-profile shape and the lane-based shape:
+
+```json
+{
+  "flow_accounts": {
+    "FLOW-EXAMPLE": {
+      "lanes": [
+        {
+          "lane_key": "utama",
+          "chrome_profile_path": "<CHROME_PROFILE_PATH>",
+          "active": true
+        }
+      ]
+    }
+  }
+}
+```

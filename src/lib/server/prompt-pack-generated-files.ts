@@ -162,11 +162,8 @@ function buildPromptPackTextFile(input: {
     lines.push(
       "",
       PROMPT_CLIP_LABELS[clipKey],
-      "I2I First Frame",
+      "Storyboard Image",
       clip.i2i_first_frame || "Belum ada.",
-      "",
-      "I2I Last Frame",
-      clip.i2i_last_frame || "Belum ada.",
       "",
       "I2V Prompt",
       clip.i2v_prompt || "Belum ada.",

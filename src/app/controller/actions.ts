@@ -184,6 +184,7 @@ export async function saveController(formData: FormData) {
         drive_output_folder_id: readNullableText(formData, "drive_output_folder_id"),
         drive_output_folder_url: readNullableText(formData, "drive_output_folder_url"),
         helper_output_folder_key: readNullableText(formData, "helper_output_folder_key"),
+        chrome_profile_lane_key: readNullableText(formData, "chrome_profile_lane_key"),
       });
       redirect(`/controller/batches/${id}/manifest`);
     }
