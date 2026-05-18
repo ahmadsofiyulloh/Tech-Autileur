@@ -18,6 +18,7 @@ export type OperatorNavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  badge?: string;
 };
 
 export type OperatorRouteMeta = OperatorNavItem & {
@@ -37,7 +38,7 @@ export const desktopNavItems = [
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },
-  { href: "/controller", label: "Flow Control", icon: Workflow },
+  { href: "/controller", label: "Flow Control", icon: Workflow, badge: "Coming soon" },
   { href: "/drive", label: "Drive", icon: HardDrive },
 ] satisfies OperatorNavItem[];
 

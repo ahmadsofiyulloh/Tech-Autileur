@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { ArrowRight, ExternalLink, FileJson, MonitorPlay, Plus, RefreshCcw, Save, Workflow } from "lucide-react";
+import { Download, ExternalLink, FileJson, ListPlus, MonitorPlay, Plus, Save, Workflow, X, Zap } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { SectionCard } from "@/components/operator/section-card";
@@ -49,6 +49,10 @@ type ControllerWorkflowStep = ControllerWorkflowStepperStep & {
 
 function isMobileUserAgent(userAgent: string) {
   return /mobi|android|iphone|ipad|ipod/i.test(userAgent);
+}
+
+function isControllerPlaceholderEnabled() {
+  return true;
 }
 
 function formatActionTime(value: string | null | undefined) {
@@ -258,8 +262,8 @@ function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord
   const laneKeyCount = accounts.filter((account) => readChromeProfileLaneKey(account.notes)).length;
 
   return (
-    <details className="controller-support-panel panel">
-      <summary>
+    <section className="controller-support-panel panel" aria-label="Pengaturan Akun Flow">
+      <div className="controller-support-panel__header">
         <strong>Pengaturan Akun Flow</strong>
         <div className="controller-support-panel__summary">
           <StatusBadge
@@ -288,7 +292,7 @@ function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord
             variant="pill"
           />
         </div>
-      </summary>
+      </div>
       <div className="controller-support-panel__body stack">
         {accounts.length ? (
           <ul className="list controller-account-list">
@@ -339,7 +343,7 @@ function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord
         ) : (
           <EmptyState title="Akun Flow belum ada." description="Tambah akun Flow." />
         )}
-        <form action={saveController} className="controller-inline-form stack">
+        <form action={saveController} className="controller-inline-form controller-add-account-form">
           <HiddenInput name="intent" value="create_flow_account" />
           <HiddenInput name="account_type" value="FLOW_FREE" />
           <HiddenInput name="observed_daily_credit" value="50" />
@@ -357,7 +361,7 @@ function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord
           </PendingActionButton>
         </form>
       </div>
-    </details>
+    </section>
   );
 }
 
@@ -384,7 +388,7 @@ function GeneratedPromptCard({
         <HiddenInput name="intent" value="mark_prompt_ready" />
         <HiddenInput name="id" value={promptPack.id} />
         <PendingActionButton className="compact primary" pendingLabel="Menyiapkan">
-          <ArrowRight size={15} aria-hidden="true" />
+          <Zap size={15} aria-hidden="true" />
           Siapkan Flow
         </PendingActionButton>
       </form>
@@ -411,8 +415,14 @@ function BatchSelectionCard({
         <div className="stack-tight">
           {isSelectable ? (
             <label className="checkbox-row controller-batch-selection-card__picker">
-              <input defaultChecked={defaultChecked} name="prompt_pack_ids" type="checkbox" value={promptPack.id} />
-              <span>Pilih batch</span>
+              <input
+                defaultChecked={defaultChecked}
+                id={`batch-select-${promptPack.id}`}
+                name="prompt_pack_ids"
+                type="checkbox"
+                value={promptPack.id}
+              />
+              <span>Pilih batch ini</span>
             </label>
           ) : (
             <span className="controller-batch-selection-card__picker controller-batch-selection-card__picker--disabled">Dilewati</span>
@@ -452,15 +462,18 @@ function ExportManifestPanel({ batch, flowAccountLaneKey }: { batch: FlowBatchRe
       <form action={saveController} className="controller-manifest-form stack">
         <HiddenInput name="intent" value="export_flow_manifest" />
         <HiddenInput name="id" value={batch.id} />
-        <label className="auth-field">
-          <span>Flow URL</span>
-          <input name="flow_url" defaultValue={batch.flow_url ?? ""} placeholder="https://labs.google.com/fx/tools/flow" />
-        </label>
-        <label className="auth-field">
-          <span>Lane Chrome</span>
-          <input name="chrome_profile_lane_key" defaultValue={chromeProfileLaneKey ?? ""} placeholder="utama" />
-        </label>
-        <div className="grid two-up">
+        <div className="controller-manifest-form__field-grid">
+          <label className="auth-field">
+            <span>Flow URL</span>
+            <input name="flow_url" defaultValue={batch.flow_url ?? ""} placeholder="https://labs.google.com/fx/tools/flow" />
+          </label>
+          <label className="auth-field">
+            <span>Lane Chrome</span>
+            <input name="chrome_profile_lane_key" defaultValue={chromeProfileLaneKey ?? ""} placeholder="utama" />
+          </label>
+        </div>
+        <div className="controller-manifest-form__divider" aria-hidden="true" />
+        <div className="controller-manifest-form__field-grid">
           <label className="auth-field">
             <span>Folder Drive ID</span>
             <input name="drive_output_folder_id" defaultValue={batch.drive_output_folder_id ?? ""} />
@@ -474,19 +487,19 @@ function ExportManifestPanel({ batch, flowAccountLaneKey }: { batch: FlowBatchRe
           <span>Output Key</span>
           <input name="helper_output_folder_key" defaultValue={batch.helper_output_folder_key ?? ""} />
         </label>
-        <div className="controller-action-row">
-          <PendingActionButton className="compact primary" pendingLabel="Mengekspor">
-            <FileJson size={15} aria-hidden="true" />
-            Ekspor Manifest
-          </PendingActionButton>
+        <div className="controller-action-row controller-manifest-form__footer">
           {batch.manifest_json ? (
             <NativeLinkButton className="compact tertiary" href={`/controller/batches/${batch.id}/manifest`}>
-              <FileJson size={15} aria-hidden="true" />
+              <Download size={15} aria-hidden="true" />
               Unduh
             </NativeLinkButton>
           ) : null}
+          <PendingActionButton className="compact tertiary" pendingLabel="Mengekspor">
+            <FileJson size={15} aria-hidden="true" />
+            Ekspor Manifest
+          </PendingActionButton>
           {batch.flow_url ? (
-            <NativeAnchorButton className="compact tertiary" href={batch.flow_url} rel="noreferrer" target="_blank">
+            <NativeAnchorButton className="compact primary" href={batch.flow_url} rel="noreferrer" target="_blank">
               <ExternalLink size={15} aria-hidden="true" />
               Buka Flow
             </NativeAnchorButton>
@@ -521,7 +534,7 @@ function BatchCard({
 
   return (
     <article className="controller-lane-card controller-batch-card">
-      <div className="controller-lane-card__header">
+      <div className="controller-batch-info-grid">
         <div className="stack-tight">
           <strong>{productName}</strong>
           <span>{batch.batch_code}</span>
@@ -542,8 +555,10 @@ function BatchCard({
         {chromeProfileLaneKey ? <span>{`Lane ${chromeProfileLaneKey}`}</span> : <span>Lane belum di-set</span>}
         <span>{formatActionTime(batch.updated_at)}</span>
       </div>
-      <StageImportRows clipJobs={clipJobs} generatedFileMap={generatedFileMap} clipCount={clipCount} />
-      <div className="controller-action-row">
+      <div className="controller-card-section controller-card-section--stage">
+        <StageImportRows clipJobs={clipJobs} generatedFileMap={generatedFileMap} clipCount={clipCount} />
+      </div>
+      <div className="controller-action-row controller-card-section controller-card-section--actions">
         {PROMPT_READY_BATCH_STATUSES.has(batch.status) ? <ExportManifestPanel batch={batch} flowAccountLaneKey={flowAccountLaneKey} /> : null}
         {canStart ? (
           <form action={saveController}>
@@ -562,7 +577,7 @@ function BatchCard({
             <HiddenInput name="id" value={batch.id} />
             <HiddenInput name="status" value="IMPORTED" />
             <PendingActionButton className="compact tertiary" pendingLabel="Menandai">
-              <RefreshCcw size={15} aria-hidden="true" />
+              <Download size={15} aria-hidden="true" />
               Tandai Masuk
             </PendingActionButton>
           </form>
@@ -572,6 +587,7 @@ function BatchCard({
             <HiddenInput name="intent" value="archive_flow_batch" />
             <HiddenInput name="id" value={batch.id} />
             <PendingActionButton className="compact tertiary" pendingLabel="Menutup">
+              <X size={15} aria-hidden="true" />
               Tutup
             </PendingActionButton>
           </form>
@@ -614,6 +630,23 @@ export default async function ControllerPage() {
 
   if (isMobileUserAgent(requestHeaders.get("user-agent") ?? "")) {
     redirect("/products/new");
+  }
+
+  if (isControllerPlaceholderEnabled()) {
+    return (
+      <>
+        <ControllerMobileRedirect />
+        <div className="controller-placeholder stack">
+          <SectionCard
+            icon={Workflow}
+            title="Flow Control"
+            actions={<StatusBadge status="Coming soon" tone="warning" size="sm" variant="pill" />}
+          >
+            <EmptyState title="Coming soon." description="Flow Control sedang diparkir." icon={Workflow} />
+          </SectionCard>
+        </div>
+      </>
+    );
   }
 
   let state: Awaited<ReturnType<typeof getControllerDashboardState>>;
@@ -716,6 +749,10 @@ export default async function ControllerPage() {
   return (
     <>
       <ControllerMobileRedirect />
+      <div className="mobile-desktop-required">
+        <h2>Flow Control memerlukan desktop</h2>
+        <p>Buka di browser desktop untuk menggunakan Flow Control.</p>
+      </div>
       <div className="stack controller-desktop-content">
         <header className="controller-workflow-header">
           <div className="controller-workflow-header__workspace">
@@ -741,9 +778,11 @@ export default async function ControllerPage() {
         </header>
 
         <div className="controller-stepper-shell">
-          <FlowAccountSupportPanel accounts={state.flowAccounts} />
-
-          <ControllerWorkflowStepper defaultActiveStepId={activeStep.id} steps={workflowSteps}>
+          <ControllerWorkflowStepper
+            aside={<FlowAccountSupportPanel accounts={state.flowAccounts} />}
+            defaultActiveStepId={activeStep.id}
+            steps={workflowSteps}
+          >
             <ControllerStepSection title="Prompt Ready" status={stepCountLabel(generatedPromptPacks.length)}>
               {generatedPromptPacks.map((promptPack) => (
                 <GeneratedPromptCard
@@ -784,7 +823,7 @@ export default async function ControllerPage() {
                 {!batchSelectionPlan.length ? <EmptyState title="Belum ada batch." description="Siapkan batch." /> : null}
                 <div className="controller-action-row controller-batch-selection-actions">
                   <PendingActionButton className="compact primary" pendingLabel="Membuat" disabled={!batchSelectionPlan.length}>
-                    <ArrowRight size={15} aria-hidden="true" />
+                    <ListPlus size={15} aria-hidden="true" />
                     Buat batch terpilih
                   </PendingActionButton>
                 </div>

@@ -98,7 +98,10 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
                 key={item.href}
               >
                 <Icon className="nav-link__icon" aria-hidden="true" size={17} />
-                <span className="nav-link__label">{item.label}</span>
+                <span className="nav-link__label-group">
+                  <span className="nav-link__label">{item.label}</span>
+                  {item.badge ? <span className="nav-link__badge">{item.badge}</span> : null}
+                </span>
               </Link>
             );
           })}
