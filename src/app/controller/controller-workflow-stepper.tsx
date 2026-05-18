@@ -13,6 +13,7 @@ type ControllerWorkflowStepperProps = {
   steps: ControllerWorkflowStepperStep[];
   defaultActiveStepId: string;
   ariaLabel?: string;
+  aside?: ReactNode;
   children: ReactNode;
 };
 
@@ -22,6 +23,7 @@ function clampStepId(steps: ControllerWorkflowStepperStep[], requestedStepId: st
 
 export function ControllerWorkflowStepper({
   ariaLabel = "Tahap produksi Flow",
+  aside,
   children,
   defaultActiveStepId,
   steps,
@@ -39,12 +41,18 @@ export function ControllerWorkflowStepper({
       <ol className="controller-stepper-rail" aria-label={ariaLabel}>
         {steps.map((step) => {
           const isActive = step.id === activeStep?.id;
+          const isEmpty = step.count === 0;
 
           return (
-            <li className="controller-stepper-rail__item" data-active={isActive ? "true" : "false"} key={step.id}>
+            <li
+              className="controller-stepper-rail__item"
+              data-active={isActive ? "true" : "false"}
+              data-empty={isEmpty ? "true" : "false"}
+              key={step.id}
+            >
               <button
                 aria-current={isActive ? "step" : undefined}
-                aria-label={`${step.title}, ${step.count > 0 ? `${step.count} item` : "kosong"}`}
+                aria-label={`${step.title}, ${isEmpty ? "kosong" : `${step.count} item`}`}
                 className="controller-stepper-rail__button"
                 type="button"
                 onClick={() => setActiveStepId(step.id)}
@@ -52,14 +60,20 @@ export function ControllerWorkflowStepper({
                 <span className="controller-stepper-rail__index" aria-hidden="true">
                   {step.number}
                 </span>
-                <span className="controller-stepper-rail__label">{step.title}</span>
+                <span className="controller-stepper-rail__copy">
+                  <span className="controller-stepper-rail__label">{step.title}</span>
+                  <span className="controller-stepper-rail__meta">{isEmpty ? "Kosong" : `${step.count} item`}</span>
+                </span>
               </button>
             </li>
           );
         })}
       </ol>
 
-      <div className="controller-stepper-panel">{panels[activeIndex] ?? null}</div>
+      <div className="controller-workflow-stepper__body">
+        <div className="controller-stepper-panel">{panels[activeIndex] ?? null}</div>
+        {aside ? <aside className="controller-workflow-stepper__aside">{aside}</aside> : null}
+      </div>
     </section>
   );
 }

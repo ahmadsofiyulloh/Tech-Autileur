@@ -5,56 +5,21 @@ import { createPortal } from "react-dom";
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import { NativeButton } from "@/components/ui/native-button";
-
-type PanelPosition = {
-  left: number;
-  top: number;
-};
 
 type ControllerManifestPopoverProps = {
   children: ReactNode;
 };
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
 export function ControllerManifestPopover({ children }: ControllerManifestPopoverProps) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<PanelPosition | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
-
-  useLayoutEffect(() => {
-    if (!open || !buttonRef.current || !panelRef.current) {
-      return;
-    }
-
-    const viewportPadding = 12;
-    const triggerRect = buttonRef.current.getBoundingClientRect();
-    const panelRect = panelRef.current.getBoundingClientRect();
-    const left = clamp(
-      triggerRect.right - panelRect.width,
-      viewportPadding,
-      window.innerWidth - panelRect.width - viewportPadding,
-    );
-    const belowTop = triggerRect.bottom + 8;
-    const aboveTop = triggerRect.top - panelRect.height - 8;
-    const top =
-      belowTop + panelRect.height <= window.innerHeight - viewportPadding
-        ? belowTop
-        : clamp(aboveTop, viewportPadding, window.innerHeight - panelRect.height - viewportPadding);
-
-    setPosition({ left, top });
-  }, [children, open]);
 
   useEffect(() => {
     if (!open) {
@@ -98,9 +63,6 @@ export function ControllerManifestPopover({ children }: ControllerManifestPopove
     };
   }, [open]);
 
-  const panelStyle: CSSProperties = position
-    ? { left: position.left, top: position.top }
-    : { left: 0, top: 0, visibility: "hidden" };
   const portalTarget = typeof document === "undefined" ? null : document.body;
 
   return (
@@ -113,7 +75,6 @@ export function ControllerManifestPopover({ children }: ControllerManifestPopove
         ref={buttonRef}
         type="button"
         onClick={() => {
-          setPosition(null);
           setOpen((current) => !current);
         }}
       >
@@ -122,26 +83,30 @@ export function ControllerManifestPopover({ children }: ControllerManifestPopove
       </NativeButton>
       {portalTarget && open
         ? createPortal(
-            <div
-              aria-label="Manifest batch"
-              className="controller-manifest-popover"
-              id={panelId}
-              ref={panelRef}
-              role="dialog"
-              style={panelStyle}
-            >
-              <div className="controller-manifest-popover__header">
-                <strong>Manifest</strong>
-                <NativeButton
-                  aria-label="Tutup manifest"
-                  className="compact tertiary controller-manifest-popover__close"
-                  type="button"
-                  onClick={() => setOpen(false)}
-                >
-                  <X size={15} aria-hidden="true" />
-                </NativeButton>
+            <div className="controller-manifest-popover__backdrop">
+              <div
+                aria-label="Manifest batch"
+                className="controller-manifest-popover"
+                id={panelId}
+                ref={panelRef}
+                role="dialog"
+              >
+                <div className="controller-manifest-popover__header">
+                  <span className="controller-manifest-popover__title">
+                    <FileJson size={18} aria-hidden="true" />
+                    <strong>Manifest</strong>
+                  </span>
+                  <NativeButton
+                    aria-label="Tutup manifest"
+                    className="compact tertiary controller-manifest-popover__close"
+                    type="button"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </NativeButton>
+                </div>
+                <div className="controller-manifest-popover__body">{children}</div>
               </div>
-              <div className="controller-manifest-popover__body">{children}</div>
             </div>,
             portalTarget,
           )

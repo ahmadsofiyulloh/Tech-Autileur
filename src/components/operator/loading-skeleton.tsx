@@ -48,6 +48,76 @@ export function SkeletonInlineSummary({ action = true }: { action?: boolean }) {
   );
 }
 
+export function SkeletonControllerHeader() {
+  return (
+    <header className="controller-workflow-header loading-skeleton-static" aria-hidden="true">
+      <div className="controller-workflow-header__workspace">
+        <SkeletonLine size="short" />
+        <SkeletonLine size="medium" />
+        <SkeletonLine size="short" />
+      </div>
+      <div className="controller-workflow-header__badges">
+        <span className="skeleton-pill" />
+        <span className="skeleton-pill" />
+      </div>
+    </header>
+  );
+}
+
+export function SkeletonControllerRail() {
+  return (
+    <ol className="controller-stepper-rail loading-skeleton-static" aria-hidden="true">
+      {Array.from({ length: 7 }).map((_, index) => (
+        <li className="controller-stepper-rail__item" key={index}>
+          <span className="controller-stepper-rail__button">
+            <span className="controller-stepper-rail__index skeleton-icon skeleton-icon--small" />
+            <span className="controller-stepper-rail__copy">
+              <SkeletonLine size="medium" />
+              <SkeletonLine size="short" />
+            </span>
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export function SkeletonControllerCard() {
+  return (
+    <article className="controller-lane-card controller-batch-card loading-skeleton-static" aria-hidden="true">
+      <div className="controller-batch-info-grid">
+        <span className="stack-tight">
+          <SkeletonLine size="medium" />
+          <SkeletonLine size="short" />
+        </span>
+        <span className="controller-card-status-stack">
+          <span className="skeleton-pill" />
+          <span className="skeleton-pill" />
+        </span>
+      </div>
+      <div className="controller-lane-card__meta controller-batch-card__meta">
+        <SkeletonLine size="short" />
+        <SkeletonLine size="short" />
+        <SkeletonLine size="medium" />
+        <SkeletonLine size="short" />
+      </div>
+      <div className="controller-card-section controller-card-section--stage">
+        <div className="controller-stage-list">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div className="controller-stage-row" key={index}>
+              <span className="stack-tight">
+                <SkeletonLine size="medium" />
+                <SkeletonLine size="short" />
+              </span>
+              <span className="skeleton-pill" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function SkeletonFilterTabs({ count = 3, className }: SkeletonCountProps) {
   return (
     <div className={`content-filter-tabs loading-skeleton-static${className ? ` ${className}` : ""}`.trim()} aria-hidden="true">
