@@ -800,7 +800,6 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .visual-list-card__body,.prompt-list-card{gap:7px}
 .visual-list-card__status{max-width:92px}
 .visual-list-card__status .status-badge,.prompt-list-card__header .status-badge,.settings-list-card__header .status-badge,.affiliate-profile-card__title-row .status-badge,.workspace-list-card__header .status-badge{max-width:92px;min-height:21px;font-size:var(--type-control-sm-size);padding:.18rem .42rem}
-.product-card-status-line{text-align:right;text-overflow:initial;white-space:normal;-webkit-line-clamp:2;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}
 .prompt-list-card{padding:10px}
 .prompt-list-card__divider{display:none}
 .settings-native-row .section-card__actions{flex-wrap:nowrap}
@@ -1154,7 +1153,6 @@ to{box-shadow:0 0 0 0 color-mix(in srgb, var(--color-primary) 0%, transparent)}
 .affiliate-profile-card__title-row strong{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .settings-check-row{flex-wrap:wrap;gap:6px;display:flex}
 .settings-card-meta-line{min-width:0;color:var(--color-text-secondary);font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line);text-overflow:ellipsis;white-space:nowrap;display:block;overflow:hidden}
-.product-card-status-line{max-width:100%}
 .settings-check-badge{border:1px solid var(--color-status-success-border);background:var(--color-status-success-soft);min-height:22px;color:var(--color-status-success);font-size:var(--type-control-sm-size);font-weight:var(--type-control-weight);line-height:var(--type-control-sm-line);border-radius:8px;align-items:center;gap:4px;padding:0 7px;display:inline-flex}
 .settings-check-badge--muted{border-color:var(--color-border-standard);background:var(--color-surface-muted-strong);color:var(--color-text-secondary)}
 .settings-page-body{gap:12px}
