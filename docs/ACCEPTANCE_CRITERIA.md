@@ -62,14 +62,17 @@
 ## Flow Control and Flow Accounts
 
 - `/controller` is frozen in Phase 1 and redirects to `/products/new`.
-- The retained Flow Control board columns are `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
+- The retained Flow Control status buckets are `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
+- The status buckets are compatibility language only; `/controller` must not use a four-grid board as the final desktop production UX.
 - Flow accounts remain global execution tools.
 - Flow accounts do not have `workspace_id`.
 - Flow accounts do not store Chrome profile paths.
+- Chrome profile paths are never stored in Supabase, including `flow_accounts`, `flow_batches`, pairing metadata, helper callbacks, logs, or manifest JSON.
 - Any workspace, product, or prompt can use any available Flow account.
 - Flow account count is dynamic and never hardcoded.
 - Account recommendation uses status, observed credit, cooldown, and available slot.
-- Flow account lane availability in the controller is estimated accounting state only.
+- Flow account availability in `/controller` is labeled as estimated until helper verification exists.
+- Flow account lane availability in the controller is estimated accounting state only until the helper returns `Helper verified`.
 - Real Chrome profile binding is clearly labeled unavailable until implemented.
 - App-visible lane states are `Not paired`, `Lane key set`, `Helper verified`, `Session expired`, and `Unavailable`.
 - Chrome profile paths stay local to helper config; Supabase may store lane keys only.
@@ -82,26 +85,49 @@
 ## Desktop Batch Production
 
 - `/controller` only shows prompt packs, products, batches, clip jobs, and generated files connected to the active workspace.
+- `/controller` only shows active workspace prompt-ready items and active workspace batches.
 - Prompt Ready rows are never mixed across workspaces in the controller.
+- Batches from inactive workspaces are hidden from the active `/controller` production workflow.
 - Controlled multi-select batch creation only uses active workspace `Prompt Ready` rows, defaults to a 25-row selection cap, and hard caps at 50.
 - Rows with open batches are skipped with a visible skipped count and per-row reasons.
 - Batch creation uses the available Flow account pool only, never silently binds an unavailable Flow account, keeps Flow accounts global, and leaves manifest export as a separate step.
-- The desktop controller uses one horizontal stepper shell.
+- The desktop controller target UX is one horizontal stepped workflow with exactly these steps: `Prompt Ready`, `Batch Setup`, `Manifest Export`, `Helper Prep`, `Manual Flow Run`, `Output Import`, `Reconcile / Close`.
 - The current stage is always visible.
 - Each step has its own content area.
 - The primary desktop layout is not a four-lane grid.
+- A four-grid board may remain only as legacy/status compatibility during transition; it is not accepted as the final production UX.
 - Batch creation supports selected prompt packs from the active workspace.
 - Batch creation refuses prompt packs from inactive workspaces.
 - Batch creation refuses already-open prompt packs.
 - Manifest export is blocked if `jobs[]` is empty.
 - Manifest export is blocked if `stage_jobs[]` is empty.
-- Manifest export is blocked if any stage prompt text is empty.
+- Manifest export is blocked if any `prompt_copy_text` is empty after trimming.
 - Manifest export is blocked if the `FIRST_FRAME` / `LAST_FRAME` / `VIDEO` dependency contract is invalid.
+- Manifest export is blocked if any `depends_on_job_codes` value references a job outside the same manifest.
+- Manifest export is blocked if a `LAST_FRAME` stage does not depend on the matching `FIRST_FRAME`.
+- Manifest export is blocked if a `VIDEO` stage does not depend on the matching `FIRST_FRAME` and `LAST_FRAME`.
+- Manifest export is blocked if any stage uses input handles outside the approved stage contract.
+- Manifest export is blocked if `prompt_file_name` or `output_file_name` is unsafe.
+- Unsafe filenames include empty names, absolute paths, parent traversal, drive-letter paths, path separators outside the allowed relative file name contract, control characters, or names that cannot be safely created inside the helper working folder.
+
+## Flow Helper Reconciliation
+
+- Helper callback with `stage = FIRST_FRAME` or `stage = LAST_FRAME` maps matched image outputs toward `Image Generated`.
+- `Image Generated` is shown only after all required `FIRST_FRAME` and `LAST_FRAME` outputs for the relevant clip/batch are imported and matched.
+- Helper callback with `stage = VIDEO` maps matched video outputs toward `Video Generated`.
+- `Video Generated` is shown only after required `VIDEO` outputs are imported and matched.
+- `Ready Upload` is shown only after the complete final package is available, matched, and linked through Drive/output metadata.
+- Ambiguous helper files, unmatched filenames, duplicate possible matches, or missing stage context map to `Needs Manual Match`.
+- Helper callback contract errors, missing required Drive metadata, invalid stage values, and failed reconciliation map to `Error`.
+- The app does not mark output production-ready from helper upload alone; reconciliation against manifest, stage, clip, batch, and Drive metadata is required.
 
 ## Windows Helper
 
 - App can produce a batch manifest JSON.
 - Manifest includes batch code, Flow account code, Drive output folder, helper output folder key, rename pattern, and jobs.
+- Manifest includes non-empty `jobs[]` and non-empty `stage_jobs[]` before export succeeds.
+- Manifest stage prompt files have non-empty `prompt_copy_text`.
+- Manifest filenames are validated before helper prep.
 - `chrome_profile_lane_key` is an app-visible label only; the local helper resolves it to a Chrome profile path.
 - Helper local config owns Chrome profile path mapping.
 - Helper local config owns local output folder path mapping.

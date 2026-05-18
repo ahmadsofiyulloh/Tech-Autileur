@@ -35,6 +35,42 @@ Prompt production stays first because the current product output is `Paket Promp
 - Do not turn Flow Accounts into a separate Settings CRUD surface.
 - Do not store Chrome profile paths, helper local folder paths, or helper Drive OAuth tokens in Supabase.
 - Do not bypass Gemini, Google Flow, Google Drive, TikTok, Shopee, or browser quota/rate limits.
+- `alchaincyf/huashu-design` is a workflow reference only. It is not a dependency, code source, asset source, export pipeline, or approved product feature.
+- Do not add huashu-style video editor features, PPT export, HTML animation engine, design advisor UI, SFX/BGM/TTS tooling, or design variation playgrounds.
+
+## Huashu-Inspired Workflow Discipline
+
+The approved adaptation is process discipline only:
+
+- Docs-first: before implementation, each micro-task must state assumptions, target behavior, and out-of-scope boundaries.
+- Asset/evidence protocol: Prompt Pack, Flow batch, and manifest readiness must be grounded in real product evidence from Drive/Supabase metadata, reviewed Gemini metadata, Bulk Import approved metadata, and active Affiliate Profile assets.
+- Stage discipline: `FIRST_FRAME`, `LAST_FRAME`, and `VIDEO` remain explicit stages and must not be collapsed into a generic clip status.
+- Anti-slop: generated prompt copy must stay product-specific and reference grounded; it must not become generic product-agnostic AI prompt text.
+- Export verification: manifest/helper output must be semantically validated and reconciled before it is treated as production-ready.
+
+Desktop production flow target:
+
+```text
+Prompt Ready
+-> Batch Setup
+-> Manifest Export
+-> Helper Prep
+-> Manual Flow Run
+-> Output Import
+-> Reconcile / Close
+```
+
+Operator-facing status target for later Controller/Output polish:
+
+```text
+Image Generated
+Video Generated
+Ready Upload
+Needs Manual Match
+Error
+```
+
+These are presentation targets derived from existing batch, stage, clip, generated file, and upload-package state. They do not approve new database enums in this docs task.
 
 ## Locked Decisions
 
@@ -66,10 +102,13 @@ Prompt production stays first because the current product output is `Paket Promp
 
 - `/controller` returns only as a desktop Flow Control surface after P2-S1 and P2-S2 are stable.
 - Mobile nav remains `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
-- The locked board columns remain: `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
+- The legacy board status buckets remain for compatibility: `Prompt Siap`, `Sedang Flow`, `Output Masuk`, `Selesai`.
+- The final desktop production UX target is a horizontal stepped workflow, not a four-grid board.
 - First reactivation is read-only stage lanes over real Flow batch/helper state; mutating controls return in later micro-tasks.
 - Stage execution remains manual-assisted: `FIRST_FRAME`, `LAST_FRAME`, `VIDEO`.
 - One Flow account maps to one Chrome profile lane through Windows Helper local config only.
+- `/controller` must operate inside the active Affiliate Profile internal workspace namespace. Prompt rows, batch setup, manifest export, stage lanes, and reconciliation must not mix products or prompt packs from another active workspace.
+- Controller UI polish from `docs/codex-controller-polish-tasks.md` is presentation-only and must be adapted through `docs/UI_SHELL_REBRAND_LOCK.md` before runtime coding. The current runtime targets are `ControllerWorkflowStepper`, `ControllerManifestPopover`, `BatchCard`, `FlowAccountSupportPanel`, `BatchSelectionCard`, `StatusBadge`, Controller loading, and Controller mobile fallback. Polish must not change Controller server queries, mutations, manifest semantics, helper callbacks, workspace isolation, or desktop-only scope.
 
 ### P2-S4 - Windows Helper Operational Loop
 
@@ -78,6 +117,7 @@ Prompt production stays first because the current product output is `Paket Promp
 - Helper may watch local output folders, rename files, upload to Drive, and callback the app.
 - Helper must not click, select, upload into, or submit inside Google Flow automatically.
 - First helper hardening target is reliable stage pack/export and callback reconciliation, not full local helper status telemetry.
+- Manifest export requires semantic validation before the helper treats the batch as runnable: schema version, stage order, dependencies, prompt text, input handles, Drive output target, helper output key, Flow account code, lane label, and active workspace context must be coherent.
 
 ## Micro-Task Order
 
@@ -91,7 +131,10 @@ Prompt production stays first because the current product output is `Paket Promp
 6. `P2-S5-001` - Large dataset pagination/search hardening.
 7. `P2-S3-001B` - Controller read-only stage lanes.
 8. `P2-S4-001A` - Helper stage pack export contract.
-9. `P2-S3-001C` - Multi Chrome profile controlled run workflow.
+9. `DOCS-HUASHU-ADAPT-00` - Workflow-only huashu adaptation lock.
+10. `DOCS-HUASHU-ADAPT-01` - Desktop production flow acceptance criteria.
+11. `P2-S4-001B` - Manifest semantic validation and helper readiness gate.
+12. `P2-S3-001C` - Multi Chrome profile controlled run workflow.
 
 ## Acceptance
 

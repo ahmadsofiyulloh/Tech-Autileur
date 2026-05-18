@@ -10,6 +10,8 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Custom remote desktop engine.
 - Complex visual flow builders.
 - Drag-and-drop node editors.
+- Huashu-design as a runtime dependency, copied component library, asset bundle, or export toolchain.
+- Huashu-style video editor, PPT export, HTML animation engine, design advisor feature, TTS/BGM/SFX pipeline, or design variation playground.
 - Mobile Flow queue managers while Controller/Flow are frozen in Phase 1.
 - Multi-user/team permissions.
 - Google Flow Business/Enterprise/Pro account support.

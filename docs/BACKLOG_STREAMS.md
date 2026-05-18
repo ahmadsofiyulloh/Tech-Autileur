@@ -71,3 +71,28 @@ P2-S1 -> P2-S2 -> P2-S5 -> P2-S3 -> P2-S4
 ```
 
 Prompt production scale comes first because `Paket Prompt` is the current product output of the app. Controller and Helper work should follow after prompt bulk generation is reliable and observable.
+
+## UI Shell Rebrand Polish Stream
+
+UI shell rebrand work is a presentation-only overlay stream governed by `docs/UI_SHELL_REBRAND_LOCK.md`. It does not change the Phase 2 implementation order above.
+
+| Stream | Name | Purpose | Status |
+|---|---|---|---|
+| UI-SHELL | Visual Shell Rebrand | Token-backed visual hierarchy, spacing, surface grammar, and route polish without behavior changes | Locked |
+| CTRL-POLISH | Controller Desktop Polish | Adapt `docs/codex-controller-polish-tasks.md` to actual Controller components before runtime coding | Mapped for runtime tasks |
+
+Controller polish is allowed only after the docs mapping is current. Runtime tasks must stay presentation-only unless a separate approved micro-task explicitly expands scope.
+
+## Controller Polish Runtime Order
+
+```text
+CTRL-POLISH-01 -> CTRL-POLISH-02 -> CTRL-POLISH-03 -> CTRL-POLISH-04 -> CTRL-POLISH-05
+```
+
+Mapping summary:
+
+- `CTRL-POLISH-01`: StatusBadge visual weight completion and verification.
+- `CTRL-POLISH-02`: Controller stepper/header hierarchy and duplicate CSS consolidation.
+- `CTRL-POLISH-03`: Batch card visual zones, action hierarchy, and icon semantics.
+- `CTRL-POLISH-04`: Flow account form responsiveness and batch selection state feedback.
+- `CTRL-POLISH-05`: Controller loading skeleton, mobile fallback, and manifest popover polish.

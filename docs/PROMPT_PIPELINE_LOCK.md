@@ -3,6 +3,8 @@
 ## Purpose
 This lock defines how uploaded product evidence becomes generated prompt packs. Prompt generation must follow user-owned Affiliate Profile rules and must not invent hardcoded prompt rules in UI/code.
 
+Huashu-design is a workflow reference only for docs-first assumptions, evidence grounding, explicit stage discipline, anti-generic prompt quality, and export verification. It is not a dependency, code source, design advisor feature, video editor, PPT exporter, HTML animation engine, or media export pipeline for this app.
+
 ## Locked Flow
 
 ```text
@@ -299,6 +301,8 @@ Prompt pack editor round-trips must not fail when legacy prompt JSON contains ol
 - Do not add a third background-reference asset slot in Phase awal.
 - lock controls must be visible in the Affiliate Profile asset section with labels `Lock Character` and `Lock Environment`.
 - do not add explanatory copy or helper paragraphs around lock controls.
+- Anti-slop requirement: generated prompt fields must stay grounded in the reviewed product metadata, source product image, marketplace evidence, active Affiliate Profile rules, and character/environment references. Generic product-agnostic prompts, decorative filler, fake claims, or prompts that omit the required reference handles are invalid for production use.
+- Before any prompt/Flow implementation micro-task, document the assumptions, target behavior, and explicit out-of-scope items in the task notes or source-of-truth docs.
 
 ## Versioning
 
@@ -317,3 +321,5 @@ Prompt pack editor round-trips must not fail when legacy prompt JSON contains ol
 - Account recommendation is based on availability, observed credit, and status.
 - User confirms the account before running Flow.
 - Desktop execution details, including helper staging and Chrome profile reuse, live in [FLOW_HELPER_DESKTOP_WORKFLOW.md](FLOW_HELPER_DESKTOP_WORKFLOW.md).
+- Flow handoff must preserve active workspace isolation: Prompt Ready rows, created batches, exported manifests, and reconciliation must all belong to the active Affiliate Profile internal workspace namespace.
+- Flow manifests must preserve explicit `FIRST_FRAME`, `LAST_FRAME`, and `VIDEO` stage semantics and pass semantic validation before helper execution is treated as production-ready.

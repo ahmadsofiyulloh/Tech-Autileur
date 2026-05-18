@@ -29,6 +29,7 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - VIS-001, VIS-002, VIS-003, VIS-004, VIS-005, VIS-006
 - MT-DRIVE-HIERARCHY-01
 - P2-LOCK-01, P2-S1-001, P2-S1-002, P2-S1-002B, P2-S2-001, P2-S2-002, P2-S3-001A, P2-S3-001B, P2-S4-001A
+- DOCS-HUASHU-ADAPT-00, DOCS-HUASHU-ADAPT-01
 
 ## UI/UX Polish References
 - [UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md](UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md)
@@ -38,6 +39,77 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - [UI_UX_POLISH_QUICKSTART.md](UI_UX_POLISH_QUICKSTART.md)
 - [UI_UX_POLISH_PLAN.md](UI_UX_POLISH_PLAN.md)
 - [UI_UX_POLISH_IMPLEMENTER_GUIDE.md](UI_UX_POLISH_IMPLEMENTER_GUIDE.md)
+
+## UI Shell Rebrand Polish Sequence
+
+The visual shell rebrand is locked by `docs/UI_SHELL_REBRAND_LOCK.md`. These tasks are presentation-only unless a later task explicitly expands scope.
+
+1. `UI-SHELL-REBRAND-01` - audit current UI shell. _(DONE: `docs/UI_SHELL_REBRAND_AUDIT.md`)_
+2. `UI-SHELL-REBRAND-02` - global shell/token polish. _(DONE: `src/app/globals.css`)_
+3. `UI-SHELL-CTRL-01` - controller shell baseline polish. _(PARTIAL BASELINE: `src/app/controller/page.tsx`, `src/app/controller/controller-workflow-stepper.tsx`, `src/app/controller/controller-manifest-popover.tsx`, `src/app/globals.css`; follow-up Controller polish is mapped below before runtime coding.)_
+4. `UI-SHELL-PROMPTS-01` - prompts shell polish. _(DONE: `src/app/prompts/page.tsx`, `src/app/prompts/prompt-workbench-list.tsx`, `src/app/prompts/prompt-detail-panel.tsx`, `src/app/globals.css`)_
+5. `UI-SHELL-PRODUCT-NEW-01` - intake shell polish.
+6. `UI-SHELL-PRODUCTS-01` - products shell polish.
+7. `UI-SHELL-DRIVE-01` - drive shell polish.
+8. `UI-SHELL-SETTINGS-01` - settings account shell polish.
+
+## Controller UI Polish Runtime Mapping
+
+Source planning doc: `docs/codex-controller-polish-tasks.md`.
+
+Repo adaptation lock:
+
+- The original task pack is implementation guidance, not direct copy/paste instructions.
+- Use the actual repo targets: `src/app/controller/controller-workflow-stepper.tsx`, `src/app/controller/controller-manifest-popover.tsx`, `src/app/controller/page.tsx`, `src/components/operator/status-badge.tsx`, `src/components/operator/loading-skeleton.tsx`, and `src/app/globals.css`.
+- Do not reintroduce the stale inline `ControllerWorkflowRail` or inline `<details>` manifest panel assumptions from the task pack.
+- Runtime Controller polish remains presentation-only and must not change server actions, Supabase queries, form field names, manifest schema, helper callback payloads, route contracts, or workspace isolation.
+- Verification for each runtime polish task is `npm run lint`, `npm run typecheck`, and `npm run build`.
+
+### CTRL-POLISH-00 - Controller polish task mapping
+**Goal:** Map `docs/codex-controller-polish-tasks.md` to the actual Controller repo before runtime coding.
+**Owner:** Codex
+**Scope:** docs lock and backlog stream only; no runtime code.
+**Acceptance:** UI shell lock, Phase 2 lock, backlog streams, and micro-task backlog all describe the adapted Controller polish targets and constraints.
+
+### CTRL-POLISH-01 - StatusBadge visual weight completion
+**Source tasks:** TASK 01.
+**Goal:** Finish and verify shared `StatusBadge` visual weight controls.
+**Owner:** Codex
+**Scope:** `src/components/operator/status-badge.tsx`, `src/app/globals.css`, and targeted Controller usages only.
+**Repo mapping:** `size`, `variant`, and `muted` props already exist; this task should verify CSS behavior, dark/light readability, inferred tone coverage, and secondary badge usage.
+**Acceptance:** small badges suppress the dot, muted badges resolve neutral, Flow statuses map to locked tones, existing usages remain backwards compatible, and verification commands pass.
+
+### CTRL-POLISH-02 - Controller stepper and header hierarchy
+**Source tasks:** TASK 02 and TASK 06.
+**Goal:** Remove horizontal stepper friction and consolidate Controller header/stepper visual hierarchy.
+**Owner:** Codex
+**Scope:** `src/app/controller/controller-workflow-stepper.tsx`, `src/app/controller/page.tsx` only if needed for display data, and `src/app/globals.css`.
+**Repo mapping:** current runtime uses `ControllerWorkflowStepper` and `controller-workflow-header`; legacy `.controller-stepper-summary-strip` blocks exist in CSS and must not be treated as the live component unless loading skeletons still need them.
+**Acceptance:** 1024px desktop has no Controller stepper horizontal scroll, active step remains obvious, current-step content behavior is preserved, duplicate/legacy Controller stepper CSS is consolidated, and verification commands pass.
+
+### CTRL-POLISH-03 - BatchCard action hierarchy and icons
+**Source tasks:** TASK 03 and TASK 10.
+**Goal:** Separate BatchCard read state from operator actions and make action icons semantically consistent.
+**Owner:** Codex
+**Scope:** `src/app/controller/page.tsx` and `src/app/globals.css`.
+**Repo mapping:** current `BatchCard` still uses a flat lane-card structure, `RefreshCcw` for `Tandai Masuk`, and no icon for `Tutup`; update only presentation and icon imports.
+**Acceptance:** info, stage, and action zones are visually separated; stage rows do not read as nested cards; `Mulai Flow`, `Tandai Masuk`, and `Tutup` sit in one action row when present; all action buttons have meaningful icons; verification commands pass.
+
+### CTRL-POLISH-04 - Flow account forms and batch selection feedback
+**Source tasks:** TASK 04 and TASK 07.
+**Goal:** Fix responsive lane-key forms and make selected/skipped batch cards scan clearly.
+**Owner:** Codex
+**Scope:** `src/app/controller/page.tsx` and `src/app/globals.css`.
+**Repo mapping:** current create-account form still uses a generic stacked form, and batch selection still uses static `Pilih batch` checkbox copy without full-card checked feedback.
+**Acceptance:** lane-key forms do not overflow at 900px desktop width, create-account form is visually separated, checked batch cards are distinct with CSS-only state, skipped cards are de-emphasized, and verification commands pass.
+
+### CTRL-POLISH-05 - Controller loading, mobile fallback, and manifest popover
+**Source tasks:** TASK 05, TASK 08, and TASK 09.
+**Goal:** Match Controller loading to the loaded structure, avoid mobile desktop-content flash, and polish the actual manifest popover.
+**Owner:** Codex
+**Scope:** `src/app/controller/loading.tsx`, `src/components/operator/loading-skeleton.tsx`, `src/app/controller/page.tsx`, `src/app/controller/controller-mobile-redirect.tsx` only if necessary, `src/app/controller/controller-manifest-popover.tsx`, and `src/app/globals.css`.
+**Repo mapping:** TASK 08 must be adapted to the existing `ControllerManifestPopover`; do not replace it with the stale inline `<details>` panel.
+**Acceptance:** loading state matches Controller structure, mobile users see a desktop-required fallback before redirect with no desktop content flash, manifest popover remains accessible and visually intentional, and verification commands pass.
 
 ## S0 - Docs and Source of Truth Sync
 
@@ -500,6 +572,24 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Acceptance:** helper can prepare stage prompt files and folder structure from manifest v2; local paths and OAuth tokens remain local-only.
 **Implementation note:** Verified by `tools/windows-helper/README.md` and `tools/windows-helper/src/index.mjs`; `prepare` writes manifest/prompt folders from `stage_jobs[]` and keeps local paths/config local-only.
 
+### DOCS-HUASHU-ADAPT-00 - Huashu workflow discipline lock _(DONE)_
+**Goal:** Adapt huashu-design as workflow discipline only for Prompt Pack, Flow Controller, manifest, and Windows Helper work.
+**Owner:** Codex
+**Scope:** docs only; no runtime code, UI, dependencies, or migration.
+**Acceptance:** docs clarify huashu-design is not a dependency or feature source; no video editor/PPT/HTML animation/design advisor is approved; desktop production flow, active workspace controller isolation, manifest semantic validation, explicit stage discipline, anti-slop prompt grounding, export verification, and operator status targets are locked.
+
+### DOCS-HUASHU-ADAPT-01 - Desktop production flow acceptance criteria _(DONE)_
+**Goal:** Add precise acceptance criteria for the refined desktop Flow Controller and Helper production pipeline.
+**Owner:** Codex
+**Scope:** docs only; no runtime code and no migration.
+**Acceptance:** criteria require active workspace-only controller items and batches, reject the four-grid board as the final desktop UX, lock the horizontal stepped workflow, block invalid manifest export, map helper callback stages to operator-facing state, label Flow account availability as estimated until helper verification, and forbid Chrome profile paths in Supabase.
+
+### P2-S4-001B - Manifest semantic validation and helper readiness gate
+**Goal:** Add runtime validation that exported manifests are coherent before helper prep or production-ready handling.
+**Owner:** Codex
+**Scope:** manifest validation helpers, export path, helper prepare path, and targeted tests only; no schema migration.
+**Acceptance:** invalid schema version, missing Drive/Flow/helper fields, cross-workspace batch context, bad stage order, bad dependencies, bad input handles, or generic ungrounded prompt text prevents runnable export/prep and returns a clear error.
+
 ### P2-S3-001C - Multi Chrome profile controlled run workflow
 **Goal:** Add controlled multi-lane operator workflow for Flow accounts and Chrome profiles.
 **Owner:** Codex
@@ -517,3 +607,15 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Scope:** helper callback/handshake contract, operator status wiring, and docs only; no helper runtime implementation.
 **Acceptance:** the helper can report `status`, `verified_at`, `reason`, and `session_state` for a `flow_account_code` plus `chrome_profile_lane_key` request, and the app uses that confirmation to update pairing state instead of inferring pairing from stored metadata alone.
+
+### P2-S3-001F - Controller production status mapping
+**Goal:** Map real stage/helper/output state into the operator-facing desktop production labels.
+**Owner:** Codex
+**Scope:** desktop Controller/Output status projection only; no mobile Flow UI and no new database enum.
+**Acceptance:** `Image Generated`, `Video Generated`, `Ready Upload`, `Needs Manual Match`, and `Error` derive only from real manifest, stage, generated file, clip, batch, and upload-package state.
+
+### P2-PROMPT-QUALITY-02 - Prompt anti-slop grounding guard
+**Goal:** Prevent generated prompt packs and exported prompt TXT from drifting into generic product-agnostic prompt copy.
+**Owner:** Codex
+**Scope:** prompt generation contract, manifest prompt extraction, and tests only; no design advisor UI.
+**Acceptance:** prompt copy must include reviewed product context, valid reference handles, active profile rules, and stage-specific instructions; generic filler or missing evidence fails validation before Flow handoff.

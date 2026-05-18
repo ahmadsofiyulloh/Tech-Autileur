@@ -18,7 +18,9 @@ import { readChromeProfileLaneKey } from "@/lib/server/flow-accounts";
 import type { FlowAccountPoolRecord } from "@/lib/server/flow-accounts";
 import type { ClipJobRecord, GeneratedFileRecord } from "@/lib/server/clip-jobs";
 import { saveController } from "./actions";
+import { ControllerManifestPopover } from "./controller-manifest-popover";
 import { ControllerMobileRedirect } from "./controller-mobile-redirect";
+import { ControllerWorkflowStepper, type ControllerWorkflowStepperStep } from "./controller-workflow-stepper";
 
 export const dynamic = "force-dynamic";
 
@@ -41,14 +43,8 @@ type ControllerWorkflowStepId =
   | "output-import"
   | "reconcile-close";
 
-type ControllerWorkflowStep = {
+type ControllerWorkflowStep = ControllerWorkflowStepperStep & {
   id: ControllerWorkflowStepId;
-  number: number;
-  title: string;
-  summary: string;
-  badge: string;
-  tone: StatusTone;
-  count: number;
 };
 
 function isMobileUserAgent(userAgent: string) {
@@ -177,7 +173,7 @@ function stageStatusLabel(summary: ReturnType<typeof summarizeStageImports>) {
   return "Belum ada";
 }
 
-function stageStatusTone(summary: ReturnType<typeof summarizeStageImports>) {
+function stageStatusTone(summary: ReturnType<typeof summarizeStageImports>): StatusTone {
   if (summary.error) {
     return "danger" as const;
   }
@@ -219,8 +215,12 @@ function StageImportRows({
             </div>
             <div className="controller-inline-badges">
               <StatusBadge status={stageStatusLabel(summary)} tone={stageStatusTone(summary)} />
-              {summary.review ? <StatusBadge status={`${summary.review} review`} tone="warning" /> : null}
-              {summary.waiting ? <StatusBadge status={`${summary.waiting} belum`} tone="neutral" /> : null}
+              {summary.review ? (
+                <StatusBadge status={`${summary.review} review`} tone="warning" size="sm" variant="pill" />
+              ) : null}
+              {summary.waiting ? (
+                <StatusBadge status={`${summary.waiting} belum`} tone="neutral" size="sm" variant="pill" muted />
+              ) : null}
             </div>
           </div>
         );
@@ -239,10 +239,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stepCountLabel(count: number) {
   return count > 0 ? `${count} item` : "Kosong";
-}
-
-function stepTone(count: number): StatusTone {
-  return count > 0 ? "success" : "neutral";
 }
 
 function accountAvailabilityLabel(account: FlowAccountPoolRecord) {
@@ -264,18 +260,33 @@ function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord
   return (
     <details className="controller-support-panel panel">
       <summary>
-        <span>Akun Flow</span>
+        <strong>Pengaturan Akun Flow</strong>
         <div className="controller-support-panel__summary">
-          <StatusBadge status={`${accounts.length} akun`} tone="neutral" />
+          <StatusBadge
+            status={`${accounts.length} akun`}
+            tone="neutral"
+            size="sm"
+            variant="pill"
+            muted
+          />
           <StatusBadge
             status={availableCount ? `${availableCount} perkiraan siap` : "Belum ada perkiraan siap"}
             tone={availableCount ? "success" : "warning"}
+            size="sm"
+            variant="pill"
           />
           <StatusBadge
             status={laneKeyCount ? `${laneKeyCount} lane key set` : "Lane key belum ada"}
             tone={laneKeyCount ? "success" : "warning"}
+            size="sm"
+            variant="pill"
           />
-          <StatusBadge status="Helper belum diverifikasi" tone="warning" />
+          <StatusBadge
+            status="Verifikasi helper belum tersedia"
+            tone="warning"
+            size="sm"
+            variant="pill"
+          />
         </div>
       </summary>
       <div className="controller-support-panel__body stack">
@@ -295,8 +306,18 @@ function FlowAccountSupportPanel({ accounts }: { accounts: FlowAccountPoolRecord
                     </div>
                     <div className="controller-inline-badges">
                       <StatusBadge status={account.status} />
-                      <StatusBadge status={accountAvailabilityLabel(account)} tone={account.is_available ? "success" : "warning"} />
-                      <StatusBadge status={laneKey ? "Lane key set" : "Not paired"} tone={laneKey ? "success" : "warning"} />
+                      <StatusBadge
+                        status={accountAvailabilityLabel(account)}
+                        tone={account.is_available ? "success" : "warning"}
+                        size="sm"
+                        variant="pill"
+                      />
+                      <StatusBadge
+                        status={laneKey ? "Lane key set" : "Not paired"}
+                        tone={laneKey ? "success" : "warning"}
+                        size="sm"
+                        variant="pill"
+                      />
                     </div>
                   </div>
                   <form action={saveController} className="controller-inline-form controller-account-lane-form">
@@ -348,7 +369,7 @@ function GeneratedPromptCard({
   productName: string;
 }) {
   return (
-    <article className="controller-lane-card">
+    <article className="controller-lane-card controller-prompt-card">
       <div className="controller-lane-card__header">
         <div className="stack-tight">
           <strong>{productName}</strong>
@@ -413,13 +434,22 @@ function ExportManifestPanel({ batch, flowAccountLaneKey }: { batch: FlowBatchRe
   const chromeProfileLaneKey = readManifestChromeProfileLaneKey(batch.manifest_json) ?? flowAccountLaneKey;
 
   return (
-    <details className="controller-manifest-panel muted-box">
-      <summary>
-        <span>Manifest</span>
-        <StatusBadge status={batch.manifest_json ? "Tersedia" : "Belum"} tone={batch.manifest_json ? "success" : "warning"} />
-        <StatusBadge status={chromeProfileLaneKey ? "Lane key set" : "Not paired"} tone={chromeProfileLaneKey ? "success" : "warning"} />
-      </summary>
-      <form action={saveController} className="controller-manifest-panel__body stack">
+    <ControllerManifestPopover>
+      <div className="controller-manifest-popover__status">
+        <StatusBadge
+          status={batch.manifest_json ? "Tersedia" : "Belum"}
+          tone={batch.manifest_json ? "success" : "warning"}
+          size="sm"
+          variant="pill"
+        />
+        <StatusBadge
+          status={chromeProfileLaneKey ? "Lane key set" : "Not paired"}
+          tone={chromeProfileLaneKey ? "success" : "warning"}
+          size="sm"
+          variant="pill"
+        />
+      </div>
+      <form action={saveController} className="controller-manifest-form stack">
         <HiddenInput name="intent" value="export_flow_manifest" />
         <HiddenInput name="id" value={batch.id} />
         <label className="auth-field">
@@ -463,7 +493,7 @@ function ExportManifestPanel({ batch, flowAccountLaneKey }: { batch: FlowBatchRe
           ) : null}
         </div>
       </form>
-    </details>
+    </ControllerManifestPopover>
   );
 }
 
@@ -487,15 +517,24 @@ function BatchCard({
   const canMarkImported = OUTPUT_BATCH_STATUSES.has(batch.status) || batch.status === "RUNNING";
   const canClose = batch.status !== "CLOSED";
   const chromeProfileLaneKey = readManifestChromeProfileLaneKey(batch.manifest_json) ?? flowAccountLaneKey;
+  const laneStatusLabel = chromeProfileLaneKey ? "Lane key set" : "Not paired";
 
   return (
-    <article className="controller-lane-card">
+    <article className="controller-lane-card controller-batch-card">
       <div className="controller-lane-card__header">
         <div className="stack-tight">
           <strong>{productName}</strong>
           <span>{batch.batch_code}</span>
         </div>
-        <StatusBadge status={batch.status} />
+        <div className="controller-card-status-stack">
+          <StatusBadge status={batch.status} />
+          <StatusBadge
+            status={laneStatusLabel}
+            tone={chromeProfileLaneKey ? "success" : "warning"}
+            size="sm"
+            variant="pill"
+          />
+        </div>
       </div>
       <div className="controller-lane-card__meta controller-batch-card__meta">
         <span>{accountLabel}</span>
@@ -504,8 +543,8 @@ function BatchCard({
         <span>{formatActionTime(batch.updated_at)}</span>
       </div>
       <StageImportRows clipJobs={clipJobs} generatedFileMap={generatedFileMap} clipCount={clipCount} />
-      {PROMPT_READY_BATCH_STATUSES.has(batch.status) ? <ExportManifestPanel batch={batch} flowAccountLaneKey={flowAccountLaneKey} /> : null}
       <div className="controller-action-row">
+        {PROMPT_READY_BATCH_STATUSES.has(batch.status) ? <ExportManifestPanel batch={batch} flowAccountLaneKey={flowAccountLaneKey} /> : null}
         {canStart ? (
           <form action={saveController}>
             <HiddenInput name="intent" value="update_flow_batch" />
@@ -545,56 +584,28 @@ function BatchCard({
 function ControllerStepSection({
   title,
   status,
-  active,
   children,
 }: {
   title: string;
   status: string;
-  active?: boolean;
   children: ReactNode;
 }) {
   return (
     <SectionCard
-      className={`controller-step-section${active ? " controller-step-section--active" : ""}`}
+      className="controller-step-section"
       title={title}
-      actions={<StatusBadge status={status} tone={active ? "success" : "neutral"} />}
+      actions={
+        <StatusBadge
+          status={status}
+          tone={status === "Kosong" ? "neutral" : "success"}
+          size="sm"
+          variant="pill"
+          muted={status === "Kosong"}
+        />
+      }
     >
       {children}
     </SectionCard>
-  );
-}
-
-function ControllerWorkflowRail({
-  steps,
-  activeStepId,
-}: {
-  steps: ControllerWorkflowStep[];
-  activeStepId: ControllerWorkflowStepId;
-}) {
-  return (
-    <ol className="controller-stepper-rail" aria-label="Tahap produksi Flow">
-      {steps.map((step) => {
-        const isActive = step.id === activeStepId;
-
-        return (
-          <li
-            key={step.id}
-            className="controller-stepper-rail__item"
-            data-active={isActive ? "true" : "false"}
-            aria-current={isActive ? "step" : undefined}
-          >
-            <div className="controller-stepper-rail__title-row">
-              <span className="controller-stepper-rail__index">{step.number}</span>
-              <div className="controller-stepper-rail__copy">
-                <strong>{step.title}</strong>
-                <span>{step.summary}</span>
-              </div>
-            </div>
-            <StatusBadge status={step.badge} tone={step.tone} />
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -654,63 +665,42 @@ export default async function ControllerPage() {
       id: "prompt-ready",
       number: 1,
       title: "Prompt Ready",
-      summary: "Paket prompt yang siap diteruskan.",
-      badge: stepCountLabel(generatedPromptPacks.length),
-      tone: stepTone(generatedPromptPacks.length),
       count: generatedPromptPacks.length,
     },
     {
       id: "batch-setup",
       number: 2,
       title: "Batch Setup",
-      summary: "Prompt pack aktif yang belum masuk batch.",
-      badge: stepCountLabel(batchSelectionPlan.length),
-      tone: stepTone(batchSelectionPlan.length),
       count: batchSelectionPlan.length,
     },
     {
       id: "manifest-export",
       number: 3,
       title: "Manifest Export",
-      summary: "Batch yang siap menulis manifest.",
-      badge: stepCountLabel(readyToExportBatches.length),
-      tone: stepTone(readyToExportBatches.length),
       count: readyToExportBatches.length,
     },
     {
       id: "helper-prep",
       number: 4,
       title: "Helper Prep",
-      summary: "Manifest sudah diekspor dan siap helper.",
-      badge: stepCountLabel(exportedBatches.length),
-      tone: stepTone(exportedBatches.length),
       count: exportedBatches.length,
     },
     {
       id: "manual-flow-run",
       number: 5,
       title: "Manual Flow Run",
-      summary: "Batch yang sedang berjalan di Flow.",
-      badge: stepCountLabel(runningBatches.length),
-      tone: stepTone(runningBatches.length),
       count: runningBatches.length,
     },
     {
       id: "output-import",
       number: 6,
       title: "Output Import",
-      summary: "Output yang sedang masuk dari helper.",
-      badge: stepCountLabel(importingBatches.length),
-      tone: stepTone(importingBatches.length),
       count: importingBatches.length,
     },
     {
       id: "reconcile-close",
       number: 7,
       title: "Reconcile / Close",
-      summary: "Output yang perlu dicocokkan atau ditutup.",
-      badge: stepCountLabel(reconcileBatches.length),
-      tone: stepTone(reconcileBatches.length),
       count: reconcileBatches.length,
     },
   ];
@@ -727,31 +717,34 @@ export default async function ControllerPage() {
     <>
       <ControllerMobileRedirect />
       <div className="stack controller-desktop-content">
-        <div className="settings-inline-summary controller-stepper-summary-strip">
-          <div className="controller-stepper-summary-strip__workspace">
+        <header className="controller-workflow-header">
+          <div className="controller-workflow-header__workspace">
             <span>Workspace aktif</span>
             <strong>{state.currentWorkspace?.workspace_name ?? "Belum dipilih"}</strong>
             <span>{state.currentWorkspace?.workspace_code ?? "Pilih workspace aktif dulu"}</span>
           </div>
-          <div className="controller-stepper-summary-strip__focus">
-            <span>Tahap aktif</span>
-            <strong>{activeStep.title}</strong>
-            <span>{activeStep.summary}</span>
-          </div>
-          <div className="controller-stepper-summary-strip__badges">
-            <StatusBadge status={`${state.flowBatches.length} batch`} tone="neutral" />
+          <div className="controller-workflow-header__badges">
+            <StatusBadge
+              status={`${state.flowBatches.length} batch`}
+              tone="neutral"
+              size="sm"
+              variant="pill"
+              muted
+            />
             <StatusBadge
               status={availableFlowAccountCount ? `${availableFlowAccountCount} perkiraan siap` : "Belum ada perkiraan siap"}
               tone={availableFlowAccountCount ? "success" : "warning"}
+              size="sm"
+              variant="pill"
             />
           </div>
-        </div>
+        </header>
 
         <div className="controller-stepper-shell">
-          <ControllerWorkflowRail activeStepId={activeStep.id} steps={workflowSteps} />
+          <FlowAccountSupportPanel accounts={state.flowAccounts} />
 
-          <div className="controller-stepper-sections stack">
-            <ControllerStepSection active={activeStep.id === "prompt-ready"} title="Prompt Ready" status={stepCountLabel(generatedPromptPacks.length)}>
+          <ControllerWorkflowStepper defaultActiveStepId={activeStep.id} steps={workflowSteps}>
+            <ControllerStepSection title="Prompt Ready" status={stepCountLabel(generatedPromptPacks.length)}>
               {generatedPromptPacks.map((promptPack) => (
                 <GeneratedPromptCard
                   key={promptPack.id}
@@ -762,7 +755,7 @@ export default async function ControllerPage() {
               {!generatedPromptPacks.length ? <EmptyState title="Belum ada prompt." description="Buat prompt dulu." /> : null}
             </ControllerStepSection>
 
-            <ControllerStepSection active={activeStep.id === "batch-setup"} title="Batch Setup" status={batchSelectionStatus}>
+            <ControllerStepSection title="Batch Setup" status={batchSelectionStatus}>
               <form action={saveController} className="controller-batch-selection-form stack">
                 <HiddenInput name="intent" value="create_flow_batch_many" />
                 <HiddenInput name="workspace_id" value={workspaceId} />
@@ -798,11 +791,7 @@ export default async function ControllerPage() {
               </form>
             </ControllerStepSection>
 
-            <ControllerStepSection
-              active={activeStep.id === "manifest-export"}
-              title="Manifest Export"
-              status={stepCountLabel(readyToExportBatches.length)}
-            >
+            <ControllerStepSection title="Manifest Export" status={stepCountLabel(readyToExportBatches.length)}>
               {readyToExportBatches.length ? (
                 readyToExportBatches.map((batch) => (
                   <BatchCard
@@ -820,7 +809,7 @@ export default async function ControllerPage() {
               )}
             </ControllerStepSection>
 
-            <ControllerStepSection active={activeStep.id === "helper-prep"} title="Helper Prep" status={stepCountLabel(exportedBatches.length)}>
+            <ControllerStepSection title="Helper Prep" status={stepCountLabel(exportedBatches.length)}>
               {exportedBatches.length ? (
                 exportedBatches.map((batch) => (
                   <BatchCard
@@ -838,11 +827,7 @@ export default async function ControllerPage() {
               )}
             </ControllerStepSection>
 
-            <ControllerStepSection
-              active={activeStep.id === "manual-flow-run"}
-              title="Manual Flow Run"
-              status={stepCountLabel(runningBatches.length)}
-            >
+            <ControllerStepSection title="Manual Flow Run" status={stepCountLabel(runningBatches.length)}>
               {runningBatches.length ? (
                 runningBatches.map((batch) => (
                   <BatchCard
@@ -860,11 +845,7 @@ export default async function ControllerPage() {
               )}
             </ControllerStepSection>
 
-            <ControllerStepSection
-              active={activeStep.id === "output-import"}
-              title="Output Import"
-              status={stepCountLabel(importingBatches.length)}
-            >
+            <ControllerStepSection title="Output Import" status={stepCountLabel(importingBatches.length)}>
               {importingBatches.length ? (
                 importingBatches.map((batch) => (
                   <BatchCard
@@ -882,11 +863,7 @@ export default async function ControllerPage() {
               )}
             </ControllerStepSection>
 
-            <ControllerStepSection
-              active={activeStep.id === "reconcile-close"}
-              title="Reconcile / Close"
-              status={stepCountLabel(reconcileBatches.length)}
-            >
+            <ControllerStepSection title="Reconcile / Close" status={stepCountLabel(reconcileBatches.length)}>
               {reconcileBatches.length ? (
                 reconcileBatches.map((batch) => (
                   <BatchCard
@@ -903,12 +880,9 @@ export default async function ControllerPage() {
                 <EmptyState title="Belum ada batch final." />
               )}
             </ControllerStepSection>
-          </div>
-
-          <FlowAccountSupportPanel accounts={state.flowAccounts} />
+          </ControllerWorkflowStepper>
         </div>
       </div>
     </>
   );
 }
-

@@ -7,6 +7,8 @@ Ini adalah SOP operasional, bukan spesifikasi kode.
 
 Phase 1 keeps `/controller` frozen and redirected to `/products/new`; this SOP describes the retained desktop workflow when the controller surface is available.
 
+Huashu-design is used only as a workflow reference for discipline: write assumptions first, ground work in real assets/evidence, keep stages explicit, avoid generic AI prompt output, and verify exports before production use. It is not a dependency and does not approve a video editor, PPT export, HTML animation engine, design advisor, TTS, SFX, or media export feature.
+
 ## Dibaca Setelah
 
 Urutan baca yang disarankan:
@@ -46,6 +48,20 @@ Urutan baca yang disarankan:
 - Staging image hanya file kerja lokal, bukan data permanen.
 - Jangan bergantung pada tab background, minimize, atau sleep untuk mempertahankan run.
 - Untuk retry yang jelas, pisahkan prompt per clip dan per mode.
+- `FIRST_FRAME`, `LAST_FRAME`, dan `VIDEO` tetap stage eksplisit. Jangan gabungkan menjadi satu status clip generik saat menyiapkan, menjalankan, atau mengimpor output.
+- Manifest/helper output harus divalidasi dan direkonsiliasi sebelum dianggap production-ready.
+
+Target alur produksi desktop:
+
+```text
+Prompt Ready
+-> Batch Setup
+-> Manifest Export
+-> Helper Prep
+-> Manual Flow Run
+-> Output Import
+-> Reconcile / Close
+```
 
 ## Artefak Yang Harus Ada
 
@@ -59,6 +75,8 @@ Export dari controller surface dan minimal memuat:
 - `helper_output_folder_key`
 - `rename_pattern`
 - `jobs[]`
+
+Manifest v2 juga harus memuat `stage_jobs[]` yang valid secara semantik. Helper tidak boleh menganggap manifest siap jalan jika stage order, dependency, prompt file, handle input, Flow account, Drive output target, helper output key, atau active workspace context tidak koheren.
 
 ### 2. Prompt files
 
@@ -109,15 +127,17 @@ Catatan:
 3. Di controller surface, operator memilih `Prompt Ready` rows dari active workspace dan memilih akun Flow yang tersedia dari pool.
 4. App membuat batch per prompt pack yang lolos, melewati prompt pack yang sudah punya open batch, dan menampilkan ringkasan created/skipped.
 5. Operator mengekspor manifest per batch sebagai langkah terpisah.
+6. App hanya mengekspor manifest dari active workspace namespace; prompt pack dari workspace lain harus dilewati atau ditolak.
 
 ### B. Helper menyiapkan local working set
 
 1. Helper membaca manifest JSON.
-2. Helper memetakan `flow_account_code` dan `chrome_profile_lane_key` ke `chrome_profile_path` dari local config.
-3. Helper memetakan `helper_output_folder_key` ke local output folder.
-4. Helper membuat folder kerja lokal per batch.
-5. Helper menyiapkan staging images.
-6. Helper menulis prompt files per clip dan per mode.
+2. Helper memvalidasi semantik manifest sebelum membuat working set.
+3. Helper memetakan `flow_account_code` dan `chrome_profile_lane_key` ke `chrome_profile_path` dari local config.
+4. Helper memetakan `helper_output_folder_key` ke local output folder.
+5. Helper membuat folder kerja lokal per batch.
+6. Helper menyiapkan staging images.
+7. Helper menulis prompt files per clip dan per mode.
 
 Contoh struktur kerja lokal:
 
@@ -164,7 +184,8 @@ local_output_folder/
 2. Helper menamai ulang file sesuai rename pattern yang sudah terkunci.
 3. Helper mengunggah file final ke Google Drive.
 4. Helper mengirim metadata callback ke app.
-5. App mengubah status batch menjadi imported atau closed sesuai hasil.
+5. App merekonsiliasi stage, clip, batch, Drive item, dan generated file.
+6. App mengubah status batch menjadi imported atau closed hanya setelah output cocok dengan manifest.
 
 Callback manifest v2 harus mengirim `stage` per file:
 
@@ -173,6 +194,21 @@ Callback manifest v2 harus mengirim `stage` per file:
 - `VIDEO` untuk video final.
 
 Jika `stage` tidak dikirim, app memperlakukannya sebagai `VIDEO` agar helper lama tetap kompatibel.
+
+Target status operator:
+
+- `Image Generated`: hasil `FIRST_FRAME`/`LAST_FRAME` yang diperlukan sudah masuk dan cocok.
+- `Video Generated`: hasil `VIDEO` yang diperlukan sudah masuk dan cocok.
+- `Ready Upload`: paket output siap untuk upload manual TikTok/Shopee.
+- `Needs Manual Match`: output ada tetapi tidak bisa dicocokkan otomatis dengan aman.
+- `Error`: manifest, helper prep, callback, atau rekonsiliasi gagal.
+
+Mapping callback:
+
+- callback `stage = FIRST_FRAME` atau `LAST_FRAME` memperbarui state operator menuju `Image Generated` saat semua image stage wajib untuk clip/batch sudah cocok.
+- callback `stage = VIDEO` memperbarui state operator menuju `Video Generated` saat video stage wajib sudah cocok.
+- jika seluruh final package lengkap dan cocok dengan manifest, state operator menjadi `Ready Upload`.
+- file yang tidak bisa dicocokkan dengan aman harus menjadi `Needs Manual Match`, bukan dipaksa masuk ke clip yang salah.
 
 ## Kontrak Chrome Profile
 
@@ -197,6 +233,7 @@ Jika `stage` tidak dikirim, app memperlakukannya sebagai `VIDEO` agar helper lam
 - File yang terpisah memudahkan retry per clip.
 - File yang terpisah juga mencegah prompt image generation dan video generation tercampur.
 - Jika satu clip gagal, ulangi hanya file mode dan clip itu.
+- Prompt file harus tetap spesifik terhadap produk, evidence, dan active Affiliate Profile. Prompt generik yang tidak menyebut konteks produk atau reference handle yang benar dianggap tidak siap produksi.
 
 ## Failure And Retry
 
@@ -244,7 +281,8 @@ Sesudah run:
 - file final sudah di-rename
 - file final sudah terupload ke Drive
 - metadata callback sudah masuk ke app
-- batch status sudah ter-update
+- app sudah merekonsiliasi stage output dengan manifest
+- batch status sudah ter-update ke imported/closed atau `NEED_MANUAL_MATCH`/error sesuai hasil
 
 ## Batasan Yang Tetap Berlaku
 
@@ -253,3 +291,4 @@ Sesudah run:
 - Helper tidak menyimpan Chrome profile path di Supabase.
 - Helper tidak menyimpan OAuth token Drive di Supabase.
 - Desktop tetap diperlukan untuk Flow Control dan eksekusi Flow.
+- Huashu-design tidak menjadi dependency, runtime, exporter, atau UI feature dalam pipeline ini.

@@ -3,6 +3,8 @@
 ## Purpose
 The app prepares prompt batches for Google Flow. Google Flow remains the external executor. Windows Helper bridges local Chrome profile opening and output import without browser automation.
 
+`alchaincyf/huashu-design` is referenced only for workflow discipline: docs-first assumptions, evidence-grounded assets, explicit stages, anti-generic prompt quality, and export verification. It is not a dependency and does not approve video editing, PPT export, HTML animation, design advisor, or media export features.
+
 ## Phase Scope
 
 Phase 1 freezes `/controller` and redirects it to `/products/new`. The board and helper contract below describe the retained desktop Flow Control surface for the phase when it is enabled.
@@ -22,6 +24,18 @@ Phase 1 freezes `/controller` and redirects it to `/products/new`. The board and
 - PWA does not auto-submit prompts to Google Flow.
 - PWA exports or downloads batch manifest JSON.
 - User manually runs Google Flow.
+
+Desktop production flow target:
+
+```text
+Prompt Ready
+-> Batch Setup
+-> Manifest Export
+-> Helper Prep
+-> Manual Flow Run
+-> Output Import
+-> Reconcile / Close
+```
 
 ## Flow Account UI
 
@@ -78,6 +92,8 @@ The user confirms the recommendation. The app must not silently bind workspace t
 ## Controlled Multi-Select Batch Creation
 
 - Multi-select source is active workspace `Prompt Ready` rows only.
+- `/controller` must use the active Affiliate Profile internal workspace as the isolation boundary for prompt selection, batch setup, stage lanes, manifest export, and reconciliation.
+- Prompt packs from another workspace must be hidden or rejected for the current controller operation even when the Flow account pool is global.
 - Default selection cap is `25`; hard cap is `50`, matching the locked Phase 2 batch ceiling already approved for bulk work.
 - Prompt packs that already have open batches are skipped, not blocked, and the skipped count is shown to the operator.
 - Batch creation uses the available Flow account pool only.
@@ -86,9 +102,9 @@ The user confirms the recommendation. The app must not silently bind workspace t
 - Batch creation returns created batch count, skipped count, and reasons per selected prompt pack.
 - Manifest export remains a separate operator step after batch creation. Batch creation does not write manifest JSON or helper files.
 
-## Board Columns
+## Controller Production UX
 
-Columns are exactly:
+The legacy board status buckets remain:
 
 ```text
 Prompt Siap
@@ -97,7 +113,19 @@ Output Masuk
 Selesai
 ```
 
-Each card shows:
+They are status buckets and compatibility language only. The final desktop production UX target is not a four-grid board. `/controller` should move toward one horizontal stepped workflow:
+
+```text
+Prompt Ready
+-> Batch Setup
+-> Manifest Export
+-> Helper Prep
+-> Manual Flow Run
+-> Output Import
+-> Reconcile / Close
+```
+
+Each batch/prompt item in the stepped workflow shows:
 
 - product name.
 - selected Flow account type/status.
@@ -173,6 +201,7 @@ Stage rules:
 - `FIRST_FRAME` uses `@character`, `@environment`, and `@product`.
 - `LAST_FRAME` depends on `FIRST_FRAME` and uses only `@firstframe`.
 - `VIDEO` depends on both frame stages and uses only `@firstframe` and `@lastframe`.
+- Stage names, dependency order, and input handles are semantic requirements. A manifest with missing, reordered, duplicated, or cross-wired stages is not production-ready.
 
 ## Manifest JSON
 
@@ -196,6 +225,25 @@ The app manifest must include the minimum data Windows Helper needs:
 ```
 
 `chrome_profile_lane_key` is an app-visible label only. It may travel in the manifest and app metadata, but the absolute Chrome profile path must stay local to helper config.
+
+## Manifest Semantic Validation
+
+Before a manifest is exported or accepted by Windows Helper as runnable, the app/helper contract must validate:
+
+- `schema_version` is the locked manifest version and `batch_code` identifies one owner-scoped batch.
+- `flow_account_code`, `chrome_profile_lane_key`, `flow_url`, `drive_output_folder_id`, `drive_output_folder_url`, and `helper_output_folder_key` are present or intentionally nullable according to the helper contract.
+- the batch, prompt pack, product, and selected rows belong to the active workspace namespace used by `/controller`.
+- `jobs[]` is present and non-empty.
+- `stage_jobs[]` is present and non-empty.
+- `stage_jobs[]` contains explicit `FIRST_FRAME`, `LAST_FRAME`, and `VIDEO` work where applicable, with deterministic `stage_order`.
+- `depends_on_job_codes` only references jobs in the same manifest and matches the locked stage rules.
+- `prompt_copy_text` comes from the generated prompt pack contract and is grounded in product evidence plus active Affiliate Profile character/environment references.
+- every `prompt_copy_text` value is non-empty after trimming.
+- `input_handles` use only approved handles for the stage: `@character`, `@environment`, `@product`, `@firstframe`, and `@lastframe`.
+- `prompt_file_name` and `output_file_name` are safe relative file names; absolute paths, parent traversal, control characters, drive-letter paths, shell metacharacter-dependent names, and empty names are rejected.
+- `jobs[]` remains present for helper compatibility but must not contradict `stage_jobs[]`.
+
+Validation failure keeps the batch out of production-ready handling and surfaces `Error` or `Needs Manual Match` depending on whether the issue is a contract error or output reconciliation issue.
 
 ## Windows Helper Contract
 
@@ -225,6 +273,8 @@ Helper must not:
 - submit prompts automatically.
 - store Chrome profile path in Supabase.
 - store helper Drive OAuth token in Supabase.
+
+Flow account availability shown in `/controller` is estimated until helper verification exists. Credit, cooldown, and slot checks can recommend an account, but the UI/contract must not imply the Chrome lane is verified until the helper returns `Helper verified`.
 
 Operator-facing desktop sequence, staging rules, and Chrome profile reuse details live in [FLOW_HELPER_DESKTOP_WORKFLOW.md](FLOW_HELPER_DESKTOP_WORKFLOW.md).
 
@@ -260,3 +310,15 @@ Sedang Flow    -> RUNNING
 Output Masuk   -> IMPORTING, PARTIALLY_IMPORTED, IMPORTED, NEED_MANUAL_MATCH
 Selesai        -> CLOSED
 ```
+
+Operator-facing production status target:
+
+```text
+Image Generated     -> required FIRST_FRAME/LAST_FRAME outputs are imported and matched
+Video Generated     -> required VIDEO outputs are imported and matched
+Ready Upload        -> output package is ready for manual TikTok/Shopee upload
+Needs Manual Match  -> helper output exists but cannot be reconciled confidently
+Error               -> manifest, helper, callback, or reconciliation failed
+```
+
+These labels are derived status targets only. This lock does not approve new database status enums.

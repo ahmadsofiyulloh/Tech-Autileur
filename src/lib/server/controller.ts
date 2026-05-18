@@ -315,6 +315,41 @@ function uniqueTextValues(values: Array<string | null | undefined>) {
   );
 }
 
+async function loadWorkspaceProductIds(input: {
+  supabase: SupabaseServerClient;
+  userId: string;
+  workspaceId: string;
+}) {
+  const productIds: string[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + CONTROLLER_RELATION_CHUNK_SIZE - 1;
+    const { data, error } = await input.supabase
+      .from("products")
+      .select("id")
+      .eq("user_id", input.userId)
+      .eq("workspace_id", input.workspaceId)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const rows = (data ?? []) as Array<{ id: string | null }>;
+    productIds.push(...rows.map((product) => product.id).filter((id): id is string => Boolean(id)));
+
+    if (rows.length < CONTROLLER_RELATION_CHUNK_SIZE) {
+      break;
+    }
+
+    from += CONTROLLER_RELATION_CHUNK_SIZE;
+  }
+
+  return Array.from(new Set(productIds));
+}
+
 async function loadWorkspaceContents(input: {
   supabase: SupabaseServerClient;
   userId: string;
@@ -687,22 +722,27 @@ export async function getControllerDashboardState() {
     throw new Error("Autentikasi diperlukan.");
   }
 
-  const [products, promptPacks, flowBatches, flowAccounts] = await Promise.all([
+  const [products, activeWorkspaceProductIds, promptPacks, flowBatches, flowAccounts] = await Promise.all([
     listProducts({ workspaceId: currentWorkspace.id, limit: 200 }),
+    loadWorkspaceProductIds({ supabase, userId: user.id, workspaceId: currentWorkspace.id }),
     listPromptPacks({ workspaceId: currentWorkspace.id, limit: 200 }),
     listFlowBatches({ workspaceId: currentWorkspace.id, limit: 200 }),
     flowAccountsPromise,
   ]);
 
-  const workspaceProducts = products as ControllerProductRecord[];
-  const workspaceProductIds = workspaceProducts.map((product) => product.id);
+  const activeWorkspaceProductIdSet = new Set(activeWorkspaceProductIds);
+  const workspaceProducts = (products as ControllerProductRecord[]).filter((product) => product.workspace_id === currentWorkspace.id);
+  const workspacePromptPacks = (promptPacks as ControllerPromptPackRecord[]).filter((promptPack) =>
+    activeWorkspaceProductIdSet.has(promptPack.product_id),
+  );
+  const workspaceFlowBatches = flowBatches.filter((batch) => batch.workspace_id === currentWorkspace.id);
   const contents = await loadWorkspaceContents({
     supabase,
     userId: user.id,
-    productIds: workspaceProductIds,
+    productIds: activeWorkspaceProductIds,
   });
   const workspaceContentIds = contents.map((content) => content.id);
-  const workspaceBatchIds = flowBatches.map((batch) => batch.id);
+  const workspaceBatchIds = workspaceFlowBatches.map((batch) => batch.id);
   const clipJobs = await loadWorkspaceClipJobs({
     supabase,
     userId: user.id,
@@ -722,10 +762,10 @@ export async function getControllerDashboardState() {
   return {
     currentWorkspace,
     products: workspaceProducts,
-    promptPacks: promptPacks as ControllerPromptPackRecord[],
-    readyPromptPacks: filterReadyPromptPacks(promptPacks as ControllerPromptPackRecord[]),
+    promptPacks: workspacePromptPacks,
+    readyPromptPacks: filterReadyPromptPacks(workspacePromptPacks),
     flowAccounts,
-    flowBatches,
+    flowBatches: workspaceFlowBatches,
     contents,
     clipJobs,
     generatedFiles,
