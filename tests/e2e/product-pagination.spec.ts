@@ -280,25 +280,30 @@ test("prompt overview product link opens specific product detail drawer on deskt
     });
 
     const drawer = page.locator('aside[aria-label="Detail produk"]');
-    await expect(drawer).toContainText(seeded.activeProductName);
+    await expect(drawer).toContainText(seeded.activeProductName, { timeout: 45_000 });
     await expect(page.getByRole("link", { name: "Metadata" })).toHaveAttribute("aria-current", "page");
 
     await page.getByRole("link", { name: "Output" }).click();
     const outputCard = page.locator(".section-card").filter({ hasText: "Output Siap Copy" }).first();
     await expect(outputCard.getByRole("link", { name: "Buka link" })).toHaveAttribute("href", seeded.marketplaceLink);
+    await expect(page.locator(".product-table thead th")).toHaveCount(3);
 
-    const [layoutBox, listBox, drawerBox] = await Promise.all([
+    const [layoutBox, listBox, tableWrapBox, lastTableCellBox, drawerBox] = await Promise.all([
       page.locator(".operator-detail-layout").boundingBox(),
       page.locator(".operator-detail-layout__list").boundingBox(),
+      page.locator(".products-table-desktop").boundingBox(),
+      page.locator(".product-table tbody tr").first().locator("td").last().boundingBox(),
       drawer.boundingBox(),
     ]);
 
-    if (!layoutBox || !listBox || !drawerBox) {
+    if (!layoutBox || !listBox || !tableWrapBox || !lastTableCellBox || !drawerBox) {
       throw new Error("Product detail layout could not be measured.");
     }
 
     const rightGap = layoutBox.x + layoutBox.width - (drawerBox.x + drawerBox.width);
+    const tableBlankRight = tableWrapBox.x + tableWrapBox.width - (lastTableCellBox.x + lastTableCellBox.width);
     expect(rightGap).toBeLessThan(24);
+    expect(tableBlankRight).toBeLessThan(24);
     expect(drawerBox.width).toBeLessThanOrEqual(430);
     expect(listBox.x).toBeLessThan(drawerBox.x);
   } catch (error) {

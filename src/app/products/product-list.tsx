@@ -193,6 +193,7 @@ export function ProductList({
   showAllWorkspaces,
   uploadFilter,
 }: ProductListProps) {
+  const isDetailMode = Boolean(activeProductId);
   const [activeStatusProductId, setActiveStatusProductId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [mobileRows, setMobileRows] = useState<ProductListRow[]>(() => products.slice(0, PRODUCT_LIST_MOBILE_PAGE_SIZE));
@@ -325,7 +326,7 @@ export function ProductList({
   }, [isMobileViewport, loadMoreProducts, mobilePagination.hasNextPage]);
 
   return (
-    <section className="product-master" aria-label="Daftar produk" data-has-detail={activeProductId ? "true" : undefined}>
+    <section className="product-master" aria-label="Daftar produk" data-has-detail={isDetailMode ? "true" : undefined}>
       <div className="product-master__list stack">
         <form className="settings-list-toolbar product-list-toolbar" action="/products" method="get">
           {showAllWorkspaces ? <input type="hidden" name="workspace" value="all" /> : null}
@@ -418,9 +419,9 @@ export function ProductList({
             <thead>
               <tr>
                 <th>Produk</th>
-                <th>Keyword</th>
+                {isDetailMode ? null : <th>Keyword</th>}
                 <th>Status</th>
-                <th>Update</th>
+                {isDetailMode ? null : <th>Update</th>}
                 <th>Aksi</th>
               </tr>
             </thead>
@@ -441,11 +442,11 @@ export function ProductList({
                       </div>
                     </div>
                   </td>
-                  <td>{fieldValue(product.keyword)}</td>
+                  {isDetailMode ? null : <td>{fieldValue(product.keyword)}</td>}
                   <td>
                     <StatusBadge status={product.primary_status_label} />
                   </td>
-                  <td>{product.latest_activity_label}</td>
+                  {isDetailMode ? null : <td>{product.latest_activity_label}</td>}
                   <td>
                     <div className="product-row-actions product-row-actions--desktop">
                       <NativeLinkButton className={`compact ${product.continue_href ? "primary" : ""}`.trim()} href={product.continue_href ?? product.href}>
