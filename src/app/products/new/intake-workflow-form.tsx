@@ -19,6 +19,7 @@ import { PendingActionButton } from "@/components/operator/pending-action-button
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { normalizeIntakeClientContext } from "@/lib/intake/analysis-telemetry";
+import { isBulkImportMetadataPayload } from "@/lib/intake/bulk-import-metadata";
 import type { JsonRecord } from "@/lib/intake/validation";
 import type { PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 
@@ -333,7 +334,7 @@ function ReviewInput({
   placeholder?: string;
 }) {
   return (
-    <label className="stack-tight" htmlFor={name}>
+    <label className="stack-tight intake-review-field" htmlFor={name}>
       <span className="subtle">{label}</span>
       <input id={name} form={form} name={name} placeholder={placeholder} defaultValue={defaultValue} />
     </label>
@@ -356,7 +357,7 @@ function ReviewTextarea({
   rows?: number;
 }) {
   return (
-    <label className="stack-tight" htmlFor={name}>
+    <label className="stack-tight intake-review-field intake-review-field--area" htmlFor={name}>
       <span className="subtle">{label}</span>
       <textarea id={name} form={form} name={name} placeholder={placeholder} rows={rows} defaultValue={defaultValue} />
     </label>
@@ -393,7 +394,7 @@ function AnalysisReadyPanel({
   const promptProductId = savedSession.status === "REVIEWED" ? savedSession.product_id : null;
 
   return (
-    <section className="prompt-preview-panel stack">
+    <section className="prompt-preview-panel intake-review-panel stack">
       <div className="section-card__actions">
         <div className="stack-tight">
           <h3>Review Hasil</h3>
@@ -402,7 +403,7 @@ function AnalysisReadyPanel({
         <StatusBadge status={savedSession.status} tone={savedSession.status === "REVIEWED" ? "success" : "info"} />
       </div>
 
-      <div className="grid two-up">
+      <div className="grid two-up intake-review-grid">
         <ReviewInput
           form={reviewFormId}
           label="Nama Produk"
@@ -454,12 +455,15 @@ function AnalysisReadyPanel({
         >
           Simpan
         </PendingActionButton>
-        {savedSession.product_id ? (
-          <NativeLinkButton className="tertiary" href={`/products?detail=${savedSession.product_id}`}>
-            <Link2 size={16} aria-hidden="true" />
-            Produk
-          </NativeLinkButton>
-        ) : null}
+        <PendingActionButton
+          className="tertiary"
+          name="intent"
+          value="analyze_metadata"
+          pendingLabel="Memproses"
+          disabled={!savedSession.id || isSavingReview}
+        >
+          Regenerate Metadata
+        </PendingActionButton>
       </FormActions>
       {promptProductId ? (
         <div className="intake-review-panel__launch-action">
@@ -515,14 +519,20 @@ export function IntakeWorkflowForm({
   const hasSavedShopeePreview = Boolean(savedSessionEvidencePreviewUrls?.shopeeScreenshot);
   const hasSavedTiktokPreview = Boolean(savedSessionEvidencePreviewUrls?.tiktokScreenshot);
   const hasSavedSession = Boolean(savedSession?.id);
+  const isBulkImportSession = Boolean(
+    savedSession &&
+      (isBulkImportMetadataPayload(savedSession.parsed_metadata_json) ||
+        isBulkImportMetadataPayload(savedSession.reviewed_metadata_json)),
+  );
   const hasShopeeEvidence = Boolean(shopeeScreenshot.selected || hasSavedShopeePreview);
   const hasTiktokEvidence = Boolean(tiktokScreenshot.selected || hasSavedTiktokPreview);
   const hasMarketplaceEvidence = hasShopeeEvidence || hasTiktokEvidence;
+  const hasAnalysisEvidence = hasMarketplaceEvidence || isBulkImportSession;
   const canSaveProduct = Boolean(productImage.selected);
   const canAnalyzeMetadata =
     hasSavedSession &&
     Boolean(productImage.selected || hasSavedProductPreview) &&
-    hasMarketplaceEvidence;
+    hasAnalysisEvidence;
   const sessionHasMetadata = savedSession ? hasSessionMetadata(savedSession) : false;
   const isMetadataPending = Boolean(savedSession && savedSession.status === "SUBMITTED" && !sessionHasMetadata);
   const isMetadataFailed = Boolean(savedSession && savedSession.status === "ERROR" && !sessionHasMetadata);
@@ -556,7 +566,7 @@ export function IntakeWorkflowForm({
   }
 
   function evidenceBadge() {
-    if (canAnalyzeMetadata) {
+    if (hasAnalysisEvidence) {
       return { badgeLabel: "Siap", badgeTone: "success" as const };
     }
 
@@ -610,7 +620,7 @@ export function IntakeWorkflowForm({
     panel: (
       <section className="stack-tight">
         <ImagePreviewUploadCard
-          className="intake-stepper__single-upload"
+          className="intake-stepper__single-upload intake-upload-card--compact"
           label="Foto Produk Utama"
           name="product_image"
           emptyTitle="Tambah gambar"
@@ -641,14 +651,14 @@ export function IntakeWorkflowForm({
   const evidenceStep = {
     id: "evidence",
     label: "Evidence Screenshot",
-    summary: canAnalyzeMetadata ? "Screenshot tersedia" : "Tambah minimal satu screenshot",
-    status: canAnalyzeMetadata ? "completed" : hasSavedSession || productImage.selected || shopeeScreenshot.selected || tiktokScreenshot.selected ? "active" : "pending",
+    summary: hasAnalysisEvidence ? (isBulkImportSession ? "Source Bulk Import tersedia" : "Screenshot tersedia") : "Tambah minimal satu screenshot",
+    status: hasAnalysisEvidence ? "completed" : hasSavedSession || productImage.selected || shopeeScreenshot.selected || tiktokScreenshot.selected ? "active" : "pending",
     ...evidenceBadge(),
     panel: (
       <section className="stack-tight">
         <div className="intake-evidence-grid intake-evidence-grid--supporting">
           <ImagePreviewUploadCard
-            className="intake-evidence-grid__card"
+            className="intake-evidence-grid__card intake-upload-card--compact"
             label="Screenshot Shopee"
             name="shopee_screenshot"
             emptyTitle="Tambah gambar"
@@ -659,7 +669,7 @@ export function IntakeWorkflowForm({
             onSelectionChange={setShopeeScreenshot}
           />
           <ImagePreviewUploadCard
-            className="intake-evidence-grid__card"
+            className="intake-evidence-grid__card intake-upload-card--compact"
             label="Screenshot TikTok"
             name="tiktok_screenshot"
             emptyTitle="Tambah gambar"
@@ -670,7 +680,9 @@ export function IntakeWorkflowForm({
             onSelectionChange={setTiktokScreenshot}
           />
         </div>
-        <span className="settings-card-meta-line">Analisis aktif setelah minimal satu screenshot.</span>
+        <span className="settings-card-meta-line">
+          {isBulkImportSession ? "Analisis memakai source Bulk Import." : "Analisis aktif setelah minimal satu screenshot."}
+        </span>
       </section>
     ),
   } satisfies IntakeStepperStep;
@@ -678,7 +690,7 @@ export function IntakeWorkflowForm({
   const analysisStep = {
     id: "analysis",
     label: "Analisis Metadata",
-    summary: isMetadataPending ? "Sedang dianalisis" : sessionHasMetadata ? "Analisis selesai" : canAnalyzeMetadata ? "Siap dianalisis" : "Menunggu screenshot",
+    summary: isMetadataPending ? "Sedang dianalisis" : sessionHasMetadata ? "Analisis selesai" : canAnalyzeMetadata ? "Siap dianalisis" : "Menunggu evidence",
     status: isMetadataPending || isAnalyzingMetadata ? "loading" : isMetadataFailed ? "error" : sessionHasMetadata ? "completed" : canAnalyzeMetadata ? "active" : "locked",
     ...analysisStepBadge,
     panel: !savedSession ? (
@@ -718,7 +730,11 @@ export function IntakeWorkflowForm({
             >
               Analisis Metadata
             </PendingActionButton>
-            {!canAnalyzeMetadata ? <span className="intake-inline-status">Tambahkan screenshot dulu.</span> : null}
+            {!canAnalyzeMetadata ? (
+              <span className="intake-inline-status">
+                {isBulkImportSession ? "Foto produk belum siap." : "Tambahkan screenshot dulu."}
+              </span>
+            ) : null}
           </div>
         </FormActions>
       </section>
@@ -752,10 +768,10 @@ export function IntakeWorkflowForm({
   const steps = [captureStep, evidenceStep, analysisStep, reviewStep];
 
   return (
-    <section className="intake-workflow stack">
+    <section className="intake-workflow intake-workflow--dense stack">
       <form
         action={saveIntake}
-        className="stack"
+        className="stack intake-workflow__form"
         onSubmit={(event) => {
           setSubmittedIntent(readSubmitIntent(event));
         }}

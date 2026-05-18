@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Inter } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import Script from "next/script";
 import type { ReactNode } from "react";
@@ -14,11 +14,6 @@ import {
   resolveThemePreference,
 } from "@/lib/theme-preference";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
   applicationName: "Affiliate AI Content OS",
@@ -202,11 +197,12 @@ export default async function RootLayout({
   return (
     <html
       lang="id"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
       data-theme={initialResolvedTheme}
       data-theme-mode={themePreference}
       suppressHydrationWarning
     >
-      <body className={`${inter.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Script
           id="theme-preference"
           strategy="beforeInteractive"

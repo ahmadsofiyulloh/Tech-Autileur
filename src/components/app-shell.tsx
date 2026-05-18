@@ -72,10 +72,10 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   }
 
   return (
-    <div className="operator-shell" data-sidebar-collapsed={isSidebarCollapsed ? "true" : undefined}>
-      <aside className="sidebar" aria-label="Operator navigation" data-collapsed={isSidebarCollapsed ? "true" : undefined}>
+    <div className="operator-shell operator-shell--dense" data-sidebar-collapsed={isSidebarCollapsed ? "true" : undefined}>
+      <aside className="sidebar sidebar--dense" aria-label="Operator navigation" data-collapsed={isSidebarCollapsed ? "true" : undefined}>
         <div className="sidebar-header">
-          <Link className="sidebar-brand" href="/dashboard">
+          <Link className="sidebar-brand sidebar-brand--dense" href="/dashboard">
             <span className="sidebar-brand__mark" aria-hidden="true">
               <Workflow size={18} />
             </span>
@@ -85,14 +85,14 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
             </span>
           </Link>
         </div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav sidebar-nav--dense">
           {desktopNavItems.map((item) => {
             const Icon = item.icon;
 
             return (
               <Link
                 aria-current={isActive(item.href) ? "page" : undefined}
-                className="nav-link sidebar-link"
+                className="nav-link sidebar-link sidebar-link--dense"
                 data-active={isActive(item.href) ? "true" : undefined}
                 href={item.href}
                 key={item.href}
@@ -110,7 +110,7 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
           <button
             aria-label={sidebarToggleLabel}
             aria-pressed={isSidebarCollapsed}
-            className="sidebar-toggle"
+            className="sidebar-toggle sidebar-toggle--dense"
             onClick={() => setSidebarCollapsed((current) => !current)}
             title={sidebarToggleLabel}
             type="button"
@@ -122,8 +122,8 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
       </aside>
 
       <div className="operator-workspace">
-        <header className="operator-topbar">
-          <div className="topbar-title">
+        <header className="operator-topbar operator-topbar--dense">
+          <div className="topbar-title topbar-title--dense">
             <span className="icon-frame topbar-title__icon" aria-hidden="true">
               <ActiveIcon size={18} />
             </span>
@@ -132,11 +132,11 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
               {activeSubtitle ? <p>{activeSubtitle}</p> : null}
             </div>
           </div>
-          <div className="topbar-tools">
+          <div className="topbar-tools topbar-tools--dense">
             {showSettingsGear ? (
               <Link
                 aria-label="Pengaturan"
-                className="topbar-profile-link"
+                className="topbar-profile-link topbar-profile-link--dense"
                 href="/settings"
                 title="Pengaturan"
               >
