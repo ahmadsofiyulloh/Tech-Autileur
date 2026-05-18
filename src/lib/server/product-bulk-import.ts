@@ -27,11 +27,11 @@ import type {
 } from "@/lib/bulk-import/types";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import {
+  applyBulkImportPreviewStatus,
   emptyBulkImportOptionalFields,
-  parseBulkImportFile,
   readBulkImportText as readText,
-  type BulkParsedRow,
-} from "@/lib/server/product-bulk-import-parser";
+} from "@/lib/bulk-import/parser-core";
+import { parseBulkImportFile } from "@/lib/server/product-bulk-import-parser";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const IMAGE_FETCH_TIMEOUT_MS = 20_000;
@@ -165,34 +165,10 @@ function summarize(rows: BulkImportPreviewRow[]): BulkImportSummary {
   };
 }
 
-function withStatus(rows: BulkParsedRow[], existingLinks: Set<string>): BulkImportPreviewRow[] {
-  const seenLinks = new Set<string>();
-
-  return rows.map((row) => {
-    let status: BulkImportRowStatus = row.errors.length ? "error" : "ready";
-    const errors = [...row.errors];
-
-    if (status === "ready" && row.productUrl) {
-      if (existingLinks.has(row.productUrl) || seenLinks.has(row.productUrl)) {
-        status = "duplicate";
-        errors.push("URL Produk sudah tersimpan.");
-      } else {
-        seenLinks.add(row.productUrl);
-      }
-    }
-
-    return {
-      ...row,
-      status,
-      errors,
-    };
-  });
-}
-
 export async function previewProductBulkImport(file: File): Promise<BulkImportResponse> {
   const rows = await parseBulkImportFile(file);
   const existingLinks = await existingProductLinks(rows.map((row) => row.productUrl));
-  const previewRows = withStatus(rows, existingLinks);
+  const previewRows = applyBulkImportPreviewStatus(rows, existingLinks);
 
   return {
     fileName: file.name,
@@ -861,7 +837,7 @@ export async function createProductBulkImportJob(file: File) {
       duplicate_rows: preview.summary.duplicateRows,
       error_rows: preview.summary.errorRows,
       imported_rows: 0,
-      skipped_rows: preview.summary.duplicateRows,
+      skipped_rows: preview.summary.duplicateRows + preview.summary.skippedRows,
       cancelled_rows: 0,
       status: "QUEUED",
     })
@@ -890,9 +866,15 @@ export async function createProductBulkImportJob(file: File) {
     raw_columns_json: row.rawColumns,
     intake_code: buildBulkIntakeCode(row.rowNumber),
     current_stage:
-      row.status === "error" ? "Row tidak valid" : row.status === "duplicate" ? "Duplikat dilewati" : "Menunggu import",
+      row.status === "error"
+        ? "Row tidak valid"
+        : row.status === "duplicate"
+          ? "Duplikat dilewati"
+          : row.status === "skipped"
+            ? "Row dilewati"
+            : "Menunggu import",
     error_message: row.status === "error" ? row.errors.join(" ") || "Row tidak valid." : null,
-    finished_at: row.status === "error" || row.status === "duplicate" ? new Date().toISOString() : null,
+    finished_at: row.status === "error" || row.status === "duplicate" || row.status === "skipped" ? new Date().toISOString() : null,
   }));
 
   if (rowPayloads.length) {
@@ -917,6 +899,15 @@ export async function createProductBulkImportJob(file: File) {
         level: "WARNING",
         title: "Row dilewati",
         message: `Row ${row.rowNumber} - ${row.productName || "Produk tanpa nama"}. URL Produk sudah tersimpan.`,
+      });
+    }
+
+    if (row.status === "skipped") {
+      await insertJobLog(supabase, user.id, {
+        jobId: job.id,
+        level: "WARNING",
+        title: "Row dilewati",
+        message: `Row ${row.rowNumber} - ${row.productName || "Produk tanpa nama"}. ${row.errors.join(" ") || "Row dilewati."}`,
       });
     }
 
@@ -1566,7 +1557,7 @@ export async function importProductBulkFile(file: File): Promise<BulkImportRespo
       continue;
     }
 
-    if (row.status === "duplicate" || importedLinks.has(row.productUrl)) {
+    if (row.status === "skipped" || row.status === "duplicate" || importedLinks.has(row.productUrl)) {
       const skippedRow: BulkImportPreviewRow = {
         ...row,
         status: "skipped",

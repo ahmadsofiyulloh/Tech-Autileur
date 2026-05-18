@@ -548,6 +548,7 @@ function BulkImportSummary({ result }: { result: BulkImportResponse }) {
       <BulkImportSummaryMetric label="Total" tone="info" value={result.summary.totalRows} />
       <BulkImportSummaryMetric label="Siap" tone="success" value={result.summary.readyRows} />
       <BulkImportSummaryMetric label="Duplikat" tone="warning" value={result.summary.duplicateRows} />
+      <BulkImportSummaryMetric label="Dilewati" tone={result.summary.skippedRows ? "warning" : "neutral"} value={result.summary.skippedRows} />
       <BulkImportSummaryMetric label="Error" tone={result.summary.errorRows ? "danger" : "neutral"} value={result.summary.errorRows} />
       <BulkImportSummaryMetric label="Import" tone={result.summary.importedRows ? "success" : "neutral"} value={result.summary.importedRows} />
       <BulkImportSummaryMetric label="Batal" tone={result.summary.cancelledRows ? "warning" : "neutral"} value={result.summary.cancelledRows} />
