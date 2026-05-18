@@ -2300,7 +2300,7 @@ input,textarea,select,[contenteditable=true]{-webkit-user-select:text;user-selec
   }
 
   .operator-detail-layout[data-has-detail="true"] {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
     align-items: start;
   }
 
@@ -2309,6 +2309,8 @@ input,textarea,select,[contenteditable=true]{-webkit-user-select:text;user-selec
     top: var(--space-3);
     display: grid;
     align-content: start;
+    justify-self: stretch;
+    width: 100%;
     max-height: calc(100dvh - var(--shell-topbar-desktop-min-height) - var(--space-5));
   }
 

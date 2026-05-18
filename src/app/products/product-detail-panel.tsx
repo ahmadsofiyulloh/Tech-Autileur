@@ -17,6 +17,7 @@ import { listProductMarketplaceSources } from "@/lib/server/product-marketplace-
 import { getProductById, listProductImages } from "@/lib/server/products";
 import { listPromptPacks } from "@/lib/server/prompt-packs";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
+import { formatAppDateTime } from "@/lib/app-time";
 
 type ProductRecord = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
 type ProductImageRecord = Awaited<ReturnType<typeof listProductImages>>[number];
@@ -46,10 +47,7 @@ type ProductDetailPanelProps = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return formatAppDateTime(value, "-");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -461,17 +459,6 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
 
   return (
     <div className="stack operator-detail-panel">
-      {marketplaceProductLink ? (
-        <div className="surface-toolbar operator-detail-panel-actions">
-          <div className="surface-toolbar__actions">
-            <NativeAnchorButton className="compact" href={marketplaceProductLink} target="_blank" rel="noreferrer">
-              <ExternalLink size={16} aria-hidden="true" />
-              Buka link
-            </NativeAnchorButton>
-          </div>
-        </div>
-      ) : null}
-
       <nav className="tab-nav tab-nav--flush" aria-label="Product detail tabs">
         {productDetailTabs.map((tab) => {
           const tabSearchParams = new URLSearchParams(detailHrefBase.split("?")[1] ?? "");
@@ -495,6 +482,14 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
       {activeTab === "output" ? (
         <section className="stack">
           <SectionCard
+            actions={
+              marketplaceProductLink ? (
+                <NativeAnchorButton className="compact" href={marketplaceProductLink} target="_blank" rel="noreferrer">
+                  <ExternalLink size={16} aria-hidden="true" />
+                  Buka link
+                </NativeAnchorButton>
+              ) : null
+            }
             icon={FileText}
             title="Output Siap Copy"
           >
