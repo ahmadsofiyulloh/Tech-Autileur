@@ -20,6 +20,7 @@ import { getFlowBatchById } from "@/lib/server/flow-batches";
 import { getPromptPackById, listPromptPacks, markPromptPackReadyForFlow } from "@/lib/server/prompt-packs";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
+import { formatAppDateKey } from "@/lib/app-time";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -47,7 +48,7 @@ function readMultiText(formData: FormData, key: string) {
 }
 
 function todayInJakarta() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+  return formatAppDateKey();
 }
 
 function done(message: string): never {

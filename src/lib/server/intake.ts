@@ -34,6 +34,7 @@ import {
   normalizeIntakeText,
   readIntakeText,
 } from "@/lib/intake/validation";
+import { formatAppTimestampCode } from "@/lib/app-time";
 import { type GeminiModelName } from "@/lib/gemini/validation";
 import { GEMINI_INTAKE_VISION_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
 import {
@@ -271,7 +272,7 @@ function assertIntakeStatus(value: string): asserts value is IntakeStatus {
 function buildIntakeCode(input: IntakeSessionInput) {
   const source = readIntakeText(input.product_title) || readIntakeText(input.shopee_url) || readIntakeText(input.tiktok_url) || "INTAKE";
   const base = source.replace(/[^A-Za-z0-9]+/g, "").toUpperCase().slice(0, 8) || "INTAKE";
-  const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+  const stamp = formatAppTimestampCode();
 
   return `${base}-${stamp}`;
 }
@@ -501,7 +502,7 @@ async function uploadIntakeDriveImage(input: {
 }
 
 async function uploadIntakeProductImageToDrive(input: { productImage: File; intakeCode?: string | null }) {
-  const intakeCode = input.intakeCode ?? `INTAKE-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`;
+  const intakeCode = input.intakeCode ?? `INTAKE-${formatAppTimestampCode()}`;
   const result = await uploadIntakeDriveImage({
     file: input.productImage,
     notes: "Foto Produk Utama",
@@ -976,7 +977,7 @@ async function uploadIntakeEvidenceToDrive(input: {
   shopeeScreenshot?: File | null;
   tiktokScreenshot?: File | null;
 }) {
-  const intakeCode = `INTAKE-${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}`;
+  const intakeCode = `INTAKE-${formatAppTimestampCode()}`;
   const folders = await ensureIntakeDriveFolders(intakeCode);
   const productImageDriveItem = (await uploadIntakeDriveImage({
     file: input.productImage,

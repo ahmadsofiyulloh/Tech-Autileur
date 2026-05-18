@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { formatAppDateTime, formatAppOffsetIsoString } from "@/lib/app-time";
 import { saveHelperApiToken } from "./actions";
 
 type HelperApiTokenPayload = {
@@ -25,7 +26,7 @@ function createTokenPayload(ownerEmail: string | null): HelperApiTokenPayload {
   return {
     raw_token: `apt_${crypto.randomUUID().replaceAll("-", "")}`,
     owner_email: ownerEmail,
-    created_at: new Date().toISOString(),
+    created_at: formatAppOffsetIsoString(),
   };
 }
 
@@ -74,7 +75,9 @@ export function HelperApiTokenPanel({
         {currentToken ? (
           <>
             <strong>Token aktif</strong>
-            <span className="subtle">{currentToken.last_used_at ? `Terakhir dipakai ${currentToken.last_used_at}` : "Belum dipakai."}</span>
+            <span className="subtle">
+              {currentToken.last_used_at ? `Terakhir dipakai ${formatAppDateTime(currentToken.last_used_at)}` : "Belum dipakai."}
+            </span>
           </>
         ) : (
           <span>Belum ada token aktif.</span>

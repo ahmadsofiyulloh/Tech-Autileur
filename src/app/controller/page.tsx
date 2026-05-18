@@ -21,6 +21,7 @@ import { saveController } from "./actions";
 import { ControllerManifestPopover } from "./controller-manifest-popover";
 import { ControllerMobileRedirect } from "./controller-mobile-redirect";
 import { ControllerWorkflowStepper, type ControllerWorkflowStepperStep } from "./controller-workflow-stepper";
+import { formatAppDateKey, formatAppDateTime } from "@/lib/app-time";
 
 export const dynamic = "force-dynamic";
 
@@ -56,19 +57,11 @@ function isControllerPlaceholderEnabled() {
 }
 
 function formatActionTime(value: string | null | undefined) {
-  if (!value) {
-    return "Belum ada aksi";
-  }
-
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Jakarta",
-  }).format(new Date(value));
+  return formatAppDateTime(value, "Belum ada aksi");
 }
 
 function todayInJakarta() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+  return formatAppDateKey();
 }
 
 function productName(productId: string | null | undefined, productMap: Map<string, { product_name: string }>) {

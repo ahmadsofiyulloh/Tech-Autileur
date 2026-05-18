@@ -22,6 +22,7 @@ import {
 } from "@/lib/server/flow-accounts";
 import { createClipJob, listClipJobs, type ClipJobRecord, type GeneratedFileRecord } from "@/lib/server/clip-jobs";
 import { PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
+import { formatAppDateKey } from "@/lib/app-time";
 
 export const READY_CONTROLLER_PROMPT_PACK_STATUSES = [PROMPT_READY_FOR_FLOW_STATUS] as const;
 export const CONTROLLER_BATCH_SELECTION_DEFAULT_CAP = 25;
@@ -140,7 +141,7 @@ function readText(value: string | null | undefined) {
 }
 
 function todayInJakarta() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+  return formatAppDateKey();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

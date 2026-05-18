@@ -15,6 +15,7 @@ import { getCurrentWorkspace, listWorkspaces } from "@/lib/server/workspaces";
 import { listProductImages, listProducts } from "@/lib/server/products";
 import { listProductMarketplaceSources } from "@/lib/server/product-marketplace-sources";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatAppDateTime } from "@/lib/app-time";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,7 @@ function workspaceLabel(workspaceId: string | null, workspaceMap: Map<string, { 
 }
 
 function formatQueueDate(value: string) {
-  return new Date(value).toLocaleString("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return formatAppDateTime(value, "-");
 }
 
 function intakeContinueHref(input: {

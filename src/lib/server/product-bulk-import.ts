@@ -32,6 +32,7 @@ import {
   readBulkImportText as readText,
 } from "@/lib/bulk-import/parser-core";
 import { parseBulkImportFile } from "@/lib/server/product-bulk-import-parser";
+import { formatAppTimestampCode } from "@/lib/app-time";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const IMAGE_FETCH_TIMEOUT_MS = 20_000;
@@ -281,7 +282,7 @@ function joinDrivePath(...segments: Array<string | null | undefined>) {
 }
 
 function buildBulkIntakeCode(rowNumber: number) {
-  const timestamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+  const timestamp = formatAppTimestampCode();
   return `BULK-${timestamp}-${String(rowNumber).padStart(3, "0")}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
 }
 

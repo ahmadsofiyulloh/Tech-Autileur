@@ -6,6 +6,7 @@ import { FormActions } from "@/components/operator/form-actions";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { formatAppOffsetIsoString } from "@/lib/app-time";
 
 type ChromePairingPayload = {
   pairing_code: string;
@@ -17,7 +18,7 @@ function createPairingPayload(ownerEmail: string | null): ChromePairingPayload {
   return {
     pairing_code: `PAIR-${crypto.randomUUID()}`,
     owner_email: ownerEmail,
-    created_at: new Date().toISOString(),
+    created_at: formatAppOffsetIsoString(),
   };
 }
 

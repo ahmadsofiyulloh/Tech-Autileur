@@ -8,6 +8,7 @@ import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatAppDateTime } from "@/lib/app-time";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,7 @@ type PromptHistoryPageProps = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return formatAppDateTime(value, "-");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

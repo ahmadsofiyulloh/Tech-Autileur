@@ -32,6 +32,7 @@ import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeAnchorButton, NativeButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { formatAppDateTime } from "@/lib/app-time";
 
 export type DriveVisualItem = {
   id: string;
@@ -103,20 +104,7 @@ function formatSize(sizeBytes: number | null) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) {
-    return "Belum tersinkron";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Belum tersinkron";
-  }
-
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return formatAppDateTime(value, "Belum tersinkron");
 }
 
 function matchesQuery(item: DriveVisualItem, query: string) {

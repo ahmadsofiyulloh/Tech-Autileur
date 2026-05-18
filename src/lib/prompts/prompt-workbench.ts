@@ -1,6 +1,7 @@
 import { PROMPT_READINESS_STATUS_LABELS } from "@/lib/prompts/prompt-readiness-projection";
 import type { PromptReadinessProjectionRow } from "@/lib/server/prompt-readiness";
 import type { PromptReadinessStatus } from "@/lib/prompts/prompt-readiness-projection";
+import { formatAppDateTime } from "@/lib/app-time";
 
 export type PromptWorkbenchReadinessFilter = "ALL" | PromptReadinessStatus;
 
@@ -80,10 +81,7 @@ export function formatPromptWorkbenchActivityLabel(value: string | null | undefi
     return "Update: -";
   }
 
-  return `Update: ${date.toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  })}`;
+  return `Update: ${formatAppDateTime(date)}`;
 }
 
 export function filterPromptWorkbenchRows(

@@ -7,6 +7,7 @@ import { getProductById } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import { PROMPT_CLIP_KEYS, PROMPT_READY_FOR_FLOW_STATUS } from "@/lib/prompts/validation";
+import { formatAppDateKey } from "@/lib/app-time";
 
 export const FLOW_BATCH_STATUSES = [
   "DRAFT",
@@ -94,7 +95,7 @@ function normalizeNullableText(value: string | null | undefined) {
 }
 
 function todayInJakarta() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+  return formatAppDateKey();
 }
 
 function normalizeDate(value: string | null | undefined) {

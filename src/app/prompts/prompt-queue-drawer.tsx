@@ -13,6 +13,7 @@ import {
   type PromptQueueItemCategory,
   type PromptQueueSnapshot,
 } from "@/lib/prompts/prompt-queue-contract";
+import { formatAppShortDateTime } from "@/lib/app-time";
 import { cancelPromptPackGeneration, retryPromptPackGeneration } from "./actions";
 
 type PromptQueueDrawerProps = {
@@ -45,16 +46,7 @@ function buildPromptDetailHref(returnHref: string, promptPackId: string) {
 }
 
 function formatTime(value: string | null) {
-  if (!value) {
-    return "Belum ada";
-  }
-
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(new Date(value));
+  return formatAppShortDateTime(value, "Belum ada");
 }
 
 function getQueueSectionTitle(category: PromptQueueItemCategory) {

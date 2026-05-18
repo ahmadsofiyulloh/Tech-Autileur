@@ -2,6 +2,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatAppDateKey } from "@/lib/app-time";
 import { ACCOUNT_STATUSES, type AccountStatus, isAccountStatus } from "@/lib/gemini/validation";
 import { listFlowBatches, type FlowBatchRecord, type FlowBatchStatus } from "@/lib/server/flow-batches";
 
@@ -383,7 +384,7 @@ export function estimateRecommendedMaxJobs(account: FlowAccountPoolRecord) {
 
 export async function getFlowAccountPool(input?: { targetDate?: string | null; limit?: number }) {
   const accounts = await listFlowAccounts(input?.limit === undefined ? undefined : { limit: input.limit });
-  const targetDate = input?.targetDate?.trim() || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+  const targetDate = input?.targetDate?.trim() || formatAppDateKey();
   const batches = (await listFlowBatches()) as FlowBatchRecord[];
   const nowMs = Date.now();
   const loadMap = new Map<string, { openBatchCount: number; batchCreditLoad: number; lastBatchAt: string | null; lastBatchAtMs: number | null }>();
