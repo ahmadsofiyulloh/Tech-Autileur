@@ -328,7 +328,7 @@ updated_at timestamptz
 
 Do not require Gemini success before creating durable product/intake records.
 
-Phase 2 Bulk Import exception: `parsed_metadata_json.schema_version = "bulk_import_v1"` or `parsed_metadata_json.source_import.schema_version = "bulk_import_v1"` is trusted scraping metadata. Bulk Import writes the same payload into `reviewed_metadata_json` and stores `status = REVIEWED` so prompt generation can start without OCR/Vision metadata review.
+Phase 2 Bulk Import exception: `parsed_metadata_json.schema_version = "bulk_import_v1"` or `parsed_metadata_json.source_import.schema_version = "bulk_import_v1"` is trusted scraping seed metadata, not final prompt metadata by itself. Bulk Import creates the product/intake seed, then calls Gemini with the product image and structured source facts. Only the Gemini-enriched payload may be written into `reviewed_metadata_json` with `status = REVIEWED`; if enrichment fails or any Prompt Essential is empty, the intake stays recoverable and prompt readiness remains blocked.
 
 ### `product_marketplace_sources`
 

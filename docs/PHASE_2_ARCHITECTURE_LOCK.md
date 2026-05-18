@@ -82,7 +82,7 @@ These are presentation targets derived from existing batch, stage, clip, generat
 - Bulk enqueue accepts only `Ready for Prompt` rows.
 - Initial batch size default is `25`, maximum `50`, and Gemini quota pressure may lower the effective runnable count.
 - Gemini OCR/Vision metadata still requires operator review in the first Phase 2 implementation.
-- Bulk Import scraping metadata with `schema_version: "bulk_import_v1"` is the approved exception: it is auto-reviewed at import/backfill time and may proceed directly to prompt creation from the Bulk Import monitor panel.
+- Bulk Import scraping metadata with `schema_version: "bulk_import_v1"` is the approved seed source, but it is not enough by itself for prompt readiness. Bulk Import must call Gemini metadata enrichment after product/image/source creation, then auto-review only when all Prompt Essentials are non-empty.
 
 ### P2-S2 - AI Job Queue
 

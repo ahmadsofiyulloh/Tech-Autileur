@@ -540,6 +540,12 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Acceptance:** new and existing `bulk_import_v1` rows store reviewed metadata, Bulk Import marketplace sources are active evidence, ready imported rows show `Buat Prompt` in the monitor panel, OCR/Vision metadata still requires review, and no dedicated prompt batch table or Supabase Queues are introduced.
 **Implementation note:** Verified by `tests/e2e/bulk-import-prompt-readiness.spec.ts`; `bulk_import_v1` rows store reviewed metadata, surface prompt readiness, and expose `Buat Prompt` from the monitor panel without adding a prompt batch table.
 
+### MT-METADATA-ENRICHMENT-01 - Gemini metadata completeness for prompt readiness
+**Goal:** Prevent prompt generation from incomplete Prompt Essentials and make Bulk Import generate Gemini-enriched metadata before prompt handoff.
+**Owner:** Codex
+**Scope:** metadata validation, prompt readiness guards, Bulk Import row processing, single-upload metadata regeneration fallback, prompt/intake wording, docs, and targeted tests only; no schema migration.
+**Acceptance:** all seven Prompt Essentials are required before prompt generation, Bulk Import rows call Gemini after product/image/source creation and become prompt-ready only when enrichment succeeds, failed/incomplete enrichment leaves a recoverable intake error, and the single upload review fallback exposes `Regenerate Metadata` instead of the product detail button.
+
 ### P2-S2-001 - AI task queue prompt enqueue contract _(DONE)_
 **Goal:** Use existing `ai_tasks` for durable bulk prompt generation jobs.
 **Owner:** Codex

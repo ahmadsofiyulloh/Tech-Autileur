@@ -249,7 +249,7 @@ Character and environment are the only profile-owned image assets in Phase awal.
 
 There is no separate background-reference asset slot in MVP. Prompt pages must not create per-prompt overrides for character or environment locks in Phase awal. The prompt page may show which profile is active, but the source of personalization remains the Affiliate Profile.
 
-Prompt generation must always consume the active Affiliate Profile, that profile's internal workspace namespace, the profile character/environment Drive references, and reviewed Gemini metadata inside the same namespace. Phase 2 Bulk Import rows may use auto-reviewed `bulk_import_v1` scraping metadata instead of manual Gemini OCR/Vision review. If a profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, generation must block instead of falling back.
+Prompt generation must always consume the active Affiliate Profile, that profile's internal workspace namespace, the profile character/environment Drive references, and reviewed Gemini metadata inside the same namespace. Phase 2 Bulk Import rows may skip manual OCR/Vision review only after Gemini enriches the `bulk_import_v1` scraping seed into complete Prompt Essentials and the app writes that enriched payload as reviewed metadata. If a profile lock is enabled but the matching Drive reference or cached analysis JSON is missing, generation must block instead of falling back.
 
 If only one Affiliate Profile exists, it may be treated as the active profile. When multiple profiles exist, the active profile must be resolved from the current namespace contract before prompt generation.
 

@@ -19,7 +19,7 @@ Huashu-design is a workflow reference only for docs-first assumptions, evidence 
 -> Output/history
 ```
 
-Bulk Import scraping is the approved Phase 2 exception to this OCR/Vision review step. Rows imported with `schema_version: "bulk_import_v1"` are treated as scraped structured metadata, auto-filled into `reviewed_metadata_json`, and may proceed directly to `Buat Prompt` from the Bulk Import monitor panel.
+Bulk Import scraping is the approved Phase 2 exception to the manual OCR/Vision review step only after Gemini metadata enrichment succeeds. Rows imported with `schema_version: "bulk_import_v1"` first create a product/intake seed from scraping metadata, then call Gemini with product image bytes plus structured source facts. They may proceed directly to `Buat Prompt` only when Gemini fills all Prompt Essentials and the app writes the enriched payload into `reviewed_metadata_json`.
 
 ## Required Intake Inputs
 
@@ -67,11 +67,13 @@ Selling Angle
 Target Viewer
 ```
 
+All seven Prompt Essentials are required before prompt generation. Empty values in `reviewed_metadata_json` must keep readiness blocked and must not be treated as prompt-ready.
+
 ## Prompt Personalization Inputs
 
 Prompt generation must consume:
 
-- reviewed product metadata. For Bulk Import, `bulk_import_v1` scraped metadata is auto-reviewed at import/backfill time.
+- reviewed product metadata. For Bulk Import, `bulk_import_v1` scraping metadata is a seed only; Gemini-enriched Prompt Essentials must be auto-reviewed before prompt generation.
 - uploaded product image and screenshot context when bytes are available.
 - active Affiliate Profile.
 - the active Affiliate Profile's internal workspace/folder namespace.
@@ -97,7 +99,9 @@ Retryable Gemini temporary-unavailable failures from intake and prompt actions s
 - active Affiliate Profile is required.
 - the profile's internal namespace must resolve.
 - source product image with Drive reference is required.
-- reviewed Gemini metadata is required for OCR/Vision intake. Auto-reviewed `bulk_import_v1` scraping metadata satisfies this blocker for Bulk Import products.
+- reviewed Gemini metadata is required for OCR/Vision intake.
+- all Prompt Essentials must be non-empty in reviewed metadata: Nama Produk, Keyword Cari Etalase, Deskripsi Visual, Use Case, Pain Point, Selling Angle, and Target Viewer.
+- auto-reviewed Bulk Import metadata satisfies this blocker only after Gemini enrichment writes all Prompt Essentials.
 - all six rule groups must be non-empty: i2i, i2v, caption, hashtag, negative, product positioning.
 - if `Lock Character` is ON, character Drive reference and `seed_character_analysis_json` are required.
 - if `Lock Environment` is ON, environment Drive reference and `environment_analysis_json` are required.
@@ -151,6 +155,7 @@ Prompt set structure:
 - `I2V Prompt` must not reference storyboard panels, grid borders, or panel numbers.
 - `I2V Prompt` must not include character/environment/product reference images again, and `@lastframe` is retained only for compatibility.
 - I2V duration is locked to `8` seconds with four timeline windows: `00:00-00:02`, `00:02-00:04`, `00:04-00:06`, `00:06-00:08`.
+- VO hook, VO timing, voice style, SFX cues, and ambient cues are part of the single `I2V Prompt` JSON envelope under `prompt.audio`; they must not appear as separate operator-facing copy fields.
 - Clip 1 is the hook/hero look. Clip 2 is the detail/benefit/use-case look.
 - Caption is shared across the prompt set and is read-only copy-ready after generation.
 - Tags are stored and rendered as a hashtag string and are read-only copy-ready after generation.
@@ -238,7 +243,14 @@ Prompt generation must persist structured JSON with at least:
       "camera_motion": "",
       "prompt_text": "",
       "continuity": "",
-      "negative_prompt": ""
+      "negative_prompt": "",
+      "audio": {
+        "voiceover_text": "",
+        "voiceover_timing": "00:00-00:02",
+        "voice_style": "",
+        "sfx_cues": "",
+        "ambient_cues": ""
+      }
     },
     "clip_2": {
       "schema_version": "prompt_pack_v2",
@@ -256,7 +268,14 @@ Prompt generation must persist structured JSON with at least:
       "camera_motion": "",
       "prompt_text": "",
       "continuity": "",
-      "negative_prompt": ""
+      "negative_prompt": "",
+      "audio": {
+        "voiceover_text": "",
+        "voiceover_timing": "00:00-00:02",
+        "voice_style": "",
+        "sfx_cues": "",
+        "ambient_cues": ""
+      }
     }
   },
   "caption": "",
@@ -279,7 +298,7 @@ Prompt generation must persist structured JSON with at least:
 }
 ```
 
-The persistence shape stays legacy-compatible: `first_frame`, `last_frame`, and `frame_inputs: ["@firstframe", "@lastframe"]` remain required. The semantic change is only in generated copy and visible output: `first_frame.prompt_text` is the single-frame image prompt, `last_frame.prompt_text` is hidden compatibility copy, and I2V animates from the `@firstframe` single image while keeping `@lastframe` as compatibility input only.
+The persistence shape stays legacy-compatible: `first_frame`, `last_frame`, and `frame_inputs: ["@firstframe", "@lastframe"]` remain required. The semantic change is only in generated copy and visible output: `first_frame.prompt_text` is the single-frame image prompt, `last_frame.prompt_text` is hidden compatibility copy, and I2V animates from the `@firstframe` single image while keeping `@lastframe` as compatibility input only. Legacy top-level I2V audio fields may be read for compatibility, but new prompt packs normalize them into the `audio` envelope.
 
 `product_analysis.product.status` is mandatory and must be copied from the source product record. The model must not infer or invent this value.
 
@@ -295,9 +314,10 @@ Prompt pack editor round-trips must not fail when legacy prompt JSON contains ol
 
 - i2i, i2v, caption, hashtag, and negative prompt rules must be editable in Affiliate Profile UI.
 - Prompt rules must not be hardcoded in JSX, HTML, route handlers, or inline strings.
-- Prompt rules are internal policy inputs for generation. They may shape `prompt_text`, `must_keep`, `must_avoid`, `timeline`, `motion_prompt`, `camera_motion`, `continuity`, `negative_prompt`, caption, and tags, but must not be emitted as raw `prompt_rules` in copy-ready prompt fields.
+- Prompt rules are internal policy inputs for generation. They may shape `prompt_text`, `must_keep`, `must_avoid`, `timeline`, `motion_prompt`, `camera_motion`, `continuity`, `negative_prompt`, `audio`, caption, and tags, but must not be emitted as raw `prompt_rules` in copy-ready prompt fields.
 - Do not claim visual parsing from links when image bytes are missing.
 - Use cached JSON metadata snapshots instead of re-running OCR/vision on every prompt generation.
+- Prompt pack generation requires strict structured JSON output. Google Search grounding tools must stay disabled for the current locked Free-tier Gemini model set unless the model is explicitly documented to support structured outputs with tools.
 - Do not add a third background-reference asset slot in Phase awal.
 - lock controls must be visible in the Affiliate Profile asset section with labels `Lock Character` and `Lock Environment`.
 - do not add explanatory copy or helper paragraphs around lock controls.
