@@ -439,6 +439,23 @@ function buildContinueHref(params: {
   return `/products/new?${searchParams.toString()}`;
 }
 
+function buildPromptHref(params: {
+  affiliateProfileId: string | null;
+  latestPromptPack: { id: string } | null;
+}) {
+  if (!params.latestPromptPack) {
+    return null;
+  }
+
+  const searchParams = new URLSearchParams({ detail: params.latestPromptPack.id });
+
+  if (params.affiliateProfileId) {
+    searchParams.set("affiliate_profile_id", params.affiliateProfileId);
+  }
+
+  return `/prompts?${searchParams.toString()}`;
+}
+
 function matchesProductFilter(product: ProductListRow, filter: ProductListFilter) {
   if (filter === "all") {
     return true;
@@ -653,7 +670,7 @@ function buildRows(input: {
   const workspaceMap = new Map(input.workspaces.filter((workspace) => workspace.status !== "ARCHIVED").map((workspace) => [workspace.id, workspace]));
   const latestIntakeByProductId = new Map<string, ProductIntakeSessionRecord>();
   const latestVerifiedIntakeByProductId = new Map<string, ProductIntakeSessionRecord>();
-  const latestPromptPackByProductId = new Map<string, PromptPackRecord>();
+  const promptPacksByProductId = groupByProductId(input.promptPacks);
   const latestContentByProductId = new Map<string, ContentRecord[]>();
   const contentProductMap = new Map<string, string>();
   const latestGeneratedClipJobByProductId = new Map<string, ClipJobRecord>();
@@ -669,12 +686,6 @@ function buildRows(input: {
 
     if (hasVerifiedIntakeMetadata(session) && !latestVerifiedIntakeByProductId.has(session.product_id)) {
       latestVerifiedIntakeByProductId.set(session.product_id, session);
-    }
-  }
-
-  for (const promptPack of input.promptPacks) {
-    if (!latestPromptPackByProductId.has(promptPack.product_id)) {
-      latestPromptPackByProductId.set(promptPack.product_id, promptPack);
     }
   }
 
@@ -698,7 +709,7 @@ function buildRows(input: {
   return input.products.map((product) => {
     const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
     const latestVerifiedIntake = latestVerifiedIntakeByProductId.get(product.id) ?? null;
-    const latestPromptPack = latestPromptPackByProductId.get(product.id) ?? null;
+    const latestPromptPack = latestByTimestamp(promptPacksByProductId.get(product.id) ?? []);
     const latestGeneratedClipJob = latestGeneratedClipJobByProductId.get(product.id) ?? null;
     const productWorkflowStatus = readWorkflowStatusJson(product.workflow_status_json);
     const promptReady = Boolean(latestPromptPack && isCompletedPromptPack(latestPromptPack.status));
@@ -768,6 +779,10 @@ function buildRows(input: {
       thumbnail_url: null,
       href: "",
       continue_href: continueHref,
+      prompt_href: buildPromptHref({
+        affiliateProfileId: input.affiliateProfileId,
+        latestPromptPack,
+      }),
       primary_status_label: primaryStatusLabel,
       status_context_label: statusContextLabel,
       workflow_stage: workflowStage,

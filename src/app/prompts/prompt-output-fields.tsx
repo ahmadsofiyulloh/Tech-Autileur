@@ -85,8 +85,8 @@ export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
           const clip = promptSet.clips[clipKey];
           const fieldSteps = [
             {
-              id: `${clipKey}-storyboard-image`,
-              label: "Storyboard Image",
+              id: `${clipKey}-first-frame-image`,
+              label: "First Frame Image",
               value: clip.i2i_first_frame,
               emptyLabel: "Belum ada prompt.",
             },

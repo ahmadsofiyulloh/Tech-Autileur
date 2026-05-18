@@ -105,7 +105,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       })
     : productsCloseHref;
   const productDetailSubtitle = selectedProductRow
-    ? [selectedProductRow.workspace_label, selectedProductRow.primary_status_label].filter(Boolean).join(" - ")
+    ? selectedProductRow.primary_status_label
     : null;
   const shouldShowList =
     productPage.totalProductCount > 0 ||
@@ -130,7 +130,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         ) : (
           <EmptyState
             icon={Package}
-            title={currentWorkspace && !showAllWorkspaces ? "Belum ada produk di workspace ini." : "Belum ada produk."}
+            title="Belum ada produk."
             description="Mulai dari intake."
             action={
               <NativeLinkButton className="primary" href="/products/new">

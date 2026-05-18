@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Edit3, Package, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Edit3, FileText, Package, Plus, Search, X } from "lucide-react";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
@@ -452,7 +452,6 @@ export function ProductList({
             <thead>
               <tr>
                 <th>Produk</th>
-                <th>Workspace</th>
                 <th>Keyword</th>
                 <th>Status</th>
                 <th>Dibuat</th>
@@ -476,7 +475,6 @@ export function ProductList({
                       </div>
                     </div>
                   </td>
-                  <td>{product.workspace_label}</td>
                   <td>{fieldValue(product.keyword)}</td>
                   <td>
                     <div className="stack-tight">
@@ -501,6 +499,12 @@ export function ProductList({
                         {product.continue_href ? "Lanjutkan" : "Detail"}
                       </NativeLinkButton>
                       <OverflowActionMenu label="Aksi produk">
+                        {product.prompt_href ? (
+                          <NativeLinkButton className="compact" href={product.prompt_href}>
+                            <FileText size={15} aria-hidden="true" />
+                            Prompt
+                          </NativeLinkButton>
+                        ) : null}
                         {product.continue_href ? (
                           <NativeLinkButton className="compact" href={product.href}>
                             <ArrowRight size={15} aria-hidden="true" />
@@ -529,7 +533,7 @@ export function ProductList({
               ))}
               {!products.length ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={5}>
                     <section className="muted-box">Tidak ada produk.</section>
                   </td>
                 </tr>
@@ -537,7 +541,7 @@ export function ProductList({
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={6}>
+                <td colSpan={5}>
                   <ProductPaginationStepper
                     affiliateProfileId={affiliateProfileId}
                     filter={filter}
@@ -561,7 +565,6 @@ export function ProductList({
                   <div className="visual-list-card__copy">
                     <strong title={product.product_name}>{product.product_name}</strong>
                     <span>{fieldValue(product.keyword)}</span>
-                    <small>{product.workspace_label}</small>
                   </div>
                   <div className="visual-list-card__status" aria-label="Status produk">
                     <StatusBadge status={product.primary_status_label} />
@@ -582,6 +585,12 @@ export function ProductList({
                     {product.continue_href ? "Lanjutkan" : "Detail"}
                   </NativeLinkButton>
                   <OverflowActionMenu label="Aksi produk">
+                    {product.prompt_href ? (
+                      <NativeLinkButton className="compact" href={product.prompt_href}>
+                        <FileText size={15} aria-hidden="true" />
+                        Prompt
+                      </NativeLinkButton>
+                    ) : null}
                     {product.continue_href ? (
                       <NativeLinkButton className="compact" href={product.href}>
                         <ArrowRight size={15} aria-hidden="true" />

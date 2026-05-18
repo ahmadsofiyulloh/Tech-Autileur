@@ -9,6 +9,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   PROMPT_WORKBENCH_PAGE_SIZE,
+  formatPromptWorkbenchActivityLabel,
   normalizePromptWorkbenchSearch,
   type PromptWorkbenchReadinessCounts,
   type PromptWorkbenchReadinessFilter,
@@ -23,8 +24,13 @@ export type PromptWorkbenchPageInput = {
   readiness?: PromptWorkbenchReadinessFilter;
 };
 
+export type PromptWorkbenchProjectionRow = PromptReadinessProjectionRow & {
+  latest_activity_at: string | null;
+  latest_activity_label: string;
+};
+
 export type PromptWorkbenchPageResult = {
-  rows: PromptReadinessProjectionRow[];
+  rows: PromptWorkbenchProjectionRow[];
   totalCount: number;
   page: number;
   pageSize: number;
@@ -62,6 +68,59 @@ function chunkValues<T>(values: readonly T[], size: number) {
   }
 
   return chunks;
+}
+
+function timestampOf(value: string | { updated_at?: string | null; created_at?: string | null } | null | undefined) {
+  const rawValue = typeof value === "string" ? value : value?.updated_at ?? value?.created_at ?? "";
+  const timestamp = rawValue ? new Date(rawValue).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function activityCandidate(value: { updated_at?: string | null; created_at?: string | null } | null | undefined) {
+  const rawValue = value?.updated_at ?? value?.created_at ?? null;
+
+  return {
+    rawValue,
+    timestamp: timestampOf(rawValue),
+  };
+}
+
+function resolveLatestPromptWorkbenchActivityAt(row: PromptReadinessProjectionRow) {
+  const candidates = [
+    activityCandidate(row.product),
+    activityCandidate(row.promptPack),
+    activityCandidate(row.intakeSession),
+    activityCandidate(row.aiTask),
+  ];
+  const latest = candidates.sort((left, right) => right.timestamp - left.timestamp)[0] ?? null;
+
+  return latest?.timestamp ? latest.rawValue : row.product.updated_at ?? row.product.created_at ?? null;
+}
+
+export function withPromptWorkbenchActivity(row: PromptReadinessProjectionRow): PromptWorkbenchProjectionRow {
+  const latestActivityAt = resolveLatestPromptWorkbenchActivityAt(row);
+
+  return {
+    ...row,
+    latest_activity_at: latestActivityAt,
+    latest_activity_label: formatPromptWorkbenchActivityLabel(latestActivityAt),
+  };
+}
+
+function comparePromptWorkbenchActivityRows(left: PromptWorkbenchProjectionRow, right: PromptWorkbenchProjectionRow) {
+  const activityDiff = timestampOf(right.latest_activity_at) - timestampOf(left.latest_activity_at);
+
+  if (activityDiff !== 0) {
+    return activityDiff;
+  }
+
+  const productDiff = timestampOf(right.product) - timestampOf(left.product);
+
+  if (productDiff !== 0) {
+    return productDiff;
+  }
+
+  return right.product.id.localeCompare(left.product.id);
 }
 
 async function* loadPromptWorkbenchProductIdBatches(input: {
@@ -122,11 +181,12 @@ async function collectPromptWorkbenchPageRows(input: {
   readiness: PromptWorkbenchReadinessFilter;
   affiliateProfileContext: PromptReadinessProjectionContext;
 }) {
-  const collector = createPromptWorkbenchPageCollector<PromptReadinessProjectionRow>({
+  const collector = createPromptWorkbenchPageCollector<PromptWorkbenchProjectionRow>({
     page: input.page,
     pageSize: input.pageSize,
     readiness: input.readiness,
   });
+  const projectedRows: PromptWorkbenchProjectionRow[] = [];
 
   for await (const productIdChunk of loadPromptWorkbenchProductIdBatches({
     supabase: input.supabase,
@@ -142,11 +202,12 @@ async function collectPromptWorkbenchPageRows(input: {
         affiliateProfileContext: input.affiliateProfileContext,
       });
 
-      const orderMap = new Map(productIdBatch.map((productId, index) => [productId, index]));
-      rows.sort((left, right) => (orderMap.get(left.product.id) ?? 0) - (orderMap.get(right.product.id) ?? 0));
-      collector.addBatch(rows);
+      projectedRows.push(...rows.map(withPromptWorkbenchActivity));
     }
   }
+
+  projectedRows.sort(comparePromptWorkbenchActivityRows);
+  collector.addBatch(projectedRows);
 
   return collector.finish();
 }

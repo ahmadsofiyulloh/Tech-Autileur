@@ -26,6 +26,7 @@ export type ProductListRow = {
   thumbnail_url: string | null;
   href: string;
   continue_href: string | null;
+  prompt_href: string | null;
   primary_status_label: string;
   status_context_label: string | null;
   workflow_stage: ProductWorkflowStage;

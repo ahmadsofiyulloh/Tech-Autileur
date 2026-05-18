@@ -78,7 +78,7 @@ Mobile prompt must support:
 
 - prompt preview.
 - read-only copy-ready prompt fields.
-- collapsible clip-level `Storyboard Image` and `I2V Prompt` fields; hidden `I2I Last Frame` remains persisted for legacy compatibility.
+- collapsible clip-level `First Frame Image` and `I2V Prompt` fields; hidden `I2I Last Frame` remains persisted for legacy compatibility.
 - `Instruksi Revisi`.
 - `Buat Prompt`.
 - `Buat Ulang`.

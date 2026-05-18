@@ -45,7 +45,7 @@
 
 - Prompt surface label is `Paket Prompt`.
 - Required fields exist: `Prompt Clip 1`, `Prompt Clip 2`, `Caption`, `Tags`, `Target Marketplace`, `Instruksi Revisi`.
-- Each clip panel exposes `Storyboard Image` and `I2V Prompt`; hidden `I2I Last Frame` remains persisted for legacy compatibility.
+- Each clip panel exposes `First Frame Image` and `I2V Prompt`; hidden `I2I Last Frame` remains persisted for legacy compatibility.
 - Generated prompt fields are read-only, copy-ready, and grouped by collapsible clip section.
 - Required actions exist: `Buat Prompt` and `Buat Ulang`.
 - Prompt list row action for existing prompts opens `History`; prompt detail opens the generated output/editor route.

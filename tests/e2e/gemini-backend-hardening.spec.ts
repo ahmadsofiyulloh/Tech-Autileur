@@ -105,10 +105,10 @@ function buildTestI2VTimeline() {
     time,
     action:
       index === 0
-        ? "read @firstframe storyboard panel 1"
+        ? "start from @firstframe single first image"
         : index === 3
-          ? "resolve on storyboard panel 4 with @lastframe kept for compatibility"
-          : "map the next storyboard panels into smooth product motion",
+          ? "resolve from the same first-frame setup with @lastframe kept for compatibility"
+          : "continue the same first-frame setup into smooth product motion",
   }));
 }
 
@@ -142,7 +142,7 @@ function buildTestI2VPrompt<TSlot extends "clip_1" | "clip_2">(
     motion_prompt: `${promptText} motion`,
     camera_motion: "slow push-in",
     prompt_text: promptText,
-    continuity: "use @firstframe storyboard panels 1-4 while @lastframe stays legacy-compatible",
+    continuity: "use @firstframe as the single starting image while @lastframe stays legacy-compatible",
     negative_prompt: "no extra props",
   } as PromptPackGenerationOutput["i2v_prompts"][TSlot];
 }
@@ -293,7 +293,7 @@ function buildPromptPackServerContextFixture(): JsonObject {
     mode: "server_injected",
     reference_cards: sharedReferenceCards,
     prompt_writing_contract: {
-      mode: "FLOW_I2I_STORYBOARD_I2V_PROMPT_PACK_V2",
+      mode: "FLOW_I2I_SINGLE_FRAME_I2V_PROMPT_PACK_V2",
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       first_frame_image_inputs: ["@character", "@environment", "@product"],
       last_frame_image_inputs: ["@firstframe"],
@@ -1305,8 +1305,10 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
     "@environment",
     "@product.png",
   ]);
-  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).toContain("2x2 storyboard");
-  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).toContain("4 numbered panels");
+  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).toContain("single-frame image");
+  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).toContain("one clear composition");
+  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text).not.toContain("2x2");
+  expect(parsed.i2i_prompts.clip_1.first_frame.prompt_text.toLowerCase()).not.toContain("storyboard");
   expect(parsed.i2i_prompts.clip_1.first_frame.must_keep).toEqual(expect.arrayContaining([
     expect.stringContaining("Use @character, @environment"),
     expect.stringContaining("keep product shape"),
@@ -1324,11 +1326,12 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
     "00:04-00:06",
     "00:06-00:08",
   ]);
-  expect(parsed.i2v_prompts.clip_2.prompt_text).toContain("@firstframe as the completed 2x2 storyboard");
-  expect(parsed.i2v_prompts.clip_2.prompt_text).toContain("not visible video elements");
-  expect(parsed.i2v_prompts.clip_2.continuity).toContain("panels 1-4");
+  expect(parsed.i2v_prompts.clip_2.prompt_text).toContain("@firstframe as the single starting image");
+  expect(parsed.i2v_prompts.clip_2.continuity).toContain("single starting image");
   expect(parsed.i2v_prompts.clip_2.prompt_text).not.toContain("3x3");
-  expect(parsed.i2v_prompts.clip_2.prompt_text).not.toContain("panels 1-9");
+  expect(parsed.i2v_prompts.clip_2.prompt_text).not.toContain("2x2");
+  expect(parsed.i2v_prompts.clip_2.prompt_text.toLowerCase()).not.toContain("storyboard");
+  expect(parsed.i2v_prompts.clip_2.prompt_text.toLowerCase()).not.toContain("panels");
   expect(parsed.i2v_prompts.clip_2.negative_prompt).toContain("no extra props");
   expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("visual_references");
   expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("prompt_rules");

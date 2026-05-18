@@ -8,8 +8,8 @@ import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listDriveItemsByIds } from "@/lib/server/drive-items";
 import { listPromptQueueSnapshot } from "@/lib/server/prompt-queue";
-import { listPromptWorkbenchPage } from "@/lib/server/prompt-workbench";
-import { listPromptReadinessProjections, type PromptReadinessProjectionRow } from "@/lib/server/prompt-readiness";
+import { listPromptWorkbenchPage, withPromptWorkbenchActivity } from "@/lib/server/prompt-workbench";
+import { listPromptReadinessProjections } from "@/lib/server/prompt-readiness";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { EMPTY_PROMPT_QUEUE_SUMMARY, type PromptQueueSummary, type PromptQueueSnapshot } from "@/lib/prompts/prompt-queue-contract";
 import {
@@ -28,7 +28,6 @@ import { PromptWorkbenchList, type PromptWorkbenchRowData } from "./prompt-workb
 
 export const dynamic = "force-dynamic";
 
-type PromptReadinessRow = PromptReadinessProjectionRow;
 type GeminiKeyRecord = {
   id: string;
   label: string;
@@ -48,6 +47,7 @@ type SelectedPromptPackRecord = {
   ai_task_id: string | null;
 };
 type PromptWorkbenchPageResult = Awaited<ReturnType<typeof listPromptWorkbenchPage>>;
+type PromptReadinessRow = PromptWorkbenchPageResult["rows"][number];
 
 type PromptsPageProps = {
   searchParams: Promise<{
@@ -366,7 +366,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       limit: 1,
     });
 
-    selectedSpotlightRow = selectedRows[0] ?? null;
+    selectedSpotlightRow = selectedRows[0] ? withPromptWorkbenchActivity(selectedRows[0]) : null;
 
     if (selectedSpotlightRow) {
       visiblePromptReadinessRows = [selectedSpotlightRow, ...visiblePromptReadinessRows];
@@ -510,6 +510,8 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
     return {
       product: row.product,
+      latest_activity_at: row.latest_activity_at,
+      latest_activity_label: row.latest_activity_label,
       workspaceName: currentWorkspaceLabel,
       promptPack,
       intakeSession,
@@ -574,11 +576,8 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
         <div className="settings-inline-summary prompt-inline-summary">
           <span>
-            {displayCountLabel} - {resultCountLabel}
+            {displayCountLabel} - {resultCountLabel} - {pageLabel} - {activeReadinessFilterLabel}
           </span>
-          <StatusBadge status={pageLabel} tone="neutral" />
-          <StatusBadge status={activeReadinessFilterLabel} tone="info" />
-          <StatusBadge status={currentAffiliateProfileLabel} tone={currentAffiliateProfile ? "success" : "warning"} />
         </div>
 
         <div className="content-filter-tabs desktop-action-set" role="tablist" aria-label="Filter kesiapan prompt">

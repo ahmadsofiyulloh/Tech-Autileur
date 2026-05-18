@@ -72,6 +72,20 @@ export function normalizePromptWorkbenchReadinessFilter(
     : "ALL";
 }
 
+export function formatPromptWorkbenchActivityLabel(value: string | null | undefined) {
+  const date = value ? new Date(value) : null;
+  const timestamp = date ? date.getTime() : 0;
+
+  if (!date || !Number.isFinite(timestamp) || timestamp <= 0) {
+    return "Update: -";
+  }
+
+  return `Update: ${date.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}`;
+}
+
 export function filterPromptWorkbenchRows(
   rows: readonly PromptReadinessProjectionRow[],
   filter: PromptWorkbenchReadinessFilter,

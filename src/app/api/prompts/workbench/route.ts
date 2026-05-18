@@ -211,6 +211,8 @@ export async function GET(request: Request) {
 
       return {
         product: row.product,
+        latest_activity_at: row.latest_activity_at,
+        latest_activity_label: row.latest_activity_label,
         workspaceName: currentWorkspaceLabel,
         promptPack,
         intakeSession,

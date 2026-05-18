@@ -160,6 +160,14 @@ Repo adaptation lock:
 **Scope:** prompt generation contract, Gemini schema, parser/reader, targeted tests, and prompt/Flow lock docs only.
 **Acceptance:** new generation emits v2 copy JSON; I2I First Frame generates one 2x2 storyboard image with 4 panels using `@character`, `@environment`, and product reference; I2I Last Frame uses `@firstframe` and remains hidden/persisted for compatibility; I2V uses the `@firstframe` storyboard plus legacy `@lastframe` with 8-second 4-part timeline, treating grid borders and panel numbers as guidance only; legacy prompt packs remain readable.
 
+Superseded follow-up: MT-PROMPT-SINGLE-FRAME-01 replaces the runtime default storyboard output with a single first-frame image while keeping the same storage shape for compatibility.
+
+### MT-PROMPT-SINGLE-FRAME-01 - Single-frame prompt default
+**Goal:** Replace the default generated `Storyboard Image` output with `First Frame Image` while preserving I2V compatibility.
+**Owner:** Codex
+**Scope:** prompt lock docs, prompt generation contract, mock/live prompt wording, visible/export labels, and targeted tests only.
+**Acceptance:** new generation produces a single first-frame image prompt instead of 2x2 storyboard/grid/panel instructions; hidden `I2I Last Frame` remains persisted; I2V keeps `frame_inputs: ["@firstframe", "@lastframe"]` but treats `@firstframe` as the single starting image and `@lastframe` as compatibility only; prompt UI/export labels use `First Frame Image`; no wizard, provider selector, bulk variant logic, schema migration, or live video provider integration is added.
+
 ### MT-INTAKE-00 - Intake metadata refactor contract
 **Goal:** Lock the 2026-05-07 save-vs-metadata lifecycle, active account behavior, drawer fallback, and mobile preview contract before runtime refactor.
 **Owner:** Codex

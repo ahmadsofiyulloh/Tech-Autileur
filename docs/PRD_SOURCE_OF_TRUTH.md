@@ -219,7 +219,7 @@ Editable regeneration field:
 Instruksi Revisi
 ```
 
-Each clip panel must expose `Storyboard Image` and `I2V Prompt` as read-only copy-ready fields after generation. `Storyboard Image` is stored in the legacy `I2I First Frame` field as one 2x2 storyboard image with 4 panels, while `I2I Last Frame` remains persisted and hidden for legacy compatibility. `I2V Prompt` maps the 4 storyboard panels as temporal guidance and must not preserve grid borders or panel numbers as visible video elements. `Caption` is shared and copy-ready, `Tags` render as a copy-ready hashtag string, and `Target Marketplace` is a fixed read-only chip for `Shopee + TikTok`.
+Each clip panel must expose `First Frame Image` and `I2V Prompt` as read-only copy-ready fields after generation. `First Frame Image` is stored in the legacy `I2I First Frame` field as one single-frame image, while `I2I Last Frame` remains persisted and hidden for legacy compatibility. `I2V Prompt` animates from the `@firstframe` single image, keeps legacy `@lastframe` only as a compatibility input, and must not reference storyboard panels, grid borders, or panel numbers. `Caption` is shared and copy-ready, `Tags` render as a copy-ready hashtag string, and `Target Marketplace` is a fixed read-only chip for `Shopee + TikTok`.
 
 Required actions:
 

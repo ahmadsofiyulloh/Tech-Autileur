@@ -676,48 +676,49 @@ function buildPromptRulesFromContext(context: JsonObject | null) {
   } satisfies PromptPackPromptRulesJson;
 }
 
-const STORYBOARD_FIRST_FRAME_INSTRUCTION =
-  "Create exactly one image: a 2x2 storyboard grid with 4 numbered panels for this single clip, read left-to-right and top-to-bottom.";
+const SINGLE_FRAME_FIRST_FRAME_INSTRUCTION =
+  "Create exactly one single-frame image for this clip: a natural UGC iPhone-style first frame with one clear composition, one moment, one image file, no multi-image layout, no numbered sequence, and no video.";
 const LEGACY_LAST_FRAME_INSTRUCTION =
-  "Legacy compatibility last-frame payload only: keep @firstframe as the storyboard source and do not create a separate visible Last Frame output.";
-const STORYBOARD_I2V_INSTRUCTION =
-  "Use @firstframe as the completed 2x2 storyboard image and map panels 1-4 left-to-right, top-to-bottom into one continuous 8-second video. Treat grid borders and panel numbers as storyboard guidance only, not visible video elements.";
+  "Legacy compatibility last-frame payload only: keep @firstframe as the single-frame source and do not create a separate visible Last Frame output.";
+const SINGLE_FRAME_I2V_INSTRUCTION =
+  "Use @firstframe as the single starting image for one continuous 8-second video. Keep @lastframe only as a legacy compatibility input, preserve identity and product details, and do not use the original reference images again.";
 
-function hasStoryboardInstruction(value: string) {
+function hasSingleFrameInstruction(value: string) {
   const lowered = value.toLowerCase();
   return (
-    lowered.includes("2x2") ||
-    lowered.includes("4 panel") ||
-    lowered.includes("4 numbered") ||
-    lowered.includes("panels 1-4") ||
-    lowered.includes("panel 1") ||
-    lowered.includes("panel 2") ||
-    lowered.includes("panel 3") ||
-    lowered.includes("panel 4")
+    lowered.includes("single-frame") ||
+    lowered.includes("single frame") ||
+    lowered.includes("single starting image") ||
+    lowered.includes("one clear composition")
   );
 }
 
-function rewriteStoryboardPanelLanguage(value: string) {
+function rewriteSingleFramePromptLanguage(value: string) {
   return value
-    .replace(/\b3x3\b/gi, "2x2")
-    .replace(/\b9 numbered panels\b/gi, "4 numbered panels")
-    .replace(/\b9 panels\b/gi, "4 panels")
-    .replace(/\b9 panel\b/gi, "4 panel")
-    .replace(/\bpanels 1-9\b/gi, "panels 1-4")
-    .replace(/\bpanel 9\b/gi, "panel 4")
-    .replace(/\bpanels 8-9\b/gi, "panel 4")
-    .replace(/\bpanels 5-7\b/gi, "panel 3")
-    .replace(/\bpanels 3-4\b/gi, "panel 2");
+    .replace(/\b(?:2x2|3x3)\s+storyboard\s+grid\s+with\s+\d+\s+numbered\s+panels?\b/gi, "single natural first-frame image")
+    .replace(/\bcompleted\s+(?:2x2|3x3)\s+storyboard\s+image\b/gi, "single starting image")
+    .replace(/\b(?:2x2|3x3)\s+storyboard\s+grid\b/gi, "single first-frame image")
+    .replace(/\bstoryboard\s+panels?\s+\d+(?:-\d+)?\b/gi, "the single starting image")
+    .replace(/\bpanels?\s+\d+(?:-\d+)?\b/gi, "the single starting image")
+    .replace(/\b\d+\s+numbered\s+panels?\b/gi, "one natural frame")
+    .replace(/\bgrid\s+borders?\s+and\s+panel\s+numbers?\b/gi, "multi-image layout artifacts")
+    .replace(/\bpanel\s+numbers?\b/gi, "numbered-sequence artifacts")
+    .replace(/\bstoryboard\s+guidance\b/gi, "motion guidance")
+    .replace(/\bstoryboard\b/gi, "single-frame")
+    .replace(/\bpanels?\b/gi, "single image")
+    .replace(/\bgrid\b/gi, "layout")
+    .replace(/\b3x3\b/gi, "single-frame")
+    .replace(/\b2x2\b/gi, "single-frame");
 }
 
 function ensurePromptInstruction(value: string, instruction: string, maxLength = 520) {
-  const rewritten = rewriteStoryboardPanelLanguage(value);
+  const rewritten = rewriteSingleFramePromptLanguage(value);
 
   if (!rewritten) {
     return compactText(instruction, maxLength);
   }
 
-  if (hasStoryboardInstruction(rewritten)) {
+  if (hasSingleFrameInstruction(rewritten)) {
     return compactText(rewritten, maxLength);
   }
 
@@ -763,13 +764,13 @@ function buildFallbackPromptText(input: {
     }
 
     return compactText(
-      `${input.productName} ${input.promptCode} v${input.version} first_frame. ${STORYBOARD_FIRST_FRAME_INSTRUCTION} ${clipObjective}. Show ${productLabel} clearly with locked character, outfit, lighting, and industrial warm-orange room continuity.`,
+      `${input.productName} ${input.promptCode} v${input.version} first_frame. ${SINGLE_FRAME_FIRST_FRAME_INSTRUCTION} ${clipObjective}. Show ${productLabel} clearly with locked character, outfit, lighting, and industrial warm-orange room continuity.`,
       520,
     );
   }
 
   return compactText(
-    `${input.productName} ${input.promptCode} v${input.version}. ${STORYBOARD_I2V_INSTRUCTION} ${clipObjective}. Preserve product graphics, character identity, lighting, and background continuity; @lastframe is retained for legacy compatibility only.`,
+    `${input.productName} ${input.promptCode} v${input.version}. ${SINGLE_FRAME_I2V_INSTRUCTION} ${clipObjective}. Preserve product graphics, character identity, lighting, and background continuity; @lastframe is retained for legacy compatibility only.`,
     520,
   );
 }
@@ -832,16 +833,16 @@ function buildI2IMustKeep(input: {
   const characterReference = readReferenceByKind(input.visualReferences, "CHARACTER");
   const frameInstruction =
     input.frame === "first_frame"
-      ? "Use @character, @environment, and the product reference together to create one 2x2 storyboard image with 4 numbered panels."
-      : "Keep @firstframe as the storyboard source; this last-frame payload is retained for legacy compatibility only.";
+      ? "Use @character, @environment, and the product reference together to create one single-frame first image."
+      : "Keep @firstframe as the single-frame source; this last-frame payload is retained for legacy compatibility only.";
 
   return dedupeCompactList(
     [
       frameInstruction,
       buildClipObjective(input.clipKey),
       input.frame === "first_frame"
-        ? "Each panel must be a distinct beat for the same clip while preserving product, character, outfit, environment, and lighting continuity."
-        : "Do not redesign the storyboard, identity, outfit, product, or environment.",
+        ? "The frame must capture one clear clip-opening moment while preserving product, character, outfit, environment, and lighting continuity."
+        : "Do not redesign the first frame, identity, outfit, product, or environment.",
       `Primary product must remain ${productReference?.summary || input.productName}.`,
       ...(productReference?.must_keep ?? []),
       characterReference?.summary ? `Preserve character identity: ${characterReference.summary}.` : "",
@@ -860,7 +861,7 @@ function buildI2IMustAvoid(input: {
     [
       ...(input.visualReferences.flatMap((reference) => reference.must_avoid) ?? []),
       "Do not change the person, hairstyle, body proportions, product color, logo/text placement, room layout, or warm-orange lighting.",
-      input.frame === "first_frame" ? "Do not output four separate files, a video, or a single non-grid frame." : "",
+      input.frame === "first_frame" ? "Do not output multiple image files, a multi-image layout, a numbered sequence, or a video." : "",
       input.frame === "last_frame" ? "Do not introduce new image references beyond @firstframe or create a separate visible Last Frame output." : "",
       "Avoid blurry output, warped hands, distorted face, floating limbs, duplicate body parts, and unreadable product graphics.",
     ],
@@ -873,7 +874,7 @@ function buildContinuityText(continuity?: { first_frame_hint: string; last_frame
   const lastHint = readString(continuity?.last_frame_hint) || "last frame";
 
   return compactText(
-    `Use @firstframe as one 2x2 storyboard image; follow panels 1-4 from left-to-right and top-to-bottom (${firstHint} to ${lastHint}) with no identity, outfit, product, lighting, or background drift. Treat grid borders and panel numbers as storyboard guidance only. @lastframe is legacy-compatible only and must not override storyboard order.`,
+    `Use @firstframe as one single starting image and animate from ${firstHint} to ${lastHint} with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only and must not override the single-frame continuity.`,
     520,
   );
 }
@@ -901,19 +902,19 @@ function buildFallbackTimeline(input: {
   clipKey: PromptClipKey;
   continuity?: { first_frame_hint: string; last_frame_hint: string };
 }) {
-  const firstHint = input.continuity?.first_frame_hint || "open with storyboard panel 1";
-  const lastHint = input.continuity?.last_frame_hint || "resolve on storyboard panel 4";
+  const firstHint = input.continuity?.first_frame_hint || "open from the single first frame";
+  const lastHint = input.continuity?.last_frame_hint || "resolve from the same visual setup";
   const objective = buildClipObjective(input.clipKey);
 
   return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => {
     const action =
       index === 0
-        ? `Read @firstframe storyboard panel 1 as the opening beat: ${firstHint}.`
+        ? `Start from @firstframe as the opening beat: ${firstHint}.`
         : index === 1
-          ? `Continue through storyboard panel 2 for ${objective}; add subtle model posture shift while preserving product details.`
+          ? `Continue the same shot for ${objective}; add subtle model posture shift while preserving product details.`
           : index === 2
-            ? "Move through storyboard panel 3 with controlled slow push-in or slight parallax; keep garment graphics readable."
-            : `Resolve with storyboard panel 4: ${lastHint}. Treat grid borders and panel numbers as guidance only; keep @lastframe only as a legacy compatibility input.`;
+            ? "Use controlled slow push-in or slight parallax from the same first-frame setup; keep garment graphics readable."
+            : `Resolve from the same first-frame setup: ${lastHint}. Keep @lastframe only as a legacy compatibility input.`;
 
     return { time, action: compactText(action, 180) } satisfies PromptPackI2VTimelineSegmentJson;
   });
@@ -977,7 +978,7 @@ function buildPromptFramePromptJson(input: {
   });
   const promptText =
     input.frame === "first_frame"
-      ? ensurePromptInstruction(rawPromptText, STORYBOARD_FIRST_FRAME_INSTRUCTION)
+      ? ensurePromptInstruction(rawPromptText, SINGLE_FRAME_FIRST_FRAME_INSTRUCTION)
       : ensureLegacyLastFrameInstruction(rawPromptText);
 
   return {
@@ -1023,7 +1024,7 @@ function buildPromptI2VPromptJson(input: {
     rules: input.rules,
     continuity: input.continuity,
   });
-  const promptText = ensurePromptInstruction(rawPromptText, STORYBOARD_I2V_INSTRUCTION);
+  const promptText = ensurePromptInstruction(rawPromptText, SINGLE_FRAME_I2V_INSTRUCTION);
   const continuity = buildContinuityText(input.continuity);
 
   return {
@@ -1036,7 +1037,7 @@ function buildPromptI2VPromptJson(input: {
       clipKey: input.clipKey,
       continuity: input.continuity,
     }),
-    motion_prompt: ensurePromptInstruction(readString(input.motionPrompt) || promptText, STORYBOARD_I2V_INSTRUCTION),
+    motion_prompt: ensurePromptInstruction(readString(input.motionPrompt) || promptText, SINGLE_FRAME_I2V_INSTRUCTION),
     camera_motion:
       readString(input.cameraMotion) ||
       "Natural slow push-in with subtle handheld parallax; no hard cuts, no fast zoom, no scene jump.",

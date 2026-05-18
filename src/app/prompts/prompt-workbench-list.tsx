@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, Clock3, Edit3, ListChecks, Square } from "lucide-react";
+import { ArrowRight, Check, Clock3, Edit3, ListChecks, Package, Square } from "lucide-react";
 import type { AffiliateProfilePromptReadinessInput } from "@/lib/affiliate-profiles/readiness";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -63,6 +63,8 @@ type PromptWorkbenchTask = {
 
 export type PromptWorkbenchRowData = {
   product: PromptWorkbenchProduct;
+  latest_activity_at: string | null;
+  latest_activity_label: string;
   workspaceName: string;
   promptPack: PromptWorkbenchPromptPack | null;
   intakeSession: PromptWorkbenchIntakeSession | null;
@@ -160,15 +162,13 @@ function PromptPackCreateForm({ product, intakeSession, affiliateProfile, source
 
 function PromptWorkbenchRowCard({
   product,
-  workspaceName,
   promptPack,
   intakeSession,
   affiliateProfile,
   sourceImage,
-  sourceImageDriveItem,
   generationTask,
   promptReadiness,
-  defaultAffiliateProfileName,
+  latest_activity_label,
   selected,
   onToggleSelected,
   productContinueHref,
@@ -177,9 +177,8 @@ function PromptWorkbenchRowCard({
   returnHref,
   isOpen,
 }: PromptWorkbenchRowCardProps) {
-  const statusLabel = promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT";
-  const affiliateProfileName = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
-  const sourceImageLabel = sourceImageDriveItem?.name ?? sourceImage?.id ?? "Foto belum ada";
+  const statusLabel = promptReadiness?.label ?? (promptPack ? promptPack.status : intakeSession?.status ?? "DRAFT");
+  const statusKey = promptReadiness?.status ?? generationTask?.status ?? promptPack?.status ?? intakeSession?.status ?? "DRAFT";
   const promptLaunchReadiness = getPromptLaunchReadiness({
     productId: product.id,
     intakeSessionId: intakeSession?.id ?? null,
@@ -191,8 +190,7 @@ function PromptWorkbenchRowCard({
   const isSelectable = Boolean(promptReadiness?.isBulkEnqueueEligible);
   const canCancelPromptGeneration = ["QUEUED", "RETRYING", "WAITING_FOR_KEY"].includes(generationTask?.status ?? "");
   const taskIssueMessage = generationTask?.error_message ?? promptPack?.error_message ?? null;
-  const selectedGeminiKeyLabel =
-    generationTask?.gemini_key_label ?? (generationTask?.gemini_api_key_id ? "Key belum terbaca" : null);
+  const showErrorNote = Boolean(taskIssueMessage && (statusKey.includes("FAILED") || statusKey === "ERROR"));
   const canCreatePrompt = !promptPack && promptLaunchReadiness.ready;
   const continueHref = !promptPack && !promptLaunchReadiness.ready ? productContinueHref : null;
   const productActionHref = continueHref ?? productDetailHref;
@@ -222,9 +220,9 @@ function PromptWorkbenchRowCard({
         readiness={promptLaunchReadiness}
         sourceImage={sourceImage}
       />
-        <OverflowActionMenu label="Aksi prompt">
-          <NativeLinkButton className="compact" href={productDetailHref}>
-            <ArrowRight size={15} aria-hidden="true" />
+      <OverflowActionMenu label="Aksi prompt">
+        <NativeLinkButton className="compact" href={productDetailHref}>
+          <ArrowRight size={15} aria-hidden="true" />
           Detail
         </NativeLinkButton>
       </OverflowActionMenu>
@@ -237,13 +235,13 @@ function PromptWorkbenchRowCard({
         <div className="prompt-list-card__copy">
           <span>{promptPack ? `Paket Prompt v${promptPack.version}` : "Paket Prompt"}</span>
           <strong title={product.product_name}>{product.product_name}</strong>
-          <small>{`Akun: ${affiliateProfileName}`}</small>
+          <small>{latest_activity_label}</small>
         </div>
         <StatusBadge status={statusLabel} />
       </div>
 
-      <div className="prompt-list-card__meta-row">
-        {isSelectable ? (
+      {isSelectable ? (
+        <div className="prompt-list-card__meta-row desktop-action-set">
           <NativeButton
             aria-pressed={selected}
             className="compact tertiary prompt-workbench-select-button desktop-action-set"
@@ -254,35 +252,13 @@ function PromptWorkbenchRowCard({
             {selected ? <Check size={15} aria-hidden="true" /> : <Square size={15} aria-hidden="true" />}
             {selected ? "Dipilih" : "Pilih"}
           </NativeButton>
-        ) : null}
-        <span>{workspaceName}</span>
-        <span>{sourceImageLabel}</span>
-        {promptReadiness ? <StatusBadge status={promptReadiness.label} /> : null}
-        {generationTask ? <StatusBadge status={generationTask.status} /> : null}
-        {selectedGeminiKeyLabel ? (
-          <StatusBadge
-            status={`Key: ${selectedGeminiKeyLabel}`}
-            tone={generationTask?.status === "WAITING_FOR_KEY" ? "warning" : "info"}
-          />
-        ) : null}
-        {!promptPack && !intakeSession ? <StatusBadge status="Review Gemini dulu" tone="warning" /> : null}
-      </div>
-
-      {taskIssueMessage ? (
-        <div className="prompt-list-card__task-note" aria-label="Alasan task">
-          <span>Alasan</span>
-          <strong>{taskIssueMessage}</strong>
         </div>
       ) : null}
 
-      {promptReadiness && !promptReadiness.isBulkEnqueueEligible ? (
-        <div className="prompt-list-card__reason-row" aria-label="Alasan belum siap">
-          <span>Blokir</span>
-          {promptReadiness.reasons.length ? (
-            promptReadiness.reasons.map((reason) => <StatusBadge key={reason.key} status={reason.label} tone="warning" />)
-          ) : (
-            <StatusBadge status="Belum siap" tone="warning" />
-          )}
+      {showErrorNote ? (
+        <div className="prompt-list-card__task-note" aria-label="Error prompt">
+          <span>Error</span>
+          <strong>{taskIssueMessage}</strong>
         </div>
       ) : null}
 
@@ -296,6 +272,10 @@ function PromptWorkbenchRowCard({
               Buka
             </NativeLinkButton>
             <OverflowActionMenu label="Aksi prompt">
+              <NativeLinkButton className="compact" href={productDetailHref}>
+                <Package size={15} aria-hidden="true" />
+                Produk
+              </NativeLinkButton>
               <NativeLinkButton className="compact" href={`/prompts/${promptPack.id}/history`}>
                 <Clock3 size={15} aria-hidden="true" />
                 History
@@ -334,6 +314,10 @@ function PromptWorkbenchRowCard({
               Buka
             </NativeLinkButton>
             <OverflowActionMenu>
+              <NativeLinkButton className="compact" href={productDetailHref}>
+                <Package size={15} aria-hidden="true" />
+                Produk
+              </NativeLinkButton>
               <NativeLinkButton className="compact" href={`/prompts/${promptPack.id}/history`}>
                 <Clock3 size={15} aria-hidden="true" />
                 History
@@ -573,10 +557,7 @@ export function PromptWorkbenchList({
       >
         <div className="prompt-workbench-selection-summary__copy">
           <span aria-live="polite">{selectedCount} dipilih</span>
-          <StatusBadge
-            status={activeTaskCount ? `${activeTaskCount} task aktif` : "Queue kosong"}
-            tone={activeTaskCount ? "info" : "neutral"}
-          />
+          {activeTaskCount ? <StatusBadge status={`${activeTaskCount} task aktif`} tone="info" /> : null}
         </div>
         <div className="prompt-workbench-selection-summary__actions">
           <NativeLinkButton className="compact tertiary" href={queueHref}>
