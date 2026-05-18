@@ -1,7 +1,11 @@
 import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { PromptFieldStepper } from "@/components/operator/prompt-field-stepper";
-import { readPromptPackEditorPromptSet, type PromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
+import {
+  buildStructuredI2VPromptForCopy,
+  readPromptPackEditorPromptSet,
+  type PromptPackEditorPromptSet,
+} from "@/lib/prompts/prompt-pack-contract";
 import {
   PROMPT_CLIP_KEYS,
   PROMPT_CLIP_LABELS,
@@ -14,6 +18,25 @@ type PromptPackOutputRecord = {
   i2v_prompts_json?: unknown;
   personalization_json?: unknown;
 };
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readStoredShopeeCaptionTags(pack: PromptPackOutputRecord) {
+  const personalization = readRecord(pack.personalization_json);
+  const uploadCopy = readRecord(personalization.upload_copy);
+
+  return readString(uploadCopy.shopee_caption_tags);
+}
+
+function stringifyCopyJson(value: unknown) {
+  return JSON.stringify(value, null, 2);
+}
 
 function clipFieldName(clipKey: PromptClipKey, field: "i2i_first_frame" | "i2i_last_frame" | "i2v_prompt") {
   return `${clipKey}_${field}`;
@@ -69,12 +92,14 @@ export function PromptReadOnlyField({ label, value }: { label: string; value: st
 
 export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
   const promptSet = readPromptPackEditorPromptSet(pack);
+  const shopeeCaptionTags = readStoredShopeeCaptionTags(pack);
 
   return (
     <div className="stack">
-      <section className="grid two-up" aria-label="Caption dan tags">
+      <section className="grid two-up" aria-label="Caption, tags, dan copy Shopee">
         <PromptReadOnlyField label="Caption" value={promptSet.caption} />
         <PromptReadOnlyField label="Tags" value={promptSet.tags} />
+        <CopyableReadOnlyField label="Shopee Caption+Tags" value={shopeeCaptionTags} emptyLabel="Belum ada" />
       </section>
       <div className="section-card__actions">
         <span className="subtle">Target Marketplace</span>
@@ -93,7 +118,7 @@ export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
             {
               id: `${clipKey}-i2v-prompt`,
               label: "I2V Prompt",
-              value: clip.i2v_prompt,
+              value: stringifyCopyJson(buildStructuredI2VPromptForCopy(clip.i2v_prompt_json)),
               emptyLabel: "Belum ada prompt.",
             },
           ];

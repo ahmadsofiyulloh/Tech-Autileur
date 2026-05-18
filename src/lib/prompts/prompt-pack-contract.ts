@@ -1,6 +1,7 @@
 import { recoverJsonText } from "@/lib/json/recover-json";
 import {
   PROMPT_CLIP_KEYS,
+  PROMPT_PACK_COMPACT_OUTPUT_OPTIONAL_KEYS,
   PROMPT_PACK_COMPACT_OUTPUT_KEYS,
   PROMPT_PACK_OUTPUT_KEYS,
   PROMPT_TARGET_MARKETPLACE,
@@ -67,6 +68,10 @@ export type PromptPackPromptRulesJson = {
 
 export const PROMPT_PACK_COPY_SCHEMA_VERSION = "prompt_pack_v2" as const;
 
+export const PROMPT_PACK_I2V_COPY_MODEL = "veo-3.1" as const;
+
+export const PROMPT_PACK_I2V_COPY_ASPECT_RATIO = "9:16" as const;
+
 export const PROMPT_PACK_I2V_DURATION_SECONDS = 8 as const;
 
 export const PROMPT_PACK_I2V_TIMELINE_WINDOWS = [
@@ -76,6 +81,10 @@ export const PROMPT_PACK_I2V_TIMELINE_WINDOWS = [
   "00:06-00:08",
 ] as const;
 
+export const PROMPT_PACK_VO_MAX_CHARS = 120 as const;
+
+export const PROMPT_PACK_SHOPEE_COPY_MAX_CHARS = 150 as const;
+
 export type PromptPackI2IStage = "i2i_first_frame" | "i2i_last_frame";
 
 export type PromptPackI2VTimelineWindow = (typeof PROMPT_PACK_I2V_TIMELINE_WINDOWS)[number];
@@ -83,6 +92,14 @@ export type PromptPackI2VTimelineWindow = (typeof PROMPT_PACK_I2V_TIMELINE_WINDO
 export type PromptPackI2VTimelineSegmentJson = {
   time: PromptPackI2VTimelineWindow;
   action: string;
+};
+
+export type PromptPackI2VAudioEnvelopeJson = {
+  voiceover_text?: string;
+  voiceover_timing?: "00:00-00:02";
+  voice_style?: string;
+  sfx_cues?: string;
+  ambient_cues?: string;
 };
 
 export type PromptPackI2IFramePromptJson = {
@@ -113,6 +130,35 @@ export type PromptPackI2VPromptJson = {
   prompt_text: string;
   continuity: string;
   negative_prompt: string;
+  audio?: PromptPackI2VAudioEnvelopeJson;
+};
+
+export type PromptPackStructuredI2VCopyAudioJson = {
+  type: "native";
+  voiceover_timing: "00:00-00:02" | "none";
+  voiceover_text: string;
+  voice_style: string;
+  sfx_cues: string;
+  ambient_cues: string;
+};
+
+export type PromptPackStructuredI2VCopyJson = {
+  schema_version: typeof PROMPT_PACK_COPY_SCHEMA_VERSION;
+  slot: PromptClipKey;
+  stage: "i2v";
+  model: typeof PROMPT_PACK_I2V_COPY_MODEL;
+  duration_seconds: typeof PROMPT_PACK_I2V_DURATION_SECONDS;
+  aspect_ratio: typeof PROMPT_PACK_I2V_COPY_ASPECT_RATIO;
+  reference_image: "@firstframe";
+  prompt: {
+    visual_reference: string;
+    motion: string;
+    camera: string;
+    timeline: PromptPackI2VTimelineSegmentJson[];
+    continuity: string;
+    audio: PromptPackStructuredI2VCopyAudioJson;
+  };
+  negative_prompt: string;
 };
 
 export type PromptPackGenerationOutput = {
@@ -122,11 +168,18 @@ export type PromptPackGenerationOutput = {
   i2v_prompts: Record<PromptClipKey, PromptPackI2VPromptJson>;
   caption: string;
   tags: string;
+  upload_copy: PromptPackShopeeUploadCopyJson;
   target_marketplace: typeof PROMPT_TARGET_MARKETPLACE;
   negative_prompt_rules: string[];
   consistency_rules: string[];
   seed_character: PromptPackLockStateJson;
   environment: PromptPackLockStateJson;
+};
+
+export type PromptPackShopeeUploadCopyJson = {
+  shopee_caption: string;
+  shopee_tags: string;
+  shopee_caption_tags: string;
 };
 
 type PromptPackCompactFramePromptJson = {
@@ -153,6 +206,7 @@ type PromptPackCompactI2VPromptJson = {
     last_frame_hint: string;
   };
   negative_prompt: string;
+  audio?: PromptPackI2VAudioEnvelopeJson;
 };
 
 type PromptPackCompactGenerationOutput = {
@@ -161,6 +215,7 @@ type PromptPackCompactGenerationOutput = {
   i2v_prompts: Record<PromptClipKey, PromptPackCompactI2VPromptJson>;
   caption: string;
   tags: string;
+  upload_copy?: PromptPackShopeeUploadCopyJson;
   negative_prompt_rules: string[];
   consistency_rules: string[];
 };
@@ -193,6 +248,7 @@ export type PromptPackEditorPromptSet = {
   clips: Record<PromptClipKey, PromptPackEditorClip>;
   caption: string;
   tags: string;
+  upload_copy: PromptPackShopeeUploadCopyJson;
   target_marketplace: typeof PROMPT_TARGET_MARKETPLACE;
   prompt_context: JsonValue | null;
   seed_character: PromptPackLockStateJson;
@@ -247,9 +303,39 @@ function requireExactKeys(value: Record<string, unknown>, expectedKeys: readonly
   }
 }
 
+function requireKeys(
+  value: Record<string, unknown>,
+  requiredKeys: readonly string[],
+  label: string,
+  optionalKeys: readonly string[] = [],
+) {
+  const keys = Object.keys(value);
+  const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+  const missingKeys = requiredKeys.filter((key) => !(key in value));
+  const unknownKeys = keys.filter((key) => !allowedKeys.has(key));
+
+  if (missingKeys.length || unknownKeys.length) {
+    throw new Error(
+      `${label} must contain required keys: ${requiredKeys.join(", ")}${
+        optionalKeys.length ? `; optional keys: ${optionalKeys.join(", ")}` : ""
+      }.`,
+    );
+  }
+}
+
 function hasExactKeys(value: Record<string, unknown>, expectedKeys: readonly string[]) {
   const keys = Object.keys(value);
   return keys.length === expectedKeys.length && expectedKeys.every((key) => key in value);
+}
+
+function hasRequiredKeysOnly(
+  value: Record<string, unknown>,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[] = [],
+) {
+  const keys = Object.keys(value);
+  const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+  return requiredKeys.every((key) => key in value) && keys.every((key) => allowedKeys.has(key));
 }
 
 function requireString(value: unknown, label: string) {
@@ -262,6 +348,104 @@ function requireString(value: unknown, label: string) {
 
 function requireOptionalString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+export function countTextChars(value: string): number {
+  return Array.from(value).length;
+}
+
+export function validateMaxChars(value: string, label: string, maxChars: number): string {
+  const text = value.trim();
+
+  if (countTextChars(text) > maxChars) {
+    throw new Error(`${label} must be ${maxChars} characters or fewer.`);
+  }
+
+  return text;
+}
+
+function buildShopeeCaptionTags(caption: string, tags: string) {
+  const shopeeCaption = caption.trim();
+  const shopeeTags = normalizeHashtagString(tags);
+
+  return {
+    shopeeCaption,
+    shopeeTags,
+    shopeeCaptionTags: [shopeeCaption, shopeeTags].filter(Boolean).join(" "),
+  };
+}
+
+export function buildPromptPackUploadCopy(caption: string, tags: string): PromptPackShopeeUploadCopyJson {
+  const { shopeeCaption, shopeeTags, shopeeCaptionTags } = buildShopeeCaptionTags(caption, tags);
+
+  return {
+    shopee_caption: shopeeCaption,
+    shopee_tags: shopeeTags,
+    shopee_caption_tags: validateMaxChars(
+      shopeeCaptionTags,
+      "upload_copy.shopee_caption_tags",
+      PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+    ),
+  };
+}
+
+function requirePromptPackUploadCopyJson(value: unknown, label: string): PromptPackShopeeUploadCopyJson {
+  const record = requireRecord(value, label);
+  requireExactKeys(record, ["shopee_caption", "shopee_tags", "shopee_caption_tags"], label);
+
+  return {
+    shopee_caption: requireString(record.shopee_caption, `${label}.shopee_caption`),
+    shopee_tags: requireString(record.shopee_tags, `${label}.shopee_tags`),
+    shopee_caption_tags: validateMaxChars(
+      requireString(record.shopee_caption_tags, `${label}.shopee_caption_tags`),
+      `${label}.shopee_caption_tags`,
+      PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+    ),
+  };
+}
+
+function readGeneratedPromptPackUploadCopy(
+  value: unknown,
+  caption: string,
+  tags: string,
+): PromptPackShopeeUploadCopyJson {
+  if (value === undefined || value === null) {
+    return buildPromptPackUploadCopy(caption, tags);
+  }
+
+  return requirePromptPackUploadCopyJson(value, "upload_copy");
+}
+
+function readPromptPackUploadCopy(
+  personalization: Record<string, unknown>,
+  caption: string,
+  tags: string,
+): PromptPackShopeeUploadCopyJson {
+  const uploadCopy = isRecord(personalization.upload_copy) ? personalization.upload_copy : null;
+
+  if (uploadCopy) {
+    const shopeeCaption = readString(uploadCopy.shopee_caption) || caption.trim();
+    const shopeeTags = readString(uploadCopy.shopee_tags)
+      ? normalizeHashtagString(readString(uploadCopy.shopee_tags))
+      : normalizeHashtagString(tags);
+    const shopeeCaptionTags = readString(uploadCopy.shopee_caption_tags);
+
+    if (shopeeCaptionTags) {
+      return {
+        shopee_caption: shopeeCaption,
+        shopee_tags: shopeeTags,
+        shopee_caption_tags: shopeeCaptionTags,
+      };
+    }
+  }
+
+  const { shopeeCaption, shopeeTags, shopeeCaptionTags } = buildShopeeCaptionTags(caption, tags);
+
+  return {
+    shopee_caption: shopeeCaption,
+    shopee_tags: shopeeTags,
+    shopee_caption_tags: shopeeCaptionTags,
+  };
 }
 
 function requireNumber(value: unknown, label: string) {
@@ -1000,6 +1184,39 @@ function buildPromptFramePromptJson(input: {
   } satisfies PromptPackI2IFramePromptJson;
 }
 
+function buildPromptI2VAudioEnvelope(input: {
+  voiceoverText?: string | null;
+  voiceoverTiming?: "00:00-00:02" | null;
+  voiceStyle?: string | null;
+  sfxCues?: string | null;
+  ambientCues?: string | null;
+  label?: string;
+}) {
+  const label = input.label ?? "audio";
+  const voiceoverText = readString(input.voiceoverText);
+  const voiceStyle = readString(input.voiceStyle);
+  const sfxCues = readString(input.sfxCues);
+  const ambientCues = readString(input.ambientCues);
+
+  if (!voiceoverText && !input.voiceoverTiming && !voiceStyle && !sfxCues && !ambientCues) {
+    return null;
+  }
+
+  return {
+    ...(voiceoverText
+      ? {
+          voiceover_text: validateMaxChars(voiceoverText, `${label}.voiceover_text`, PROMPT_PACK_VO_MAX_CHARS),
+          voiceover_timing: input.voiceoverTiming ?? "00:00-00:02",
+        }
+      : input.voiceoverTiming
+        ? { voiceover_timing: input.voiceoverTiming }
+        : {}),
+    ...(voiceStyle ? { voice_style: voiceStyle } : {}),
+    ...(sfxCues ? { sfx_cues: sfxCues } : {}),
+    ...(ambientCues ? { ambient_cues: ambientCues } : {}),
+  } satisfies PromptPackI2VAudioEnvelopeJson;
+}
+
 function buildPromptI2VPromptJson(input: {
   clipKey: PromptClipKey;
   promptText?: string | null;
@@ -1013,6 +1230,12 @@ function buildPromptI2VPromptJson(input: {
   motionPrompt?: string | null;
   cameraMotion?: string | null;
   negativePrompt?: string | null;
+  voiceoverText?: string | null;
+  voiceoverTiming?: "00:00-00:02" | null;
+  voiceStyle?: string | null;
+  sfxCues?: string | null;
+  ambientCues?: string | null;
+  audioLabel?: string;
 }) {
   const rawPromptText = readString(input.promptText) || buildFallbackPromptText({
     kind: "I2V",
@@ -1026,6 +1249,14 @@ function buildPromptI2VPromptJson(input: {
   });
   const promptText = ensurePromptInstruction(rawPromptText, SINGLE_FRAME_I2V_INSTRUCTION);
   const continuity = buildContinuityText(input.continuity);
+  const audio = buildPromptI2VAudioEnvelope({
+    voiceoverText: input.voiceoverText,
+    voiceoverTiming: input.voiceoverTiming,
+    voiceStyle: input.voiceStyle,
+    sfxCues: input.sfxCues,
+    ambientCues: input.ambientCues,
+    label: input.audioLabel,
+  });
 
   return {
     schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
@@ -1044,6 +1275,7 @@ function buildPromptI2VPromptJson(input: {
     prompt_text: promptText,
     continuity,
     negative_prompt: buildNegativePrompt(input.rules, input.negativePrompt),
+    ...(audio ? { audio } : {}),
   } satisfies PromptPackI2VPromptJson;
 }
 
@@ -1106,6 +1338,165 @@ function parseRequiredPromptRecord(value: unknown, label: string) {
 
 function stringifyPromptJson(value: unknown) {
   return JSON.stringify(value, null, 2);
+}
+
+const STRUCTURED_I2V_VISUAL_REFERENCE =
+  "Use @firstframe as the only visual reference. Preserve the same product, character identity, outfit, lighting, and environment from @firstframe.";
+
+const STRUCTURED_I2V_CONTINUITY =
+  "Animate from @firstframe only. Keep product identity, character identity, outfit, lighting, and environment stable for the full 8 seconds.";
+
+const STRUCTURED_I2V_NO_SPEECH_TEXT = "no speech; no voiceover; no lip-sync";
+
+const STRUCTURED_I2V_SUBTLE_NATIVE_AMBIENCE = "subtle native ambience only";
+
+export function buildStructuredI2VPromptForCopy(
+  clip: PromptPackI2VPromptJson,
+): PromptPackStructuredI2VCopyJson {
+  const audio = clip.audio ?? {};
+  const hasVoiceover = Boolean(readString(audio.voiceover_text));
+
+  return {
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot: clip.slot,
+    stage: "i2v",
+    model: PROMPT_PACK_I2V_COPY_MODEL,
+    duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+    aspect_ratio: PROMPT_PACK_I2V_COPY_ASPECT_RATIO,
+    reference_image: "@firstframe",
+    prompt: {
+      visual_reference: STRUCTURED_I2V_VISUAL_REFERENCE,
+      motion: buildStructuredI2VCopyMotion(clip),
+      camera: sanitizeStructuredI2VCopyText(clip.camera_motion) || "Natural camera movement from @firstframe with no scene jump.",
+      timeline: buildStructuredI2VCopyTimeline(clip, hasVoiceover),
+      continuity: STRUCTURED_I2V_CONTINUITY,
+      audio: buildStructuredI2VCopyAudio(audio, hasVoiceover),
+    },
+    negative_prompt:
+      sanitizeStructuredI2VCopyText(clip.negative_prompt) ||
+      "Avoid distorted product details, identity drift, scene changes, text artifacts, and unsupported claims.",
+  };
+}
+
+function buildStructuredI2VCopyMotion(clip: PromptPackI2VPromptJson) {
+  const promptText = sanitizeStructuredI2VCopyText(clip.prompt_text);
+  const motionPrompt = sanitizeStructuredI2VCopyText(clip.motion_prompt);
+
+  if (promptText && motionPrompt && !promptText.toLowerCase().includes(motionPrompt.toLowerCase())) {
+    return joinStructuredI2VCopyInstructions([promptText, motionPrompt]);
+  }
+
+  return promptText || motionPrompt || "Animate naturally from @firstframe only with stable product visibility.";
+}
+
+function buildStructuredI2VCopyTimeline(clip: PromptPackI2VPromptJson, hasVoiceover: boolean) {
+  return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time) => {
+    const storedAction = sanitizeStructuredI2VCopyText(
+      Array.isArray(clip.timeline) ? clip.timeline.find((segment) => segment.time === time)?.action : "",
+    );
+    const baseAction = storedAction || buildStructuredI2VDefaultTimelineAction(time, hasVoiceover);
+
+    if (time === "00:00-00:02") {
+      return {
+        time,
+        action: sanitizeStructuredI2VCopyText(
+          joinStructuredI2VCopyInstructions([
+            hasVoiceover
+              ? "Clip starts from @firstframe. Product must be visible immediately. VO hook starts at 00:00-00:02."
+              : "Clip starts from @firstframe. Product must be visible immediately. No speech, no voiceover, no lip-sync.",
+            baseAction,
+          ]),
+        ),
+      };
+    }
+
+    if (time === "00:06-00:08") {
+      return {
+        time,
+        action: sanitizeStructuredI2VCopyText(
+          joinStructuredI2VCopyInstructions([
+            baseAction,
+            "End naturally while preserving the same product, character, lighting, and environment from @firstframe.",
+          ]),
+        ),
+      };
+    }
+
+    return {
+      time,
+      action: baseAction,
+    };
+  });
+}
+
+function buildStructuredI2VDefaultTimelineAction(time: PromptPackI2VTimelineWindow, hasVoiceover: boolean) {
+  switch (time) {
+    case "00:00-00:02":
+      return hasVoiceover
+        ? "Clip starts from @firstframe. Product must be visible immediately. VO hook starts at 00:00-00:02."
+        : "Clip starts from @firstframe. Product must be visible immediately. No speech, no voiceover, no lip-sync.";
+    case "00:02-00:04":
+      return "Continue natural motion from @firstframe continuity while keeping the product clearly visible.";
+    case "00:04-00:06":
+      return "Show a practical product detail or use moment while preserving the same identity, outfit, lighting, and environment.";
+    case "00:06-00:08":
+      return "End naturally while preserving the same product, character, lighting, and environment from @firstframe.";
+  }
+}
+
+function buildStructuredI2VCopyAudio(audio: PromptPackI2VAudioEnvelopeJson, hasVoiceover: boolean): PromptPackStructuredI2VCopyAudioJson {
+  if (!hasVoiceover) {
+    return {
+      type: "native",
+      voiceover_timing: "none",
+      voiceover_text: STRUCTURED_I2V_NO_SPEECH_TEXT,
+      voice_style: STRUCTURED_I2V_NO_SPEECH_TEXT,
+      sfx_cues: STRUCTURED_I2V_SUBTLE_NATIVE_AMBIENCE,
+      ambient_cues: STRUCTURED_I2V_SUBTLE_NATIVE_AMBIENCE,
+    };
+  }
+
+  return {
+    type: "native",
+    voiceover_timing: "00:00-00:02",
+    voiceover_text: sanitizeStructuredI2VCopyText(audio.voiceover_text),
+    voice_style: sanitizeStructuredI2VCopyText(audio.voice_style) || "natural Indonesian UGC hook voice",
+    sfx_cues: sanitizeStructuredI2VCopyText(audio.sfx_cues) || "subtle product-relevant cues under VO",
+    ambient_cues: sanitizeStructuredI2VCopyText(audio.ambient_cues) || "subtle native ambience under VO",
+  };
+}
+
+function sanitizeStructuredI2VCopyText(value: unknown) {
+  const text = readString(value);
+
+  if (!text) {
+    return "";
+  }
+
+  return text
+    .replace(/from\s+@firstframe\s+to\s+@lastframe/gi, "from @firstframe with stable continuity")
+    .replace(/@firstframe\s*\+\s*@lastframe/gi, "@firstframe only")
+    .replace(/last[\s-]?frame\s+remains\s+legacy\s+compatibility\s+only/gi, "use @firstframe only as the video reference")
+    .replace(/@lastframe/gi, "@firstframe")
+    .replace(/\blastframe\b/gi, "@firstframe")
+    .replace(/\blast[\s-]?frame\b/gi, "@firstframe")
+    .replace(/\bending\s+frame\b/gi, "closing moment")
+    .replace(/\bfinal\s+frame\b/gi, "closing moment")
+    .replace(/from\s+@firstframe\s+to\s+@firstframe/gi, "from @firstframe with stable continuity")
+    .replace(/use\s+both\s+@firstframe\s+and\s+@firstframe/gi, "use @firstframe only")
+    .replace(/two\s+frame\s+references/gi, "one @firstframe reference")
+    .replace(/second\s+frame\s+reference/gi, "single @firstframe reference")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function joinStructuredI2VCopyInstructions(parts: string[]) {
+  return parts
+    .map((part) => readString(part).replace(/\s+$/g, ""))
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function readPromptField(value: unknown) {
@@ -1564,7 +1955,7 @@ function requireCompactI2VPromptJson(
   version: number,
 ) {
   const record = requireRecord(value, label);
-  requireExactKeys(
+  requireKeys(
     record,
     [
       "slot",
@@ -1577,6 +1968,7 @@ function requireCompactI2VPromptJson(
       "negative_prompt",
     ],
     label,
+    ["audio", "voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
   );
   const slot = requirePromptClipKey(record.slot, `${label}.slot`);
 
@@ -1589,6 +1981,7 @@ function requireCompactI2VPromptJson(
   }
 
   const continuity = isRecord(record.continuity) ? (record.continuity as Record<string, unknown>) : {};
+  const audioFields = readI2VAudioFields(record, label);
 
   return buildPromptI2VPromptJson({
     clipKey,
@@ -1612,6 +2005,8 @@ function requireCompactI2VPromptJson(
     motionPrompt: requireString(record.motion_prompt, `${label}.motion_prompt`),
     cameraMotion: requireString(record.camera_motion, `${label}.camera_motion`),
     negativePrompt: requireString(record.negative_prompt, `${label}.negative_prompt`),
+    audioLabel: `${label}.audio`,
+    ...audioFields,
   });
 }
 
@@ -1735,6 +2130,63 @@ function requireI2VTimeline(value: unknown, label: string, clipKey: PromptClipKe
   return readTimeline(value, { clipKey }, { enforceStoryboardInstruction: false });
 }
 
+function readOptionalPromptString(value: unknown, label: string) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a string when present.`);
+  }
+
+  const text = value.trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function readOptionalVoiceoverTiming(value: unknown, label: string) {
+  const timing = readOptionalPromptString(value, label);
+
+  if (!timing) {
+    return undefined;
+  }
+
+  if (timing !== "00:00-00:02") {
+    throw new Error(`${label} must equal 00:00-00:02.`);
+  }
+
+  return timing as "00:00-00:02";
+}
+
+function readI2VAudioFields(record: Record<string, unknown>, label: string) {
+  if (record.audio !== undefined && record.audio !== null && !isRecord(record.audio)) {
+    throw new Error(`${label}.audio must be an object when present.`);
+  }
+
+  const audioRecord = isRecord(record.audio) ? record.audio : record;
+  const audioLabel = isRecord(record.audio) ? `${label}.audio` : label;
+  const voiceoverText = readOptionalPromptString(audioRecord.voiceover_text, `${audioLabel}.voiceover_text`);
+  const voiceoverTiming = readOptionalVoiceoverTiming(audioRecord.voiceover_timing, `${audioLabel}.voiceover_timing`);
+  const voiceStyle = readOptionalPromptString(audioRecord.voice_style, `${audioLabel}.voice_style`);
+  const sfxCues = readOptionalPromptString(audioRecord.sfx_cues, `${audioLabel}.sfx_cues`);
+  const ambientCues = readOptionalPromptString(audioRecord.ambient_cues, `${audioLabel}.ambient_cues`);
+
+  if (voiceoverText && !voiceoverTiming) {
+    throw new Error(`${audioLabel}.voiceover_timing must equal 00:00-00:02.`);
+  }
+
+  return {
+    ...(voiceoverText
+      ? {
+          voiceoverText: validateMaxChars(voiceoverText, `${audioLabel}.voiceover_text`, PROMPT_PACK_VO_MAX_CHARS),
+        }
+      : {}),
+    ...(voiceoverTiming ? { voiceoverTiming } : {}),
+    ...(voiceStyle ? { voiceStyle } : {}),
+    ...(sfxCues ? { sfxCues } : {}),
+    ...(ambientCues ? { ambientCues } : {}),
+  };
+}
+
 function requireI2IFramePromptJson(value: unknown, label: string, clipKey: PromptClipKey, frame: "first_frame" | "last_frame") {
   const record = requireRecord(value, label);
   const slot = requirePromptClipKey(record.slot, `${label}.slot`);
@@ -1806,7 +2258,7 @@ function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClip
   }
 
   if (record.schema_version === PROMPT_PACK_COPY_SCHEMA_VERSION) {
-    requireExactKeys(
+    requireKeys(
       record,
       [
         "schema_version",
@@ -1822,6 +2274,7 @@ function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClip
         "negative_prompt",
       ],
       label,
+      ["audio", "voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
     );
 
     const stage = requireString(record.stage, `${label}.stage`);
@@ -1833,6 +2286,8 @@ function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClip
     if (requireNumber(record.duration_seconds, `${label}.duration_seconds`) !== PROMPT_PACK_I2V_DURATION_SECONDS) {
       throw new Error(`${label}.duration_seconds must equal ${PROMPT_PACK_I2V_DURATION_SECONDS}.`);
     }
+
+    const audioFields = readI2VAudioFields(record, label);
 
     return {
       schema_version: requireCopySchemaVersion(record.schema_version, `${label}.schema_version`),
@@ -1846,6 +2301,14 @@ function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClip
       prompt_text: requireString(record.prompt_text, `${label}.prompt_text`),
       continuity: requireString(record.continuity, `${label}.continuity`),
       negative_prompt: requireString(record.negative_prompt, `${label}.negative_prompt`),
+      ...(() => {
+        const audio = buildPromptI2VAudioEnvelope({
+          ...audioFields,
+          label: `${label}.audio`,
+        });
+
+        return audio ? { audio } : {};
+      })(),
     } satisfies PromptPackI2VPromptJson;
   }
 
@@ -1865,6 +2328,7 @@ function requireI2VPromptJson(value: unknown, label: string, clipKey: PromptClip
       first_frame_hint: requireString(continuity.first_frame_hint, `${label}.continuity.first_frame_hint`),
       last_frame_hint: requireString(continuity.last_frame_hint, `${label}.continuity.last_frame_hint`),
     },
+    ...readI2VAudioFields(record, label),
   });
 }
 
@@ -2142,6 +2606,7 @@ function readPromptI2VSnapshot(
       promptCode: fallback.promptCode,
       version: fallback.version,
       continuity,
+      ...readI2VAudioFields(record, `${fallback.clipKey}.i2v_prompt`),
     });
   }
 
@@ -2272,6 +2737,9 @@ function parseCompactPromptPackGenerationOutput(
   const productName = productAnalysis.product.product_name;
   const promptCode = productAnalysis.prompt_code;
   const version = productAnalysis.version;
+  const caption = requireString(record.caption, "caption");
+  const tags = normalizeHashtagString(requireString(record.tags, "tags"));
+  const uploadCopy = readGeneratedPromptPackUploadCopy(record.upload_copy, caption, tags);
 
   return {
     product_analysis: productAnalysis,
@@ -2292,8 +2760,9 @@ function parseCompactPromptPackGenerationOutput(
       promptCode,
       version,
     ),
-    caption: requireString(record.caption, "caption"),
-    tags: normalizeHashtagString(requireString(record.tags, "tags")),
+    caption,
+    tags,
+    upload_copy: uploadCopy,
     target_marketplace: PROMPT_TARGET_MARKETPLACE,
     negative_prompt_rules: requireStringArray(record.negative_prompt_rules, "negative_prompt_rules"),
     consistency_rules: requireStringArray(record.consistency_rules, "consistency_rules"),
@@ -2317,6 +2786,10 @@ function parseLegacyPromptPackGenerationOutput(
     throw new Error(`target_marketplace must equal ${PROMPT_TARGET_MARKETPLACE}.`);
   }
 
+  const caption = requireString(record.caption, "caption");
+  const tags = normalizeHashtagString(requireString(record.tags, "tags"));
+  const uploadCopy = buildPromptPackUploadCopy(caption, tags);
+
   return {
     product_analysis: requirePromptAnalysisJson(
       record.product_analysis,
@@ -2326,8 +2799,9 @@ function parseLegacyPromptPackGenerationOutput(
     prompt_context: requirePromptContextJson(record.prompt_context),
     i2i_prompts: requireI2IPromptMap(record.i2i_prompts),
     i2v_prompts: requireI2VPromptMap(record.i2v_prompts),
-    caption: requireString(record.caption, "caption"),
-    tags: normalizeHashtagString(requireString(record.tags, "tags")),
+    caption,
+    tags,
+    upload_copy: uploadCopy,
     target_marketplace: PROMPT_TARGET_MARKETPLACE,
     negative_prompt_rules: requireStringArray(record.negative_prompt_rules, "negative_prompt_rules"),
     consistency_rules: requireStringArray(record.consistency_rules, "consistency_rules"),
@@ -2348,7 +2822,7 @@ export function parsePromptPackGenerationOutput(
   const parsed: unknown = JSON.parse(jsonText);
   const record = requireRecord(parsed, "Gemini output");
 
-  if (hasExactKeys(record, PROMPT_PACK_COMPACT_OUTPUT_KEYS)) {
+  if (hasRequiredKeysOnly(record, PROMPT_PACK_COMPACT_OUTPUT_KEYS, PROMPT_PACK_COMPACT_OUTPUT_OPTIONAL_KEYS)) {
     return parseCompactPromptPackGenerationOutput(record, options);
   }
 
@@ -2370,6 +2844,10 @@ export function readPromptPackEditorPromptSet(input: {
   const promptContext = isRecord(personalization.prompt_context) ? (personalization.prompt_context as JsonObject) : null;
   const productName =
     promptContext && isRecord(promptContext.product) ? readString((promptContext.product as Record<string, unknown>).product_name) : "";
+  const caption =
+    readString(personalization.caption) ||
+    readLegacyStringArray(personalization.caption_rules).join("\n");
+  const tags = readTagsFromPersonalization(personalization);
 
   const clips = PROMPT_CLIP_KEYS.reduce(
     (result, clipKey) => {
@@ -2392,10 +2870,9 @@ export function readPromptPackEditorPromptSet(input: {
 
   return {
     clips,
-    caption:
-      readString(personalization.caption) ||
-      readLegacyStringArray(personalization.caption_rules).join("\n"),
-    tags: readTagsFromPersonalization(personalization),
+    caption,
+    tags,
+    upload_copy: readPromptPackUploadCopy(personalization, caption, tags),
     target_marketplace: PROMPT_TARGET_MARKETPLACE,
     prompt_context: promptContext,
     seed_character: readLockState(personalization.seed_character),
@@ -2427,6 +2904,9 @@ export function buildPromptPackEditorStoragePayload(
     }),
     {} as Record<PromptClipKey, PromptPackI2VPromptJson>,
   );
+  const caption = input.caption.trim();
+  const tags = normalizeHashtagString(input.tags);
+  const uploadCopy = buildPromptPackUploadCopy(caption, tags);
 
   return {
     i2i_prompts_json: i2iPrompts,
@@ -2434,8 +2914,9 @@ export function buildPromptPackEditorStoragePayload(
     personalization_json: {
       ...existing,
       prompt_context: promptContext,
-      caption: input.caption.trim(),
-      tags: normalizeHashtagString(input.tags),
+      caption,
+      tags,
+      upload_copy: uploadCopy,
       target_marketplace: PROMPT_TARGET_MARKETPLACE,
       seed_character: isRecord(existing.seed_character) ? (existing.seed_character as JsonObject) : EMPTY_LOCK_STATE,
       environment: isRecord(existing.environment) ? (existing.environment as JsonObject) : EMPTY_LOCK_STATE,
@@ -2447,6 +2928,9 @@ export function buildPromptPackStoragePayload(
   output: PromptPackGenerationOutput,
   promptContextOverride?: JsonObject | null,
 ): PromptPackStoragePayload {
+  const tags = normalizeHashtagString(output.tags);
+  const uploadCopy = requirePromptPackUploadCopyJson(output.upload_copy, "upload_copy");
+
   return {
     product_analysis_json: output.product_analysis,
     i2i_prompts_json: output.i2i_prompts,
@@ -2460,7 +2944,8 @@ export function buildPromptPackStoragePayload(
     personalization_json: {
       prompt_context: promptContextOverride ?? output.prompt_context,
       caption: output.caption,
-      tags: normalizeHashtagString(output.tags),
+      tags,
+      upload_copy: uploadCopy,
       target_marketplace: PROMPT_TARGET_MARKETPLACE,
       seed_character: output.seed_character,
       environment: output.environment,

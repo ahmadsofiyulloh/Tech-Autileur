@@ -20,9 +20,9 @@ import {
   isPromptPackStatus,
   normalizePromptCode,
 } from "@/lib/prompts/validation";
-import type { GeminiModelName } from "@/lib/gemini/validation";
+import { supportsGeminiStructuredOutputTools, type GeminiModelName } from "@/lib/gemini/validation";
 import { GEMINI_PROMPT_PACK_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
-import { GeminiClientError } from "@/lib/server/gemini-client";
+import { GeminiClientError, type GeminiGroundingSummary } from "@/lib/server/gemini-client";
 import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
@@ -42,6 +42,9 @@ import {
   PROMPT_PACK_COPY_SCHEMA_VERSION,
   PROMPT_PACK_I2V_DURATION_SECONDS,
   PROMPT_PACK_I2V_TIMELINE_WINDOWS,
+  PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+  PROMPT_PACK_VO_MAX_CHARS,
+  buildPromptPackUploadCopy,
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
   readPromptPackEditorPromptSet,
@@ -52,6 +55,13 @@ import {
   type PromptPackGenerationOutput,
   type PromptPackVisualReferenceJson,
 } from "@/lib/prompts/prompt-pack-contract";
+import { CONTENT_VARIANTS, getContentVariant } from "@/lib/prompts/content-variants";
+import { assertPromptMetadataComplete } from "@/lib/intake/metadata-essentials";
+import {
+  getRegenerationScope,
+  isRegenerationScopeKey,
+  type RegenerationScopeKey,
+} from "@/lib/prompts/prompt-regeneration";
 import { getCurrentWorkspace, getWorkspaceById } from "@/lib/server/workspaces";
 import { getDriveItemById } from "@/lib/server/drive-items";
 import {
@@ -205,6 +215,13 @@ type PromptPackGenerationContext = {
   sourceProductImage: ProductImageRecord | null;
   sourceProductImageDriveItemName: string | null;
   promptContext: JsonObject;
+};
+
+type GoogleSearchGroundingDecision = {
+  enabled: boolean;
+  reasons: string[];
+  query_context: JsonObject;
+  policy: string[];
 };
 
 function readText(value: string | null | undefined) {
@@ -482,11 +499,13 @@ function buildPromptContextSnapshot(context: {
   marketplaceSources: MarketplaceSourceRecord[];
   sourceProductImage: ProductImageRecord | null;
   sourceProductImageDriveItemName: string | null;
+  contentVariant: JsonObject;
 }) {
   const visualParsingMode = "CACHED_JSON_METADATA";
   const promptContext = {
     workspace: buildWorkspaceSnapshot(context.currentWorkspace),
     product: buildProductSnapshot(context.product),
+    content_variant: context.contentVariant,
     intake_session: buildIntakeSessionSnapshot(context.intakeSession),
     reviewed_gemini_metadata: context.intakeSession?.reviewed_metadata_json ?? null,
     affiliate_profile: buildAffiliateProfileSnapshot(context.affiliateProfile),
@@ -518,6 +537,14 @@ function buildPromptContextSnapshot(context: {
       max_prompt_sentences: 3,
       no_raw_analysis_json: true,
       no_raw_prompt_rules_in_output: true,
+      i2v_audio_envelope: {
+        field: "audio",
+        fields: ["voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
+      },
+      voiceover_text_max_chars: PROMPT_PACK_VO_MAX_CHARS,
+      voiceover_timing: "00:00-00:02",
+      upload_copy_fields: ["shopee_caption", "shopee_tags", "shopee_caption_tags"],
+      shopee_caption_tags_max_chars: PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
     },
   } satisfies JsonObject;
 }
@@ -584,6 +611,8 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     throw new Error("Review Gemini metadata before generating a prompt pack.");
   }
 
+  assertPromptMetadataComplete(intakeSession.reviewed_metadata_json);
+
   if (!resolvedWorkspaceId && intakeSession?.workspace_id) {
     resolvedWorkspaceId = intakeSession.workspace_id;
     resolvedWorkspace = resolvedWorkspaceId ? await getWorkspaceById(resolvedWorkspaceId) : null;
@@ -642,6 +671,7 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     marketplaceSources: marketplaceSourceContext.sources,
     sourceProductImage: sourceProductImage as ProductImageRecord | null,
     sourceProductImageDriveItemName,
+    contentVariant: buildPromptPackContentVariantForModel(promptPackRecord),
   });
 
   const promptPackReferenceUpdates: Partial<Pick<PromptPackRecord, "intake_session_id" | "affiliate_profile_id">> = {};
@@ -1071,6 +1101,13 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
       ),
       continuity: "Use @firstframe as one single starting image with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only.",
       negative_prompt: buildMockNegativePrompt(promptRules),
+      audio: {
+        voiceover_text: "Lihat detail produknya, simpel dan tetap jadi fokus utama.",
+        voiceover_timing: "00:00-00:02",
+        voice_style: "natural Indonesian UGC, calm",
+        sfx_cues: "soft fabric movement",
+        ambient_cues: "quiet indoor room tone",
+      },
     },
     clip_2: {
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
@@ -1090,6 +1127,13 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
       ),
       continuity: "Use @firstframe as one single starting image with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only.",
       negative_prompt: buildMockNegativePrompt(promptRules),
+      audio: {
+        voiceover_text: "Detailnya dibuat jelas supaya mudah dilihat sebelum check out.",
+        voiceover_timing: "00:00-00:02",
+        voice_style: "natural Indonesian UGC, informative",
+        sfx_cues: "soft camera handling",
+        ambient_cues: "quiet indoor room tone",
+      },
     },
   } as PromptPackGenerationOutput["i2v_prompts"];
 }
@@ -1131,12 +1175,76 @@ function readJsonRecord(value: unknown) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function readRegenerationInstruction(promptPack: PromptPackRecord) {
+export type PromptPackRegenerationRequest = {
+  source_prompt_pack_id: string | null;
+  source_version: number | null;
+  source_prompt_code: string | null;
+  revision_instruction: string;
+  regeneration_scope: RegenerationScopeKey;
+  requested_at: string | null;
+};
+
+function readOptionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function buildPromptPackContentVariantForModel(promptPack: { personalization_json?: JsonObject | null }) {
+  const personalization = readJsonRecord(promptPack.personalization_json);
+  const storedContentVariant = readJsonRecord(personalization.content_variant);
+  const storedKey = typeof storedContentVariant.key === "string" ? storedContentVariant.key : "";
+  const storedVariant = getContentVariant(storedKey);
+  const contentVariant = storedVariant ?? CONTENT_VARIANTS.hero_hook;
+
+  return {
+    key: contentVariant.key,
+    label: contentVariant.label,
+    description: contentVariant.description,
+    storyGoal: contentVariant.storyGoal,
+    hookStrategy: contentVariant.hookStrategy,
+    sourcePriority: contentVariant.sourcePriority,
+    source: storedVariant ? "stored" : "fallback",
+  } satisfies JsonObject;
+}
+
+export function readRegenerationRequest(
+  promptPack: { personalization_json?: JsonObject | null },
+): PromptPackRegenerationRequest | null {
   const personalization = readJsonRecord(promptPack.personalization_json);
   const regeneration = readJsonRecord(personalization.regeneration_request);
-  const instruction = regeneration.revision_instruction;
 
-  return typeof instruction === "string" ? instruction.trim() : "";
+  if (Object.keys(regeneration).length === 0) {
+    return null;
+  }
+
+  const scopeValue = typeof regeneration.regeneration_scope === "string" ? regeneration.regeneration_scope : "full_pack";
+  const regenerationScope = getRegenerationScope(scopeValue);
+
+  return {
+    source_prompt_pack_id:
+      typeof regeneration.source_prompt_pack_id === "string" && regeneration.source_prompt_pack_id.trim()
+        ? regeneration.source_prompt_pack_id.trim()
+        : null,
+    source_version: readOptionalNumber(regeneration.source_version),
+    source_prompt_code:
+      typeof regeneration.source_prompt_code === "string" && regeneration.source_prompt_code.trim()
+        ? regeneration.source_prompt_code.trim()
+        : null,
+    revision_instruction:
+      typeof regeneration.revision_instruction === "string" ? regeneration.revision_instruction.trim() : "",
+    regeneration_scope: regenerationScope.key,
+    requested_at:
+      typeof regeneration.requested_at === "string" && regeneration.requested_at.trim()
+        ? regeneration.requested_at.trim()
+        : null,
+  };
+}
+
+export function readRegenerationInstruction(promptPack: { personalization_json?: JsonObject | null }) {
+  return readRegenerationRequest(promptPack)?.revision_instruction ?? "";
+}
+
+export function readRegenerationScope(promptPack: { personalization_json?: JsonObject | null }) {
+  return readRegenerationRequest(promptPack)?.regeneration_scope ?? "full_pack";
 }
 
 function buildNegativePromptRules(context: MockPromptContext) {
@@ -1201,6 +1309,18 @@ function buildConsistencyRules(context: MockPromptContext): PromptPackGeneration
 }
 
 function buildPromptPackTaskInput(context: PromptPackGenerationContext, generationMode: PromptPackGenerationMode) {
+  const regenerationRequest = readRegenerationRequest(context.promptPack);
+  const googleSearchGrounding =
+    generationMode === "gemini"
+      ? buildDisabledGoogleSearchGroundingDecision(
+          buildGoogleSearchGroundingDecision(context),
+          "Prompt-pack generation uses strict JSON schema; Google Search tools are disabled for the selected Gemini model.",
+        )
+      : buildDisabledGoogleSearchGroundingDecision(
+          buildGoogleSearchGroundingDecision(context),
+          "Mock generation does not run Google Search grounding.",
+        );
+
   return {
     prompt_pack_id: context.promptPack.id,
     prompt_code: context.promptPack.prompt_code,
@@ -1217,6 +1337,11 @@ function buildPromptPackTaskInput(context: PromptPackGenerationContext, generati
     prompt_context: context.promptContext,
     prompt_set: readPromptPackEditorPromptSet(context.promptPack),
     revision_instruction: readRegenerationInstruction(context.promptPack) || null,
+    regeneration_request: regenerationRequest,
+    regeneration_scope: regenerationRequest?.regeneration_scope ?? null,
+    source_prompt_pack_id: regenerationRequest?.source_prompt_pack_id ?? null,
+    source_version: regenerationRequest?.source_version ?? null,
+    google_search_grounding: googleSearchGrounding,
     mode: generationMode,
   };
 }
@@ -1289,7 +1414,306 @@ function buildReviewedPromptEssentials(context: PromptPackGenerationContext) {
   } satisfies JsonObject;
 }
 
-function buildPromptContextForModel(context: PromptPackGenerationContext) {
+function buildMarketplaceSourceGroundingFacts(context: PromptPackGenerationContext) {
+  return context.marketplaceSources.slice(0, 6).map(
+    (source) =>
+      ({
+        platform: compactText(source.platform, 40) || null,
+        title: compactText(source.title, 180) || null,
+        category: compactText(source.category, 120) || null,
+        price: compactText(source.price_text, 80) || null,
+        rating: compactText(source.rating_text, 80) || null,
+        sold_count: compactText(source.sold_count_text, 80) || null,
+        shop_name: compactText(source.shop_name, 120) || null,
+      }) satisfies JsonObject,
+  );
+}
+
+function buildGroundingFactLines(input: {
+  marketplaceSources: JsonObject[];
+  product: JsonObject;
+  reviewedMetadata: JsonObject;
+}) {
+  const lines = [
+    `Product name: ${input.product.product_name}`,
+    input.product.niche ? `Product niche/category: ${input.product.niche}` : "",
+    input.product.marketplace ? `Marketplace: ${input.product.marketplace}` : "",
+    input.reviewedMetadata.nama_produk ? `Reviewed product name: ${input.reviewedMetadata.nama_produk}` : "",
+    input.reviewedMetadata.deskripsi_visual ? `Visual description: ${input.reviewedMetadata.deskripsi_visual}` : "",
+    input.reviewedMetadata.selling_angle ? `Selling angle: ${input.reviewedMetadata.selling_angle}` : "",
+    input.reviewedMetadata.use_case ? `Use case: ${input.reviewedMetadata.use_case}` : "",
+    input.reviewedMetadata.pain_point ? `Pain point: ${input.reviewedMetadata.pain_point}` : "",
+    input.reviewedMetadata.target_viewer ? `Target viewer: ${input.reviewedMetadata.target_viewer}` : "",
+    input.reviewedMetadata.keyword_cari_etalase ? `Search keyword: ${input.reviewedMetadata.keyword_cari_etalase}` : "",
+    ...input.marketplaceSources.flatMap((source, index) => [
+      source.title ? `Marketplace source ${index + 1} title: ${source.title}` : "",
+      source.category ? `Marketplace source ${index + 1} category: ${source.category}` : "",
+      source.price ? `Marketplace source ${index + 1} price: ${source.price}` : "",
+      source.rating ? `Marketplace source ${index + 1} rating: ${source.rating}` : "",
+      source.sold_count ? `Marketplace source ${index + 1} sold count: ${source.sold_count}` : "",
+      source.shop_name ? `Marketplace source ${index + 1} shop: ${source.shop_name}` : "",
+    ]),
+  ];
+
+  return Array.from(new Set(lines.map((line) => compactText(line, 220)).filter(Boolean))).slice(0, 40);
+}
+
+function buildGroundingFacts(context: PromptPackGenerationContext) {
+  const reviewedMetadata = buildReviewedPromptEssentials(context);
+  const marketplaceSources = buildMarketplaceSourceGroundingFacts(context);
+  const product = {
+    product_name: compactText(context.product.product_name, 160) || null,
+    niche: compactText(context.product.niche, 120) || null,
+    marketplace: compactText(context.product.marketplace, 80) || null,
+  } satisfies JsonObject;
+
+  return {
+    product,
+    reviewed_metadata_json: reviewedMetadata,
+    marketplace_sources: marketplaceSources,
+    product_reference: context.sourceProductImage
+      ? {
+          source_type: compactText(context.sourceProductImage.source_type, 80) || null,
+          status: compactText(context.sourceProductImage.status, 80) || null,
+          drive_item_name: compactText(context.sourceProductImageDriveItemName, 160) || null,
+        }
+      : null,
+    fact_lines: buildGroundingFactLines({
+      marketplaceSources,
+      product,
+      reviewedMetadata,
+    }),
+    sufficiency: {
+      has_reviewed_metadata: Object.values(reviewedMetadata).some((value) => typeof value === "string" && value.trim().length > 0),
+      has_marketplace_source_data: marketplaceSources.some((source) =>
+        Object.values(source).some((value) => typeof value === "string" && value.trim().length > 0),
+      ),
+      has_hook_inputs: Boolean(
+        reviewedMetadata.selling_angle ||
+          reviewedMetadata.use_case ||
+          reviewedMetadata.pain_point ||
+          reviewedMetadata.deskripsi_visual ||
+          product.product_name,
+      ),
+    },
+  } satisfies JsonObject;
+}
+
+const GENERIC_PRODUCT_NAME_TOKENS = new Set([
+  "aksesoris",
+  "accessory",
+  "baju",
+  "barang",
+  "case",
+  "casing",
+  "charger",
+  "dress",
+  "hijab",
+  "hitam",
+  "jilbab",
+  "jam",
+  "kabel",
+  "kaos",
+  "kemeja",
+  "masker",
+  "polo",
+  "produk",
+  "pria",
+  "putih",
+  "rok",
+  "sandal",
+  "sepatu",
+  "serum",
+  "skincare",
+  "tas",
+  "topi",
+  "wanita",
+]);
+
+function isUsefulGroundingText(value: unknown, minLength = 12) {
+  return compactText(value, 240).length >= minLength;
+}
+
+function getMissingReviewedSellingFields(context: PromptPackGenerationContext) {
+  const reviewedMetadata = buildReviewedPromptEssentials(context);
+  const requiredFields = ["selling_angle", "use_case", "pain_point", "deskripsi_visual"] as const;
+
+  return requiredFields.filter((field) => !isUsefulGroundingText(reviewedMetadata[field]));
+}
+
+function countMarketplaceSourceFacts(source: MarketplaceSourceRecord) {
+  return [
+    source.title,
+    source.category,
+    source.price_text,
+    source.rating_text,
+    source.sold_count_text,
+    source.shop_name,
+  ].filter((value) => isUsefulGroundingText(value, 3)).length;
+}
+
+function hasStrongMarketplaceSource(context: PromptPackGenerationContext) {
+  return context.marketplaceSources.some((source) => isUsefulGroundingText(source.title, 8) && countMarketplaceSourceFacts(source) >= 2);
+}
+
+function normalizeProductNameTokens(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function isGenericProductName(value: string) {
+  const productName = compactText(value, 160);
+
+  if (!productName) {
+    return true;
+  }
+
+  const tokens = normalizeProductNameTokens(productName);
+
+  if (tokens.length <= 1) {
+    return true;
+  }
+
+  if (productName.length <= 8 && tokens.length <= 2) {
+    return true;
+  }
+
+  return tokens.length <= 3 && tokens.every((token) => token.length <= 2 || GENERIC_PRODUCT_NAME_TOKENS.has(token));
+}
+
+function buildGoogleSearchGroundingQueryContext(context: PromptPackGenerationContext) {
+  const reviewedMetadata = buildReviewedPromptEssentials(context);
+  const marketplaceSourceTitles = Array.from(
+    new Set(context.marketplaceSources.map((source) => compactText(source.title, 140)).filter(Boolean)),
+  ).slice(0, 3);
+  const marketplaceCategories = Array.from(
+    new Set(context.marketplaceSources.map((source) => compactText(source.category, 100)).filter(Boolean)),
+  ).slice(0, 3);
+  const productName = compactText(reviewedMetadata.nama_produk, 140) || compactText(context.product.product_name, 140);
+  const nicheOrCategory =
+    compactText(context.product.niche, 100) ||
+    compactText(reviewedMetadata.keyword_cari_etalase, 100) ||
+    marketplaceCategories[0] ||
+    null;
+  const searchPromptParts = [
+    `product name: ${productName || context.product.product_code}`,
+    marketplaceSourceTitles.length ? `marketplace/source title: ${marketplaceSourceTitles[0]}` : "",
+    nicheOrCategory ? `niche/category: ${nicheOrCategory}` : "",
+    context.product.marketplace ? `marketplace: ${compactText(context.product.marketplace, 80)}` : "",
+  ].filter(Boolean);
+
+  return {
+    product_name: productName || context.product.product_code,
+    marketplace_source_titles: marketplaceSourceTitles,
+    niche_or_category: nicheOrCategory,
+    marketplace_categories: marketplaceCategories,
+    marketplace: compactText(context.product.marketplace, 80) || null,
+    search_prompt: `Research only this specific product context for factual grounding: ${searchPromptParts.join("; ")}. Do not browse unrelated topics.`,
+  } satisfies JsonObject;
+}
+
+function buildGoogleSearchGroundingDecision(context: PromptPackGenerationContext): GoogleSearchGroundingDecision {
+  const missingSellingFields = getMissingReviewedSellingFields(context);
+  const marketplaceSourcesWeak = !hasStrongMarketplaceSource(context);
+  const reviewedMetadata = buildReviewedPromptEssentials(context);
+  const productName = compactText(reviewedMetadata.nama_produk, 160) || compactText(context.product.product_name, 160);
+  const productNameGeneric = isGenericProductName(productName);
+  const reasons = [
+    missingSellingFields.length ? `reviewed_metadata_missing:${missingSellingFields.join(",")}` : "",
+    marketplaceSourcesWeak ? "marketplace_sources_empty_or_weak" : "",
+    productNameGeneric ? "product_name_too_generic" : "",
+  ].filter(Boolean);
+
+  return {
+    enabled: reasons.length > 0,
+    reasons,
+    query_context: buildGoogleSearchGroundingQueryContext(context),
+    policy: [
+      "Use Google Search only for this product-specific context.",
+      "Use search results only when Gemini returns grounding source/citation metadata.",
+      "Do not use search to invent price, discount, ranking, sales, medical, guarantee, material, certification, or performance claims.",
+      "Do not expose raw Google Search URLs, citation lists, or source links in prompt output fields.",
+    ],
+  };
+}
+
+function buildDisabledGoogleSearchGroundingDecision(
+  decision: GoogleSearchGroundingDecision,
+  reason: string,
+): GoogleSearchGroundingDecision {
+  return {
+    ...decision,
+    enabled: false,
+    reasons: decision.reasons.length ? decision.reasons : ["not_required"],
+    policy: [...decision.policy, reason],
+  };
+}
+
+function buildPromptPackJsonGroundingDecision(
+  context: PromptPackGenerationContext,
+  modelName: string,
+): {
+  decision: GoogleSearchGroundingDecision;
+  disabledReason: string | null;
+} {
+  const decision = buildGoogleSearchGroundingDecision(context);
+
+  if (!decision.enabled || supportsGeminiStructuredOutputTools(modelName)) {
+    return {
+      decision,
+      disabledReason: null,
+    };
+  }
+
+  const disabledReason =
+    "Prompt-pack generation uses strict JSON schema; Google Search tools are disabled for the selected Gemini model.";
+
+  return {
+    decision: buildDisabledGoogleSearchGroundingDecision(decision, disabledReason),
+    disabledReason,
+  };
+}
+
+function buildGroundingPolicy() {
+  return {
+    source_scope:
+      "Use stored grounding_facts first. Optional Google Search grounding is allowed only when google_search_grounding.enabled is true and returned source/citation metadata exists.",
+    rules: [
+      "Use grounding_facts, reviewed metadata, marketplace source data, and product references as the primary claim boundary.",
+      "Use Google Search only when google_search_grounding.enabled is true, only for the product-specific query context, and only if grounding metadata is returned.",
+      "Do not invent material, certification, discount, guarantee, bestseller claim, medical claim, or performance claim.",
+      "Do not use Google Search to invent price, discount, ranking, sales, medical, guarantee, material, certification, or performance claims.",
+      "If a useful VO hook cannot be grounded, produce a generic but truthful hook based on product name and visible or metadata facts only.",
+      "Never say viral, terlaris, dijamin, nomor satu, paling bagus, or discount claims unless present in metadata/source.",
+      "Keep Indonesian copy natural, short, spoken, and human.",
+      "Avoid AI-sounding words like solusi terbaik, produk berkualitas tinggi, rekomendasi banget, and cocok untuk semua orang.",
+      "Do not expose Google Search raw URLs, citation lists, or source links in prompt output fields.",
+    ],
+    unsupported_claim_categories: [
+      "material",
+      "certification",
+      "discount",
+      "guarantee",
+      "bestseller",
+      "medical",
+      "performance_result",
+      "ranking",
+      "popularity",
+    ],
+    banned_unless_sourced: ["viral", "terlaris", "dijamin", "nomor satu", "paling bagus"],
+    weak_metadata_fallback: "Use a safe hook based only on product name, visible category, and reviewed/marketplace facts.",
+    external_research_enabled: "conditional_google_search_grounding",
+  } satisfies JsonObject;
+}
+
+function buildPromptContextForModel(
+  context: PromptPackGenerationContext,
+  googleSearchGrounding: GoogleSearchGroundingDecision = buildGoogleSearchGroundingDecision(context),
+) {
   const profile = context.affiliateProfile;
   const promptRules = buildAffiliateRulePack(profile);
   const negativePromptRules = buildNegativePromptRules(context);
@@ -1324,7 +1748,11 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
           niche: context.currentWorkspace.niche,
         }
       : null,
+    content_variant: buildPromptPackContentVariantForModel(context.promptPack),
     reviewed_prompt_essentials: buildReviewedPromptEssentials(context),
+    grounding_facts: buildGroundingFacts(context),
+    grounding_policy: buildGroundingPolicy(),
+    google_search_grounding: googleSearchGrounding,
     prompt_rules: promptRules,
     negative_prompt_rules: negativePromptRules,
     consistency_rules: consistencyRules,
@@ -1392,22 +1820,88 @@ function buildPromptContextForModel(context: PromptPackGenerationContext) {
   } satisfies JsonObject;
 }
 
-function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, selectedGeminiKey: { id: string; label: string; model_name: string; role: string }) {
+function buildRegenerationScopePromptRules(scopeKey: RegenerationScopeKey) {
+    switch (scopeKey) {
+    case "voiceover_only":
+      return [
+        "For voiceover_only, keep visual concept stable and improve the audio envelope inside each I2V prompt.",
+        `For voiceover_only, audio.voiceover_text remains ${PROMPT_PACK_VO_MAX_CHARS} characters or fewer and audio.voiceover_timing remains exactly 00:00-00:02.`,
+      ];
+    case "stronger_hook":
+      return [
+        "For stronger_hook, improve the first 0-2 second attention hook.",
+        "For stronger_hook, make VO more human and less AI-sounding while avoiding hype claims unless grounded.",
+      ];
+    case "caption_tags_only":
+      return [
+        "For caption_tags_only, keep visual and VO mostly stable.",
+        `For caption_tags_only, improve Shopee caption+tags and keep shopee_caption_tags ${PROMPT_PACK_SHOPEE_COPY_MAX_CHARS} characters or fewer total.`,
+      ];
+    case "grounding_fix":
+      return [
+        "For grounding_fix, remove claims not supported by grounding_facts.",
+        "For grounding_fix, use only product title, reviewed metadata, marketplace source data, visual description, selling_angle, use_case, pain_point, and grounded facts.",
+      ];
+    case "i2v_motion_only":
+      return [
+        "For i2v_motion_only, keep copy mostly stable.",
+        "For i2v_motion_only, improve motion_prompt, camera_motion, and timeline while keeping I2V first-frame-only for copy output.",
+      ];
+    case "full_pack":
+      return ["For full_pack, regenerate the full prompt pack while preserving product facts and content variant."];
+  }
+}
+
+function buildPromptPackGenerationPrompt(
+  context: PromptPackGenerationContext,
+  selectedGeminiKey: { id: string; label: string; model_name: string; role: string },
+  googleSearchGrounding: GoogleSearchGroundingDecision = buildGoogleSearchGroundingDecision(context),
+) {
   const { promptPack } = context;
   const promptSet = readPromptPackEditorPromptSet(promptPack);
+  const regenerationRequest = readRegenerationRequest(promptPack);
+  const regenerationScope = regenerationRequest ? getRegenerationScope(regenerationRequest.regeneration_scope) : null;
   const revisionInstruction = readRegenerationInstruction(promptPack);
-  const promptContextForModel = buildPromptContextForModel(context);
+  const promptContextForModel = buildPromptContextForModel(context, googleSearchGrounding);
 
   return [
     "You are generating a structured prompt pack for a single-owner affiliate content workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
-    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
+    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, upload_copy, negative_prompt_rules, consistency_rules.",
     "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, visual_references, image_inputs, frame_inputs, schema_version, or stage. The server compiles clean prompt-pack v2 copy JSON after validation.",
+    "One prompt pack equals one full content variant for one product.",
+    "Do not create, imply, or describe extra clips. Use only the existing clip_1 and clip_2 slots.",
+    "clip_1 and clip_2 must belong to the same content variant with one consistent angle and product claim boundary.",
+    "i2v_prompts are Veo image-to-video prompts, not a separate prompt type.",
+    "Do not add persona, narrator biography, or extra speaker profile fields.",
     "If image_bytes_available is false, use cached JSON metadata only and do not claim live visual parsing from links.",
     "Use prompt_context_for_model.reference_cards as the canonical visual guide.",
+    "Grounding is mandatory for every product claim, VO/dialogue phrase, caption, tags, and Shopee/TikTok marketplace copy.",
+    "Use prompt_context_for_model.grounding_facts and prompt_context_for_model.grounding_policy as the claim boundary. Do not rely on memory or assumptions.",
+    "Google Search grounding is optional. Use it only when prompt_context_for_model.google_search_grounding.enabled is true, and restrict it to prompt_context_for_model.google_search_grounding.query_context.search_prompt.",
+    "If Google Search returns no source/citation metadata, final output must fall back to stored grounding_facts and must not claim web research.",
+    "Do not invent product material, certification, discount, guarantee, bestseller claim, medical claim, ranking, popularity, or performance/result claims.",
+    "Do not use search to invent price, discount, ranking, sales, medical, guarantee, material, certification, or performance claims.",
+    "Do not browse arbitrary unrelated topics.",
+    "Do not expose Google Search raw URLs, citation lists, or source links in prompt output fields.",
+    "If a useful VO hook cannot be grounded, write a generic but truthful hook from product name, visible category, and reviewed/marketplace facts only.",
+    "Do not claim research, testing, comparison, ranking, popularity, or proof unless that exact grounding metadata exists.",
+    "Do not use nomor satu, paling bagus, or discount claims unless those exact claims are present in grounding_facts.",
+    "Avoid AI-sounding Indonesian phrases: solusi terbaik, produk berkualitas tinggi, wajib punya, recommended banget, rekomendasi banget, cocok untuk semua orang, viral, terlaris, dijamin.",
+    "If writing VO/dialogue inside i2v prompt_text or timeline action, keep it short, natural Indonesian spoken language, and anchored to grounding_facts.",
+    "Each i2v clip must include audio.voiceover_text as immediate Indonesian spoken-language hook audio for 00:00-00:02.",
+    "audio.voiceover_text must sound like real Indonesian UGC affiliate speech: direct, casual, concrete, and not promotional boilerplate.",
+    "VO must work as the first 0-2 second hook and must not wait for later timeline segments.",
+    "VO must use concrete facts from prompt_context_for_model.grounding_facts and must not invent product material, guarantee, discounts, medical claims, ranking, popularity, or results.",
+    "If metadata has pain_point, use pain_point for problem-solution hooks. If metadata has use_case, use use_case for practical hooks. If metadata has selling_angle, use selling_angle for hero/value hooks.",
+    "If only product name exists, write a safe hook based only on product name and visible category.",
+    "Use hook patterns such as pain-point hook, specific-buyer hook, honest-review hook, anti-hype hook, detail-proof hook, and use-case hook.",
+    'Every I2V prompt_text and the 00:00-00:02 timeline action must include dialogue/audio guidance formatted exactly as VO: "{audio.voiceover_text}".',
+    "The 00:00-00:02 timeline action must mention that the VO hook starts immediately.",
+    "Do not use English marketing boilerplate in VO, caption, tags, or upload_copy.",
     "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Use it as writing guidance, but do not copy raw reference_cards or prompt_rules into output objects.",
     "reference_cards are ordered CHARACTER, ENVIRONMENT, PRODUCT. PRODUCT is the primary subject. CHARACTER is support only. ENVIRONMENT is the background anchor.",
-    "Output compact Gemini fields only; the server will map them into final v2 JSON with I2I First Frame = @character + @environment + product mention, I2I Last Frame = @firstframe only, and I2V = @firstframe + @lastframe only.",
+    "Output compact Gemini fields only; the server will map them into final v2 JSON with I2I First Frame = @character + @environment + product mention, I2I Last Frame = @firstframe only, and copied I2V Prompt = @firstframe only.",
     "I2I first_frame.prompt_text must generate exactly one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Do not ask for multi-image layouts, numbered sequences, separate image files, or video.",
     "I2I last_frame.prompt_text must remain non-empty for legacy compatibility, but it is hidden from the operator UI. Treat it as a compatibility payload from @firstframe, not as a separate visible output.",
     "Clip roles are locked: clip_1 is a hook/hero look; clip_2 is a detail/benefit/use-case look. Make prompt_text meaningfully different between clips.",
@@ -1422,16 +1916,41 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
     "- i2i_prompts: clip_1 and clip_2",
     "- i2v_prompts: clip_1 and clip_2",
     "Each i2i clip object must include slot, first_frame, and last_frame, and each frame must include slot, frame, and prompt_text.",
-    "Each i2v clip object must include slot, prompt_text, duration_seconds, timeline, motion_prompt, camera_motion, continuity, and negative_prompt.",
+    "Each i2v clip object must include slot, prompt_text, duration_seconds, timeline, motion_prompt, camera_motion, continuity, negative_prompt, and audio.",
+    "Each i2v audio object must include voiceover_text, voiceover_timing, voice_style, sfx_cues, and ambient_cues.",
+    "Each i2v clip should produce concise fields that compile cleanly into structured JSON for Veo.",
     "For every i2v clip, duration_seconds must be 8 and timeline must contain exactly four segments with these time values in order: 00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08.",
-    "I2V prompt text must use @firstframe as the single starting image for one continuous 8-second video. Keep @lastframe as a legacy compatibility input only; do not ask I2V to use the three original reference images.",
+    `For every i2v clip, audio.voiceover_text must be ${PROMPT_PACK_VO_MAX_CHARS} characters or fewer and audio.voiceover_timing must be exactly 00:00-00:02.`,
+    "For every i2v clip, audio.sfx_cues must be subtle and product-relevant, and audio.ambient_cues must stay below VO so they do not overpower speech.",
+    "I2V prompt fields must use only @firstframe as the video reference for one continuous 8-second Veo I2V clip.",
+    "Do not write I2V instructions that depend on a second frame reference or any separate closing reference image.",
+    "Keep legacy last-frame schema compatibility internal; it should not appear in the I2V prompt copy text or any i2v instruction fields.",
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
     "product_analysis.product must echo the source product fields from prompt_context_for_model.product and must copy product.status exactly from the source product record.",
     "product_analysis.source_image must echo the compact source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, and source_image.drive_item_ref_id exactly. Do not expand source_image.analysis_json; the server restores cached analysis JSON.",
     "caption must be a shared caption string.",
-    "tags must be one compact hashtag string.",
+    "caption must be natural Indonesian marketplace copy, copy-paste-ready, and free of unsupported claims.",
+    "tags must be one compact hashtag string grounded in product name, category, marketplace facts, or reviewed metadata.",
+    `upload_copy must include shopee_caption, shopee_tags, and shopee_caption_tags. shopee_caption_tags must be ${PROMPT_PACK_SHOPEE_COPY_MAX_CHARS} characters or fewer total.`,
+    "upload_copy.shopee_caption_tags must be copy-paste-ready, avoid unsupported claims, and read as natural Indonesian marketplace copy, not AI promotional prose.",
     "negative_prompt_rules and consistency_rules must each be arrays of strings.",
     "Keep output concise. Avoid repeating long context or Drive URLs.",
+    "Stay inside prompt_context_for_model.content_variant. Do not change the content variant during generation or regeneration.",
+    ...(regenerationRequest && regenerationScope
+      ? [
+          "",
+          "Regeneration request:",
+          "This is a regeneration of an existing prompt pack version.",
+          `Follow regeneration_scope=${regenerationScope.key}: ${regenerationScope.generationInstruction}`,
+          "Preserve the same product, product facts, content_variant, affiliate profile, source image, and grounding policy.",
+          "Use revision_instruction as direction, not as permission to invent unsupported facts.",
+          "Always return a complete valid prompt pack, even when the scope is voiceover_only, i2v_motion_only, or caption_tags_only.",
+          "Use existing_prompt_set as the source snapshot to keep unrelated fields stable when scope is narrow.",
+          ...buildRegenerationScopePromptRules(regenerationScope.key),
+          "Avoid solusi terbaik, produk berkualitas tinggi, wajib punya, recommended banget, cocok untuk semua orang, viral, terlaris, and dijamin.",
+          "Use natural Indonesian UGC language. Keep copy short and spoken.",
+        ]
+      : []),
     "",
     "Context:",
     JSON.stringify(
@@ -1444,6 +1963,10 @@ function buildPromptPackGenerationPrompt(context: PromptPackGenerationContext, s
         },
         prompt_context_for_model: promptContextForModel,
         existing_prompt_set: promptSet,
+        regeneration_request: regenerationRequest,
+        regeneration_scope: regenerationScope?.key ?? null,
+        source_prompt_pack_id: regenerationRequest?.source_prompt_pack_id ?? null,
+        source_version: regenerationRequest?.source_version ?? null,
         revision_instruction: revisionInstruction || null,
         generation_policy: {
           model_name: selectedGeminiKey.model_name,
@@ -1463,17 +1986,26 @@ function buildPromptPackRepairPrompt(
   rawText: string,
   repairReason: string,
 ) {
+  const googleSearchGrounding = buildDisabledGoogleSearchGroundingDecision(
+    buildGoogleSearchGroundingDecision(context),
+    "Prompt repair uses stored prompt context only; Google Search is not run during repair.",
+  );
+
   return [
     "You are repairing a Gemini prompt-pack response into the compact JSON contract.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
-    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, negative_prompt_rules, consistency_rules.",
+    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, upload_copy, negative_prompt_rules, consistency_rules.",
     "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, visual_references, image_inputs, frame_inputs, schema_version, or stage.",
     "Keep the repaired output compact. The server compiles final v2 copy JSON after validation, so do not copy raw rules into any output object.",
     "Use prompt_context_for_model.reference_cards as the visual reference source when repairing prompt text.",
+    "Use prompt_context_for_model.grounding_facts and prompt_context_for_model.grounding_policy as the claim boundary for repaired prompt text, caption, tags, VO, dialogue, and copy.",
+    "Do not repair by adding invented material, certification, discount, guarantee, bestseller, medical, ranking, popularity, or performance/result claims.",
+    "Do not use viral, terlaris, dijamin, nomor satu, paling bagus, solusi terbaik, produk berkualitas tinggi, rekomendasi banget, or cocok untuk semua orang unless grounded in the provided facts.",
     "Keep clip_1 as a hook/hero look and clip_2 as a detail/benefit/use-case look.",
     "Each i2i first_frame.prompt_text must describe one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Each last_frame.prompt_text must remain non-empty as hidden legacy compatibility from @firstframe.",
     "Each i2v prompt must use @firstframe as the single starting image for one continuous 8-second video while keeping @lastframe only as a legacy compatibility input.",
-    "Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, and negative_prompt.",
+    `Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, negative_prompt, and audio. audio.voiceover_text must be <= ${PROMPT_PACK_VO_MAX_CHARS} chars and audio.voiceover_timing exactly 00:00-00:02.`,
+    `upload_copy must include shopee_caption, shopee_tags, and shopee_caption_tags with shopee_caption_tags <= ${PROMPT_PACK_SHOPEE_COPY_MAX_CHARS} chars total.`,
     "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
     "Use the provided context to normalize structure; do not invent new assets or rules.",
     `Repair reason: ${repairReason || "schema mismatch"}.`,
@@ -1487,7 +2019,7 @@ function buildPromptPackRepairPrompt(
           version: context.promptPack.version,
           status: context.promptPack.status,
         },
-        prompt_context_for_model: buildPromptContextForModel(context),
+        prompt_context_for_model: buildPromptContextForModel(context, googleSearchGrounding),
         generation_policy: {
           model_name: selectedGeminiKey.model_name,
           key_label: selectedGeminiKey.label,
@@ -1530,6 +2062,70 @@ function sanitizeGeminiFailureMessage(error: unknown) {
   }
 
   return "Prompt pack generation failed.";
+}
+
+function isGoogleSearchGroundingUnavailableError(error: unknown) {
+  if (!(error instanceof GeminiClientError) || error.status !== 400) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("google_search") ||
+    message.includes("google search") ||
+    message.includes("grounding") ||
+    (message.includes("tool") && message.includes("search"))
+  );
+}
+
+function buildGoogleSearchGroundingOutputMetadata(input: {
+  decision: GoogleSearchGroundingDecision;
+  fallbackReason: string | null;
+  summary: GeminiGroundingSummary | null;
+}) {
+  if (!input.decision.enabled && !input.fallbackReason && !input.summary) {
+    return null;
+  }
+
+  return {
+    requested: input.decision.enabled,
+    reasons: input.decision.reasons,
+    metadata_available: Boolean(input.summary),
+    used_for_final_output: Boolean(input.summary),
+    ...(input.fallbackReason ? { fallback_reason: compactText(input.fallbackReason, 240) } : {}),
+    ...(input.summary
+      ? {
+          research_summary: {
+            web_search_queries: input.summary.webSearchQueries,
+            source_titles: input.summary.sourceTitles,
+            support_snippets: input.summary.supportSnippets,
+            source_count: input.summary.sourceCount,
+          },
+        }
+      : {}),
+  } satisfies JsonObject;
+}
+
+function buildPromptPackTaskSuccessOutput(
+  outputJson: PromptPackGenerationOutput,
+  googleSearchGrounding: {
+    decision: GoogleSearchGroundingDecision;
+    fallbackReason: string | null;
+    summary: GeminiGroundingSummary | null;
+  },
+) {
+  const googleSearchGroundingMetadata = buildGoogleSearchGroundingOutputMetadata(googleSearchGrounding);
+
+  if (!googleSearchGroundingMetadata) {
+    return outputJson;
+  }
+
+  return {
+    ...outputJson,
+    generation_metadata: {
+      google_search_grounding: googleSearchGroundingMetadata,
+    },
+  } satisfies JsonObject;
 }
 
 async function updatePromptPackGenerationResult(
@@ -1736,14 +2332,17 @@ export async function completePromptPackFromMockTask(promptPackId: string, taskI
     sourceProductImageDriveItemName: context.sourceProductImageDriveItemName,
     promptContext: context.promptContext,
   };
+  const caption = buildCaption(mockContext);
+  const tags = buildTags(mockContext);
 
   const outputJson = {
     product_analysis: buildPromptPackAnalysis(mockContext),
     prompt_context: context.promptContext,
     i2i_prompts: buildI2IPrompts(mockContext),
     i2v_prompts: buildI2VPrompts(mockContext),
-    caption: buildCaption(mockContext),
-    tags: buildTags(mockContext),
+    caption,
+    tags,
+    upload_copy: buildPromptPackUploadCopy(caption, tags),
     target_marketplace: PROMPT_TARGET_MARKETPLACE,
     negative_prompt_rules: buildNegativePromptRules(mockContext),
     consistency_rules: buildConsistencyRules(mockContext),
@@ -2028,6 +2627,8 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
     }
 
     const selectedKey = selected.key;
+    const { decision: googleSearchGrounding, disabledReason: googleSearchGroundingDisabledReason } =
+      buildPromptPackJsonGroundingDecision(context, selectedKey.model_name);
     const { error: taskKeyUpdateError } = await context.serviceClient
       .from("ai_tasks")
       .update({
@@ -2060,23 +2661,59 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
 
     let outputJson: PromptPackGenerationOutput | null = null;
     let selectedKeySelectionForSuccess: GeminiSelectedKey = selected.key;
+    let googleSearchGroundingSummary: GeminiGroundingSummary | null = null;
+    let googleSearchGroundingFallbackReason: string | null = googleSearchGroundingDisabledReason;
 
     try {
-      const response = await generateTrackedGeminiJsonText({
-        aiTaskId: taskId,
-        geminiApiKey: selectedKey,
-        taskType: "PROMPT_PACK_GENERATION",
-        userId: context.user.id,
-        request: {
-          modelName: selectedKey.model_name as GeminiModelName,
-          apiKey: selected.secret,
-          prompt: buildPromptPackGenerationPrompt(context, selectedKey),
-          temperature: 0.2,
-          maxOutputTokens: 4096,
-          timeoutMs: 120_000,
-          responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
-        },
-      });
+      let response: Awaited<ReturnType<typeof generateTrackedGeminiJsonText>>;
+
+      try {
+        response = await generateTrackedGeminiJsonText({
+          aiTaskId: taskId,
+          geminiApiKey: selectedKey,
+          taskType: "PROMPT_PACK_GENERATION",
+          userId: context.user.id,
+          request: {
+            modelName: selectedKey.model_name as GeminiModelName,
+            apiKey: selected.secret,
+            prompt: buildPromptPackGenerationPrompt(context, selectedKey, googleSearchGrounding),
+            temperature: 0.2,
+            maxOutputTokens: 4096,
+            timeoutMs: 120_000,
+            responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+            enableGoogleSearchGrounding: googleSearchGrounding.enabled,
+          },
+        });
+      } catch (error) {
+        if (!googleSearchGrounding.enabled || !isGoogleSearchGroundingUnavailableError(error)) {
+          throw error;
+        }
+
+        googleSearchGroundingFallbackReason =
+          "Google Search grounding was unavailable for this Gemini request; generated from stored product facts only.";
+        response = await generateTrackedGeminiJsonText({
+          aiTaskId: taskId,
+          geminiApiKey: selectedKey,
+          taskType: "PROMPT_PACK_GENERATION",
+          userId: context.user.id,
+          request: {
+            modelName: selectedKey.model_name as GeminiModelName,
+            apiKey: selected.secret,
+            prompt: buildPromptPackGenerationPrompt(
+              context,
+              selectedKey,
+              buildDisabledGoogleSearchGroundingDecision(googleSearchGrounding, googleSearchGroundingFallbackReason),
+            ),
+            temperature: 0.2,
+            maxOutputTokens: 4096,
+            timeoutMs: 120_000,
+            responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+            enableGoogleSearchGrounding: false,
+          },
+        });
+      }
+
+      googleSearchGroundingSummary = response.groundingSummary ?? null;
 
       try {
         outputJson = parsePromptPackGenerationOutput(response.text, {
@@ -2166,7 +2803,14 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
 
     try {
       const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
-      const task = await markTaskSuccess(taskId, outputJson);
+      const task = await markTaskSuccess(
+        taskId,
+        buildPromptPackTaskSuccessOutput(outputJson, {
+          decision: googleSearchGrounding,
+          fallbackReason: googleSearchGroundingFallbackReason,
+          summary: googleSearchGroundingSummary,
+        }),
+      );
 
       await markGeminiKeySuccess({
         serviceClient: context.serviceClient,
@@ -2304,6 +2948,8 @@ export async function createPromptPack(input: PromptPackInput) {
   if (!intakeSession || !intakeSession.reviewed_metadata_json) {
     throw new Error("Review Gemini metadata before generating a prompt pack.");
   }
+
+  assertPromptMetadataComplete(intakeSession.reviewed_metadata_json);
 
   if (intakeSession.product_id !== input.product_id) {
     throw new Error("Intake session must belong to the selected product.");
@@ -2508,6 +3154,7 @@ export async function createPromptPackRegenerationVersion(
   input?: {
     storagePayload?: PromptPackStoragePayload;
     revisionInstruction?: string | null;
+    regenerationScope?: RegenerationScopeKey | string | null;
     productId?: string | null;
     intakeSessionId?: string | null;
     affiliateProfileId?: string | null;
@@ -2521,24 +3168,27 @@ export async function createPromptPackRegenerationVersion(
     userId: user.id,
     promptCode: promptPack.prompt_code,
   });
-  if (!input?.storagePayload) {
-    throw new Error("Regeneration requires strict copy prompt JSON payload.");
+
+  const storagePayload = input?.storagePayload;
+  const revisionInstruction = normalizeNullableText(input?.revisionInstruction);
+  const requestedScope = normalizeNullableText(input?.regenerationScope) ?? "full_pack";
+
+  if (!isRegenerationScopeKey(requestedScope)) {
+    throw new Error("Invalid regeneration scope.");
   }
 
-  const storagePayload = input.storagePayload;
-  const revisionInstruction = normalizeNullableText(input?.revisionInstruction);
+  const regenerationScope = getRegenerationScope(requestedScope);
+  const sourcePersonalization = readJsonRecord(storagePayload?.personalization_json ?? promptPack.personalization_json);
   const personalization = {
-    ...storagePayload.personalization_json,
-    ...(revisionInstruction
-      ? {
-          regeneration_request: {
-            source_prompt_pack_id: promptPack.id,
-            source_version: promptPack.version,
-            revision_instruction: revisionInstruction,
-            requested_at: new Date().toISOString(),
-          },
-        }
-      : {}),
+    ...sourcePersonalization,
+    regeneration_request: {
+      source_prompt_pack_id: promptPack.id,
+      source_version: promptPack.version,
+      source_prompt_code: promptPack.prompt_code,
+      revision_instruction: revisionInstruction ?? "",
+      regeneration_scope: regenerationScope.key,
+      requested_at: new Date().toISOString(),
+    },
   } satisfies JsonObject;
 
   return await createPromptPack({
@@ -2552,11 +3202,11 @@ export async function createPromptPackRegenerationVersion(
     prompt_code: promptPack.prompt_code,
     version: nextVersion,
     status: "DRAFT",
-    product_analysis_json: promptPack.product_analysis_json,
-    i2i_prompts_json: storagePayload.i2i_prompts_json,
-    i2v_prompts_json: storagePayload.i2v_prompts_json,
-    consistency_rules_json: promptPack.consistency_rules_json,
-    negative_rules_json: promptPack.negative_rules_json,
+    product_analysis_json: storagePayload?.product_analysis_json ?? promptPack.product_analysis_json,
+    i2i_prompts_json: storagePayload?.i2i_prompts_json ?? promptPack.i2i_prompts_json,
+    i2v_prompts_json: storagePayload?.i2v_prompts_json ?? promptPack.i2v_prompts_json,
+    consistency_rules_json: storagePayload?.consistency_rules_json ?? promptPack.consistency_rules_json,
+    negative_rules_json: storagePayload?.negative_rules_json ?? promptPack.negative_rules_json,
     personalization_json: personalization,
     notes: input?.notes === undefined ? promptPack.notes : normalizeNullableText(input.notes),
   });

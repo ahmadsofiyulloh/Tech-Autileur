@@ -8,7 +8,8 @@ import { attachProductSourceImage, createProduct } from "@/lib/server/products";
 import { listPromptReadinessProjections } from "@/lib/server/prompt-readiness";
 import { uploadBufferToGoogleDrive } from "@/lib/server/google-drive";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createIntakeSession } from "@/lib/server/intake";
+import { createIntakeSession, enrichBulkImportMetadata } from "@/lib/server/intake";
+import { isPromptMetadataComplete } from "@/lib/intake/metadata-essentials";
 import type { JsonRecord, MarketplacePlatform } from "@/lib/intake/validation";
 import type {
   BulkImportJob,
@@ -312,7 +313,7 @@ function sourceImportJson(row: BulkImportPreviewRow, sourceFileName: string): Js
 
 function parsedMetadataJson(row: BulkImportPreviewRow, sourceFileName: string): JsonRecord {
   return {
-    confidence_notes: ["Metadata scraping bulk import siap untuk prompt."],
+    confidence_notes: ["Metadata seed Bulk Import menunggu Gemini enrichment."],
     deskripsi_visual: row.optional.description ?? "",
     keyword_cari_etalase: "",
     nama_produk: row.productName,
@@ -324,6 +325,47 @@ function parsedMetadataJson(row: BulkImportPreviewRow, sourceFileName: string): 
     target_viewer: "",
     use_case: "",
   };
+}
+
+function marketplaceFactsJson(row: BulkImportPreviewRow): JsonRecord {
+  return {
+    available_colors: row.optional.availableColors ?? "",
+    available_sizes: row.optional.availableSizes ?? "",
+    description: row.optional.description ?? "",
+    discount_text: row.optional.discountText ?? "",
+    global_review_text: row.optional.globalReviewText ?? "",
+    marketplace_label: row.marketplaceLabel,
+    platform: row.platform ?? "",
+    price_text: row.optional.priceText ?? "",
+    product_name: row.productName,
+    product_url: row.productUrl,
+    rating_text: row.optional.ratingText ?? "",
+    shop_name: row.optional.shopName ?? "",
+    sold_count_text: row.optional.soldCountText ?? "",
+    source_domain: row.sourceDomain ?? "",
+  };
+}
+
+async function enrichImportedRowMetadata(input: {
+  driveItemId: string;
+  intakeSessionId: string;
+  productId: string;
+  row: BulkImportPreviewRow;
+  sourceFileName: string;
+}) {
+  const result = await enrichBulkImportMetadata({
+    intakeSessionId: input.intakeSessionId,
+    marketplaceFacts: marketplaceFactsJson(input.row),
+    productId: input.productId,
+    productImageDriveItemRefId: input.driveItemId,
+    sourceImport: sourceImportJson(input.row, input.sourceFileName),
+  });
+
+  if (!isPromptMetadataComplete(result.session.reviewed_metadata_json)) {
+    throw new Error("Metadata Gemini Bulk Import belum lengkap.");
+  }
+
+  return result;
 }
 
 async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string, workspaceId?: string | null) {
@@ -382,10 +424,10 @@ async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string,
     product_title: row.productName,
     product_photo_drive_item_ref_id: driveItem.id,
     parsed_metadata_json: metadata,
-    reviewed_metadata_json: metadata,
+    reviewed_metadata_json: null,
     shopee_url: row.platform === "SHOPEE" ? row.productUrl : null,
     tiktok_url: row.platform === "TIKTOK" ? row.productUrl : null,
-    status: "REVIEWED",
+    status: "SUBMITTED",
   });
 
   await createMarketplaceSource({
@@ -403,6 +445,14 @@ async function importReadyRow(row: BulkImportPreviewRow, sourceFileName: string,
     },
     status: "ACTIVE",
     notes: "Saved from bulk import scraping.",
+  });
+
+  await enrichImportedRowMetadata({
+    driveItemId: driveItem.id,
+    intakeSessionId: session.id,
+    productId: product.id,
+    row,
+    sourceFileName,
   });
 
   return {
@@ -1240,10 +1290,10 @@ async function processBulkImportJobRow(
         product_title: row.product_name,
         product_photo_drive_item_ref_id: driveItemId,
         parsed_metadata_json: metadata,
-        reviewed_metadata_json: metadata,
+        reviewed_metadata_json: null,
         shopee_url: row.platform === "SHOPEE" ? row.product_url : null,
         tiktok_url: row.platform === "TIKTOK" ? row.product_url : null,
-        status: "REVIEWED",
+        status: "SUBMITTED",
       });
       intakeSessionId = session.id;
     }
@@ -1281,6 +1331,33 @@ async function processBulkImportJobRow(
     },
     status: "ACTIVE",
     notes: "Saved from bulk import scraping.",
+  });
+
+  await updateJobRow(supabase, userId, row.id, {
+    status: "RUNNING",
+    current_stage: "Generate metadata",
+  });
+  await insertJobLog(supabase, userId, {
+    jobId: job.id,
+    rowId: row.id,
+    level: "INFO",
+    title: "Generate metadata",
+    message: rowLabelText,
+  });
+
+  await enrichImportedRowMetadata({
+    driveItemId,
+    intakeSessionId,
+    productId,
+    row: previewRow,
+    sourceFileName: job.file_name,
+  });
+  await insertJobLog(supabase, userId, {
+    jobId: job.id,
+    rowId: row.id,
+    level: "SUCCESS",
+    title: "Metadata lengkap",
+    message: rowLabelText,
   });
 
   await updateJobRow(supabase, userId, row.id, {

@@ -1,5 +1,7 @@
 import type { AffiliateProfilePromptReadinessInput } from "@/lib/affiliate-profiles/readiness";
 import { isAffiliateProfilePromptReady } from "@/lib/affiliate-profiles/readiness";
+import { isBulkImportMetadataPayload } from "@/lib/intake/bulk-import-metadata";
+import { isPromptMetadataComplete } from "@/lib/intake/metadata-essentials";
 import type { PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 
 export const PROMPT_READINESS_STATUS_LABELS = {
@@ -132,17 +134,6 @@ function hasJsonPayload(value: unknown) {
   return true;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
-function isBulkImportMetadata(value: unknown) {
-  const record = asRecord(value);
-  const sourceImport = asRecord(record?.source_import);
-
-  return record?.schema_version === "bulk_import_v1" || sourceImport?.schema_version === "bulk_import_v1";
-}
-
 function statusOf(value: { status?: string | null } | null | undefined) {
   return readText(value?.status).toUpperCase();
 }
@@ -189,7 +180,7 @@ function hasMarketplaceScreenshotEvidence(input: PromptReadinessProjectionInput)
 
   const hasSourceEvidence = (input.marketplaceSources ?? []).some((source) => {
     const status = statusOf(source);
-    return status !== "ARCHIVED" && (readText(source.screenshot_drive_item_ref_id).length > 0 || isBulkImportMetadata(source.parsed_metadata_json));
+    return status !== "ARCHIVED" && (readText(source.screenshot_drive_item_ref_id).length > 0 || isBulkImportMetadataPayload(source.parsed_metadata_json));
   });
 
   if (hasSourceEvidence) {
@@ -201,8 +192,8 @@ function hasMarketplaceScreenshotEvidence(input: PromptReadinessProjectionInput)
     return (
       status !== "ARCHIVED" &&
       (readText(session.screenshot_drive_item_ref_id).length > 0 ||
-        isBulkImportMetadata(session.reviewed_metadata_json) ||
-        isBulkImportMetadata(session.parsed_metadata_json))
+        isBulkImportMetadataPayload(session.reviewed_metadata_json) ||
+        isBulkImportMetadataPayload(session.parsed_metadata_json))
     );
   });
 }
@@ -215,11 +206,11 @@ function selectMetadataSession(input: PromptReadinessProjectionInput) {
 }
 
 function isReviewedMetadataReady(session: PromptReadinessIntakeInput | null) {
-  return hasJsonPayload(session?.reviewed_metadata_json);
+  return isPromptMetadataComplete(session?.reviewed_metadata_json);
 }
 
 function hasParsedMetadataForReview(session: PromptReadinessIntakeInput | null) {
-  return statusOf(session) === "NEEDS_REVIEW" || hasJsonPayload(session?.parsed_metadata_json);
+  return statusOf(session) === "NEEDS_REVIEW" || hasJsonPayload(session?.reviewed_metadata_json);
 }
 
 function latestPromptPack(input: PromptReadinessProjectionInput) {

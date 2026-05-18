@@ -372,6 +372,7 @@ export async function listPromptReadinessProjections(
       intakeSessionId: intakeSession?.id ?? null,
       affiliateProfileId,
       hasReviewedMetadata: Boolean(intakeSession?.reviewed_metadata_json),
+      reviewedMetadata: intakeSession?.reviewed_metadata_json ?? null,
       sourceImageDriveItemRefId,
       affiliateProfile,
     });

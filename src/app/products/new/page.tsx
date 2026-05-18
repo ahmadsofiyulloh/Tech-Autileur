@@ -213,6 +213,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
           intakeSessionId: selectedSession.id,
           affiliateProfileId: selectedPromptAffiliateProfile?.id ?? null,
           hasReviewedMetadata: Boolean(selectedSession.reviewed_metadata_json || selectedSession.status === "REVIEWED"),
+          reviewedMetadata: selectedSession.reviewed_metadata_json,
           sourceImageDriveItemRefId: selectedSourceImage?.drive_item_ref_id ?? null,
           affiliateProfile: selectedPromptAffiliateProfile,
         })

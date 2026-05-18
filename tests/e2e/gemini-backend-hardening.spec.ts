@@ -12,6 +12,7 @@ import {
   GEMINI_ZERO_QUOTA_MODELS,
   isGeminiDatabaseModelName,
   isGeminiModelName,
+  supportsGeminiStructuredOutputTools,
 } from "../../src/lib/gemini/validation";
 import {
   GEMINI_INTAKE_VISION_RESPONSE_SCHEMA,
@@ -20,10 +21,15 @@ import {
 import { parseIntakeVisionOutput } from "../../src/lib/intake/vision-contract";
 import {
   PROMPT_PACK_COPY_SCHEMA_VERSION,
+  PROMPT_PACK_I2V_COPY_ASPECT_RATIO,
+  PROMPT_PACK_I2V_COPY_MODEL,
   PROMPT_PACK_I2V_DURATION_SECONDS,
   PROMPT_PACK_I2V_TIMELINE_WINDOWS,
+  PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+  PROMPT_PACK_VO_MAX_CHARS,
   buildPromptPackEditorStoragePayload,
   buildPromptPackStoragePayload,
+  buildStructuredI2VPromptForCopy,
   parsePromptPackGenerationOutput,
   readPromptPackEditorPromptSet,
   type PromptPackGenerationOutput,
@@ -53,6 +59,12 @@ import {
   normalizePromptWorkbenchReadinessFilter,
 } from "../../src/lib/prompts/prompt-workbench";
 import { createPromptWorkbenchPageCollector } from "../../src/lib/prompts/prompt-workbench-collector";
+import { buildContentVariantPromptCode } from "../../src/lib/prompts/content-variants";
+import {
+  REGENERATION_SCOPES,
+  getRegenerationScope,
+  isRegenerationScopeKey,
+} from "../../src/lib/prompts/prompt-regeneration";
 import {
   buildFlowStageManifestJobs,
   flowStageDrivePurpose,
@@ -144,7 +156,22 @@ function buildTestI2VPrompt<TSlot extends "clip_1" | "clip_2">(
     prompt_text: promptText,
     continuity: "use @firstframe as the single starting image while @lastframe stays legacy-compatible",
     negative_prompt: "no extra props",
+    audio: {
+      voiceover_text: slot === "clip_1" ? "Cek detail produk ini dalam dua detik pertama." : "Detailnya jelas untuk bahan pertimbangan checkout.",
+      voiceover_timing: "00:00-00:02",
+      voice_style: "natural Indonesian UGC",
+      sfx_cues: "soft product handling",
+      ambient_cues: "quiet indoor room tone",
+    },
   } as PromptPackGenerationOutput["i2v_prompts"][TSlot];
+}
+
+function expectNoLegacyI2VCopyReference(value: unknown) {
+  const text = JSON.stringify(value).toLowerCase();
+
+  for (const phrase of ["@lastframe", "last frame", "last-frame", "ending frame", "final frame"]) {
+    expect(text).not.toContain(phrase);
+  }
 }
 
 function buildReadyAffiliateProfile() {
@@ -163,6 +190,19 @@ function buildReadyAffiliateProfile() {
     lock_environment: false,
     environment_drive_item_ref_id: null,
     environment_analysis_json: null,
+  };
+}
+
+function buildCompleteReviewedMetadata(overrides: Record<string, unknown> = {}) {
+  return {
+    nama_produk: "Tas Selempang Travel",
+    keyword_cari_etalase: "tas selempang",
+    deskripsi_visual: "Tas selempang hitam compact dengan beberapa kantong depan.",
+    use_case: "Dipakai untuk membawa barang harian saat kerja atau jalan.",
+    pain_point: "Barang kecil sering tercecer saat bepergian.",
+    selling_angle: "Banyak kompartemen dalam ukuran compact.",
+    target_viewer: "Pria dan wanita aktif yang sering mobile.",
+    ...overrides,
   };
 }
 
@@ -247,6 +287,11 @@ function buildPromptPackFixture(options?: PromptPackFixtureOptions) {
     },
     caption: "Caption",
     tags: "#tas #shopee",
+    upload_copy: {
+      shopee_caption: "Caption",
+      shopee_tags: "#tas #shopee",
+      shopee_caption_tags: "Caption #tas #shopee",
+    },
     target_marketplace: "Shopee + TikTok",
     negative_prompt_rules: ["no extra props"],
     consistency_rules: ["same product silhouette"],
@@ -419,6 +464,13 @@ function buildPromptPackCompactFixture(options?: PromptPackFixtureOptions) {
           last_frame_hint: "end",
         },
         negative_prompt: "no extra props",
+        audio: {
+          voiceover_text: "Cek detail produk ini dalam dua detik pertama.",
+          voiceover_timing: "00:00-00:02",
+          voice_style: "natural Indonesian UGC",
+          sfx_cues: "soft product handling",
+          ambient_cues: "quiet indoor room tone",
+        },
       },
       clip_2: {
         slot: "clip_2",
@@ -432,10 +484,22 @@ function buildPromptPackCompactFixture(options?: PromptPackFixtureOptions) {
           last_frame_hint: "end",
         },
         negative_prompt: "no extra props",
+        audio: {
+          voiceover_text: "Detailnya jelas untuk bahan pertimbangan checkout.",
+          voiceover_timing: "00:00-00:02",
+          voice_style: "natural Indonesian UGC",
+          sfx_cues: "soft camera handling",
+          ambient_cues: "quiet indoor room tone",
+        },
       },
     },
     caption: "Caption",
     tags: "#tas #shopee",
+    upload_copy: {
+      shopee_caption: "Caption",
+      shopee_tags: "#tas #shopee",
+      shopee_caption_tags: "Caption #tas #shopee",
+    },
     negative_prompt_rules: ["no extra props"],
     consistency_rules: ["same product silhouette"],
   };
@@ -443,6 +507,7 @@ function buildPromptPackCompactFixture(options?: PromptPackFixtureOptions) {
 
 function buildLegacyPromptPackFixture(options?: PromptPackFixtureOptions) {
   const base = buildPromptPackFixture(options);
+  const { upload_copy: _uploadCopy, ...legacyBase } = base;
   const serverContext = buildPromptPackServerContextFixture() as {
     reference_cards: PromptPackVisualReferenceJson[];
     affiliate_profile: { rules: PromptPackPromptRulesJson };
@@ -451,7 +516,7 @@ function buildLegacyPromptPackFixture(options?: PromptPackFixtureOptions) {
   const promptRules = serverContext.affiliate_profile.rules;
 
   return {
-    ...base,
+    ...legacyBase,
     prompt_context: serverContext,
     i2i_prompts: {
       clip_1: {
@@ -571,6 +636,8 @@ test("Gemini Free tier model defaults match selectable quota-positive models", (
   expect(isGeminiModelName("gemini-2.5-pro")).toBe(false);
   expect(isGeminiDatabaseModelName("gemini-2.5-pro")).toBe(true);
   expect(GEMINI_ZERO_QUOTA_MODELS).toEqual(["gemini-2.5-pro", "gemini-2.0-flash", "gemini-3.1-pro"]);
+  expect(GEMINI_MODELS.some((modelName) => supportsGeminiStructuredOutputTools(modelName))).toBe(false);
+  expect(supportsGeminiStructuredOutputTools("gemini-3-flash-preview")).toBe(true);
 });
 
 test("Gemini quota config treats zero and missing limits as unavailable", () => {
@@ -612,6 +679,7 @@ test("Gemini response schemas are strict at the top level", () => {
       "i2v_prompts",
       "caption",
       "tags",
+      "upload_copy",
       "negative_prompt_rules",
       "consistency_rules",
     ]),
@@ -635,7 +703,22 @@ test("Gemini response schemas are strict at the top level", () => {
     "camera_motion",
     "continuity",
     "negative_prompt",
+    "audio",
   ]);
+  expect(
+    GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.i2v_prompts?.properties?.clip_1?.properties?.audio?.required,
+  ).toEqual(["voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"]);
+  expect(
+    GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.i2v_prompts?.properties?.clip_1?.properties?.audio?.properties?.voiceover_text?.maxLength,
+  ).toBe(PROMPT_PACK_VO_MAX_CHARS);
+  expect(GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.upload_copy?.required).toEqual([
+    "shopee_caption",
+    "shopee_tags",
+    "shopee_caption_tags",
+  ]);
+  expect(GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.upload_copy?.properties?.shopee_caption_tags?.maxLength).toBe(
+    PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+  );
   expect(GEMINI_PROMPT_PACK_RESPONSE_SCHEMA.properties?.product_analysis?.properties?.product?.required).toContain("status");
 });
 
@@ -776,6 +859,7 @@ test("prompt launch readiness enables create prompt when review and locks are co
     intakeSessionId: "intake-1",
     affiliateProfileId: "affiliate-1",
     hasReviewedMetadata: true,
+    reviewedMetadata: buildCompleteReviewedMetadata(),
     sourceImageDriveItemRefId: "source-ref",
     affiliateProfile: {
       status: "ACTIVE",
@@ -801,6 +885,22 @@ test("prompt launch readiness enables create prompt when review and locks are co
 
   expect(readiness.ready).toBe(true);
   expect(readiness.blockers).toHaveLength(0);
+});
+
+test("prompt launch readiness blocks incomplete Prompt Essentials", () => {
+  const readiness = getPromptLaunchReadiness({
+    productId: "product-1",
+    intakeSessionId: "intake-1",
+    affiliateProfileId: "affiliate-1",
+    hasReviewedMetadata: true,
+    reviewedMetadata: { nama_produk: "Tas" },
+    sourceImageDriveItemRefId: "source-ref",
+    affiliateProfile: buildReadyAffiliateProfile(),
+  });
+
+  expect(readiness.ready).toBe(false);
+  expect(readiness.blockers.map((blocker) => blocker.key)).toContain("review_metadata");
+  expect(readiness.blockers.map((blocker) => blocker.label)).toContain("Prompt Essentials");
 });
 
 test("prompt launch readiness lists blockers for missing review and source image", () => {
@@ -844,7 +944,7 @@ test("prompt readiness projection does not trust raw product status alone", () =
       {
         id: "intake-1",
         status: "REVIEWED",
-        reviewed_metadata_json: { nama_produk: "Tas" },
+        reviewed_metadata_json: buildCompleteReviewedMetadata(),
       },
     ],
     affiliateProfile: buildReadyAffiliateProfile(),
@@ -897,7 +997,7 @@ test("prompt readiness projection marks only ready rows as bulk enqueue eligible
       {
         id: "intake-1",
         status: "REVIEWED",
-        reviewed_metadata_json: { nama_produk: "Tas" },
+        reviewed_metadata_json: buildCompleteReviewedMetadata(),
       },
     ],
     affiliateProfile: buildReadyAffiliateProfile(),
@@ -918,7 +1018,7 @@ test("prompt readiness projection reflects queued generated and failed prompt st
       {
         id: "intake-1",
         status: "REVIEWED",
-        reviewed_metadata_json: { nama_produk: "Tas" },
+        reviewed_metadata_json: buildCompleteReviewedMetadata(),
       },
     ],
     affiliateProfile: buildReadyAffiliateProfile(),
@@ -1023,6 +1123,30 @@ test("prompt workbench collector keeps counts while streaming batches", () => {
   expect(result.rows.map((row) => row.product.id)).toEqual(["product-3"]);
 });
 
+test("content variant prompt codes stay distinct for the same product", () => {
+  const heroPromptCode = buildContentVariantPromptCode("PROD-1", "hero_hook");
+  const detailPromptCode = buildContentVariantPromptCode("PROD-1", "detail_proof");
+
+  expect(heroPromptCode).toBe("PROMPT-PROD-1-HERO_HOOK");
+  expect(detailPromptCode).toBe("PROMPT-PROD-1-DETAIL_PROOF");
+  expect(heroPromptCode).not.toBe(detailPromptCode);
+});
+
+test("regeneration scopes expose complete generation instructions", () => {
+  expect(REGENERATION_SCOPES.map((scope) => scope.key)).toEqual([
+    "full_pack",
+    "stronger_hook",
+    "voiceover_only",
+    "i2v_motion_only",
+    "caption_tags_only",
+    "grounding_fix",
+  ]);
+  expect(isRegenerationScopeKey("voiceover_only")).toBe(true);
+  expect(isRegenerationScopeKey("unknown")).toBe(false);
+  expect(getRegenerationScope("caption_tags_only").generationInstruction).toContain("complete valid prompt pack");
+  expect(getRegenerationScope("unknown").key).toBe("full_pack");
+});
+
 test("intake upload validation accepts common JPG variants", () => {
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpeg" }), "Screenshot Shopee")).not.toThrow();
   expect(() => assertUploadedImage(new File(["x"], "mobile.jpg", { type: "image/jpg" }), "Screenshot TikTok")).not.toThrow();
@@ -1096,6 +1220,7 @@ test("prompt pack storage uses server prompt context instead of model echo", () 
   const payload = buildPromptPackStoragePayload(output, serverPromptContext);
 
   expect(payload.personalization_json.prompt_context).toEqual(serverPromptContext);
+  expect(payload.personalization_json.upload_copy).toEqual(output.upload_copy);
 });
 
 test("prompt pack editor storage rejects prose prompt fields", () => {
@@ -1175,6 +1300,79 @@ test("prompt pack editor storage round-trips legacy prompts without drive_url", 
       legacyPack.personalization_json,
     ),
   ).not.toThrow();
+});
+
+test("structured I2V copy prompt uses only first frame and preserves VO audio", () => {
+  const clip = buildTestI2VPrompt(
+    "clip_1",
+    'from @firstframe to @lastframe with last frame remains legacy compatibility only. VO: "Cek detail produk ini."',
+  );
+  clip.motion_prompt = "continue from @firstframe to @lastframe with no final frame jump";
+  clip.camera_motion = "avoid ending frame snap";
+  clip.timeline = [
+    {
+      time: "00:00-00:02",
+      action: 'start from @firstframe to @lastframe. VO: "Cek detail produk ini."',
+    },
+    {
+      time: "00:02-00:04",
+      action: "continue the same first-frame setup",
+    },
+    {
+      time: "00:04-00:06",
+      action: "show a readable product detail",
+    },
+    {
+      time: "00:06-00:08",
+      action: "resolve with @lastframe as a last-frame compatibility marker",
+    },
+  ];
+  clip.negative_prompt = "avoid @lastframe or last-frame dependency";
+
+  const copyPrompt = buildStructuredI2VPromptForCopy(clip);
+
+  expect(copyPrompt.schema_version).toBe(PROMPT_PACK_COPY_SCHEMA_VERSION);
+  expect(copyPrompt.slot).toBe("clip_1");
+  expect(copyPrompt.stage).toBe("i2v");
+  expect(copyPrompt.model).toBe(PROMPT_PACK_I2V_COPY_MODEL);
+  expect(copyPrompt.duration_seconds).toBe(PROMPT_PACK_I2V_DURATION_SECONDS);
+  expect(copyPrompt.aspect_ratio).toBe(PROMPT_PACK_I2V_COPY_ASPECT_RATIO);
+  expect(copyPrompt.reference_image).toBe("@firstframe");
+  expect(copyPrompt.prompt.timeline).toHaveLength(4);
+  expect(copyPrompt.prompt.timeline.map((segment) => segment.time)).toEqual([...PROMPT_PACK_I2V_TIMELINE_WINDOWS]);
+  expect(copyPrompt.prompt.timeline[0].action).toContain("@firstframe");
+  expect(copyPrompt.prompt.timeline[0].action).toContain("Product must be visible immediately");
+  expect(copyPrompt.prompt.timeline[0].action).toContain("VO hook starts");
+  expect(copyPrompt.prompt.timeline[3].action).toContain("@firstframe");
+  expect(copyPrompt.prompt.audio).toMatchObject({
+    type: "native",
+    voiceover_timing: "00:00-00:02",
+    voiceover_text: "Cek detail produk ini dalam dua detik pertama.",
+    voice_style: "natural Indonesian UGC",
+    sfx_cues: "soft product handling",
+    ambient_cues: "quiet indoor room tone",
+  });
+  expectNoLegacyI2VCopyReference(copyPrompt);
+});
+
+test("structured I2V copy prompt renders no-speech audio for old packs without VO", () => {
+  const clip = buildTestI2VPrompt("clip_2", "old i2v prompt from @firstframe to @lastframe");
+  delete clip.audio;
+
+  const copyPrompt = buildStructuredI2VPromptForCopy(clip);
+
+  expect(copyPrompt.reference_image).toBe("@firstframe");
+  expect(copyPrompt.prompt.timeline).toHaveLength(4);
+  expect(copyPrompt.prompt.timeline[0].action).toContain("No speech");
+  expect(copyPrompt.prompt.audio).toEqual({
+    type: "native",
+    voiceover_timing: "none",
+    voiceover_text: "no speech; no voiceover; no lip-sync",
+    voice_style: "no speech; no voiceover; no lip-sync",
+    sfx_cues: "subtle native ambience only",
+    ambient_cues: "subtle native ambience only",
+  });
+  expectNoLegacyI2VCopyReference(copyPrompt);
 });
 
 test("flow stage manifest jobs split frame and video execution", () => {
@@ -1260,6 +1458,69 @@ test("prompt pack parser rejects mismatched source image echo", () => {
   ).toThrow("product_analysis.source_image.status must match the source image value (ATTACHED).");
 });
 
+test("prompt pack parser rejects over-limit clip voiceover text", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  output.i2v_prompts.clip_1.audio.voiceover_text = "x".repeat(PROMPT_PACK_VO_MAX_CHARS + 1);
+
+  expect(() =>
+    parsePromptPackGenerationOutput(JSON.stringify(output), {
+      fallbackProductStatus: "IMAGE_ANALYZED",
+      serverPromptContext: buildPromptPackServerContextFixture(),
+    }),
+  ).toThrow(`i2v_prompts.clip_1.audio.voiceover_text must be ${PROMPT_PACK_VO_MAX_CHARS} characters or fewer.`);
+});
+
+test("prompt pack parser accepts max-length clip voiceover text", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  const voiceoverText = "x".repeat(PROMPT_PACK_VO_MAX_CHARS);
+  output.i2v_prompts.clip_1.audio.voiceover_text = voiceoverText;
+
+  const parsed = parsePromptPackGenerationOutput(JSON.stringify(output), {
+    fallbackProductStatus: "IMAGE_ANALYZED",
+    serverPromptContext: buildPromptPackServerContextFixture(),
+  });
+
+  expect(parsed.i2v_prompts.clip_1.audio?.voiceover_text).toBe(voiceoverText);
+  expect(parsed.i2v_prompts.clip_1.audio?.voiceover_timing).toBe("00:00-00:02");
+});
+
+test("prompt pack parser rejects invalid clip voiceover timing", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  output.i2v_prompts.clip_1.audio.voiceover_timing = "00:00-00:03";
+
+  expect(() =>
+    parsePromptPackGenerationOutput(JSON.stringify(output), {
+      fallbackProductStatus: "IMAGE_ANALYZED",
+      serverPromptContext: buildPromptPackServerContextFixture(),
+    }),
+  ).toThrow("i2v_prompts.clip_1.audio.voiceover_timing must equal 00:00-00:02.");
+});
+
+test("prompt pack parser rejects over-limit Shopee caption tags", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  output.upload_copy.shopee_caption_tags = "x".repeat(PROMPT_PACK_SHOPEE_COPY_MAX_CHARS + 1);
+
+  expect(() =>
+    parsePromptPackGenerationOutput(JSON.stringify(output), {
+      fallbackProductStatus: "IMAGE_ANALYZED",
+      serverPromptContext: buildPromptPackServerContextFixture(),
+    }),
+  ).toThrow(`upload_copy.shopee_caption_tags must be ${PROMPT_PACK_SHOPEE_COPY_MAX_CHARS} characters or fewer.`);
+});
+
+test("prompt pack parser accepts max-length Shopee caption tags", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  const captionTags = "x".repeat(PROMPT_PACK_SHOPEE_COPY_MAX_CHARS);
+  output.upload_copy.shopee_caption_tags = captionTags;
+
+  const parsed = parsePromptPackGenerationOutput(JSON.stringify(output), {
+    fallbackProductStatus: "IMAGE_ANALYZED",
+    serverPromptContext: buildPromptPackServerContextFixture(),
+  });
+
+  expect(parsed.upload_copy.shopee_caption_tags).toBe(captionTags);
+});
+
 test("prompt pack parser recovers JSON from wrapped Gemini text", () => {
   const serverPromptContext = buildPromptPackServerContextFixture();
   const parsed = parsePromptPackGenerationOutput(
@@ -1278,6 +1539,23 @@ test("prompt pack parser recovers JSON from wrapped Gemini text", () => {
   expect(parsed.target_marketplace).toBe("Shopee + TikTok");
 });
 
+test("prompt pack parser keeps old compact output compatible", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  delete output.upload_copy;
+
+  for (const clipKey of ["clip_1", "clip_2"] as const) {
+    delete output.i2v_prompts[clipKey].audio;
+  }
+
+  const parsed = parsePromptPackGenerationOutput(JSON.stringify(output), {
+    fallbackProductStatus: "IMAGE_ANALYZED",
+    serverPromptContext: buildPromptPackServerContextFixture(),
+  });
+
+  expect(parsed.upload_copy.shopee_caption_tags).toBe("Caption #tas #shopee");
+  expect(parsed.i2v_prompts.clip_1.audio).toBeUndefined();
+});
+
 test("prompt pack parser rehydrates compact Gemini output with server context", () => {
   const serverPromptContext = buildPromptPackServerContextFixture();
   const parsed = parsePromptPackGenerationOutput(JSON.stringify(buildPromptPackCompactFixture()), {
@@ -1287,6 +1565,11 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
 
   expect(parsed.prompt_context).toEqual(serverPromptContext);
   expect(parsed.target_marketplace).toBe("Shopee + TikTok");
+  expect(parsed.upload_copy).toEqual({
+    shopee_caption: "Caption",
+    shopee_tags: "#tas #shopee",
+    shopee_caption_tags: "Caption #tas #shopee",
+  });
   expect(parsed.seed_character).toEqual({
     locked: true,
     notes: "Lock the character silhouette.",
@@ -1333,6 +1616,13 @@ test("prompt pack parser rehydrates compact Gemini output with server context", 
   expect(parsed.i2v_prompts.clip_2.prompt_text.toLowerCase()).not.toContain("storyboard");
   expect(parsed.i2v_prompts.clip_2.prompt_text.toLowerCase()).not.toContain("panels");
   expect(parsed.i2v_prompts.clip_2.negative_prompt).toContain("no extra props");
+  expect(parsed.i2v_prompts.clip_2.audio).toEqual({
+    voiceover_text: "Detailnya jelas untuk bahan pertimbangan checkout.",
+    voiceover_timing: "00:00-00:02",
+    voice_style: "natural Indonesian UGC",
+    sfx_cues: "soft camera handling",
+    ambient_cues: "quiet indoor room tone",
+  });
   expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("visual_references");
   expect(JSON.stringify(parsed.i2v_prompts.clip_2)).not.toContain("prompt_rules");
 });

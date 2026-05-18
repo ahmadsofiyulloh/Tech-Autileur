@@ -20,6 +20,7 @@ import type { JsonRecord } from "@/lib/intake/validation";
 export const INTAKE_VISION_SYSTEM_INSTRUCTION = [
   "You are an OCR-first product evidence extractor for a private affiliate content workflow.",
   "Never invent marketplace facts. Literal OCR fields must be copied exactly from visible image text.",
+  "When structured marketplace facts are provided by the app, treat them as source metadata, not as visual OCR.",
   "Separate literal OCR evidence from inferred Indonesian operator metadata.",
   "Use empty strings and quality flags when evidence is missing, blurry, cropped, rotated, or unreadable.",
   "Return only JSON matching the response schema.",
@@ -67,7 +68,8 @@ export function buildIntakeParsePrompt(input: {
     '- For a missing marketplace screenshot, return an empty OCR evidence block for that platform and add the quality flag "missing_source_image".',
     "",
     "Inference rules:",
-    "- Use short operator-friendly Indonesian for nama_produk, keyword_cari_etalase, deskripsi_visual, use_case, pain_point, selling_angle, and target_viewer.",
+    "- Always fill nama_produk, keyword_cari_etalase, deskripsi_visual, use_case, pain_point, selling_angle, and target_viewer with specific non-empty Indonesian text.",
+    "- Use use_case for realistic usage context, pain_point for the buyer problem, selling_angle for the strongest product angle, and target_viewer for the most likely viewer persona.",
     marketplaceRule,
     "- Set extraction_quality.review_required to true when any key marketplace field is unreadable, cropped, blurry, or inferred.",
     "- Do not claim visual parsing from links.",
@@ -76,6 +78,54 @@ export function buildIntakeParsePrompt(input: {
     "Uploaded evidence:",
     JSON.stringify(
       uploadedEvidence,
+      null,
+      2,
+    ),
+  ].join("\n");
+}
+
+export function buildBulkImportMetadataPrompt(input: {
+  marketplaceFacts: JsonRecord;
+  productImage: { name: string; mimeType: string; size: number };
+  sourceImport: JsonRecord;
+}) {
+  return [
+    "Task: generate prompt-ready product metadata from the uploaded product image bytes and the structured Bulk Import source facts.",
+    `schema_version must be "${INTAKE_VISION_SCHEMA_VERSION}".`,
+    `prompt_version must be "${INTAKE_VISION_PROMPT_VERSION}".`,
+    "",
+    "Evidence order:",
+    "1. product_image",
+    "2. structured_source_facts",
+    "",
+    "Source rules:",
+    "- The product image is real visual evidence. Use it for deskripsi_visual and visible_product_attributes.",
+    "- The structured source facts are scraping metadata supplied by the app. Use them for title, category, price, rating, sold count, and shop/account fields when present.",
+    "- Do not claim OCR or visual parsing from product_url, image_url, or marketplace links.",
+    "- For missing Shopee/TikTok screenshot OCR evidence blocks, return empty visible_text_lines, empty extracted_fields, low confidence, and quality flag missing_source_image.",
+    "",
+    "Prompt Essentials rules:",
+    "- Every Prompt Essential must be non-empty: nama_produk, keyword_cari_etalase, deskripsi_visual, use_case, pain_point, selling_angle, target_viewer.",
+    "- nama_produk should be the clean Indonesian product name from source title plus visible product cues.",
+    "- keyword_cari_etalase should be a short searchable shelf/category keyword.",
+    "- deskripsi_visual should describe visible shape, color, material impression, packaging, or product form from the image.",
+    "- use_case should describe a realistic usage moment.",
+    "- pain_point should name the buyer problem this product solves.",
+    "- selling_angle should state the strongest grounded reason to care.",
+    "- target_viewer should name a concrete Indonesian viewer persona.",
+    "- Keep all inferred fields short, natural, and product-specific.",
+    "- Never say viral, terlaris, dijamin, nomor satu, paling bagus, discount, medical, certification, or performance claims unless present in source facts.",
+    "- Return JSON only. No markdown, code fences, or commentary.",
+    "",
+    "Uploaded product image:",
+    JSON.stringify(input.productImage, null, 2),
+    "",
+    "Structured source facts:",
+    JSON.stringify(
+      {
+        marketplace_facts: input.marketplaceFacts,
+        source_import: input.sourceImport,
+      },
       null,
       2,
     ),

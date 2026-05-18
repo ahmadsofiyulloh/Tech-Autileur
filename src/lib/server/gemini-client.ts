@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sanitizeGeminiStatusMessage } from "@/lib/gemini/error-message";
-import type { GeminiModelName } from "@/lib/gemini/validation";
+import { supportsGeminiStructuredOutputTools, type GeminiModelName } from "@/lib/gemini/validation";
 
 type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 
@@ -28,6 +28,7 @@ type GeminiGenerateContentOptions = {
   temperature?: number;
   maxOutputTokens?: number;
   timeoutMs?: number;
+  enableGoogleSearchGrounding?: boolean;
 };
 
 type GeminiCandidate = {
@@ -36,6 +37,15 @@ type GeminiCandidate = {
       text?: string;
     }>;
   };
+  groundingMetadata?: unknown;
+  grounding_metadata?: unknown;
+};
+
+export type GeminiGroundingSummary = {
+  webSearchQueries: string[];
+  sourceTitles: string[];
+  supportSnippets: string[];
+  sourceCount: number;
 };
 
 type GeminiErrorResponse = {
@@ -114,6 +124,82 @@ function extractTextFromResponse(body: unknown) {
   return null;
 }
 
+function compactText(value: unknown, maxLength = 240) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const compacted = value.replace(/\s+/g, " ").trim();
+  return compacted.length > maxLength ? `${compacted.slice(0, Math.max(maxLength - 3, 0)).trimEnd()}...` : compacted;
+}
+
+function readStringArray(value: unknown, maxItems = 8, maxLength = 180) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => compactText(item, maxLength))
+        .filter((item): item is string => Boolean(item)),
+    ),
+  ).slice(0, maxItems);
+}
+
+function readGroundingMetadata(candidate: GeminiCandidate) {
+  const metadata = candidate.groundingMetadata ?? candidate.grounding_metadata;
+  return isRecord(metadata) ? metadata : null;
+}
+
+function extractGroundingSummary(body: unknown): GeminiGroundingSummary | null {
+  if (!isRecord(body) || !Array.isArray(body.candidates)) {
+    return null;
+  }
+
+  for (const candidate of body.candidates as GeminiCandidate[]) {
+    const metadata = readGroundingMetadata(candidate);
+
+    if (!metadata) {
+      continue;
+    }
+
+    const webSearchQueries = readStringArray(metadata.webSearchQueries ?? metadata.web_search_queries, 6, 140);
+    const groundingChunks = metadata.groundingChunks ?? metadata.grounding_chunks;
+    const groundingSupports = metadata.groundingSupports ?? metadata.grounding_supports;
+    const chunks = Array.isArray(groundingChunks) ? groundingChunks : [];
+    const supports = Array.isArray(groundingSupports) ? groundingSupports : [];
+    const sourceTitles = Array.from(
+      new Set(
+        chunks
+          .map((chunk) => (isRecord(chunk) && isRecord(chunk.web) ? compactText(chunk.web.title, 180) : ""))
+          .filter((title): title is string => Boolean(title)),
+      ),
+    ).slice(0, 8);
+    const sourceCount = chunks.filter((chunk) => isRecord(chunk) && isRecord(chunk.web)).length;
+    const supportSnippets = Array.from(
+      new Set(
+        supports
+          .map((support) =>
+            isRecord(support) && isRecord(support.segment) ? compactText(support.segment.text, 220) : "",
+          )
+          .filter((snippet): snippet is string => Boolean(snippet)),
+      ),
+    ).slice(0, 6);
+
+    if (sourceCount > 0 || supportSnippets.length > 0) {
+      return {
+        webSearchQueries,
+        sourceTitles,
+        supportSnippets,
+        sourceCount,
+      };
+    }
+  }
+
+  return null;
+}
+
 function buildGeminiEndpoint(modelName: GeminiModelName) {
   const url = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`);
   return url.toString();
@@ -143,6 +229,18 @@ function buildGenerationConfig(options: GeminiGenerateContentOptions) {
   };
 }
 
+function shouldIncludeGoogleSearchGroundingTool(options: GeminiGenerateContentOptions) {
+  if (!options.enableGoogleSearchGrounding) {
+    return false;
+  }
+
+  if (!options.responseJsonSchema) {
+    return true;
+  }
+
+  return supportsGeminiStructuredOutputTools(options.modelName);
+}
+
 function buildRequestBody(options: GeminiGenerateContentOptions) {
   const systemInstruction = options.systemInstruction?.trim();
 
@@ -160,6 +258,7 @@ function buildRequestBody(options: GeminiGenerateContentOptions) {
           },
         }
       : {}),
+    ...(shouldIncludeGoogleSearchGroundingTool(options) ? { tools: [{ google_search: {} }] } : {}),
     generationConfig: buildGenerationConfig(options),
   };
 }
@@ -225,5 +324,6 @@ export async function generateGeminiJsonText(options: GeminiGenerateContentOptio
   return {
     text,
     raw: body as JsonValue,
+    groundingSummary: extractGroundingSummary(body),
   };
 }

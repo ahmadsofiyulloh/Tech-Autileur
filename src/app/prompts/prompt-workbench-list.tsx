@@ -9,6 +9,7 @@ import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
+import { CONTENT_VARIANTS } from "@/lib/prompts/content-variants";
 import { getPromptLaunchReadiness, type PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 import { type PromptReadinessProjection } from "@/lib/prompts/prompt-readiness-projection";
 import {
@@ -19,6 +20,13 @@ import type { PromptQueueSnapshot, PromptQueueSummary } from "@/lib/prompts/prom
 import { bulkEnqueuePromptPacks, cancelPromptPackGeneration, savePromptPack } from "./actions";
 
 const PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY = "(min-width: 861px)";
+const CONTENT_VARIANT_OPTIONS = Object.values(CONTENT_VARIANTS);
+const BULK_VARIANT_SELECTABLE_PROMPT_STATUSES = new Set([
+  "READY_FOR_PROMPT",
+  "PROMPT_QUEUED",
+  "PROMPT_GENERATED",
+  "PROMPT_FAILED",
+]);
 
 type PromptWorkbenchProduct = {
   id: string;
@@ -140,7 +148,17 @@ function PromptPackCreateForm({ product, intakeSession, affiliateProfile, source
   const readinessId = `prompt-launch-readiness-${product.id}`;
 
   return (
-    <form className="prompt-list-card__action-form" action={savePromptPack}>
+    <form
+      className="prompt-list-card__action-form"
+      action={savePromptPack}
+      style={{
+        alignItems: "center",
+        display: "grid",
+        gap: "var(--space-2)",
+        gridTemplateColumns: "minmax(0, 1fr) auto",
+        minWidth: 0,
+      }}
+    >
       <input type="hidden" name="intent" value="create_generate" />
       <input type="hidden" name="status" value="DRAFT" />
       <input type="hidden" name="version" value={1} />
@@ -148,6 +166,13 @@ function PromptPackCreateForm({ product, intakeSession, affiliateProfile, source
       <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
       <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
       <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
+      <select name="content_variant_key" defaultValue="hero_hook" aria-label="Varian konten">
+        {CONTENT_VARIANT_OPTIONS.map((variant) => (
+          <option key={variant.key} value={variant.key}>
+            {variant.label}
+          </option>
+        ))}
+      </select>
       <PendingActionButton
         className="compact primary"
         aria-describedby={!readiness.ready ? readinessId : undefined}
@@ -184,10 +209,13 @@ function PromptWorkbenchRowCard({
     intakeSessionId: intakeSession?.id ?? null,
     affiliateProfileId: affiliateProfile?.id ?? null,
     hasReviewedMetadata: Boolean(intakeSession?.reviewed_metadata_json || intakeSession?.status === "REVIEWED"),
+    reviewedMetadata: intakeSession?.reviewed_metadata_json ?? null,
     sourceImageDriveItemRefId: sourceImage?.drive_item_ref_id ?? null,
     affiliateProfile,
   });
-  const isSelectable = Boolean(promptReadiness?.isBulkEnqueueEligible);
+  const isSelectable = Boolean(
+    promptReadiness?.isBulkEnqueueEligible || (promptReadiness?.status && BULK_VARIANT_SELECTABLE_PROMPT_STATUSES.has(promptReadiness.status)),
+  );
   const canCancelPromptGeneration = ["QUEUED", "RETRYING", "WAITING_FOR_KEY"].includes(generationTask?.status ?? "");
   const taskIssueMessage = generationTask?.error_message ?? promptPack?.error_message ?? null;
   const showErrorNote = Boolean(taskIssueMessage && (statusKey.includes("FAILED") || statusKey === "ERROR"));
@@ -570,6 +598,13 @@ export function PromptWorkbenchList({
             {selectedProductIds.map((productId) => (
               <input key={productId} type="hidden" name="product_ids" value={productId} />
             ))}
+            <select name="content_variant_key" defaultValue="hero_hook" aria-label="Varian konten bulk">
+              {CONTENT_VARIANT_OPTIONS.map((variant) => (
+                <option key={variant.key} value={variant.key}>
+                  {variant.label}
+                </option>
+              ))}
+            </select>
             <NativeButton className="compact tertiary" type="button" onClick={() => setSelectedIds(new Set())} disabled={!selectedCount}>
               Bersihkan
             </NativeButton>

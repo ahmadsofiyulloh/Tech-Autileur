@@ -4,14 +4,16 @@ import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { PromptGenerationMonitor } from "@/components/operator/prompt-generation-monitor";
+import { RelationalPicker } from "@/components/operator/relational-picker";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { getProductById, listProductImages } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REGENERATION_SCOPES } from "@/lib/prompts/prompt-regeneration";
 import { savePromptPack } from "./actions";
-import { HiddenPromptSetFields, PromptOutputFields, readPromptOutputSet } from "./prompt-output-fields";
+import { PromptOutputFields } from "./prompt-output-fields";
 import {
   SkeletonPromptDetailContent,
   SkeletonPromptDetailRegenerate,
@@ -130,7 +132,6 @@ export async function PromptDetailPanel({ detailHref, promptPackId }: PromptDeta
   const sourceImage = promptPack.source_product_image_id
     ? productImages.find((image) => image.id === promptPack.source_product_image_id) ?? null
     : productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
-  const promptSet = readPromptOutputSet(promptPack);
   const promptErrorMessage = promptPack.error_message ?? promptTask?.error_message ?? null;
   const promptTaskStatus = promptTask?.status ?? promptPack.status;
   const isPromptGenerationPending = ["QUEUED", "GENERATING", "WAITING_FOR_KEY", "RETRYING"].includes(promptTaskStatus);
@@ -198,11 +199,21 @@ export async function PromptDetailPanel({ detailHref, promptPackId }: PromptDeta
             <input type="hidden" name="id" value={promptPack.id} />
             <input type="hidden" name="return_to" value={detailHref} />
             <input type="hidden" name="product_id" value={promptPack.product_id} />
-            <input type="hidden" name="version" value={promptPack.version} />
             <input type="hidden" name="intake_session_id" value={promptPack.intake_session_id ?? intakeSession?.id ?? ""} />
             <input type="hidden" name="affiliate_profile_id" value={promptPack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
             <input type="hidden" name="source_product_image_id" value={promptPack.source_product_image_id ?? sourceImage?.id ?? ""} />
-            <HiddenPromptSetFields idPrefix={promptPack.id} promptSet={promptSet} />
+
+            <RelationalPicker
+              label="Lingkup Regenerasi"
+              name="regeneration_scope"
+              options={REGENERATION_SCOPES.map((scope) => ({
+                value: scope.key,
+                label: scope.label,
+                description: scope.description,
+              }))}
+              defaultValue="full_pack"
+              searchable={false}
+            />
 
             <label className="stack auth-field" htmlFor="revision_instruction">
               <span>Instruksi Revisi</span>

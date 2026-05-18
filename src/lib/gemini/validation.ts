@@ -7,6 +7,8 @@ export const GEMINI_MODELS = [
 
 export const GEMINI_ZERO_QUOTA_MODELS = ["gemini-2.5-pro", "gemini-2.0-flash", "gemini-3.1-pro"] as const;
 
+export const GEMINI_STRUCTURED_OUTPUT_TOOL_MODELS = ["gemini-3.1-pro-preview", "gemini-3-flash-preview"] as const;
+
 export const GEMINI_DATABASE_MODELS = [...GEMINI_MODELS, ...GEMINI_ZERO_QUOTA_MODELS] as const;
 
 export const GEMINI_MODEL_QUOTA_DEFAULTS = {
@@ -61,6 +63,10 @@ export function isGeminiModelName(value: string): value is GeminiModelName {
 
 export function isGeminiDatabaseModelName(value: string): value is GeminiDatabaseModelName {
   return (GEMINI_DATABASE_MODELS as readonly string[]).includes(value);
+}
+
+export function supportsGeminiStructuredOutputTools(modelName: string) {
+  return (GEMINI_STRUCTURED_OUTPUT_TOOL_MODELS as readonly string[]).includes(modelName);
 }
 
 export function formatGeminiModelQuota(value: GeminiModelName) {

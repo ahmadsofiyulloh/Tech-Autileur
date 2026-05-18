@@ -3,6 +3,7 @@ import {
   hasAffiliateProfilePromptRules,
   isAffiliateProfileAssetAnalysisReady,
 } from "@/lib/affiliate-profiles/readiness";
+import { isPromptMetadataComplete } from "@/lib/intake/metadata-essentials";
 
 export type PromptLaunchReadinessBlocker = {
   key:
@@ -27,6 +28,7 @@ export type PromptLaunchReadinessInput = {
   intakeSessionId: string | null;
   affiliateProfileId: string | null;
   hasReviewedMetadata: boolean;
+  reviewedMetadata?: unknown;
   sourceImageDriveItemRefId: string | null;
   affiliateProfile: AffiliateProfilePromptReadinessInput | null | undefined;
 };
@@ -117,10 +119,14 @@ export function getPromptLaunchReadiness(input: PromptLaunchReadinessInput): Pro
     }
   }
 
-  if (!input.hasReviewedMetadata) {
+  const hasCompleteReviewedMetadata =
+    input.hasReviewedMetadata &&
+    (input.reviewedMetadata === undefined || isPromptMetadataComplete(input.reviewedMetadata));
+
+  if (!hasCompleteReviewedMetadata) {
     blockers.push({
       key: "review_metadata",
-      label: "Review Gemini",
+      label: "Prompt Essentials",
       href: buildPromptReviewHref({
         affiliateProfileId: input.affiliateProfileId,
         intakeSessionId: input.intakeSessionId,

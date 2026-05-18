@@ -1,5 +1,9 @@
 import { INTAKE_VISION_PROMPT_VERSION, INTAKE_VISION_SCHEMA_VERSION } from "@/lib/intake/vision-contract";
-import { PROMPT_PACK_I2V_TIMELINE_WINDOWS } from "@/lib/prompts/prompt-pack-contract";
+import {
+  PROMPT_PACK_I2V_TIMELINE_WINDOWS,
+  PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+  PROMPT_PACK_VO_MAX_CHARS,
+} from "@/lib/prompts/prompt-pack-contract";
 
 type JsonSchema = {
   type: string | readonly string[];
@@ -9,6 +13,7 @@ type JsonSchema = {
   additionalProperties?: boolean;
   enum?: readonly string[];
   description?: string;
+  maxLength?: number;
 };
 
 const stringSchema = { type: "string" } as const;
@@ -130,20 +135,32 @@ export const GEMINI_INTAKE_VISION_RESPONSE_SCHEMA = {
     prompt_version: { type: "string", enum: [INTAKE_VISION_PROMPT_VERSION] },
     nama_produk: {
       ...stringSchema,
-      description: "Operator-reviewed Indonesian product name inferred from visible evidence.",
+      description: "Operator-reviewed Indonesian product name inferred from visible evidence or structured source facts. Must be non-empty.",
     },
     keyword_cari_etalase: {
       ...stringSchema,
-      description: "Short Indonesian shelf/search keyword derived from visible product context.",
+      description: "Short Indonesian shelf/search keyword derived from visible product context. Must be non-empty.",
     },
     deskripsi_visual: {
       ...stringSchema,
-      description: "Short Indonesian visual description from the product image.",
+      description: "Short Indonesian visual description from the product image. Must be non-empty.",
     },
-    use_case: stringSchema,
-    pain_point: stringSchema,
-    selling_angle: stringSchema,
-    target_viewer: stringSchema,
+    use_case: {
+      ...stringSchema,
+      description: "Specific Indonesian usage moment for this product. Must be non-empty.",
+    },
+    pain_point: {
+      ...stringSchema,
+      description: "Specific buyer problem this product helps solve. Must be non-empty.",
+    },
+    selling_angle: {
+      ...stringSchema,
+      description: "Strongest grounded product angle for affiliate content. Must be non-empty.",
+    },
+    target_viewer: {
+      ...stringSchema,
+      description: "Concrete Indonesian viewer persona likely to care about this product. Must be non-empty.",
+    },
     product_title: {
       ...stringSchema,
       description: "Best visible product title, copied exactly when shown in marketplace screenshots.",
@@ -331,7 +348,38 @@ const compactI2VTimelineSegmentSchema = {
       type: "string",
       enum: PROMPT_PACK_I2V_TIMELINE_WINDOWS,
     },
-    action: stringSchema,
+    action: {
+      ...stringSchema,
+      description:
+        "Veo I2V timeline action for this exact window. Use only @firstframe as the video reference. The 00:00-00:02 action must state that the VO hook starts immediately.",
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const compactI2VAudioSchema = {
+  type: "object",
+  required: ["voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
+  properties: {
+    voiceover_text: {
+      ...stringSchema,
+      maxLength: PROMPT_PACK_VO_MAX_CHARS,
+      description:
+        "Short Indonesian spoken UGC hook for 00:00-00:02, grounded in product facts and 120 characters or fewer.",
+    },
+    voiceover_timing: { type: "string", enum: ["00:00-00:02"] },
+    voice_style: {
+      ...stringSchema,
+      description: "Natural Indonesian UGC delivery style, not English marketing boilerplate.",
+    },
+    sfx_cues: {
+      ...stringSchema,
+      description: "Subtle product-relevant SFX that stays under VO.",
+    },
+    ambient_cues: {
+      ...stringSchema,
+      description: "Subtle native ambience that does not overpower VO.",
+    },
   },
   additionalProperties: false,
 } as const satisfies JsonSchema;
@@ -348,31 +396,68 @@ function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2") {
       "camera_motion",
       "continuity",
       "negative_prompt",
+      "audio",
     ],
     properties: {
       slot: { type: "string", enum: [slot] },
-      prompt_text: stringSchema,
+      prompt_text: {
+        ...stringSchema,
+        description:
+          'Veo image-to-video prompt text. Use only @firstframe as the video reference and include dialogue/audio guidance formatted as VO: "{audio.voiceover_text}".',
+      },
       duration_seconds: { type: "number" },
       timeline: {
         type: "array",
         items: compactI2VTimelineSegmentSchema,
       },
-      motion_prompt: stringSchema,
-      camera_motion: stringSchema,
+      motion_prompt: {
+        ...stringSchema,
+        description: "Motion guidance that compiles cleanly into structured Veo JSON using only @firstframe.",
+      },
+      camera_motion: {
+        ...stringSchema,
+        description: "Camera guidance for one continuous 8-second clip using only @firstframe.",
+      },
       continuity: {
         type: "object",
         required: ["first_frame_hint", "last_frame_hint"],
         properties: {
-          first_frame_hint: stringSchema,
-          last_frame_hint: stringSchema,
+          first_frame_hint: {
+            ...stringSchema,
+            description: "Continuity guidance anchored to @firstframe.",
+          },
+          last_frame_hint: {
+            ...stringSchema,
+            description:
+              "Legacy compatibility hint only. Keep it internal and do not make I2V instructions depend on another reference image.",
+          },
         },
         additionalProperties: false,
       },
-      negative_prompt: stringSchema,
+      negative_prompt: {
+        ...stringSchema,
+        description: "Negative prompt for Veo I2V without unsupported claims or second-reference instructions.",
+      },
+      audio: compactI2VAudioSchema,
     },
     additionalProperties: false,
   } as const satisfies JsonSchema;
 }
+
+const uploadCopySchema = {
+  type: "object",
+  required: ["shopee_caption", "shopee_tags", "shopee_caption_tags"],
+  properties: {
+    shopee_caption: stringSchema,
+    shopee_tags: stringSchema,
+    shopee_caption_tags: {
+      ...stringSchema,
+      maxLength: PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
+      description: "Shopee-ready caption plus tags, 150 characters or fewer total.",
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
 
 export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
   type: "object",
@@ -382,6 +467,7 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
     "i2v_prompts",
     "caption",
     "tags",
+    "upload_copy",
     "negative_prompt_rules",
     "consistency_rules",
   ],
@@ -470,6 +556,7 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
     },
     caption: stringSchema,
     tags: stringSchema,
+    upload_copy: uploadCopySchema,
     negative_prompt_rules: stringArraySchema,
     consistency_rules: stringArraySchema,
   },

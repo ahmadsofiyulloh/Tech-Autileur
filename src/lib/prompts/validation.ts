@@ -46,6 +46,8 @@ export const PROMPT_PACK_COMPACT_OUTPUT_KEYS = [
   "consistency_rules",
 ] as const;
 
+export const PROMPT_PACK_COMPACT_OUTPUT_OPTIONAL_KEYS = ["upload_copy"] as const;
+
 export type PromptPackStatus = (typeof PROMPT_PACK_STATUSES)[number];
 export type PromptClipKey = (typeof PROMPT_CLIP_KEYS)[number];
 
