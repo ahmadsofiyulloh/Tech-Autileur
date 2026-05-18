@@ -23,6 +23,8 @@ export type ProductListRow = {
   intake_status: string;
   created_at: string;
   created_at_label: string;
+  latest_activity_at: string | null;
+  latest_activity_label: string;
   thumbnail_url: string | null;
   href: string;
   continue_href: string | null;

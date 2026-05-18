@@ -3,6 +3,7 @@ import "server-only";
 import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { type DriveItemRecord } from "@/lib/server/drive-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatAppDateTime } from "@/lib/app-time";
 import {
   buildProductListHref,
   createPaginationState,
@@ -57,6 +58,7 @@ type PromptPackRecord = {
   product_id: string;
   prompt_code: string;
   status: string;
+  ai_task_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -68,6 +70,8 @@ type ContentRecord = {
   platform: string | null;
   hook_type: string | null;
   status: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type ClipJobRecord = {
@@ -85,6 +89,13 @@ type WorkspaceLabelRecord = {
   workspace_code: string;
   workspace_name: string;
   status: string;
+};
+
+type AiTaskRecord = {
+  id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ProductListPageInput = {
@@ -109,13 +120,6 @@ const PRODUCT_LIST_RELATION_CHUNK_SIZE = 150;
 
 function fieldValue(value: string | number | null | undefined) {
   return value ? String(value) : "";
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -334,34 +338,22 @@ function buildSearchText(parts: Array<string | null | undefined>) {
     .toLowerCase();
 }
 
-function stageRank(stage: ProductWorkflowStage) {
-  if (stage === "draft") {
-    return 5;
-  }
-
-  if (stage === "analysis") {
-    return 4;
-  }
-
-  if (stage === "prompt") {
-    return 3;
-  }
-
-  if (stage === "video") {
-    return 2;
-  }
-
-  return 1;
-}
-
-function timestampOf(value: { updated_at?: string | null; created_at?: string | null } | null | undefined) {
-  const rawValue = value?.updated_at ?? value?.created_at ?? "";
+function timestampOf(value: string | { updated_at?: string | null; created_at?: string | null } | null | undefined) {
+  const rawValue = typeof value === "string" ? value : value?.updated_at ?? value?.created_at ?? "";
   const timestamp = rawValue ? new Date(rawValue).getTime() : 0;
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function latestByTimestamp<T extends { updated_at?: string | null; created_at?: string | null }>(items: readonly T[]) {
   return [...items].sort((left, right) => timestampOf(right) - timestampOf(left))[0] ?? null;
+}
+
+function rawTimestamp(value: { updated_at?: string | null; created_at?: string | null } | null | undefined) {
+  return value?.updated_at ?? value?.created_at ?? null;
+}
+
+function latestActivityAt(items: Array<{ updated_at?: string | null; created_at?: string | null } | null | undefined>) {
+  return rawTimestamp(latestByTimestamp(items.filter(Boolean) as Array<{ updated_at?: string | null; created_at?: string | null }>));
 }
 
 function chunkValues<T>(values: readonly T[], size = PRODUCT_LIST_RELATION_CHUNK_SIZE) {
@@ -555,7 +547,7 @@ async function loadPromptPacks(input: { supabase: SupabaseServerClient; userId: 
   for (const productIds of chunkValues(input.productIds)) {
     const { data, error } = await input.supabase
       .from("prompt_packs")
-      .select("id, product_id, prompt_code, status, created_at, updated_at")
+      .select("id, product_id, prompt_code, status, ai_task_id, created_at, updated_at")
       .eq("user_id", input.userId)
       .in("product_id", productIds)
       .neq("status", "ARCHIVED")
@@ -571,13 +563,34 @@ async function loadPromptPacks(input: { supabase: SupabaseServerClient; userId: 
   return rows;
 }
 
+async function loadAiTasks(input: { supabase: SupabaseServerClient; userId: string; taskIds: string[] }) {
+  const rows: AiTaskRecord[] = [];
+
+  for (const taskIds of chunkValues(input.taskIds)) {
+    const { data, error } = await input.supabase
+      .from("ai_tasks")
+      .select("id, status, created_at, updated_at")
+      .eq("user_id", input.userId)
+      .in("id", taskIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...((data ?? []) as AiTaskRecord[]));
+  }
+
+  return rows;
+}
+
 async function loadContents(input: { supabase: SupabaseServerClient; userId: string; productIds: string[] }) {
   const rows: ContentRecord[] = [];
 
   for (const productIds of chunkValues(input.productIds)) {
     const { data, error } = await input.supabase
       .from("contents")
-      .select("id, product_id, content_code, platform, hook_type, status")
+      .select("id, product_id, content_code, platform, hook_type, status, created_at, updated_at")
       .eq("user_id", input.userId)
       .in("product_id", productIds)
       .neq("status", "ARCHIVED");
@@ -659,6 +672,7 @@ async function loadDriveItems(input: { supabase: SupabaseServerClient; userId: s
 
 function buildRows(input: {
   affiliateProfileId: string | null;
+  aiTasks: AiTaskRecord[];
   clipJobs: ClipJobRecord[];
   contents: ContentRecord[];
   intakeSessions: ProductIntakeSessionRecord[];
@@ -671,6 +685,7 @@ function buildRows(input: {
   const latestIntakeByProductId = new Map<string, ProductIntakeSessionRecord>();
   const latestVerifiedIntakeByProductId = new Map<string, ProductIntakeSessionRecord>();
   const promptPacksByProductId = groupByProductId(input.promptPacks);
+  const aiTaskMap = new Map(input.aiTasks.map((task) => [task.id, task]));
   const latestContentByProductId = new Map<string, ContentRecord[]>();
   const contentProductMap = new Map<string, string>();
   const latestGeneratedClipJobByProductId = new Map<string, ClipJobRecord>();
@@ -709,8 +724,22 @@ function buildRows(input: {
   return input.products.map((product) => {
     const latestIntake = latestIntakeByProductId.get(product.id) ?? null;
     const latestVerifiedIntake = latestVerifiedIntakeByProductId.get(product.id) ?? null;
-    const latestPromptPack = latestByTimestamp(promptPacksByProductId.get(product.id) ?? []);
+    const productPromptPacks = promptPacksByProductId.get(product.id) ?? [];
+    const productContents = latestContentByProductId.get(product.id) ?? [];
+    const productPromptTasks = productPromptPacks
+      .map((pack) => (pack.ai_task_id ? aiTaskMap.get(pack.ai_task_id) ?? null : null))
+      .filter((task): task is AiTaskRecord => Boolean(task));
+    const latestPromptPack = latestByTimestamp(productPromptPacks);
     const latestGeneratedClipJob = latestGeneratedClipJobByProductId.get(product.id) ?? null;
+    const latestActivity = latestActivityAt([
+      product,
+      latestIntake,
+      latestVerifiedIntake,
+      latestPromptPack,
+      latestGeneratedClipJob,
+      latestByTimestamp(productContents),
+      latestByTimestamp(productPromptTasks),
+    ]);
     const productWorkflowStatus = readWorkflowStatusJson(product.workflow_status_json);
     const promptReady = Boolean(latestPromptPack && isCompletedPromptPack(latestPromptPack.status));
     const hasDraftPromptPack = Boolean(latestPromptPack && isDraftPromptPack(latestPromptPack.status));
@@ -775,7 +804,9 @@ function buildRows(input: {
       product_status: product.status,
       intake_status: latestIntake?.status ?? "",
       created_at: product.created_at,
-      created_at_label: formatDate(product.created_at),
+      created_at_label: formatAppDateTime(product.created_at, "-"),
+      latest_activity_at: latestActivity,
+      latest_activity_label: formatAppDateTime(latestActivity, "-"),
       thumbnail_url: null,
       href: "",
       continue_href: continueHref,
@@ -856,8 +887,14 @@ export async function listProductListPage(input?: ProductListPageInput): Promise
     userId: user.id,
     contentIds: contents.map((content) => content.id),
   });
+  const aiTasks = await loadAiTasks({
+    supabase,
+    userId: user.id,
+    taskIds: uniqueTextValues(promptPacks.map((pack) => pack.ai_task_id)),
+  });
   const projectedRows = buildRows({
     affiliateProfileId: input?.affiliateProfileId ?? null,
+    aiTasks,
     clipJobs,
     contents,
     intakeSessions,
@@ -870,10 +907,10 @@ export async function listProductListPage(input?: ProductListPageInput): Promise
   const filteredRows = searchedRows.filter((row) => matchesProductFilter(row, filter) && matchesUploadFilter(row, input?.uploadFilter ?? null));
 
   filteredRows.sort((left, right) => {
-    const stageDiff = stageRank(right.workflow_stage) - stageRank(left.workflow_stage);
+    const activityDiff = timestampOf(right.latest_activity_at) - timestampOf(left.latest_activity_at);
 
-    if (stageDiff !== 0) {
-      return stageDiff;
+    if (activityDiff !== 0) {
+      return activityDiff;
     }
 
     return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();

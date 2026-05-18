@@ -420,7 +420,7 @@ export function ProductList({
                 <th>Produk</th>
                 <th>Keyword</th>
                 <th>Status</th>
-                <th>Dibuat</th>
+                <th>Update</th>
                 <th>Aksi</th>
               </tr>
             </thead>
@@ -445,7 +445,7 @@ export function ProductList({
                   <td>
                     <StatusBadge status={product.primary_status_label} />
                   </td>
-                  <td>{product.created_at_label}</td>
+                  <td>{product.latest_activity_label}</td>
                   <td>
                     <div className="product-row-actions product-row-actions--desktop">
                       <NativeLinkButton className={`compact ${product.continue_href ? "primary" : ""}`.trim()} href={product.continue_href ?? product.href}>
@@ -525,7 +525,7 @@ export function ProductList({
                   </div>
                 </div>
                 <div className="visual-list-card__footer">
-                  <span>{product.created_at_label}</span>
+                  <span>{product.latest_activity_label}</span>
                   {product.marketplace ? <span>{product.marketplace}</span> : null}
                 </div>
                 <div className="mobile-card-actions">

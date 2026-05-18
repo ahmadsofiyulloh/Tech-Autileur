@@ -503,6 +503,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
         })
       : null;
     const productDetailSearchParams = new URLSearchParams({ detail: row.product.id, tab: "metadata" });
+    productDetailSearchParams.set("q", row.product.product_name);
 
     if (requestedAffiliateProfileId) {
       productDetailSearchParams.set("affiliate_profile_id", requestedAffiliateProfileId);

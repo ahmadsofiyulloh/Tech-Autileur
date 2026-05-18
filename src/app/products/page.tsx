@@ -84,7 +84,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   }
 
   const selectedProductRow = productPage.rows.find((product) => product.id === selectedProductDetailId) ?? null;
-  const hasProductDetail = Boolean(selectedProductDetailId && selectedProductRow);
+  const hasProductDetail = Boolean(selectedProductDetailId);
   const productsCloseHref = buildProductListHref({
     affiliateProfileId: requestedAffiliateProfileId,
     filter: requestedFilter,
@@ -93,7 +93,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     showAllWorkspaces,
     uploadFilter: requestedUploadFilter,
   });
-  const productDetailHrefBase = selectedProductRow
+  const productDetailHrefBase = selectedProductDetailId
     ? buildProductListHref({
         affiliateProfileId: requestedAffiliateProfileId,
         detailId: selectedProductDetailId,
@@ -118,7 +118,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       <div className="operator-detail-layout__list">
         {shouldShowList ? (
           <ProductList
-            activeProductId={hasProductDetail ? selectedProductDetailId : null}
+            activeProductId={selectedProductDetailId || null}
             affiliateProfileId={requestedAffiliateProfileId}
             filter={requestedFilter}
             pagination={productPage.pagination}
@@ -142,17 +142,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         )}
       </div>
 
-      {selectedProductRow ? (
+      {selectedProductDetailId ? (
         <OperatorDetailDrawer
           ariaLabel="Detail produk"
           closeHref={productsCloseHref}
           subtitle={productDetailSubtitle}
-          title={selectedProductRow.product_name ?? "Detail produk"}
+          title={selectedProductRow?.product_name ?? "Detail produk"}
         >
           <ProductDetailPanel
             activeTab={selectedProductDetailTab}
             detailHrefBase={productDetailHrefBase}
-            productId={selectedProductRow.id}
+            productId={selectedProductDetailId}
           />
         </OperatorDetailDrawer>
       ) : null}
