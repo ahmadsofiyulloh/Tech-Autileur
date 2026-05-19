@@ -53,7 +53,7 @@ function isMobileUserAgent(userAgent: string) {
 }
 
 function isControllerPlaceholderEnabled() {
-  return true;
+  return false;
 }
 
 function formatActionTime(value: string | null | undefined) {
