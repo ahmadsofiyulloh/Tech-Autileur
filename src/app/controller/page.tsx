@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { headers } from "next/headers.js";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { Download, ExternalLink, FileJson, ListPlus, MonitorPlay, Plus, Save, Workflow, X, Zap } from "lucide-react";

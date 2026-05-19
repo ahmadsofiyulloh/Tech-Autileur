@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { cookies } from "next/headers.js";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import {

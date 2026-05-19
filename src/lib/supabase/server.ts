@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies } from "next/headers.js";
 import { getSupabaseConfig } from "./config";
 
 export async function createSupabaseServerClient() {
