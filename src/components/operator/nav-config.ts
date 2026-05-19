@@ -33,14 +33,14 @@ export const mobileNavItems = [
   { href: "/drive", label: "Drive", icon: HardDrive },
 ] satisfies OperatorNavItem[];
 
-export const desktopNavItems = [
+export const desktopNavItems: OperatorNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },
-  { href: "/controller", label: "Flow Control", icon: Workflow, badge: "Coming soon" },
+  { href: "/controller", label: "Flow Control", icon: Workflow },
   { href: "/drive", label: "Drive", icon: HardDrive },
-] satisfies OperatorNavItem[];
+];
 
 export const routeTitles = [
   { href: "/settings/affiliate-profiles", label: "Akun Affiliate", subtitle: "Persona dan aset workspace.", icon: Users },
@@ -53,7 +53,7 @@ export const routeTitles = [
   { href: "/prompts", label: "Paket Prompt", subtitle: "Editor prompt.", icon: FileText },
   { href: "/controller", label: "Flow Control", subtitle: "Eksekusi desktop.", icon: Workflow },
   { href: "/settings", label: "Pengaturan", subtitle: "Hub konfigurasi.", icon: Settings },
+  { href: "/settings/drive", label: "Drive", subtitle: "Koneksi Google Drive.", icon: HardDrive },
   { href: "/drive", label: "Drive", subtitle: "Folder aset.", icon: HardDrive },
-  { href: "/intake", label: "Intake", subtitle: "Upload dan analisis.", icon: Inbox },
   { href: "/outputs", label: "Output", subtitle: "Output tersimpan.", icon: Archive },
 ] satisfies OperatorRouteMeta[];

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function FlowSettingsPage() {
-  redirect("/settings");
+  redirect("/controller");
 }
