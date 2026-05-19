@@ -4,6 +4,12 @@ This backlog is the Claude Code CLI execution queue for the Vercel-inspired resp
 
 All tasks must preserve the PRD route, navigation, workflow, copy, storage, schema, and Controller/Flow locks. UI-002 is the first implementation task after the docs set is committed.
 
+## Current Phase Interpretation
+
+This redesign queue is valid only when interpreted with the current phase locks. Phase 1-only Controller redirect guidance is superseded where it conflicts with approved Phase 2 Controller reactivation. For any task touching Controller, Flow, Helper, prompt batch/queue, or Phase 2 production flow, `docs/PHASE_2_ARCHITECTURE_LOCK.md` is a required source of truth and wins for Controller/Helper-related work.
+
+Unless the Phase 2 lock explicitly approves otherwise, the mobile/workflow navigation locks still apply: mobile nav remains `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`; workflow navigation remains `Intake`, `Produk`, `Prompt`, `Drive`; Controller stays out of mobile/workflow navigation; `/flow` remains frozen; browser automation, Google Flow auto-submit, fake progress, mobile Flow queues, and unapproved primary mobile Flow UI remain forbidden.
+
 ## Foundation
 
 ## TASK UI-001 — Save Audit Handoff
@@ -78,13 +84,13 @@ Fix the highest-risk PRD drift before any visual redesign work.
 
 ### Scope
 
-Align root redirect, mobile nav order, desktop workflow nav, and frozen Controller access with the PRD.
+Align root redirect, mobile nav order, workflow nav, and Controller access with the current phase locks.
 
 ### Out of Scope
 
 - Controller redesign.
 - Controller backend deletion.
-- Flow UI reactivation.
+- Unapproved Flow UI reactivation.
 - Broad shell visual redesign.
 - Schema, migration, secret, or config changes.
 
@@ -99,27 +105,30 @@ Align root redirect, mobile nav order, desktop workflow nav, and frozen Controll
 - `docs/PRD_SOURCE_OF_TRUTH.md`
 - `docs/ARCHITECTURE_LOCK.md`
 - `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
+- `docs/PHASE_2_ARCHITECTURE_LOCK.md`
 - `docs/UI_UX_REDESIGN_SOURCE_OF_TRUTH.md`
 - `docs/UI_UX_REDESIGN_AUDIT.md`
 
 ### Implementation Notes
 
 - `/` must redirect to `/products/new`.
-- `/controller` must redirect to `/products/new` while frozen.
+- `/controller` must redirect to `/products/new` only while frozen by the active phase lock.
+- If Phase 2 Controller reactivation is active, defer desktop `/controller` behavior to `docs/PHASE_2_ARCHITECTURE_LOCK.md`.
+- Mobile `/controller` behavior must keep Controller out of mobile navigation and must not introduce a mobile Flow queue.
 - `/flow` already redirects; verify it remains unchanged.
 - Mobile nav order must be `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
 - Workflow nav labels are `Intake`, `Produk`, `Prompt`, `Drive`.
-- Remove `Flow Control` from Phase 1 workflow navigation.
+- Remove `Flow Control` and `Controller` from mobile/workflow navigation.
 - Do not delete retained Controller/Flow backend code.
 
 ### Acceptance Criteria
 
 - `/` redirects to `/products/new`.
-- `/controller` redirects to `/products/new`.
-- Desktop workflow nav does not expose `Flow Control`.
+- `/controller` follows the active phase lock: frozen redirect during Phase 1-only work, or approved desktop-only Controller behavior during Phase 2 reactivation.
+- Desktop workflow nav does not expose `Flow Control` or `Controller`.
 - Mobile bottom nav order matches the PRD exactly.
 - Settings gear behavior is unchanged: visible on non-Settings routes, hidden on `/settings`.
-- No Controller/Flow primary UI is introduced.
+- No unapproved Controller/Flow primary UI is introduced.
 
 ### Validation
 
@@ -149,7 +158,7 @@ npm run smoke:e2e
 
 ### Prompt For Claude
 
-Implement UI-002 only. Read the PRD, architecture lock, mobile lock, redesign source of truth, and audit. Update only the root redirect, frozen Controller route behavior, and nav config needed to match the PRD. Do not redesign Controller or expose Flow. Run lint, typecheck, and build.
+Implement UI-002 only. Read the PRD, architecture lock, mobile lock, Phase 2 architecture lock, redesign source of truth, and audit. Update only the root redirect, Controller route behavior required by the active phase lock, and nav config needed to preserve the mobile/workflow nav locks. Do not redesign Controller or expose Flow outside approved Phase 2 desktop behavior. Run lint, typecheck, and build.
 
 ## TASK UI-003 — Fix Design Token Audit Coverage
 
@@ -789,7 +798,7 @@ Polish prompt list/workbench, prompt detail panel, queue drawer presentation, an
 
 - Prompt generation contract changes.
 - New prompt output fields.
-- Flow batch UI exposure.
+- Unapproved Flow execution UI exposure from the prompt workbench.
 - Prompt detail route compliance; that is UI-015.
 - Schema, migration, secret, or config changes.
 
@@ -808,6 +817,7 @@ Polish prompt list/workbench, prompt detail panel, queue drawer presentation, an
 
 - `docs/PRD_SOURCE_OF_TRUTH.md`
 - `docs/PROMPT_PIPELINE_LOCK.md`
+- `docs/PHASE_2_ARCHITECTURE_LOCK.md`
 - `docs/UI_UX_REDESIGN_SOURCE_OF_TRUTH.md`
 - `docs/UI_UX_REDESIGN_AUDIT.md`
 
@@ -816,7 +826,8 @@ Polish prompt list/workbench, prompt detail panel, queue drawer presentation, an
 - Preserve `Paket Prompt`, `Prompt Clip 1`, `Prompt Clip 2`, `Caption`, `Tags`, `Target Marketplace`, and `Instruksi Revisi`.
 - Mobile remains card/sheet-oriented.
 - Desktop should reduce vertical card scanning.
-- Do not expose Controller readiness actions or Flow batch UI.
+- Do not expose Controller readiness actions or Flow execution UI from the prompt surface unless a Phase 2 task explicitly approves it.
+- Keep the ban on mobile Flow queues, browser automation, Google Flow auto-submit, fake progress, and unapproved primary mobile Flow UI.
 
 ### Acceptance Criteria
 
@@ -847,12 +858,12 @@ npm run build
 ### PR Rules
 
 - Do not change prompt contracts.
-- Do not add Flow/Controller primary UI.
+- Do not add unapproved Flow/Controller primary UI.
 - Confirm locked prompt labels remain unchanged.
 
 ### Prompt For Claude
 
-Implement UI-014 only. Redesign `/prompts` desktop density while preserving mobile behavior and all locked prompt labels/contracts. Do not expose Flow. Run audits, lint, typecheck, and build with screenshots.
+Implement UI-014 only. Redesign `/prompts` desktop density while preserving mobile behavior and all locked prompt labels/contracts. Do not expose Flow execution UI from the prompt surface unless the active Phase 2 task explicitly approves it, and do not add mobile Flow queue, browser automation, auto-submit, or fake progress. Run audits, lint, typecheck, and build with screenshots.
 
 ## TASK UI-015 — Prompt Detail Route Compliance
 
@@ -929,7 +940,7 @@ npm run smoke:e2e
 
 - Keep route compliance isolated.
 - Do not change prompt JSON contracts.
-- Confirm no Flow/Controller primary UI is introduced.
+- Confirm no unapproved Flow/Controller primary UI is introduced.
 
 ### Prompt For Claude
 
@@ -1213,6 +1224,7 @@ Pass through major route error, empty, loading, and overview copy touched by the
 ### Source of Truth
 
 - `docs/PRD_SOURCE_OF_TRUTH.md`
+- `docs/PHASE_2_ARCHITECTURE_LOCK.md`
 - `docs/UI_UX_REDESIGN_SOURCE_OF_TRUTH.md`
 - `docs/UI_UX_REDESIGN_AUDIT.md`
 
@@ -1221,14 +1233,15 @@ Pass through major route error, empty, loading, and overview copy touched by the
 - Preserve locked labels exactly.
 - Empty states and error states get one concise Indonesian sentence.
 - Do not add helper paragraphs.
-- If `/controller` redirects after UI-002, do not edit Controller copy.
+- If `/controller` is frozen and redirects after UI-002, do not edit Controller copy.
+- If `/controller` is active under the Phase 2 lock, any Controller copy pass must preserve desktop-only scope and avoid mobile Flow queue, browser automation, auto-submit, or fake progress claims.
 
 ### Acceptance Criteria
 
 - Major route states use concise Indonesian operational copy.
 - No verbose helper or marketing copy is added.
 - No locked prompt, nav, route, action, or field labels are changed.
-- Controller/Flow is not promoted through copy.
+- Controller/Flow is not promoted through copy outside approved Phase 2 desktop scope.
 
 ### Validation
 
@@ -1425,7 +1438,7 @@ Review the completed UI redesign and produce a final compliance note.
 - New UI implementation.
 - Schema or migration changes.
 - Secret, token, `.env`, or production config changes.
-- Controller/Flow reactivation.
+- New Controller/Flow reactivation work outside approved Phase 2 locks.
 
 ### Likely Files
 
@@ -1439,12 +1452,15 @@ Review the completed UI redesign and produce a final compliance note.
 - `docs/DO_NOT_BUILD.md`
 - `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
 - `docs/PROMPT_PIPELINE_LOCK.md`
+- `docs/PHASE_2_ARCHITECTURE_LOCK.md`
 - `docs/UI_UX_REDESIGN_SOURCE_OF_TRUTH.md`
 - `docs/UI_UX_REDESIGN_AUDIT.md`
 
 ### Implementation Notes
 
-- Review must explicitly check route redirects, nav labels/order, Settings gear, Intake lifecycle, Prompt labels, Drive constraints, Settings constraints, copy policy, and Controller/Flow dormancy.
+- Review must explicitly check route redirects, nav labels/order, Settings gear, Intake lifecycle, Prompt labels, Drive constraints, Settings constraints, copy policy, and Controller/Flow behavior against the current phase locks.
+- Phase 1-only Controller dormancy checks are superseded where `docs/PHASE_2_ARCHITECTURE_LOCK.md` approves desktop Controller reactivation.
+- The review must still confirm no mobile Flow queue, browser automation, Google Flow auto-submit, fake progress, or unapproved primary mobile Flow UI was introduced.
 - If a violation remains, document it as a blocker or follow-up.
 - Do not fix violations inside this review task unless the user explicitly approves.
 
@@ -1479,8 +1495,8 @@ npm run smoke:e2e
 
 - Docs/review-focused.
 - Do not implement new UI in this task.
-- Confirm no Controller/Flow primary UI was introduced.
+- Confirm no unapproved Controller/Flow primary UI was introduced.
 
 ### Prompt For Claude
 
-Implement UI-032 only. Perform a final PRD compliance review of the completed UI redesign. Create a concise final review document with exact files for any remaining issues. Do not implement UI changes in this task.
+Implement UI-032 only. Perform a final compliance review of the completed UI redesign against the current phase locks, including the Phase 2 architecture lock for Controller/Helper-related behavior. Create a concise final review document with exact files for any remaining issues. Do not implement UI changes in this task.
