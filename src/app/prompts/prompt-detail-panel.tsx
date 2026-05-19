@@ -136,12 +136,12 @@ export async function PromptDetailPanel({ detailHref, promptPackId }: PromptDeta
   const promptTaskStatus = promptTask?.status ?? promptPack.status;
   const isPromptGenerationPending = ["QUEUED", "GENERATING", "WAITING_FOR_KEY", "RETRYING"].includes(promptTaskStatus);
   return (
-    <div className="stack operator-detail-panel">
+    <div className="stack operator-detail-panel prompt-detail-panel">
       {promptErrorMessage ? <section className="error-box">{promptErrorMessage}</section> : null}
 
       {isPromptGenerationPending ? <PromptGenerationMonitor enabled promptPackId={promptPack.id} /> : null}
 
-      <SectionCard icon={FileText} title="Output Siap Copy">
+      <SectionCard className="prompt-detail-section prompt-detail-section--output" icon={FileText} title="Output Siap Copy">
         {isPromptGenerationPending ? (
           <>
             <SkeletonPromptDetailContent />
@@ -191,7 +191,7 @@ export async function PromptDetailPanel({ detailHref, promptPackId }: PromptDeta
         )}
       </SectionCard>
 
-      <SectionCard icon={RefreshCcw} title="Regenerate Prompt">
+      <SectionCard className="prompt-detail-section prompt-detail-section--regenerate" icon={RefreshCcw} title="Regenerate Prompt">
         {isPromptGenerationPending ? (
           <SkeletonPromptDetailRegenerate />
         ) : (

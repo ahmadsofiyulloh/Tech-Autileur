@@ -95,8 +95,8 @@ export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
   const shopeeCaptionTags = readStoredShopeeCaptionTags(pack);
 
   return (
-    <div className="stack">
-      <section className="grid two-up" aria-label="Caption, tags, dan copy Shopee">
+    <div className="stack prompt-output-fields prompt-output-fields--prompt-pack">
+      <section className="grid two-up prompt-output-copy-grid" aria-label="Caption, tags, dan copy Shopee">
         <PromptReadOnlyField label="Caption" value={promptSet.caption} />
         <PromptReadOnlyField label="Tags" value={promptSet.tags} />
         <CopyableReadOnlyField label="Shopee Caption+Tags" value={shopeeCaptionTags} emptyLabel="Belum ada" />

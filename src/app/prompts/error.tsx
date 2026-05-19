@@ -1,23 +1,22 @@
 "use client";
 
-import { FormActions } from "@/components/operator/form-actions";
-import { SectionCard } from "@/components/operator/section-card";
+import { ErrorState } from "@/components/operator/error-state";
 import { NativeButton } from "@/components/ui/native-button";
 
 export default function PromptsError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   return (
-    <SectionCard title="Prompt tidak tersedia." description={error.message}>
-      <FormActions layout="single">
+    <ErrorState
+      title="Paket Prompt tidak tersedia."
+      action={
         <NativeButton className="primary" type="button" onClick={reset}>
           Coba lagi
         </NativeButton>
-      </FormActions>
-    </SectionCard>
+      }
+    />
   );
 }

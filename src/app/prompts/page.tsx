@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, ArrowRight, FileText, Package, Plus, Search, X } from "lucide-react";
 import { OperatorDetailDrawer } from "@/components/operator/detail-drawer";
 import { EmptyState } from "@/components/operator/empty-state";
-import { SectionCard } from "@/components/operator/section-card";
+import { ErrorState } from "@/components/operator/error-state";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
@@ -325,22 +325,12 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       requestedIntakeId ? loadSelectedIntakeProductId(supabase, user.id, requestedIntakeId) : Promise.resolve(null),
       listPromptQueueSnapshot({ workspaceId }),
     ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Prompt tidak tersedia.";
-
-    return (
-      <SectionCard icon={FileText} title="Paket Prompt tidak tersedia." description={message}>
-        <EmptyState icon={FileText} title="Prompt tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
+  } catch {
+    return <ErrorState icon={FileText} title="Paket Prompt tidak tersedia." />;
   }
 
   if (!promptPage) {
-    return (
-      <SectionCard icon={FileText} title="Paket Prompt tidak tersedia." description="Prompt tidak tersedia.">
-        <EmptyState icon={FileText} title="Prompt tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
+    return <ErrorState icon={FileText} title="Paket Prompt tidak tersedia." />;
   }
 
   const promptPageData = promptPage;
@@ -400,11 +390,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     : { data: [], error: null };
 
   if (promptTaskResult.error) {
-    return (
-      <SectionCard icon={FileText} title="Task tidak tersedia." description={promptTaskResult.error.message}>
-        <EmptyState icon={FileText} title="Task tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
+    return <ErrorState icon={FileText} title="Paket Prompt tidak tersedia." />;
   }
 
   const promptTaskRows = (promptTaskResult.data ?? []) as PromptTaskRecord[];
@@ -416,11 +402,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     : { data: [], error: null };
 
   if (geminiKeyResult.error) {
-    return (
-      <SectionCard icon={FileText} title="Gemini key tidak tersedia." description={geminiKeyResult.error.message}>
-        <EmptyState icon={FileText} title="Gemini key tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
+    return <ErrorState icon={FileText} title="Paket Prompt tidak tersedia." />;
   }
 
   const geminiKeys = (geminiKeyResult.data ?? []) as GeminiKeyRecord[];

@@ -19,7 +19,7 @@ import {
 import type { PromptQueueSnapshot, PromptQueueSummary } from "@/lib/prompts/prompt-queue-contract";
 import { bulkEnqueuePromptPacks, cancelPromptPackGeneration, savePromptPack } from "./actions";
 
-const PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY = "(min-width: 861px)";
+const PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 const CONTENT_VARIANT_OPTIONS = Object.values(CONTENT_VARIANTS);
 const BULK_VARIANT_SELECTABLE_PROMPT_STATUSES = new Set([
   "READY_FOR_PROMPT",
@@ -191,9 +191,11 @@ function PromptWorkbenchRowCard({
   intakeSession,
   affiliateProfile,
   sourceImage,
+  sourceImageDriveItem,
   generationTask,
   promptReadiness,
   latest_activity_label,
+  defaultAffiliateProfileName,
   selected,
   onToggleSelected,
   productContinueHref,
@@ -223,6 +225,9 @@ function PromptWorkbenchRowCard({
   const continueHref = !promptPack && !promptLaunchReadiness.ready ? productContinueHref : null;
   const productActionHref = continueHref ?? productDetailHref;
   const productActionLabel = continueHref ? "Lanjutkan" : "Detail";
+  const affiliateProfileLabel = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
+  const sourceImageLabel = sourceImageDriveItem?.name ?? (sourceImage?.drive_item_ref_id ? "Gambar Drive" : "Gambar belum ada");
+  const taskLabel = generationTask?.status ?? (promptPack ? promptPack.status : "Belum dibuat");
   const renderProductAction = () => (
     <>
       <NativeLinkButton className="compact primary" href={productActionHref}>
@@ -266,6 +271,21 @@ function PromptWorkbenchRowCard({
           <small>{latest_activity_label}</small>
         </div>
         <StatusBadge status={statusLabel} size="sm" />
+      </div>
+
+      <div className="prompt-list-card__desktop-context desktop-action-set" aria-label="Konteks prompt">
+        <span>
+          <small>Profil</small>
+          <strong title={affiliateProfileLabel}>{affiliateProfileLabel}</strong>
+        </span>
+        <span>
+          <small>Gambar</small>
+          <strong title={sourceImageLabel}>{sourceImageLabel}</strong>
+        </span>
+        <span>
+          <small>Task</small>
+          <strong>{taskLabel}</strong>
+        </span>
       </div>
 
       {isSelectable ? (
@@ -616,6 +636,12 @@ export function PromptWorkbenchList({
       </div>
 
       <section className="stack prompt-list-stack">
+        <div className="prompt-workbench-table-head desktop-action-set" aria-hidden="true">
+          <span>Produk</span>
+          <span>Konteks</span>
+          <span>Pilih</span>
+          <span>Aksi</span>
+        </div>
         {renderedRows.map((row) => (
           <PromptWorkbenchRowCard
             {...row}
