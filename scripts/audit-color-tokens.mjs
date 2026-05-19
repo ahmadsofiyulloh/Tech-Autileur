@@ -29,20 +29,68 @@ async function walk(directory) {
   return files;
 }
 
-function collectLiteralViolations(text, filePath) {
-  const violations = [];
-  const lines = text.split(/\r?\n/);
+function getLineAndColumn(text, index) {
+  const beforeMatch = text.slice(0, index);
+  const lines = beforeMatch.split(/\r?\n/);
 
-  for (const [index, line] of lines.entries()) {
-    colorPattern.lastIndex = 0;
-    const match = colorPattern.exec(line);
-    if (!match) {
+  return {
+    line: lines.length,
+    column: lines.at(-1).length + 1,
+  };
+}
+
+function collectCssBlockRanges(text, selectorPattern) {
+  const ranges = [];
+  let match;
+
+  selectorPattern.lastIndex = 0;
+
+  while ((match = selectorPattern.exec(text)) !== null) {
+    let braceDepth = 0;
+
+    for (let index = match.index; index < text.length; index += 1) {
+      const char = text[index];
+
+      if (char === "{") {
+        braceDepth += 1;
+        continue;
+      }
+
+      if (char === "}") {
+        braceDepth -= 1;
+
+        if (braceDepth === 0) {
+          ranges.push([match.index, index + 1]);
+          selectorPattern.lastIndex = index + 1;
+          break;
+        }
+      }
+    }
+  }
+
+  return ranges;
+}
+
+function isInsideRange(index, ranges) {
+  return ranges.some(([start, end]) => index >= start && index < end);
+}
+
+function collectLiteralViolations(text, filePath, allowedRanges = []) {
+  const violations = [];
+
+  colorPattern.lastIndex = 0;
+
+  for (const match of text.matchAll(colorPattern)) {
+    if (isInsideRange(match.index, allowedRanges)) {
       continue;
     }
 
+    const location = getLineAndColumn(text, match.index);
+
     violations.push({
       filePath,
-      line: index + 1,
+      line: location.line,
+      column: location.column,
       match: match[0],
     });
   }
@@ -51,48 +99,9 @@ function collectLiteralViolations(text, filePath) {
 }
 
 function collectGlobalsCssViolations(text, filePath) {
-  const violations = [];
-  const lines = text.split(/\r?\n/);
-  let braceDepth = 0;
-  let rootDepth = null;
-  let inRootBlock = false;
+  const tokenBlockRanges = collectCssBlockRanges(text, /:root(?:\[[^\]]+\])?\s*\{/g);
 
-  for (const [index, line] of lines.entries()) {
-    const enteringRoot = /^\s*:root\s*\{/.test(line) && !inRootBlock;
-    const lineAllowsLiterals = inRootBlock || enteringRoot;
-
-    colorPattern.lastIndex = 0;
-    const match = colorPattern.exec(line);
-    if (match && !lineAllowsLiterals) {
-      violations.push({
-        filePath,
-        line: index + 1,
-        match: match[0],
-      });
-    }
-
-    for (const char of line) {
-      if (char === "{") {
-        braceDepth += 1;
-        continue;
-      }
-
-      if (char === "}") {
-        braceDepth -= 1;
-        if (inRootBlock && rootDepth !== null && braceDepth === rootDepth) {
-          inRootBlock = false;
-          rootDepth = null;
-        }
-      }
-    }
-
-    if (enteringRoot) {
-      inRootBlock = true;
-      rootDepth = braceDepth - 1;
-    }
-  }
-
-  return violations;
+  return collectLiteralViolations(text, filePath, tokenBlockRanges);
 }
 
 function validateLayoutThemeColor(text, filePath) {
@@ -136,7 +145,7 @@ async function main() {
   if (violations.length > 0) {
     console.error("Hardcoded color audit failed.");
     for (const violation of violations) {
-      console.error(`${path.relative(projectRoot, violation.filePath)}:${violation.line} -> ${violation.match}`);
+      console.error(`${path.relative(projectRoot, violation.filePath)}:${violation.line}:${violation.column} -> ${violation.match}`);
     }
     process.exitCode = 1;
     return;
