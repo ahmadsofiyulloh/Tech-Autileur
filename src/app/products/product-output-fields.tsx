@@ -21,7 +21,7 @@ type ProductOutputFieldsProps = {
 };
 
 function toneForSummaryStatus(status: string) {
-  if (status === "Output Siap" || status === "Metadata Ready") {
+  if (status === "Output Siap" || status === "Metadata Siap") {
     return "success" as const;
   }
 
@@ -54,9 +54,9 @@ export function ProductOutputFields({
   legacyClipRows,
 }: ProductOutputFieldsProps) {
   return (
-    <div className="stack">
-      <div className="section-card__actions">
-        <span className="subtle">Read-only output</span>
+    <div className="stack product-output-fields">
+      <div className="section-card__actions product-output-fields__status">
+        <span className="subtle">Siap copy</span>
         <StatusBadge status={status} tone={toneForSummaryStatus(status)} />
       </div>
 
@@ -81,9 +81,9 @@ export function ProductOutputFields({
 
       {legacyClipRows.length ? (
         <details className="prompt-output-section">
-          <summary>Legacy clip data</summary>
+          <summary>Clip output</summary>
           <div className="prompt-output-section__body">
-            <section className="grid two-up" aria-label="Legacy clip controller data">
+            <section className="grid two-up product-output-clip-grid" aria-label="Status clip output">
               {legacyClipRows.map((row) => (
                 <div className="muted-box stack-tight" key={row.label}>
                   <div className="section-card__actions">

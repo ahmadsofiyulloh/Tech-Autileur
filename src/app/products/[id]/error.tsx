@@ -1,23 +1,41 @@
 "use client";
 
-import { FormActions } from "@/components/operator/form-actions";
-import { SectionCard } from "@/components/operator/section-card";
-import { NativeButton } from "@/components/ui/native-button";
+import { ArrowLeft, Package } from "lucide-react";
+import { ErrorState } from "@/components/operator/error-state";
+import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 
 export default function ProductDetailError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   return (
-    <SectionCard title="Unable to load product detail." description={error.message}>
-      <FormActions layout="single">
-        <NativeButton className="primary" type="button" onClick={reset}>
-          Retry
-        </NativeButton>
-      </FormActions>
-    </SectionCard>
+    <div className="product-detail-route stack">
+      <section className="product-detail-route__surface" aria-label="Detail produk">
+        <header className="product-detail-route__header">
+          <div className="product-detail-route__heading">
+            <span>Produk</span>
+            <h1>Detail produk</h1>
+          </div>
+          <NativeLinkButton className="compact tertiary" href="/products">
+            <ArrowLeft size={16} aria-hidden="true" />
+            Produk
+          </NativeLinkButton>
+        </header>
+        <div className="product-detail-route__body">
+          <ErrorState
+            icon={Package}
+            title="Detail produk tidak bisa dimuat."
+            description="Coba lagi."
+            action={
+              <NativeButton className="primary" type="button" onClick={reset}>
+                Coba lagi
+              </NativeButton>
+            }
+          />
+        </div>
+      </section>
+    </div>
   );
 }

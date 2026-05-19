@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { NativeLinkButton } from "@/components/ui/native-button";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ProductDetailPanel, resolveProductDetailTab } from "../product-detail-panel";
 
-type ProductDetailRedirectPageProps = {
+export const dynamic = "force-dynamic";
+
+type ProductDetailPageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -9,24 +15,37 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function ProductDetailRedirectPage({ params, searchParams }: ProductDetailRedirectPageProps) {
+export default async function ProductDetailPage({ params, searchParams }: ProductDetailPageProps) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const targetSearchParams = new URLSearchParams({ detail: id });
-  const tab = firstParam(query.tab);
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (tab === "prompt_pack") {
-    targetSearchParams.set("tab", "history");
-  } else if (tab) {
-    targetSearchParams.set("tab", tab);
+  if (!user) {
+    redirect("/login");
   }
 
-  for (const key of ["affiliate_profile_id", "workspace", "message", "warning", "error"]) {
-    const value = firstParam(query[key]);
+  const activeTab = resolveProductDetailTab(firstParam(query.tab));
+  const detailHrefBase = `/products/${encodeURIComponent(id)}`;
 
-    if (value) {
-      targetSearchParams.set(key, value);
-    }
-  }
-
-  redirect(`/products?${targetSearchParams.toString()}`);
+  return (
+    <div className="product-detail-route stack">
+      <section className="product-detail-route__surface" aria-label="Detail produk">
+        <header className="product-detail-route__header">
+          <div className="product-detail-route__heading">
+            <span>Produk</span>
+            <h1>Detail produk</h1>
+          </div>
+          <NativeLinkButton className="compact tertiary" href="/products">
+            <ArrowLeft size={16} aria-hidden="true" />
+            Produk
+          </NativeLinkButton>
+        </header>
+        <div className="product-detail-route__body">
+          <ProductDetailPanel activeTab={activeTab} detailHrefBase={detailHrefBase} productId={id} />
+        </div>
+      </section>
+    </div>
+  );
 }

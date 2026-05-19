@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Archive, Clock3, ExternalLink, FileText, Package } from "lucide-react";
+import { Clock3, ExternalLink, FileText, Package } from "lucide-react";
 import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { EmptyState } from "@/components/operator/empty-state";
+import { ErrorState } from "@/components/operator/error-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeAnchorButton, NativeLinkButton } from "@/components/ui/native-button";
@@ -156,6 +157,10 @@ function OcrCopyFields({ evidence, platform }: { evidence: OcrEvidenceView; plat
 
 export function resolveProductDetailTab(value: string | string[] | undefined): ProductDetailTab {
   const tab = Array.isArray(value) ? value[0] : value;
+  if (tab === "prompt_pack") {
+    return "history";
+  }
+
   return productDetailTabs.some((item) => item.key === tab) ? (tab as ProductDetailTab) : "output";
 }
 
@@ -218,7 +223,7 @@ function resolveOutputSummaryStatus(input: {
   }
 
   if (input.hasMetadata && !input.hasPromptOutput && !input.hasFolderDrive) {
-    return "Metadata Ready";
+    return "Metadata Siap";
   }
 
   if (input.hasMetadata && input.hasPromptOutput && input.hasFolderDrive) {
@@ -226,22 +231,6 @@ function resolveOutputSummaryStatus(input: {
   }
 
   return "Output Parsial";
-}
-
-function toneForFileStatus(status: string) {
-  if (status === "MATCHED" || status === "IMPORTED") {
-    return "success" as const;
-  }
-
-  if (status === "NEEDS_REVIEW") {
-    return "warning" as const;
-  }
-
-  if (status === "ERROR") {
-    return "danger" as const;
-  }
-
-  return "info" as const;
 }
 
 export async function ProductDetailPanel({ activeTab, detailHrefBase, productId }: ProductDetailPanelProps) {
@@ -287,14 +276,10 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
       listClipJobs({ limit: 200 }),
       listGeneratedFiles({ limit: 200 }),
     ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load product detail.";
-
+  } catch {
     return (
       <div className="stack">
-        <SectionCard icon={Package} title="Unable to load product detail." description={message}>
-          <EmptyState icon={Package} title="Detail unavailable." description="Try again." />
-        </SectionCard>
+        <ErrorState icon={Package} title="Detail produk tidak bisa dimuat." description="Coba lagi." />
       </div>
     );
   }
@@ -406,12 +391,10 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
     hasFolderDrive: Boolean(outputFolderDrive),
   });
   const hasLegacyClipData = outputContents.length > 0;
-  const hasTechnicalHistoryDetails = Boolean(relevantClipJobs.length || relevantGeneratedFiles.length);
-
   const timelineItems = [
     {
       at: product.created_at,
-      title: "Product created",
+      title: "Produk dibuat",
       description: product.product_name,
       status: product.status,
     },
@@ -419,47 +402,47 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
       ? [
           {
             at: product.updated_at,
-            title: "Product updated",
-            description: "Product metadata changed.",
+            title: "Produk diperbarui",
+            description: "Metadata produk berubah.",
             status: product.status,
           },
         ]
       : []),
     ...intakeSessions.map((session) => ({
       at: session.created_at,
-      title: "Intake saved",
+      title: "Intake disimpan",
       description: session.product_title ?? "Intake",
       status: session.status,
     })),
     ...visiblePromptPacks.map((pack) => ({
       at: pack.created_at,
-      title: "Prompt pack",
-      description: `Version ${pack.version}`,
+      title: "Paket Prompt",
+      description: `Versi ${pack.version}`,
       status: pack.status,
     })),
     ...relevantClipJobs.map((clipJob) => ({
       at: clipJob.created_at,
-      title: "Clip job",
-      description: `Version ${clipJob.version}`,
+      title: "Clip diproses",
+      description: `Versi ${clipJob.version}`,
       status: clipJob.status,
     })),
     ...relevantGeneratedFiles.map((generatedFile) => ({
       at: generatedFile.imported_at ?? generatedFile.created_at,
-      title: "Generated file",
+      title: "File output",
       description: generatedFile.file_name,
       status: generatedFile.match_status,
     })),
     ...anchors.map((anchor) => ({
       at: anchor.created_at,
-      title: "Anchor",
-      description: `Version ${anchor.version}`,
+      title: "Acuan produk",
+      description: `Versi ${anchor.version}`,
       status: anchor.status,
     })),
   ].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
 
   return (
     <div className="stack operator-detail-panel">
-      <nav className="tab-nav tab-nav--flush" aria-label="Product detail tabs">
+      <nav className="tab-nav tab-nav--flush" aria-label="Tab detail produk">
         {productDetailTabs.map((tab) => {
           const tabSearchParams = new URLSearchParams(detailHrefBase.split("?")[1] ?? "");
           const pathname = detailHrefBase.split("?")[0] || "/products";
@@ -480,7 +463,7 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
       </nav>
 
       {activeTab === "output" ? (
-        <section className="stack">
+        <section className="stack product-detail-tab-content">
           <SectionCard
             actions={
               marketplaceProductLink ? (
@@ -507,7 +490,7 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
       ) : null}
 
       {activeTab === "metadata" ? (
-        <section className="stack">
+        <section className="stack product-detail-tab-content">
           {hasMetadataOcrEvidence ? (
             <section className="prompt-output-grid metadata-ocr-fields" aria-label="OCR screenshot">
               {shopeeOcrEvidence ? <OcrCopyFields evidence={shopeeOcrEvidence} platform="Shopee" /> : null}
@@ -520,7 +503,7 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
       ) : null}
 
       {activeTab === "history" ? (
-        <section className="stack">
+        <section className="stack product-detail-tab-content">
           <SectionCard icon={Clock3} title="History">
             <ol className="timeline">
               {timelineItems.map((item, index) => (
@@ -536,7 +519,7 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
             </ol>
           </SectionCard>
 
-          <SectionCard icon={FileText} title="Prompt pack versions">
+          <SectionCard icon={FileText} title="Versi Paket Prompt">
             {visiblePromptPacks.length ? (
               <ul className="list">
                 {visiblePromptPacks.map((pack) => {
@@ -557,12 +540,12 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
                       sourceDriveItem?.name ?? null,
                     ]
                       .filter(Boolean)
-                      .join(" - ") || "No source image selected.";
+                      .join(" - ") || "Gambar sumber belum dipilih.";
 
                   return (
                     <li key={pack.id}>
                       <div className="stack-tight">
-                        <strong>{`Version ${pack.version}`}</strong>
+                        <strong>{`Versi ${pack.version}`}</strong>
                         <span className="subtle">{description}</span>
                         {pack.error_message ? <span className="error-box">{pack.error_message}</span> : null}
                       </div>
@@ -580,75 +563,9 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
                 })}
               </ul>
             ) : (
-              <EmptyState icon={FileText} title="No prompt packs yet." description="Belum ada prompt pack." />
+              <EmptyState icon={FileText} title="Belum ada paket prompt." description="Buat prompt dari produk ini." />
             )}
           </SectionCard>
-          {hasTechnicalHistoryDetails ? (
-            <details>
-              <summary>Detail teknis</summary>
-              <div className="stack product-detail-collection">
-                {relevantClipJobs.length ? (
-                  <SectionCard icon={FileText} title="Clip jobs">
-                    <ul className="list">
-                      {[...relevantClipJobs]
-                        .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-                        .map((clipJob) => {
-                          const generatedFile = generatedFilesByClipJobId.get(clipJob.id)?.[0] ?? null;
-                          const generatedDriveItem = generatedFile ? driveItemMap.get(generatedFile.drive_item_id) ?? null : null;
-
-                          return (
-                            <li key={clipJob.id}>
-                              <div className="stack-tight">
-                                <strong>Clip job</strong>
-                                <span className="subtle">{`Version ${clipJob.version}`}</span>
-                                <span className="subtle">{clipJob.prompt_prefix}</span>
-                                {generatedDriveItem ? (
-                                  <a href={generatedDriveItem.drive_url} target="_blank" rel="noreferrer">
-                                    {generatedDriveItem.name}
-                                  </a>
-                                ) : null}
-                              </div>
-                              <StatusBadge status={clipJob.status} />
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  </SectionCard>
-                ) : null}
-
-                {relevantGeneratedFiles.length ? (
-                  <SectionCard icon={Archive} title="Generated files">
-                    <ul className="list">
-                      {[...relevantGeneratedFiles]
-                        .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-                        .map((generatedFile) => {
-                          const clipJob = generatedFile.clip_job_id ? clipJobMap.get(generatedFile.clip_job_id) ?? null : null;
-                          const driveItem = driveItemMap.get(generatedFile.drive_item_id) ?? null;
-
-                          return (
-                            <li key={generatedFile.id}>
-                              <div className="stack-tight">
-                                <strong>{generatedFile.file_name}</strong>
-                                <span className="subtle">
-                                  {[clipJob ? "Clip job" : null, driveItem?.drive_path].filter(Boolean).join(" - ")}
-                                </span>
-                                {generatedFile.imported_at ? <span className="subtle">Imported {formatDate(generatedFile.imported_at)}</span> : null}
-                                {driveItem ? (
-                                  <a href={driveItem.drive_url} target="_blank" rel="noreferrer">
-                                    {driveItem.name}
-                                  </a>
-                                ) : null}
-                              </div>
-                              <StatusBadge status={generatedFile.match_status} tone={toneForFileStatus(generatedFile.match_status)} />
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  </SectionCard>
-                ) : null}
-              </div>
-            </details>
-          ) : null}
         </section>
       ) : null}
     </div>

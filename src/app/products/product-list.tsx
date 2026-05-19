@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Edit3, FileText, Package, Plus, Search, X } from "lucide-react";
+import { ActionToolbar } from "@/components/operator/action-toolbar";
+import { EmptyState } from "@/components/operator/empty-state";
+import { FilterChips } from "@/components/operator/filter-chips";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { MediaThumbnailFrame } from "@/components/operator/media-thumbnail-frame";
+import { SearchInput } from "@/components/operator/search-input";
 import { StatusBadge } from "@/components/operator/status-badge";
 import {
   buildProductListHref,
@@ -201,6 +205,7 @@ export function ProductList({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const desktopColumnCount = isDetailMode ? 3 : 5;
 
   useEffect(() => {
     setMobileRows(products.slice(0, PRODUCT_LIST_MOBILE_PAGE_SIZE));
@@ -328,94 +333,96 @@ export function ProductList({
   return (
     <section className="product-master" aria-label="Daftar produk" data-has-detail={isDetailMode ? "true" : undefined}>
       <div className="product-master__list stack">
-        <form className="settings-list-toolbar product-list-toolbar" action="/products" method="get">
+        <ActionToolbar
+          action="/products"
+          method="get"
+          controlsClassName="product-list-toolbar"
+          search={<SearchInput id="product-search" name="q" label="Cari produk" placeholder="Cari produk" defaultValue={search} />}
+          actions={
+            <>
+              <NativeButton className="compact primary" type="submit">
+                <Search size={15} aria-hidden="true" />
+                Cari
+              </NativeButton>
+              {search ? (
+                <NativeLinkButton
+                  className="compact tertiary"
+                  href={buildProductListHref({
+                    affiliateProfileId,
+                    filter,
+                    showAllWorkspaces,
+                    uploadFilter,
+                  })}
+                >
+                  <X size={15} aria-hidden="true" />
+                  Bersihkan
+                </NativeLinkButton>
+              ) : null}
+            </>
+          }
+          summary={`${pagination.totalCount} hasil`}
+          primaryAction={
+            <NativeLinkButton className="compact primary" href="/products/new">
+              <Plus size={15} aria-hidden="true" />
+              Intake baru
+            </NativeLinkButton>
+          }
+        >
           {showAllWorkspaces ? <input type="hidden" name="workspace" value="all" /> : null}
           {affiliateProfileId ? <input type="hidden" name="affiliate_profile_id" value={affiliateProfileId} /> : null}
           {filter !== "all" ? <input type="hidden" name="filter" value={filter} /> : null}
           {uploadFilter ? <input type="hidden" name="upload" value={uploadFilter} /> : null}
           <input type="hidden" name="page" value="1" />
-          <label className="product-search" htmlFor="product-search">
-            <Search size={16} aria-hidden="true" />
-            <input id="product-search" name="q" aria-label="Cari produk" placeholder="Cari produk" defaultValue={search} />
-          </label>
-          <NativeButton className="compact primary" type="submit">
-            <Search size={15} aria-hidden="true" />
-            Cari
-          </NativeButton>
-          {search ? (
-            <NativeLinkButton
-              className="compact tertiary"
-              href={buildProductListHref({
-                affiliateProfileId,
-                filter,
-                showAllWorkspaces,
-                uploadFilter,
-              })}
-            >
-              <X size={15} aria-hidden="true" />
-              Bersihkan
-            </NativeLinkButton>
-          ) : null}
-        </form>
-
-        <div className="settings-inline-summary">
-          <span>{pagination.totalCount} hasil</span>
-          <NativeLinkButton className="compact primary" href="/products/new">
-            <Plus size={15} aria-hidden="true" />
-            Intake baru
-          </NativeLinkButton>
-        </div>
+        </ActionToolbar>
 
         <div className="product-filter-stack">
-          <div className="content-filter-tabs" role="tablist" aria-label="Filter produk">
-            {PRODUCT_LIST_FILTERS.map((targetFilter) => (
-              <NativeLinkButton
-                aria-selected={filter === targetFilter.key}
-                className="content-filter-tab"
-                data-active={filter === targetFilter.key ? "true" : undefined}
-                href={buildProductListHref({
+          <FilterChips
+            label="Filter produk"
+            items={PRODUCT_LIST_FILTERS.map((targetFilter) => ({
+              active: filter === targetFilter.key,
+              href: buildProductListHref({
+                affiliateProfileId,
+                filter: targetFilter.key,
+                page: 1,
+                search,
+                showAllWorkspaces,
+                uploadFilter: targetFilter.key === "upload" ? uploadFilter : null,
+              }),
+              key: targetFilter.key,
+              label: targetFilter.label,
+            }))}
+          />
+
+          {filter === "upload" ? (
+            <FilterChips
+              className="content-filter-tabs--sub"
+              label="Filter upload"
+              items={PRODUCT_UPLOAD_FILTERS.map((targetFilter) => ({
+                active: uploadFilter === targetFilter.key,
+                href: buildProductListHref({
                   affiliateProfileId,
-                  filter: targetFilter.key,
+                  filter,
                   page: 1,
                   search,
                   showAllWorkspaces,
-                  uploadFilter: targetFilter.key === "upload" ? uploadFilter : null,
-                })}
-                key={targetFilter.key}
-                role="tab"
-              >
-                {targetFilter.label}
-              </NativeLinkButton>
-            ))}
-          </div>
-
-          {filter === "upload" ? (
-            <div className="content-filter-tabs content-filter-tabs--sub" role="tablist" aria-label="Filter upload">
-              {PRODUCT_UPLOAD_FILTERS.map((targetFilter) => (
-                <NativeLinkButton
-                  aria-selected={uploadFilter === targetFilter.key}
-                  className="content-filter-tab"
-                  data-active={uploadFilter === targetFilter.key ? "true" : undefined}
-                  href={buildProductListHref({
-                    affiliateProfileId,
-                    filter,
-                    page: 1,
-                    search,
-                    showAllWorkspaces,
-                    uploadFilter: uploadFilter === targetFilter.key ? null : targetFilter.key,
-                  })}
-                  key={targetFilter.key}
-                  role="tab"
-                >
-                  {targetFilter.label}
-                </NativeLinkButton>
-              ))}
-            </div>
+                  uploadFilter: uploadFilter === targetFilter.key ? null : targetFilter.key,
+                }),
+                key: targetFilter.key,
+                label: targetFilter.label,
+              }))}
+            />
           ) : null}
         </div>
 
         <div className="table-wrap products-table-desktop">
-          <table className="data-table product-table">
+          <table className="data-table dense-table product-table" aria-label="Produk">
+            <colgroup>
+              <col className="product-table__col-product" />
+              {isDetailMode ? null : <col className="product-table__col-keyword" />}
+              <col className="product-table__col-status" />
+              {isDetailMode ? null : <col className="product-table__col-update" />}
+              <col className="product-table__col-actions" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Produk</th>
@@ -438,15 +445,32 @@ export function ProductList({
                       />
                       <div className="stack-tight">
                         <strong title={product.product_name}>{product.product_name}</strong>
-                        {product.marketplace ? <span className="settings-card-meta-line">{product.marketplace}</span> : null}
+                        <span className="product-table-meta-line">
+                          {[product.marketplace, product.created_at_label].filter(Boolean).join(" / ")}
+                        </span>
                       </div>
                     </div>
                   </td>
-                  {isDetailMode ? null : <td>{fieldValue(product.keyword)}</td>}
+                  {isDetailMode ? null : (
+                    <td>
+                      <span className="product-table-text" title={fieldValue(product.keyword)}>
+                        {fieldValue(product.keyword)}
+                      </span>
+                    </td>
+                  )}
                   <td>
-                    <StatusBadge status={product.primary_status_label} size="sm" />
+                    <div className="product-status-cell">
+                      <StatusBadge status={product.primary_status_label} size="sm" />
+                      {product.status_context_label ? <span>{product.status_context_label}</span> : null}
+                    </div>
                   </td>
-                  {isDetailMode ? null : <td>{product.latest_activity_label}</td>}
+                  {isDetailMode ? null : (
+                    <td>
+                      <span className="product-table-text" title={product.latest_activity_label}>
+                        {product.latest_activity_label}
+                      </span>
+                    </td>
+                  )}
                   <td>
                     <div className="product-row-actions product-row-actions--desktop">
                       <NativeLinkButton className={`compact ${product.continue_href ? "primary" : ""}`.trim()} href={product.continue_href ?? product.href}>
@@ -488,15 +512,15 @@ export function ProductList({
               ))}
               {!products.length ? (
                 <tr>
-                  <td colSpan={5}>
-                    <section className="muted-box">Tidak ada produk.</section>
+                  <td colSpan={desktopColumnCount}>
+                    <EmptyState icon={Package} title="Produk tidak ditemukan." description="Ubah filter atau cari produk lain." />
                   </td>
                 </tr>
               ) : null}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={5}>
+                <td colSpan={desktopColumnCount}>
                   <ProductPaginationStepper
                     affiliateProfileId={affiliateProfileId}
                     filter={filter}
@@ -528,6 +552,7 @@ export function ProductList({
                 <div className="visual-list-card__footer">
                   <span>{product.latest_activity_label}</span>
                   {product.marketplace ? <span>{product.marketplace}</span> : null}
+                  {product.status_context_label ? <span>{product.status_context_label}</span> : null}
                 </div>
                 <div className="mobile-card-actions">
                   <NativeLinkButton className="compact primary" href={product.continue_href ?? product.href}>
@@ -567,7 +592,7 @@ export function ProductList({
               </div>
             </article>
           ))}
-          {!mobileRows.length ? <section className="muted-box">Tidak ada produk.</section> : null}
+          {!mobileRows.length ? <EmptyState icon={Package} title="Produk tidak ditemukan." description="Ubah filter atau cari produk lain." /> : null}
           {loadMoreError ? <section className="muted-box">{loadMoreError}</section> : null}
           <div ref={loadMoreRef} aria-hidden="true" />
           {mobilePagination.hasNextPage ? (

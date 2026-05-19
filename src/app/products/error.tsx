@@ -1,23 +1,22 @@
 "use client";
 
-import { FormActions } from "@/components/operator/form-actions";
-import { SectionCard } from "@/components/operator/section-card";
+import { ErrorState } from "@/components/operator/error-state";
 import { NativeButton } from "@/components/ui/native-button";
 
 export default function ProductsError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   return (
-    <SectionCard title="Unable to load products." description={error.message}>
-      <FormActions layout="single">
+    <ErrorState
+      title="Produk tidak tersedia."
+      action={
         <NativeButton className="primary" type="button" onClick={reset}>
-          Retry
+          Coba lagi
         </NativeButton>
-      </FormActions>
-    </SectionCard>
+      }
+    />
   );
 }

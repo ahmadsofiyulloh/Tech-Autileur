@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Package, Plus } from "lucide-react";
 import { OperatorDetailDrawer } from "@/components/operator/detail-drawer";
 import { EmptyState } from "@/components/operator/empty-state";
-import { SectionCard } from "@/components/operator/section-card";
+import { ErrorState } from "@/components/operator/error-state";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { buildProductListHref, PRODUCT_LIST_DESKTOP_PAGE_SIZE, normalizeProductListFilter, normalizeProductListPage, normalizeProductListSearch, normalizeProductUploadFilter } from "@/lib/products/product-list-contract";
 import { listProductListPage } from "@/lib/server/product-list";
@@ -65,22 +65,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       uploadFilter: requestedUploadFilter,
       workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load products.";
-
+  } catch {
     return (
-      <SectionCard icon={Package} title="Produk tidak bisa dimuat." description={message}>
-        <EmptyState icon={Package} title="Produk tidak tersedia." description="Coba lagi." />
-      </SectionCard>
+      <ErrorState icon={Package} title="Produk tidak bisa dimuat." description="Coba lagi." />
     );
   }
 
   if (!productPage) {
-    return (
-      <SectionCard icon={Package} title="Produk tidak bisa dimuat." description="Produk tidak tersedia.">
-        <EmptyState icon={Package} title="Produk tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
+    return <ErrorState icon={Package} title="Produk tidak bisa dimuat." description="Coba lagi." />;
   }
 
   const selectedProductRow = productPage.rows.find((product) => product.id === selectedProductDetailId) ?? null;
