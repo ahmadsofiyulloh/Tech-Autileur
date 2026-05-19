@@ -1,6 +1,6 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache.js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatAppDateKey } from "@/lib/app-time";
 import { ACCOUNT_STATUSES, type AccountStatus, isAccountStatus } from "@/lib/gemini/validation";

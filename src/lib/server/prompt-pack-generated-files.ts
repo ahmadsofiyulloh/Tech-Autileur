@@ -1,6 +1,6 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache.js";
 import { PROMPT_CLIP_KEYS, PROMPT_CLIP_LABELS, PROMPT_TARGET_MARKETPLACE } from "@/lib/prompts/validation";
 import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
 import {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache.js";
 import { normalizeFlowManifestStage, type FlowManifestStage } from "@/lib/flow/stage-manifest";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getContentById } from "@/lib/server/contents";

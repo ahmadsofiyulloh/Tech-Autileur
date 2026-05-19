@@ -1,6 +1,6 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache.js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getProductById } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";

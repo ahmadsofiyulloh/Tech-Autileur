@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, timingSafeEqual } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache.js";
 import {
   flowStageDrivePurpose,
   normalizeFlowManifestStage,
