@@ -2516,6 +2516,10 @@ details,
   box-shadow: var(--color-button-primary-shadow);
 }
 
+.settings-inline-summary .button.primary {
+  color: var(--color-button-primary-text);
+}
+
 .button:hover,
 .button:focus-visible {
   border-color: var(--ui-shell-border-emphasis);
