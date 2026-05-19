@@ -128,7 +128,7 @@ export function GeminiLiveCycleChart({ rows, summary }: GeminiLiveCycleChartProp
                 tickLine={false}
                 type="category"
                 width={112}
-                tick={{ fill: "var(--muted)", fontSize: 12, fontWeight: 600 }}
+                tick={{ fill: "var(--muted)" }}
               />
               <Bar dataKey="count" radius={[0, 999, 999, 0]} barSize={14}>
                 {rows.map((entry) => (

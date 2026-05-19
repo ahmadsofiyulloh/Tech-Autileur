@@ -10,10 +10,11 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { GeminiLiveCycleChart } from "@/components/operator/gemini-live-cycle-chart";
 import { GeminiUsageOverviewPanel } from "@/components/operator/gemini-usage-overview";
+import { MetricCard } from "@/components/operator/metric-card";
 import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
 import {
   getDashboardActionQueue,
@@ -56,9 +57,6 @@ type StatusBreakdown = {
 const ACTIVE_TASK_STATUSES = ["QUEUED", "RUNNING", "RETRYING", "WAITING_FOR_KEY"] as const;
 const ISSUE_TASK_STATUSES = ["FAILED", "CANCELLED"] as const;
 const numberFormatter = new Intl.NumberFormat("id-ID");
-const decimalFormatter = new Intl.NumberFormat("id-ID", {
-  maximumFractionDigits: 1,
-});
 
 const GEMINI_STATUS_LABELS: Record<string, string> = {
   QUEUED: "Menunggu",
@@ -118,20 +116,16 @@ function formatCount(value: number) {
   return numberFormatter.format(value);
 }
 
-function formatPercentRatio(value: number) {
-  return `${decimalFormatter.format(value * 100)}%`;
-}
-
 function formatMetricValue(metric: MetricResult<number>) {
   return metric.status === "available" ? formatCount(metric.data) : "Tidak tersedia";
 }
 
-function getMetricFill(metric: MetricResult<number>) {
+function getMetricFillPercent(metric: MetricResult<number>) {
   if (metric.status === "unavailable") {
-    return "18%";
+    return 18;
   }
 
-  return `${Math.min(92, Math.max(10, metric.data * 11 + 14))}%`;
+  return Math.min(92, Math.max(10, metric.data * 11 + 14));
 }
 
 function DashboardSection({
@@ -277,11 +271,12 @@ function MetricTile({
   metric: MetricResult<number>;
 }) {
   return (
-    <div className="metric dashboard-kpi" style={{ "--metric-fill": getMetricFill(metric) } as CSSProperties}>
-      <span>{label}</span>
-      <strong>{formatMetricValue(metric)}</strong>
-      <i aria-hidden="true" />
-    </div>
+    <MetricCard
+      className={`dashboard-kpi${metric.status === "unavailable" ? " dashboard-kpi--unavailable" : ""}`}
+      label={label}
+      progressPercent={getMetricFillPercent(metric)}
+      value={formatMetricValue(metric)}
+    />
   );
 }
 
@@ -441,15 +436,17 @@ export default async function DashboardPage() {
 
   return (
     <div className="dashboard-page dashboard-page--analysis">
-      <DashboardSection icon={ListChecks} id="action-queue" title="Action queue">
-        <ActionQueueSection result={actionQueue} />
-      </DashboardSection>
+      <div className="dashboard-command-center">
+        <div className="dashboard-command-center__primary">
+          <DashboardSection icon={ListChecks} id="action-queue" title="Action queue">
+            <ActionQueueSection result={actionQueue} />
+          </DashboardSection>
 
-      <DashboardSection icon={Workflow} id="pipeline-summary" title="Pipeline produk">
-        <PipelineSummarySection result={pipelineCounts} />
-      </DashboardSection>
+          <DashboardSection icon={Workflow} id="pipeline-summary" title="Pipeline produk">
+            <PipelineSummarySection result={pipelineCounts} />
+          </DashboardSection>
+        </div>
 
-      <div className="dashboard-infrastructure" aria-label="Infrastruktur Gemini">
         <DashboardSection icon={Activity} id="gemini-summary" title="Ringkasan Gemini" variant="secondary">
           <div className="metric-grid dashboard-kpi-grid">
             <MetricTile label="Task total" metric={geminiTaskCount} />
@@ -458,7 +455,9 @@ export default async function DashboardPage() {
             <MetricTile label="Issue" metric={issueTaskCount} />
           </div>
         </DashboardSection>
+      </div>
 
+      <div className="dashboard-infrastructure dashboard-insight-grid" aria-label="Infrastruktur Gemini">
         <DashboardSection icon={Sparkles} id="gemini-live-analysis" title="Live cycle Gemini" variant="secondary">
           {geminiTasks.status === "unavailable" ? (
             <EmptyState icon={Archive} title="Gemini task tidak tersedia." description={geminiTasks.message} />
