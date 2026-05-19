@@ -48,6 +48,73 @@ If a task conflicts with these docs, stop and ask the user before coding.
 - Prefer structured JSON schemas for AI outputs.
 - Prefer mock mode before live API integration.
 
+## Agent Roles
+- `AGENTS.md` is the universal manifest for Codex CLI and OpenClaude CLI. Do not create or rely on `CLAUDE.md`.
+- Codex CLI owns planning, repository audits, documentation updates, task decomposition, diff review, and final acceptance notes unless the user explicitly asks it to implement.
+- OpenClaude CLI owns implementation execution for approved micro-tasks and must follow this manifest exactly.
+- Both agents must read the required source-of-truth docs before implementation work and stop if a requested change conflicts with them.
+- Both agents must keep work scoped to the active micro-task and document any blocker instead of expanding scope.
+
+## UI/UX Redesign Source of Truth
+- UI/UX redesign work must preserve `docs/PRD_SOURCE_OF_TRUTH.md`, `docs/ARCHITECTURE_LOCK.md`, `docs/MOBILE_REMOTE_CONTROL_LOCK.md`, and the relevant UI lock or audit document for the task.
+- The redesign target is an operator dashboard, not a marketing site: neutral, clean, border-driven, compact, responsive, data-first, action-first, and professional.
+- Mobile remains first-class for 360-767px, tablet for 768-1023px, desktop for 1024-1279px, and wide desktop for 1280px+.
+- Desktop layouts must not be enlarged mobile layouts. Use denser lists, split panes, right drawers, and compact metrics where the PRD allows them.
+- New or edited UI must use shared semantic design tokens for color and typography. If a value is missing, extend the token layer first.
+- Do not add verbose helper copy, marketing copy, decorative filler, fake stats, arbitrary badges, or new workflow concepts during visual refactors.
+
+## Single Working Tree Rules
+- Codex CLI and OpenClaude CLI operate in the same local working tree.
+- Before editing, check current git status for the files in scope and treat unknown changes as user or other-agent work.
+- Do not overwrite, revert, reset, delete, or reformat changes made by another agent unless the user explicitly requests it.
+- Do not run destructive git commands such as `git reset --hard`, `git checkout --`, or bulk deletion commands for agent handoff cleanup.
+- Avoid simultaneous edits to the same files. If a file is already being changed by another agent, pause and hand off the conflict clearly.
+- Keep each branch or working session focused on one micro-task. Commit boundaries, if requested, must match the micro-task.
+
+## Locked Phase 1 UI Rules
+- The Phase 1 entrypoint is `/products/new`.
+- Route lock:
+  - `/` redirects to `/products/new`.
+  - `/products` is the Produk list.
+  - `/products/new` is the mobile-first Intake workflow.
+  - `/products/[id]` is product detail with Metadata, Output, and History.
+  - `/prompts` is the Paket Prompt list or launcher.
+  - `/prompts/[id]` is the prompt detail/editor output surface.
+  - `/prompts/[id]/history` is prompt generation history.
+  - `/drive` is the visual Drive manager.
+  - `/dashboard` is secondary analytics.
+  - `/settings` is the Pengaturan hub.
+  - `/controller` and `/flow` redirect to `/products/new` while frozen.
+- Workflow navigation labels are exactly `Intake`, `Produk`, `Prompt`, and `Drive`.
+- Mobile bottom navigation labels are exactly `Dashboard`, `Intake`, `Produk`, `Prompt`, and `Drive`.
+- `Flow Control` and `Controller` must not appear in Phase 1 workflow navigation.
+- The only global Settings entry is the topbar gear on non-Settings routes. `/settings` must not show a right-side topbar action.
+- Do not add a workspace picker, Controller/Flow primary UI, mobile Flow queue, dense mobile tables, or full edit forms inside Drive preview sheets.
+- UI language is concise Indonesian operational copy. Every active UI surface must include loading, empty, and error states.
+
+## UI Verification Commands
+- For UI, route, shell, component, or CSS changes, run:
+  ```bash
+  npm run audit:colors
+  npm run audit:typography
+  npm run lint
+  npm run typecheck
+  npm run build
+  ```
+- For route behavior, responsive shell, or critical workflow changes, also run the relevant Playwright smoke test when practical:
+  ```bash
+  npm run smoke:e2e
+  ```
+- UI handoff should include screenshots or screenshot notes for 360px, 768px, 1024px, and 1280px widths when the changed surface is visual.
+- Docs-only changes may skip app verification, but the agent must still show the relevant diff and state that no runtime verification was required.
+
+## Agent Handoff
+- Every handoff must include the micro-task ID or task name, goal, files changed, source-of-truth docs read, validation commands with results, and known risks.
+- Implementation handoff from OpenClaude CLI must include `git diff --stat` and the focused diff for changed files.
+- Review handoff from Codex CLI must prioritize correctness, PRD compliance, regressions, missing states, token violations, and verification gaps.
+- If verification fails, record the exact command, failure summary, and whether the failure is related to the current task.
+- Do not mark a task done until the acceptance criteria, validation status, changed files, and follow-up risks are documented.
+
 ## Standard Work Loop
 For every task:
 
