@@ -7,6 +7,15 @@
     "supabase_prod_readonly": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=laychawloumnhvzgegmj&read_only=true&features=database,docs"
+    },
+    "playwright": {
+      "command": "uvx",
+      "args": ["@playwright/mcp@latest"],
+      "env": {
+        "PLAYWRIGHT_TEST_BASE_URL": "http://localhost:3000"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
