@@ -241,7 +241,7 @@ summary::marker{color:var(--accent-strong)}
 .product-master__list{min-width:0}
 .product-search{align-items:center;min-width:0;display:flex;position:relative}
 .product-search svg{color:var(--muted);pointer-events:none;position:absolute;left:14px}
-.product-search input{border-color:var(--border);background:var(--surface);min-height:44px;color:var(--text);font-size:var(--type-control-size);line-height:var(--type-control-line);box-shadow:var(--shadow-soft);border-radius:8px;padding-left:2.65rem}
+.product-search input{border-color:var(--border);background:var(--surface);min-height:var(--toolbar-search-control-height);color:var(--text);font-size:var(--type-control-size);line-height:var(--type-control-line);box-shadow:var(--shadow-soft);border-radius:8px;padding-left:2.65rem}
 .product-search input::placeholder{color:var(--muted)}
 .product-table{min-width:760px;table-layout:fixed;background:var(--color-surface-base)}
 .product-table th,.product-table td{vertical-align:middle}
@@ -580,6 +580,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .prompt-workbench-search-toolbar{align-items:center;gap:8px;flex-wrap:wrap}
 .prompt-workbench-search-toolbar .button{flex:none}
 .prompt-workbench-search{flex:1 1 260px;min-width:min(260px,100%)}
+.product-list-toolbar>.button,.prompt-workbench-search-toolbar>.button{min-height:var(--toolbar-search-control-height)}
 .prompt-workbench-pagination{align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;display:flex}
 .prompt-workbench-pagination .button{background:var(--color-surface-base);color:var(--color-text-secondary);box-shadow:none}
 .prompt-workbench-pagination .button:hover,.prompt-workbench-pagination .button:focus-visible{background:color-mix(in srgb, var(--color-primary) 4%, var(--color-surface-base));color:var(--color-text-primary)}
@@ -4776,6 +4777,7 @@ select {
   --button-min-height: 32px;
   --button-compact-min-height: 28px;
   --button-icon-only-size: var(--button-min-height);
+  --toolbar-search-control-height: 44px;
   --dense-table-header-size: var(--type-caption-size);
   --dense-table-header-weight: var(--type-control-weight);
   --dense-table-cell-size: var(--type-control-size);
