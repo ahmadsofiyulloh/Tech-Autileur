@@ -27,8 +27,8 @@ export type OperatorRouteMeta = OperatorNavItem & {
 
 export const mobileNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
+  { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/prompts", label: "Prompt", icon: FileText },
   { href: "/drive", label: "Drive", icon: HardDrive },
 ] satisfies OperatorNavItem[];
@@ -48,12 +48,12 @@ export const routeTitles = [
   { href: "/settings/gemini", label: "Gemini", subtitle: "Kunci server.", icon: KeyRound },
   { href: "/settings/account", label: "Account", subtitle: "Pairing dan token.", icon: UserRound },
   { href: "/products/new", label: "Intake", subtitle: "Upload dan analisis.", icon: Inbox },
-  { href: "/dashboard", label: "Dashboard", subtitle: "Metrik operasional.", icon: LayoutDashboard },
-  { href: "/products", label: "Produk", subtitle: "List per workspace.", icon: Package },
-  { href: "/prompts", label: "Paket Prompt", subtitle: "Editor prompt.", icon: FileText },
-  { href: "/controller", label: "Flow Control", subtitle: "Eksekusi desktop.", icon: Workflow },
-  { href: "/settings", label: "Pengaturan", subtitle: "Hub konfigurasi.", icon: Settings },
+  { href: "/dashboard", label: "Dashboard", subtitle: "Pulse operasional.", icon: LayoutDashboard },
+  { href: "/products", label: "Produk", subtitle: "Katalog produk.", icon: Package },
+  { href: "/prompts", label: "Paket Prompt", subtitle: "Workbench prompt.", icon: FileText },
+  { href: "/controller", label: "Flow Control", subtitle: "Batch execution.", icon: Workflow },
+  { href: "/settings", label: "Pengaturan", subtitle: "Konfigurasi sistem.", icon: Settings },
   { href: "/settings/drive", label: "Drive", subtitle: "Koneksi Google Drive.", icon: HardDrive },
-  { href: "/drive", label: "Drive", subtitle: "Folder aset.", icon: HardDrive },
+  { href: "/drive", label: "Drive", subtitle: "Aset & file.", icon: HardDrive },
   { href: "/outputs", label: "Output", subtitle: "Output tersimpan.", icon: Archive },
 ] satisfies OperatorRouteMeta[];

@@ -265,7 +265,7 @@ function PromptWorkbenchRowCard({
           <strong title={product.product_name}>{product.product_name}</strong>
           <small>{latest_activity_label}</small>
         </div>
-        <StatusBadge status={statusLabel} />
+        <StatusBadge status={statusLabel} size="sm" />
       </div>
 
       {isSelectable ? (

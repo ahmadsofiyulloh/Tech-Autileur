@@ -444,7 +444,7 @@ export function ProductList({
                   </td>
                   {isDetailMode ? null : <td>{fieldValue(product.keyword)}</td>}
                   <td>
-                    <StatusBadge status={product.primary_status_label} />
+                    <StatusBadge status={product.primary_status_label} size="sm" />
                   </td>
                   {isDetailMode ? null : <td>{product.latest_activity_label}</td>}
                   <td>
@@ -522,7 +522,7 @@ export function ProductList({
                     <span>{fieldValue(product.keyword)}</span>
                   </div>
                   <div className="visual-list-card__status" aria-label="Status produk">
-                    <StatusBadge status={product.primary_status_label} />
+                    <StatusBadge status={product.primary_status_label} size="sm" />
                   </div>
                 </div>
                 <div className="visual-list-card__footer">

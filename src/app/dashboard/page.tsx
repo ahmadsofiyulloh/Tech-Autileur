@@ -1,10 +1,31 @@
 import { redirect } from "next/navigation";
-import { Archive, Sparkles, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import {
+  Activity,
+  Archive,
+  ChevronRight,
+  CircleAlert,
+  ListChecks,
+  Sparkles,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { GeminiLiveCycleChart } from "@/components/operator/gemini-live-cycle-chart";
 import { GeminiUsageOverviewPanel } from "@/components/operator/gemini-usage-overview";
 import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
+import {
+  getDashboardActionQueue,
+  type DashboardActionQueueItem,
+  type DashboardActionQueueItemType,
+  type DashboardActionQueueResult,
+} from "@/lib/server/dashboard-actions";
+import {
+  getDashboardPipelineStageCounts,
+  type DashboardPipelineStageKey,
+  type DashboardPipelineStageResult,
+} from "@/lib/server/dashboard-pipeline";
 import { getGeminiUsageOverview } from "@/lib/server/gemini-usage-overview";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -59,6 +80,40 @@ const GEMINI_STATUS_TONES: Record<string, "neutral" | "info" | "success" | "warn
   CANCELLED: "neutral",
 };
 
+const ACTION_TONE: Record<DashboardActionQueueItemType, "info" | "success" | "warning" | "danger"> = {
+  metadata_review: "warning",
+  prompt_generation: "info",
+  output_verification: "danger",
+  batch_export: "success",
+};
+
+const PIPELINE_STAGE_ORDER: DashboardPipelineStageKey[] = [
+  "draft",
+  "metadataReady",
+  "promptReady",
+  "exported",
+  "generated",
+  "done",
+];
+
+const PIPELINE_STAGE_LABELS: Record<DashboardPipelineStageKey, string> = {
+  draft: "Draft",
+  metadataReady: "Metadata",
+  promptReady: "Prompt",
+  exported: "Exported",
+  generated: "Generated",
+  done: "Done",
+};
+
+const PIPELINE_STAGE_HREFS: Record<DashboardPipelineStageKey, string> = {
+  draft: "/products?filter=draft",
+  metadataReady: "/products?filter=metadata-ready",
+  promptReady: "/prompts?readiness=GENERATED",
+  exported: "/controller",
+  generated: "/products?filter=generated",
+  done: "/products?filter=done",
+};
+
 function formatCount(value: number) {
   return numberFormatter.format(value);
 }
@@ -84,16 +139,19 @@ function DashboardSection({
   icon: Icon,
   id,
   title,
+  variant,
 }: {
   children: ReactNode;
   icon: LucideIcon;
   id?: string;
   title: string;
+  variant?: "primary" | "secondary";
 }) {
   const sectionId = id ?? `dashboard-section-${title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
+  const className = variant === "secondary" ? "dashboard-section dashboard-section--secondary" : "dashboard-section";
 
   return (
-    <section className="dashboard-section" aria-labelledby={sectionId}>
+    <section className={className} aria-labelledby={sectionId}>
       <div className="dashboard-section__header">
         <span className="icon-frame dashboard-section__icon" aria-hidden="true">
           <Icon size={18} />
@@ -254,6 +312,96 @@ function getLiveCycleRows(metric: MetricResult<StatusBreakdown>) {
   });
 }
 
+function ActionQueueRow({ item }: { item: DashboardActionQueueItem }) {
+  const tone = ACTION_TONE[item.type];
+
+  return (
+    <Link className="dashboard-action-row" data-tone={tone} href={item.href}>
+      <span className="dashboard-action-row__dot" aria-hidden="true" />
+      <span className="dashboard-action-row__label">{item.label}</span>
+      <span className="dashboard-action-row__count">{formatCount(item.count)}</span>
+      <ChevronRight className="dashboard-action-row__chevron" aria-hidden="true" size={16} />
+    </Link>
+  );
+}
+
+function ActionQueueSection({ result }: { result: DashboardActionQueueResult }) {
+  if (result.status === "unavailable") {
+    return (
+      <EmptyState
+        icon={CircleAlert}
+        title="Action queue tidak tersedia."
+        description={result.errors[0]?.message ?? "Coba muat ulang halaman."}
+      />
+    );
+  }
+
+  if (result.items.length === 0) {
+    return (
+      <EmptyState
+        icon={ListChecks}
+        title="Semua beres."
+        description="Tidak ada item menunggu tindakan."
+      />
+    );
+  }
+
+  return (
+    <div className="dashboard-action-queue">
+      {result.items.map((item) => (
+        <ActionQueueRow item={item} key={item.type} />
+      ))}
+      {result.status === "partial" && result.errors.length > 0 ? (
+        <p className="dashboard-action-queue__notice">
+          Sebagian indikator tidak tersedia: {result.errors.map((error) => error.message).join(" ")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PipelineSummarySection({ result }: { result: DashboardPipelineStageResult }) {
+  if (result.status === "unavailable") {
+    return (
+      <EmptyState
+        icon={CircleAlert}
+        title="Pipeline tidak tersedia."
+        description={result.message}
+      />
+    );
+  }
+
+  if (result.total === 0) {
+    return (
+      <EmptyState
+        icon={Workflow}
+        title="Belum ada produk."
+        description="Mulai dari Intake untuk mengisi pipeline."
+      />
+    );
+  }
+
+  return (
+    <ol className="dashboard-pipeline-strip" aria-label="Pipeline produk">
+      {PIPELINE_STAGE_ORDER.map((stage) => {
+        const count = result.counts[stage];
+        const href = PIPELINE_STAGE_HREFS[stage];
+        const label = PIPELINE_STAGE_LABELS[stage];
+        const isEmpty = count === 0;
+
+        return (
+          <li className="dashboard-pipeline-strip__item" data-empty={isEmpty ? "true" : undefined} key={stage}>
+            <Link className="dashboard-pipeline-strip__cell" href={href}>
+              <span className="dashboard-pipeline-strip__label">{label}</span>
+              <span className="dashboard-pipeline-strip__count">{formatCount(count)}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -264,7 +412,9 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [geminiTasks, geminiUsageOverview] = await Promise.all([
+  const [actionQueue, pipelineCounts, geminiTasks, geminiUsageOverview] = await Promise.all([
+    getDashboardActionQueue(),
+    getDashboardPipelineStageCounts(),
     countByStatus({
       supabase,
       tableName: "ai_tasks",
@@ -291,26 +441,36 @@ export default async function DashboardPage() {
 
   return (
     <div className="dashboard-page dashboard-page--analysis">
-      <DashboardSection icon={Sparkles} id="gemini-summary" title="Ringkasan Gemini">
-        <div className="metric-grid dashboard-kpi-grid">
-          <MetricTile label="Task total" metric={geminiTaskCount} />
-          <MetricTile label="Aktif" metric={activeTaskCount} />
-          <MetricTile label="Sukses" metric={successTaskCount} />
-          <MetricTile label="Issue" metric={issueTaskCount} />
-        </div>
+      <DashboardSection icon={ListChecks} id="action-queue" title="Action queue">
+        <ActionQueueSection result={actionQueue} />
       </DashboardSection>
 
-      <DashboardSection icon={Sparkles} id="gemini-live-analysis" title="Live cycle Gemini">
-        {geminiTasks.status === "unavailable" ? (
-          <EmptyState icon={Archive} title="Gemini task tidak tersedia." description={geminiTasks.message} />
-        ) : geminiTasks.data.total === 0 ? (
-          <EmptyState icon={Archive} title="Belum ada Gemini task." description="Task live cycle masih kosong." />
-        ) : liveCycleSummary ? (
-          <GeminiLiveCycleChart rows={liveCycleRows} summary={liveCycleSummary} />
-        ) : null}
+      <DashboardSection icon={Workflow} id="pipeline-summary" title="Pipeline produk">
+        <PipelineSummarySection result={pipelineCounts} />
       </DashboardSection>
 
-      <GeminiUsageOverviewPanel overview={geminiUsageOverview} sectionId="gemini-key-usage" />
+      <div className="dashboard-infrastructure" aria-label="Infrastruktur Gemini">
+        <DashboardSection icon={Activity} id="gemini-summary" title="Ringkasan Gemini" variant="secondary">
+          <div className="metric-grid dashboard-kpi-grid">
+            <MetricTile label="Task total" metric={geminiTaskCount} />
+            <MetricTile label="Aktif" metric={activeTaskCount} />
+            <MetricTile label="Sukses" metric={successTaskCount} />
+            <MetricTile label="Issue" metric={issueTaskCount} />
+          </div>
+        </DashboardSection>
+
+        <DashboardSection icon={Sparkles} id="gemini-live-analysis" title="Live cycle Gemini" variant="secondary">
+          {geminiTasks.status === "unavailable" ? (
+            <EmptyState icon={Archive} title="Gemini task tidak tersedia." description={geminiTasks.message} />
+          ) : geminiTasks.data.total === 0 ? (
+            <EmptyState icon={Archive} title="Belum ada Gemini task." description="Task live cycle masih kosong." />
+          ) : liveCycleSummary ? (
+            <GeminiLiveCycleChart rows={liveCycleRows} summary={liveCycleSummary} />
+          ) : null}
+        </DashboardSection>
+
+        <GeminiUsageOverviewPanel overview={geminiUsageOverview} sectionId="gemini-key-usage" />
+      </div>
     </div>
   );
 }

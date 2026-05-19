@@ -399,7 +399,7 @@ function DriveTile({
           </span>
         </span>
         <span className="drive-tile__status">
-          <StatusBadge status={item.status} />
+          <StatusBadge status={item.status} size="sm" />
         </span>
       </span>
     </button>
@@ -465,7 +465,7 @@ function DriveListRow({
       <span className="drive-list-row__meta drive-list-row__meta--desktop">{metaLabel}</span>
       <span className="drive-list-row__meta drive-list-row__meta--desktop">{formatDate(item.drive_modified_at)}</span>
       <span className="drive-list-row__status">
-        <StatusBadge status={item.status} />
+        <StatusBadge status={item.status} size="sm" />
       </span>
     </button>
   );
