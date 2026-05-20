@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, Clock3, Edit3, ListChecks, Package, Square } from "lucide-react";
+import { ArrowRight, Check, Clock3, Edit3, ListChecks, Package, Square, X } from "lucide-react";
 import type { AffiliateProfilePromptReadinessInput } from "@/lib/affiliate-profiles/readiness";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
@@ -9,7 +9,7 @@ import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
-import { CONTENT_VARIANTS } from "@/lib/prompts/content-variants";
+import { VariantSubmitButton } from "@/components/operator/variant-picker";
 import { getPromptLaunchReadiness, type PromptLaunchReadiness } from "@/lib/prompts/prompt-launch-readiness";
 import { type PromptReadinessProjection } from "@/lib/prompts/prompt-readiness-projection";
 import {
@@ -20,7 +20,6 @@ import type { PromptQueueSnapshot, PromptQueueSummary } from "@/lib/prompts/prom
 import { bulkEnqueuePromptPacks, cancelPromptPackGeneration, savePromptPack } from "./actions";
 
 const PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
-const CONTENT_VARIANT_OPTIONS = Object.values(CONTENT_VARIANTS);
 const BULK_VARIANT_SELECTABLE_PROMPT_STATUSES = new Set([
   "READY_FOR_PROMPT",
   "PROMPT_QUEUED",
@@ -148,40 +147,24 @@ function PromptPackCreateForm({ product, intakeSession, affiliateProfile, source
   const readinessId = `prompt-launch-readiness-${product.id}`;
 
   return (
-    <form
-      className="prompt-list-card__action-form"
+    <VariantSubmitButton
       action={savePromptPack}
-      style={{
-        alignItems: "center",
-        display: "grid",
-        gap: "var(--space-2)",
-        gridTemplateColumns: "minmax(0, 1fr) auto",
-        minWidth: 0,
-      }}
-    >
-      <input type="hidden" name="intent" value="create_generate" />
-      <input type="hidden" name="status" value="DRAFT" />
-      <input type="hidden" name="version" value={1} />
-      <input type="hidden" name="product_id" value={product.id} />
-      <input type="hidden" name="intake_session_id" value={intakeSession?.id ?? ""} />
-      <input type="hidden" name="affiliate_profile_id" value={affiliateProfile?.id ?? ""} />
-      <input type="hidden" name="source_product_image_id" value={sourceImage?.id ?? ""} />
-      <select name="content_variant_key" defaultValue="hero_hook" aria-label="Varian konten">
-        {CONTENT_VARIANT_OPTIONS.map((variant) => (
-          <option key={variant.key} value={variant.key}>
-            {variant.label}
-          </option>
-        ))}
-      </select>
-      <PendingActionButton
-        className="compact primary"
-        aria-describedby={!readiness.ready ? readinessId : undefined}
-        pendingLabel="Membuat"
-        disabled={!readiness.ready}
-      >
-        Buat Prompt
-      </PendingActionButton>
-    </form>
+      buttonLabel="Buat Prompt"
+      className="compact primary prompt-variant-launcher"
+      disabled={!readiness.ready}
+      hiddenFields={[
+        { name: "intent", value: "create_generate" },
+        { name: "status", value: "DRAFT" },
+        { name: "version", value: 1 },
+        { name: "product_id", value: product.id },
+        { name: "intake_session_id", value: intakeSession?.id ?? "" },
+        { name: "affiliate_profile_id", value: affiliateProfile?.id ?? "" },
+        { name: "source_product_image_id", value: sourceImage?.id ?? "" },
+      ]}
+      pendingLabel="Membuat"
+      pickerLabel="Pilih varian konten"
+      ariaDescribedBy={!readiness.ready ? readinessId : undefined}
+    />
   );
 }
 
@@ -612,26 +595,32 @@ export function PromptWorkbenchList({
             <ListChecks size={15} aria-hidden="true" />
             Antrian
           </NativeLinkButton>
-          <form className="prompt-workbench-selection-summary__actions" action={bulkEnqueuePromptPacks}>
-            <input type="hidden" name="return_to" value={queueHref} />
-            <input type="hidden" name="generation_mode" value="gemini" />
-            {selectedProductIds.map((productId) => (
-              <input key={productId} type="hidden" name="product_ids" value={productId} />
-            ))}
-            <select name="content_variant_key" defaultValue="hero_hook" aria-label="Varian konten bulk">
-              {CONTENT_VARIANT_OPTIONS.map((variant) => (
-                <option key={variant.key} value={variant.key}>
-                  {variant.label}
-                </option>
-              ))}
-            </select>
-            <NativeButton className="compact tertiary" type="button" onClick={() => setSelectedIds(new Set())} disabled={!selectedCount}>
-              Bersihkan
+          {selectedCount ? (
+            <NativeButton
+              aria-label="Bersihkan pilihan"
+              className="compact tertiary icon-only"
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X size={15} aria-hidden="true" />
             </NativeButton>
-            <PendingActionButton className="compact primary prompt-workbench-enqueue-placeholder" disabled={!selectedCount} pendingLabel="Mengantrikan">
-              Antrikan Prompt
-            </PendingActionButton>
-          </form>
+          ) : null}
+          <VariantSubmitButton
+            action={bulkEnqueuePromptPacks}
+            buttonLabel="Antrikan"
+            className="compact primary prompt-workbench-enqueue-placeholder"
+            disabled={!selectedCount}
+            hiddenFields={[
+              { name: "return_to", value: queueHref },
+              { name: "generation_mode", value: "gemini" },
+              ...selectedProductIds.map((selectedProductId) => ({
+                name: "product_ids",
+                value: selectedProductId,
+              })),
+            ]}
+            pendingLabel="Mengantrikan"
+            pickerLabel="Pilih varian konten"
+          />
         </div>
       </div>
 

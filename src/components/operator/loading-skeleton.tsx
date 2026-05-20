@@ -15,19 +15,6 @@ export function SkeletonButton() {
   return <span className="skeleton-button" aria-hidden="true" />;
 }
 
-export function SkeletonPwaInstallCard() {
-  return (
-    <section className="pwa-install-card loading-skeleton-static" aria-hidden="true">
-      <span className="pwa-install-card__icon skeleton-icon" />
-      <span className="pwa-install-card__copy">
-        <SkeletonLine size="short" />
-        <SkeletonLine size="medium" />
-      </span>
-      <SkeletonButton />
-    </section>
-  );
-}
-
 export function SkeletonSearchToolbar() {
   return (
     <div className="settings-list-toolbar loading-skeleton-static" aria-hidden="true">

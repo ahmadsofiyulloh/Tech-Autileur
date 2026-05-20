@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
-import { LogOut, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
-import { NativeButton } from "@/components/ui/native-button";
 import { ChromePairingPanel } from "../chrome-pairing-panel";
 import { HelperApiTokenPanel } from "../helper-api-token-panel";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError, type HelperApiTokenRecord } from "@/lib/server/helper-api-tokens";
@@ -49,14 +47,6 @@ export default async function AccountSettingsPage() {
             <HelperApiTokenPanel ownerEmail={user.email ?? null} currentToken={helperApiToken} />
           )}
         </div>
-        <FormActions layout="single">
-          <form action="/auth/signout" method="post">
-            <NativeButton className="destructive" type="submit">
-              <LogOut size={16} aria-hidden="true" />
-              Sign out
-            </NativeButton>
-          </form>
-        </FormActions>
       </SectionCard>
     </div>
   );

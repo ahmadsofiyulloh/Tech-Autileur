@@ -120,28 +120,6 @@ const hydrationAttributeCleanerScript = String.raw`
 })();
 `;
 
-const beforeInstallPromptBridgeScript = String.raw`
-(() => {
-  const stateKey = "__aicosBeforeInstallPromptEvent";
-
-  if (window.__aicosBeforeInstallPromptBridgeInstalled) {
-    return;
-  }
-
-  window.__aicosBeforeInstallPromptBridgeInstalled = true;
-
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    window[stateKey] = event;
-    window.dispatchEvent(new Event("aicos-beforeinstallprompt"));
-  });
-
-  window.addEventListener("appinstalled", () => {
-    window[stateKey] = null;
-  });
-})();
-`;
-
 const themePreferenceScript = String.raw`
 (() => {
   const themePreferenceValues = new Set(["light", "dark", "system"]);
@@ -213,12 +191,9 @@ export default async function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: hydrationAttributeCleanerScript }}
         />
-        <Script
-          id="beforeinstallprompt-bridge"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: beforeInstallPromptBridgeScript }}
-        />
-        <AppShell shellContext={shellContext}>{children}</AppShell>
+        <AppShell shellContext={shellContext} themePreference={themePreference}>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

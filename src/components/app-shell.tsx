@@ -4,15 +4,24 @@ import { PanelLeftClose, PanelLeftOpen, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
-import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
 import { BulkImportJobRunner } from "@/components/operator/bulk-import-job-runner";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
 import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
 import { desktopNavItems, mobileNavItems, routeTitles } from "@/components/operator/nav-config";
 import { ShellPullToRefresh } from "@/components/operator/shell-pull-to-refresh";
 import { TopbarProvider, useTopbar } from "@/components/operator/topbar-context";
+import { TopbarGlobalControls } from "@/components/operator/topbar-global-controls";
+import type { ThemePreference } from "@/lib/theme-preference";
 
-export function AppShell({ children, shellContext }: { children: ReactNode; shellContext: OperatorShellContext }) {
+export function AppShell({
+  children,
+  shellContext,
+  themePreference,
+}: {
+  children: ReactNode;
+  shellContext: OperatorShellContext;
+  themePreference: ThemePreference;
+}) {
   const pathname = usePathname();
   const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
@@ -27,12 +36,22 @@ export function AppShell({ children, shellContext }: { children: ReactNode; shel
 
   return (
     <TopbarProvider>
-      <OperatorShellContent shellContext={shellContext}>{children}</OperatorShellContent>
+      <OperatorShellContent shellContext={shellContext} themePreference={themePreference}>
+        {children}
+      </OperatorShellContent>
     </TopbarProvider>
   );
 }
 
-function OperatorShellContent({ children, shellContext }: { children: ReactNode; shellContext: OperatorShellContext }) {
+function OperatorShellContent({
+  children,
+  shellContext,
+  themePreference,
+}: {
+  children: ReactNode;
+  shellContext: OperatorShellContext;
+  themePreference: ThemePreference;
+}) {
   const pathname = usePathname();
   const shellMainRef = useRef<HTMLElement | null>(null);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -46,7 +65,6 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
   const activeSubtitle = override?.subtitle ?? activeRoute?.subtitle ?? "Content OS.";
   const ActiveIcon = activeRoute?.icon ?? Workflow;
   const currentAffiliateProfile = shellContext.currentAffiliateProfile;
-  const showSettingsGear = !pathname.startsWith("/settings") && !override?.hideSettingsLink;
   const mobileCenterNavItem =
     mobileNavItems.find((item) => item.href === "/products/new") ?? mobileNavItems[0] ?? null;
   const mobileSideNavItems = mobileNavItems.filter((item) => item.href !== mobileCenterNavItem?.href);
@@ -133,23 +151,11 @@ function OperatorShellContent({ children, shellContext }: { children: ReactNode;
             </div>
           </div>
           <div className="topbar-tools topbar-tools--dense">
-            {showSettingsGear ? (
-              <Link
-                aria-label="Pengaturan"
-                className="topbar-profile-link topbar-profile-link--dense"
-                href="/settings"
-                title="Pengaturan"
-              >
-                <AvatarThumbnailFrame
-                  className="topbar-profile-link__avatar"
-                  fallback="settings"
-                  fallbackClassName="topbar-profile-link__avatar--fallback"
-                  iconSize={18}
-                  src={currentAffiliateProfile?.avatarUrl ?? null}
-                />
-                <span className="topbar-profile-link__label">Pengaturan</span>
-              </Link>
-            ) : null}
+            <TopbarGlobalControls
+              currentAffiliateProfile={currentAffiliateProfile}
+              hideSettingsAction={override?.hideSettingsLink ?? false}
+              themePreference={themePreference}
+            />
           </div>
         </header>
         <ShellPullToRefresh scrollContainerRef={shellMainRef} />

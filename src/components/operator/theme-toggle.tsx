@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Moon, Monitor, Sun, type LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import {
   THEME_COOKIE_MAX_AGE,
   THEME_COOKIE_NAME,
@@ -21,6 +22,12 @@ const THEME_TOGGLE_OPTIONS: ThemeToggleOption[] = [
   { value: "system", ariaLabel: "System theme", Icon: Monitor },
   { value: "dark", ariaLabel: "Dark theme", Icon: Moon },
 ];
+const THEME_PREFERENCE_CHANGE_EVENT = "aicos-theme-preference-change";
+const THEME_PREFERENCE_VALUES = new Set<ThemePreference>(["light", "dark", "system"]);
+
+function isThemePreference(value: unknown): value is ThemePreference {
+  return typeof value === "string" && THEME_PREFERENCE_VALUES.has(value as ThemePreference);
+}
 
 function systemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -46,18 +53,49 @@ function applyThemePreference(preference: ThemePreference) {
   requestAnimationFrame(updateThemeColor);
 }
 
+function readCurrentThemePreference(fallback: ThemePreference) {
+  if (typeof document === "undefined") {
+    return fallback;
+  }
+
+  const datasetPreference = document.documentElement.dataset.themeMode;
+  return isThemePreference(datasetPreference) ? datasetPreference : fallback;
+}
+
 export type ThemeToggleProps = {
+  className?: string;
   initialTheme?: ThemePreference;
+  label?: string;
   onThemeChange?: (theme: ThemePreference) => void;
 };
 
-export function ThemeToggle({ initialTheme = "system", onThemeChange }: ThemeToggleProps) {
-  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(initialTheme);
+export function ThemeToggle({
+  className,
+  initialTheme = "system",
+  label = "Mode Tema",
+  onThemeChange,
+}: ThemeToggleProps) {
+  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(() => readCurrentThemePreference(initialTheme));
 
   useEffect(() => {
-    setSelectedTheme(initialTheme);
-    applyThemePreference(initialTheme);
-  }, [initialTheme]);
+    applyThemePreference(selectedTheme);
+  }, [selectedTheme]);
+
+  useEffect(() => {
+    function handleThemePreferenceChange(event: Event) {
+      const nextTheme = (event as CustomEvent<ThemePreference>).detail;
+
+      if (isThemePreference(nextTheme)) {
+        setSelectedTheme(nextTheme);
+      }
+    }
+
+    window.addEventListener(THEME_PREFERENCE_CHANGE_EVENT, handleThemePreferenceChange);
+
+    return () => {
+      window.removeEventListener(THEME_PREFERENCE_CHANGE_EVENT, handleThemePreferenceChange);
+    };
+  }, []);
 
   function selectTheme(nextTheme: ThemePreference) {
     if (nextTheme === selectedTheme) {
@@ -66,7 +104,7 @@ export function ThemeToggle({ initialTheme = "system", onThemeChange }: ThemeTog
 
     setSelectedTheme(nextTheme);
     persistThemePreference(nextTheme);
-    applyThemePreference(nextTheme);
+    window.dispatchEvent(new CustomEvent<ThemePreference>(THEME_PREFERENCE_CHANGE_EVENT, { detail: nextTheme }));
     onThemeChange?.(nextTheme);
   }
 
@@ -76,12 +114,12 @@ export function ThemeToggle({ initialTheme = "system", onThemeChange }: ThemeTog
   );
 
   return (
-    <div className="theme-mode-toggle">
+    <div className={cn("theme-mode-toggle", className)}>
       <div className="theme-mode-toggle__label">
         <span aria-hidden="true" className="theme-mode-toggle__label-icon settings-native-row__icon">
           <Moon size={18} />
         </span>
-        <span className="theme-mode-toggle__label-text">Mode Tema</span>
+        <span className="theme-mode-toggle__label-text">{label}</span>
       </div>
 
       <div className="theme-mode-toggle__switch" role="group" aria-label="Pilih tema">
@@ -111,8 +149,4 @@ export function ThemeToggle({ initialTheme = "system", onThemeChange }: ThemeTog
       </div>
     </div>
   );
-}
-
-export function ThemeModePicker({ defaultValue }: { defaultValue: ThemePreference }) {
-  return <ThemeToggle initialTheme={defaultValue} />;
 }

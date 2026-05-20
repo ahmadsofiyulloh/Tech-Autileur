@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Edit3, FileText, Package, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Edit3, FileText, Package, Plus, Search } from "lucide-react";
 import { ActionToolbar } from "@/components/operator/action-toolbar";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FilterChips } from "@/components/operator/filter-chips";
@@ -337,27 +337,27 @@ export function ProductList({
           action="/products"
           method="get"
           controlsClassName="product-list-toolbar"
-          search={<SearchInput id="product-search" name="q" label="Cari produk" placeholder="Cari produk" defaultValue={search} />}
+          search={
+            <SearchInput
+              id="product-search"
+              name="q"
+              label="Cari produk"
+              placeholder="Cari produk"
+              defaultValue={search}
+              clearHref={buildProductListHref({
+                affiliateProfileId,
+                filter,
+                showAllWorkspaces,
+                uploadFilter,
+              })}
+            />
+          }
           actions={
             <>
               <NativeButton className="compact primary" type="submit">
                 <Search size={15} aria-hidden="true" />
                 Cari
               </NativeButton>
-              {search ? (
-                <NativeLinkButton
-                  className="compact tertiary"
-                  href={buildProductListHref({
-                    affiliateProfileId,
-                    filter,
-                    showAllWorkspaces,
-                    uploadFilter,
-                  })}
-                >
-                  <X size={15} aria-hidden="true" />
-                  Bersihkan
-                </NativeLinkButton>
-              ) : null}
             </>
           }
           summary={`${pagination.totalCount} hasil`}

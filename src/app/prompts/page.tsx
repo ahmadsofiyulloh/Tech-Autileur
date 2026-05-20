@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, FileText, Package, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileText, Package, Plus, Search } from "lucide-react";
 import { OperatorDetailDrawer } from "@/components/operator/detail-drawer";
 import { EmptyState } from "@/components/operator/empty-state";
 import { ErrorState } from "@/components/operator/error-state";
+import { SearchInput } from "@/components/operator/search-input";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
@@ -535,26 +536,19 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
           {requestedIntakeId ? <input type="hidden" name="intake_id" value={requestedIntakeId} /> : null}
           {requestedReadiness !== "ALL" ? <input type="hidden" name="readiness" value={requestedReadiness} /> : null}
           <input type="hidden" name="page" value="1" />
-          <label className="product-search prompt-workbench-search" htmlFor="prompt-workbench-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              id="prompt-workbench-search"
-              name="q"
-              aria-label="Cari produk"
-              placeholder="Cari produk"
-              defaultValue={requestedSearch}
-            />
-          </label>
+          <SearchInput
+            className="prompt-workbench-search"
+            id="prompt-workbench-search"
+            name="q"
+            label="Cari produk"
+            placeholder="Cari produk"
+            defaultValue={requestedSearch}
+            clearHref={clearSearchHref}
+          />
           <NativeButton className="compact primary" type="submit">
             <Search size={15} aria-hidden="true" />
             Cari
           </NativeButton>
-          {requestedSearch ? (
-            <NativeLinkButton className="compact tertiary" href={clearSearchHref}>
-              <X size={15} aria-hidden="true" />
-              Bersihkan
-            </NativeLinkButton>
-          ) : null}
         </form>
 
         <div className="settings-inline-summary prompt-inline-summary">
@@ -626,16 +620,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
               title={requestedSearch ? "Prompt tidak ditemukan." : "Produk belum ada."}
               description={
                 requestedSearch
-                  ? "Coba kata kunci lain atau bersihkan pencarian."
+                  ? "Coba kata kunci lain."
                   : "Buat produk dulu."
               }
               action={
-                requestedSearch ? (
-                  <NativeLinkButton className="primary" href={clearSearchHref}>
-                    <X size={16} aria-hidden="true" />
-                    Bersihkan
-                  </NativeLinkButton>
-                ) : (
+                requestedSearch ? null : (
                   <NativeLinkButton className="primary" href="/products/new">
                     <Plus size={16} aria-hidden="true" />
                     Produk Baru

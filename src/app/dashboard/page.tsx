@@ -1,400 +1,248 @@
-import { redirect } from "next/navigation";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import {
-  Activity,
-  Archive,
-  ChevronRight,
-  CircleAlert,
-  ListChecks,
-  Sparkles,
-  Workflow,
-  type LucideIcon,
-} from "lucide-react";
-import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { GeminiLiveCycleChart } from "@/components/operator/gemini-live-cycle-chart";
-import { GeminiUsageOverviewPanel } from "@/components/operator/gemini-usage-overview";
-import { MetricCard } from "@/components/operator/metric-card";
-import { AI_TASK_STATUSES } from "@/lib/ai-tasks/validation";
+import { StatusBadge } from "@/components/operator/status-badge";
 import {
-  getDashboardActionQueue,
-  type DashboardActionQueueItem,
-  type DashboardActionQueueItemType,
-  type DashboardActionQueueResult,
-} from "@/lib/server/dashboard-actions";
-import {
-  getDashboardPipelineStageCounts,
-  type DashboardPipelineStageKey,
-  type DashboardPipelineStageResult,
-} from "@/lib/server/dashboard-pipeline";
-import { getGeminiUsageOverview } from "@/lib/server/gemini-usage-overview";
+  getDashboardViewModel,
+  type DashboardMetricViewModel,
+  type DashboardQuotaViewModel,
+  type DashboardTone,
+  type DashboardViewModel,
+} from "@/lib/server/dashboard-view-model";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-
-type MetricResult<T> =
-  | {
-      status: "available";
-      data: T;
-    }
-  | {
-      status: "unavailable";
-      message: string;
-    };
-
-type StatusCount = {
-  status: string;
-  count: number;
-};
-
-type StatusBreakdown = {
-  total: number;
-  statuses: StatusCount[];
-};
-
-const ACTIVE_TASK_STATUSES = ["QUEUED", "RUNNING", "RETRYING", "WAITING_FOR_KEY"] as const;
-const ISSUE_TASK_STATUSES = ["FAILED", "CANCELLED"] as const;
-const numberFormatter = new Intl.NumberFormat("id-ID");
-
-const GEMINI_STATUS_LABELS: Record<string, string> = {
-  QUEUED: "Menunggu",
-  RUNNING: "Berjalan",
-  SUCCESS: "Sukses",
-  FAILED: "Gagal",
-  RETRYING: "Retry",
-  WAITING_FOR_KEY: "Menunggu key",
-  CANCELLED: "Dibatalkan",
-};
-
-const GEMINI_STATUS_TONES: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
-  QUEUED: "neutral",
-  RUNNING: "info",
-  SUCCESS: "success",
-  FAILED: "danger",
-  RETRYING: "warning",
-  WAITING_FOR_KEY: "warning",
-  CANCELLED: "neutral",
-};
-
-const ACTION_TONE: Record<DashboardActionQueueItemType, "info" | "success" | "warning" | "danger"> = {
-  metadata_review: "warning",
-  prompt_generation: "info",
-  output_verification: "danger",
-  batch_export: "success",
-};
-
-const PIPELINE_STAGE_ORDER: DashboardPipelineStageKey[] = [
-  "draft",
-  "metadataReady",
-  "promptReady",
-  "exported",
-  "generated",
-  "done",
-];
-
-const PIPELINE_STAGE_LABELS: Record<DashboardPipelineStageKey, string> = {
-  draft: "Draft",
-  metadataReady: "Metadata",
-  promptReady: "Prompt",
-  exported: "Exported",
-  generated: "Generated",
-  done: "Done",
-};
-
-const PIPELINE_STAGE_HREFS: Record<DashboardPipelineStageKey, string> = {
-  draft: "/products?filter=draft",
-  metadataReady: "/products?filter=metadata-ready",
-  promptReady: "/prompts?readiness=GENERATED",
-  exported: "/controller",
-  generated: "/products?filter=generated",
-  done: "/products?filter=done",
-};
-
-function formatCount(value: number) {
-  return numberFormatter.format(value);
+function progressStyle(percent: number) {
+  return { "--dashboard-progress": `${Math.min(100, Math.max(0, percent))}%` } as CSSProperties;
 }
 
-function formatMetricValue(metric: MetricResult<number>) {
-  return metric.status === "available" ? formatCount(metric.data) : "Tidak tersedia";
-}
-
-function getMetricFillPercent(metric: MetricResult<number>) {
-  if (metric.status === "unavailable") {
-    return 18;
-  }
-
-  return Math.min(92, Math.max(10, metric.data * 11 + 14));
-}
-
-function DashboardSection({
+function DashboardPanel({
   children,
-  icon: Icon,
+  className,
+  eyebrow,
   id,
+  status,
   title,
-  variant,
+  tone,
 }: {
   children: ReactNode;
-  icon: LucideIcon;
-  id?: string;
+  className?: string;
+  eyebrow?: string;
+  id: string;
+  status?: string;
   title: string;
-  variant?: "primary" | "secondary";
+  tone?: DashboardTone;
 }) {
-  const sectionId = id ?? `dashboard-section-${title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
-  const className = variant === "secondary" ? "dashboard-section dashboard-section--secondary" : "dashboard-section";
+  const resolvedClassName = ["dashboard-panel", className].filter(Boolean).join(" ");
 
   return (
-    <section className={className} aria-labelledby={sectionId}>
-      <div className="dashboard-section__header">
-        <span className="icon-frame dashboard-section__icon" aria-hidden="true">
-          <Icon size={18} />
-        </span>
-        <h2 id={sectionId}>{title}</h2>
+    <section className={resolvedClassName} aria-labelledby={id}>
+      <div className="dashboard-panel__header">
+        <div className="dashboard-panel__title">
+          {eyebrow ? <span>{eyebrow}</span> : null}
+          <h2 id={id}>{title}</h2>
+        </div>
+        {status ? <StatusBadge status={status} tone={tone} size="sm" /> : null}
       </div>
       {children}
     </section>
   );
 }
 
-async function countRows(
-  supabase: SupabaseServerClient,
-  tableName: string,
-  userId: string,
-  filter?: { column: string; value: string },
-): Promise<MetricResult<number>> {
-  let query = supabase.from(tableName).select("id", { count: "exact", head: true }).eq("user_id", userId);
-
-  if (filter) {
-    query = query.eq(filter.column, filter.value);
-  }
-
-  const { count, error } = await query;
-
-  if (error) {
-    return {
-      status: "unavailable",
-      message: error.message,
-    };
-  }
-
-  return {
-    status: "available",
-    data: count ?? 0,
-  };
+function ToneDot({ tone }: { tone: DashboardTone }) {
+  return <span className="dashboard-tone-dot" data-tone={tone} aria-hidden="true" />;
 }
 
-async function countByStatus(input: {
-  supabase: SupabaseServerClient;
-  tableName: string;
-  statusColumn: string;
-  userId: string;
-  statuses: readonly string[];
-}): Promise<MetricResult<StatusBreakdown>> {
-  const total = await countRows(input.supabase, input.tableName, input.userId);
-
-  if (total.status === "unavailable") {
-    return total;
-  }
-
-  const statusResults = await Promise.all(
-    input.statuses.map(async (status) => ({
-      status,
-      result: await countRows(input.supabase, input.tableName, input.userId, {
-        column: input.statusColumn,
-        value: status,
-      }),
-    })),
-  );
-  const failedStatus = statusResults.find((item) => item.result.status === "unavailable");
-
-  if (failedStatus?.result.status === "unavailable") {
-    return {
-      status: "unavailable",
-      message: failedStatus.result.message,
-    };
-  }
-
-  const statuses = statusResults
-    .map((item) => ({
-      status: item.status,
-      count: item.result.status === "available" ? item.result.data : 0,
-    }))
-    .filter((item) => item.count > 0);
-  const knownTotal = statuses.reduce((sum, item) => sum + item.count, 0);
-  const otherCount = Math.max(total.data - knownTotal, 0);
-
-  if (otherCount > 0) {
-    statuses.push({
-      status: "OTHER",
-      count: otherCount,
-    });
-  }
-
-  return {
-    status: "available",
-    data: {
-      total: total.data,
-      statuses,
-    },
-  };
-}
-
-function availableMetric(data: number): MetricResult<number> {
-  return {
-    status: "available",
-    data,
-  };
-}
-
-function statusCount(metric: MetricResult<StatusBreakdown>, status: string) {
-  if (metric.status === "unavailable") {
-    return 0;
-  }
-
-  return metric.data.statuses.find((item) => item.status === status)?.count ?? 0;
-}
-
-function sumStatuses(metric: MetricResult<StatusBreakdown>, statuses: readonly string[]) {
-  if (metric.status === "unavailable") {
-    return metric;
-  }
-
-  return availableMetric(statuses.reduce((sum, status) => sum + statusCount(metric, status), 0));
-}
-
-function MetricTile({
-  label,
-  metric,
-}: {
-  label: string;
-  metric: MetricResult<number>;
-}) {
+function GeminiMetric({ item }: { item: DashboardMetricViewModel }) {
   return (
-    <MetricCard
-      className={`dashboard-kpi${metric.status === "unavailable" ? " dashboard-kpi--unavailable" : ""}`}
-      label={label}
-      progressPercent={getMetricFillPercent(metric)}
-      value={formatMetricValue(metric)}
-    />
+    <article className="dashboard-ops-metric" data-tone={item.tone}>
+      <span>{item.label}</span>
+      <strong>{item.value}</strong>
+      <small>{item.detail}</small>
+    </article>
   );
 }
 
-type GeminiLiveCycleRow = {
-  status: string;
-  label: string;
-  count: number;
-  share: number;
-  tone: "neutral" | "info" | "success" | "warning" | "danger";
-};
-
-function getLiveCycleRows(metric: MetricResult<StatusBreakdown>) {
-  if (metric.status === "unavailable") {
-    return [];
-  }
-
-  return AI_TASK_STATUSES.map((status) => {
-    const count = statusCount(metric, status);
-    const share = metric.data.total > 0 ? count / metric.data.total : 0;
-
-    return {
-      status,
-      label: GEMINI_STATUS_LABELS[status] ?? status,
-      count,
-      share,
-      tone: GEMINI_STATUS_TONES[status] ?? "neutral",
-    } satisfies GeminiLiveCycleRow;
-  });
-}
-
-function ActionQueueRow({ item }: { item: DashboardActionQueueItem }) {
-  const tone = ACTION_TONE[item.type];
-
+function QuotaRow({ item }: { item: DashboardQuotaViewModel }) {
   return (
-    <Link className="dashboard-action-row" data-tone={tone} href={item.href}>
-      <span className="dashboard-action-row__dot" aria-hidden="true" />
-      <span className="dashboard-action-row__label">{item.label}</span>
-      <span className="dashboard-action-row__count">{formatCount(item.count)}</span>
-      <ChevronRight className="dashboard-action-row__chevron" aria-hidden="true" size={16} />
-    </Link>
-  );
-}
-
-function ActionQueueSection({ result }: { result: DashboardActionQueueResult }) {
-  if (result.status === "unavailable") {
-    return (
-      <EmptyState
-        icon={CircleAlert}
-        title="Action queue tidak tersedia."
-        description={result.errors[0]?.message ?? "Coba muat ulang halaman."}
-      />
-    );
-  }
-
-  if (result.items.length === 0) {
-    return (
-      <EmptyState
-        icon={ListChecks}
-        title="Semua beres."
-        description="Tidak ada item menunggu tindakan."
-      />
-    );
-  }
-
-  return (
-    <div className="dashboard-action-queue">
-      {result.items.map((item) => (
-        <ActionQueueRow item={item} key={item.type} />
-      ))}
-      {result.status === "partial" && result.errors.length > 0 ? (
-        <p className="dashboard-action-queue__notice">
-          Sebagian indikator tidak tersedia: {result.errors.map((error) => error.message).join(" ")}
-        </p>
-      ) : null}
+    <div className="dashboard-quota-row" data-tone={item.tone}>
+      <div className="dashboard-quota-row__meta">
+        <span>{item.label}</span>
+        <strong>
+          {item.used} / {item.limit}
+        </strong>
+      </div>
+      <span className="dashboard-quota-row__bar" style={progressStyle(item.percent)}>
+        <span />
+      </span>
+      <span className="dashboard-quota-row__percent">{item.percent}%</span>
     </div>
   );
 }
 
-function PipelineSummarySection({ result }: { result: DashboardPipelineStageResult }) {
-  if (result.status === "unavailable") {
-    return (
-      <EmptyState
-        icon={CircleAlert}
-        title="Pipeline tidak tersedia."
-        description={result.message}
-      />
-    );
-  }
-
-  if (result.total === 0) {
-    return (
-      <EmptyState
-        icon={Workflow}
-        title="Belum ada produk."
-        description="Mulai dari Intake untuk mengisi pipeline."
-      />
-    );
-  }
+function GeminiOperations({ viewModel }: { viewModel: DashboardViewModel["geminiOperations"] }) {
+  const issueHref = viewModel.recentIssue.href;
+  const issueActionLabel = viewModel.recentIssue.actionLabel;
 
   return (
-    <ol className="dashboard-pipeline-strip" aria-label="Pipeline produk">
-      {PIPELINE_STAGE_ORDER.map((stage) => {
-        const count = result.counts[stage];
-        const href = PIPELINE_STAGE_HREFS[stage];
-        const label = PIPELINE_STAGE_LABELS[stage];
-        const isEmpty = count === 0;
+    <DashboardPanel
+      className="dashboard-panel--primary dashboard-ops"
+      id="dashboard-gemini-operations"
+      status={viewModel.status}
+      title={viewModel.title}
+      tone={viewModel.tone}
+    >
+      <div className="dashboard-ops__body">
+        <div className="dashboard-ops__main">
+          <div className="dashboard-ops-metrics" aria-label="Kesehatan task Gemini">
+            {viewModel.health.map((item) => (
+              <GeminiMetric item={item} key={item.id} />
+            ))}
+          </div>
 
-        return (
-          <li className="dashboard-pipeline-strip__item" data-empty={isEmpty ? "true" : undefined} key={stage}>
-            <Link className="dashboard-pipeline-strip__cell" href={href}>
-              <span className="dashboard-pipeline-strip__label">{label}</span>
-              <span className="dashboard-pipeline-strip__count">{formatCount(count)}</span>
-            </Link>
-          </li>
-        );
-      })}
-    </ol>
+          <article className="dashboard-issue-card" data-tone={viewModel.recentIssue.tone}>
+            <div>
+              <span>Masalah terbaru</span>
+              <strong>{viewModel.recentIssue.title}</strong>
+              <p>{viewModel.recentIssue.message}</p>
+            </div>
+            {issueHref && issueActionLabel ? (
+              <Link className="dashboard-inline-link" href={issueHref}>
+                {issueActionLabel}
+                <ChevronRight size={15} aria-hidden="true" />
+              </Link>
+            ) : null}
+          </article>
+        </div>
+
+        <div className="dashboard-ops__side">
+          <div className="dashboard-quota-panel" aria-label="Penggunaan quota Gemini">
+            <div className="dashboard-subsection-title">
+              <span>Quota</span>
+              <strong>{viewModel.quotaSummary}</strong>
+            </div>
+            {viewModel.quota.length === 0 ? (
+              <EmptyState title="Usage Gemini kosong." description="Belum ada event usage atau limit quota aktif." />
+            ) : (
+              <div className="dashboard-quota-list">
+                {viewModel.quota.map((item) => (
+                  <QuotaRow item={item} key={item.id} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="dashboard-key-panel" aria-label="Status Gemini key">
+            <div className="dashboard-subsection-title">
+              <span>Status key</span>
+              <strong>{viewModel.keyStatusSummary}</strong>
+            </div>
+            {viewModel.keyStatus.length === 0 ? (
+              <EmptyState title="Belum ada key aktif." description="Key aktif belum tersedia untuk operator." />
+            ) : (
+              <div className="dashboard-key-list">
+                {viewModel.keyStatus.map((item) => (
+                  <article className="dashboard-key-row" key={item.id}>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <span>{item.meta}</span>
+                    </div>
+                    <StatusBadge status={item.status} tone={item.tone} size="sm" />
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </DashboardPanel>
   );
+}
+
+function ActionQueue({ viewModel }: { viewModel: DashboardViewModel["actionQueue"] }) {
+  const emptyTitle = viewModel.status === "unavailable" ? "Action queue tidak tersedia." : "Tidak ada aksi.";
+  const emptyDescription = viewModel.errorMessage ?? "Queue operasional kosong.";
+  const statusLabel = viewModel.status === "available" ? undefined : viewModel.status === "partial" ? "Data terbatas" : "Tidak tersedia";
+
+  return (
+    <DashboardPanel
+      className="dashboard-panel--secondary"
+      eyebrow="Prioritas"
+      id="dashboard-action-queue"
+      status={statusLabel}
+      title={viewModel.title}
+      tone="warning"
+    >
+      {viewModel.items.length === 0 ? (
+        <EmptyState title={emptyTitle} description={emptyDescription} />
+      ) : (
+        <div className="dashboard-compact-list">
+          {viewModel.items.map((item) => (
+            <Link className="dashboard-compact-row" data-tone={item.tone} href={item.href} key={item.id}>
+              <ToneDot tone={item.tone} />
+              <span className="dashboard-compact-row__copy">
+                <strong>{item.label}</strong>
+                <span>{item.detail}</span>
+              </span>
+              <span className="dashboard-compact-row__count">{item.count}</span>
+              <ChevronRight size={15} aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </DashboardPanel>
+  );
+}
+
+function Pipeline({ viewModel }: { viewModel: DashboardViewModel["pipeline"] }) {
+  const emptyTitle = viewModel.status === "unavailable" ? "Pipeline tidak tersedia." : "Pipeline kosong.";
+  const emptyDescription = viewModel.errorMessage ?? "Belum ada produk aktif.";
+
+  return (
+    <DashboardPanel
+      className="dashboard-panel--secondary"
+      eyebrow={viewModel.total}
+      id="dashboard-pipeline"
+      status={viewModel.status === "unavailable" ? "Tidak tersedia" : undefined}
+      title={viewModel.title}
+      tone="warning"
+    >
+      {viewModel.stages.length === 0 ? (
+        <EmptyState title={emptyTitle} description={emptyDescription} />
+      ) : (
+        <ol className="dashboard-pipeline-list" aria-label="Pipeline produk">
+          {viewModel.stages.map((stage) => (
+            <li className="dashboard-pipeline-item" data-tone={stage.tone} key={stage.id}>
+              <Link href={stage.href}>
+                <span className="dashboard-pipeline-item__copy">
+                  <strong>{stage.label}</strong>
+                  <span>{stage.detail}</span>
+                </span>
+                <span className="dashboard-pipeline-item__count">{stage.count}</span>
+                <span className="dashboard-pipeline-item__bar" style={progressStyle(stage.percent)}>
+                  <span />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
+    </DashboardPanel>
+  );
+}
+
+function operatorDisplayName(user: { email?: string | null; user_metadata?: Record<string, unknown> | null }) {
+  const metadataName = user.user_metadata?.full_name ?? user.user_metadata?.name;
+
+  if (typeof metadataName === "string" && metadataName.trim()) {
+    return metadataName.trim();
+  }
+
+  const emailName = user.email?.split("@")[0]?.trim();
+  return emailName || "Operator";
 }
 
 export default async function DashboardPage() {
@@ -407,68 +255,31 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [actionQueue, pipelineCounts, geminiTasks, geminiUsageOverview] = await Promise.all([
-    getDashboardActionQueue(),
-    getDashboardPipelineStageCounts(),
-    countByStatus({
-      supabase,
-      tableName: "ai_tasks",
-      statusColumn: "status",
-      userId: user.id,
-      statuses: AI_TASK_STATUSES,
-    }),
-    getGeminiUsageOverview(user.id),
-  ]);
-
-  const geminiTaskCount: MetricResult<number> = geminiTasks.status === "available" ? availableMetric(geminiTasks.data.total) : geminiTasks;
-  const activeTaskCount = sumStatuses(geminiTasks, ACTIVE_TASK_STATUSES);
-  const successTaskCount = sumStatuses(geminiTasks, ["SUCCESS"]);
-  const issueTaskCount = sumStatuses(geminiTasks, ISSUE_TASK_STATUSES);
-  const liveCycleRows = getLiveCycleRows(geminiTasks);
-  const liveCycleSummary =
-    geminiTasks.status === "available"
-      ? {
-          total: geminiTasks.data.total,
-          active: activeTaskCount.status === "available" ? activeTaskCount.data : 0,
-          issue: issueTaskCount.status === "available" ? issueTaskCount.data : 0,
-        }
-      : null;
+  const viewModel = await getDashboardViewModel({
+    userId: user.id,
+  });
+  const displayName = operatorDisplayName(user);
 
   return (
-    <div className="dashboard-page dashboard-page--analysis">
-      <div className="dashboard-command-center">
-        <div className="dashboard-command-center__primary">
-          <DashboardSection icon={ListChecks} id="action-queue" title="Action queue">
-            <ActionQueueSection result={actionQueue} />
-          </DashboardSection>
+    <div className="dashboard-page dashboard-page--command" data-view-model-source={viewModel.source}>
+      <header className="dashboard-greeting">
+        <div>
+          <span>Halo</span>
+          <h1>{displayName}</h1>
+          <p>Siap bekerja hari ini.</p>
+        </div>
+        <time>{viewModel.generatedAtLabel}</time>
+      </header>
 
-          <DashboardSection icon={Workflow} id="pipeline-summary" title="Pipeline produk">
-            <PipelineSummarySection result={pipelineCounts} />
-          </DashboardSection>
+      <div className="dashboard-command-layout">
+        <div className="dashboard-command-layout__primary">
+          <GeminiOperations viewModel={viewModel.geminiOperations} />
         </div>
 
-        <DashboardSection icon={Activity} id="gemini-summary" title="Ringkasan Gemini" variant="secondary">
-          <div className="metric-grid dashboard-kpi-grid">
-            <MetricTile label="Task total" metric={geminiTaskCount} />
-            <MetricTile label="Aktif" metric={activeTaskCount} />
-            <MetricTile label="Sukses" metric={successTaskCount} />
-            <MetricTile label="Issue" metric={issueTaskCount} />
-          </div>
-        </DashboardSection>
-      </div>
-
-      <div className="dashboard-infrastructure dashboard-insight-grid" aria-label="Infrastruktur Gemini">
-        <DashboardSection icon={Sparkles} id="gemini-live-analysis" title="Live cycle Gemini" variant="secondary">
-          {geminiTasks.status === "unavailable" ? (
-            <EmptyState icon={Archive} title="Gemini task tidak tersedia." description={geminiTasks.message} />
-          ) : geminiTasks.data.total === 0 ? (
-            <EmptyState icon={Archive} title="Belum ada Gemini task." description="Task live cycle masih kosong." />
-          ) : liveCycleSummary ? (
-            <GeminiLiveCycleChart rows={liveCycleRows} summary={liveCycleSummary} />
-          ) : null}
-        </DashboardSection>
-
-        <GeminiUsageOverviewPanel overview={geminiUsageOverview} sectionId="gemini-key-usage" />
+        <aside className="dashboard-command-layout__side" aria-label="Ringkasan kerja">
+          <ActionQueue viewModel={viewModel.actionQueue} />
+          <Pipeline viewModel={viewModel.pipeline} />
+        </aside>
       </div>
     </div>
   );

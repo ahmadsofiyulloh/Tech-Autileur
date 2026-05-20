@@ -3,8 +3,7 @@
 import { AlertTriangle, CircleAlert, CircleCheck, Info, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getGeminiTemporaryUnavailableRetryMessage,
   isGeminiTemporaryUnavailableMessage,
@@ -23,8 +22,8 @@ type RouteFeedback = {
 };
 
 const TOAST_DISMISS_DELAY_MS = 4200;
-const MOBILE_SHEET_DISMISS_DELAY_MS = 6000;
-const MOBILE_VIEWPORT_QUERY = "(max-width: 767px)";
+const SHEET_DISMISS_DELAY_MS = 6200;
+const MAX_STACKED_FEEDBACK = 3;
 const ROUTE_FEEDBACK_KEYS = ["error", "warning", "message"] as const;
 
 const toastIcons = {
@@ -92,140 +91,75 @@ function currentHref(pathname: string, searchParams: ReturnType<typeof useSearch
   return `${pathname}${query ? `?${query}` : ""}${hash}`;
 }
 
-function MobileNotificationSheet({ feedback, onClose }: { feedback: RouteFeedback; onClose: () => void }) {
-  const Icon = toastIcons[feedback.tone];
-
-  return createPortal(
-    <>
-      <button
-        aria-label="Tutup notifikasi"
-        className="mobile-notification-sheet__backdrop"
-        type="button"
-        onClick={onClose}
-      />
-      <aside
-        aria-atomic="true"
-        aria-label="Notifikasi"
-        aria-live={feedback.tone === "error" ? "assertive" : "polite"}
-        aria-modal="true"
-        className="mobile-notification-sheet"
-        data-tone={feedback.tone}
-        role="dialog"
-      >
-        <div className="mobile-notification-sheet__body">
-          <button
-            aria-label="Tutup notifikasi"
-            className="mobile-notification-sheet__close"
-            type="button"
-            onClick={onClose}
-          >
-            <X aria-hidden="true" size={16} />
-          </button>
-          <span className="mobile-notification-sheet__icon" aria-hidden="true">
-            <Icon size={38} strokeWidth={2.25} />
-          </span>
-          <strong className="mobile-notification-sheet__title">{feedback.title}</strong>
-          <span className="mobile-notification-sheet__message">{feedback.message}</span>
-        </div>
-      </aside>
-    </>,
-    document.body,
-  );
-}
-
 export function RouteToaster() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<RouteFeedback[]>([]);
-  const [mobileNotification, setMobileNotification] = useState<RouteFeedback | null>(null);
-  const [isMobileViewport, setIsMobileViewport] = useState<boolean | null>(null);
   const activeFeedbackKeys = useRef(new Set<string>());
   const dismissTimers = useRef(new Map<string, number>());
+  const toastsRef = useRef<RouteFeedback[]>([]);
   const suppressToasts = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
-  function clearDismissTimer(id: string) {
+  const clearDismissTimer = useCallback((id: string) => {
     const timer = dismissTimers.current.get(id);
 
-    if (timer) {
+    if (timer !== undefined) {
       window.clearTimeout(timer);
       dismissTimers.current.delete(id);
     }
-  }
+  }, []);
 
-  function dismissFeedback(feedback: RouteFeedback) {
+  const dismissFeedback = useCallback((feedback: RouteFeedback) => {
     activeFeedbackKeys.current.delete(feedback.key);
     clearDismissTimer(feedback.id);
-
-    if (feedback.presentation === "sheet") {
-      setMobileNotification((current) => (current?.id === feedback.id ? null : current));
-      return;
-    }
-
     setToasts((current) => current.filter((toast) => toast.id !== feedback.id));
-  }
+  }, [clearDismissTimer]);
 
-  function scheduleDismiss(feedback: RouteFeedback) {
-    const delay = feedback.presentation === "sheet" ? MOBILE_SHEET_DISMISS_DELAY_MS : TOAST_DISMISS_DELAY_MS;
+  const scheduleDismiss = useCallback((feedback: RouteFeedback) => {
+    const delay = feedback.presentation === "sheet" ? SHEET_DISMISS_DELAY_MS : TOAST_DISMISS_DELAY_MS;
     const timer = window.setTimeout(() => {
       dismissFeedback(feedback);
     }, delay);
 
     dismissTimers.current.set(feedback.id, timer);
-  }
+  }, [dismissFeedback]);
 
   useEffect(() => {
-    if (!window.matchMedia) {
-      setIsMobileViewport(false);
-      return;
-    }
+    const timers = dismissTimers.current;
 
-    const media = window.matchMedia(MOBILE_VIEWPORT_QUERY);
-
-    function updateViewportState() {
-      setIsMobileViewport(media.matches);
-    }
-
-    updateViewportState();
-    media.addEventListener("change", updateViewportState);
-
-    return () => media.removeEventListener("change", updateViewportState);
-  }, []);
-
-  useEffect(() => {
     return () => {
-      for (const timer of dismissTimers.current.values()) {
+      for (const timer of timers.values()) {
         window.clearTimeout(timer);
       }
 
-      dismissTimers.current.clear();
+      timers.clear();
     };
   }, []);
 
   useEffect(() => {
-    if (!mobileNotification) {
-      return;
-    }
+    toastsRef.current = toasts;
+  }, [toasts]);
 
-    const activeNotification = mobileNotification;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        dismissFeedback(activeNotification);
+        const [latestFeedback] = toastsRef.current;
+
+        if (latestFeedback) {
+          dismissFeedback(latestFeedback);
+        }
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [mobileNotification]);
+  }, [dismissFeedback]);
 
   useEffect(() => {
-    if (suppressToasts || isMobileViewport === null) {
+    if (suppressToasts) {
       return;
     }
 
@@ -268,24 +202,11 @@ export function RouteToaster() {
 
     activeFeedbackKeys.current.add(key);
 
-    if (presentation === "sheet") {
-      setMobileNotification((current) => {
-        if (current) {
-          activeFeedbackKeys.current.delete(current.key);
-          clearDismissTimer(current.id);
-        }
-
-        return feedback;
-      });
-      scheduleDismiss(feedback);
-      return;
-    }
-
     setToasts((current) => {
       const next = [feedback, ...current];
-      const trimmed = next.slice(0, 3);
+      const trimmed = next.slice(0, MAX_STACKED_FEEDBACK);
 
-      for (const removedToast of next.slice(3)) {
+      for (const removedToast of next.slice(MAX_STACKED_FEEDBACK)) {
         activeFeedbackKeys.current.delete(removedToast.key);
         clearDismissTimer(removedToast.id);
       }
@@ -293,47 +214,48 @@ export function RouteToaster() {
       return trimmed;
     });
     scheduleDismiss(feedback);
-  }, [isMobileViewport, pathname, searchParams, suppressToasts]);
+  }, [clearDismissTimer, pathname, scheduleDismiss, searchParams, suppressToasts]);
 
-  if (suppressToasts || (!toasts.length && !mobileNotification)) {
+  if (suppressToasts || !toasts.length) {
     return null;
   }
 
   return (
-    <>
-      {toasts.length ? (
-        <div className="toast-viewport">
-          {toasts.map((toast) => {
-            const Icon = toastIcons[toast.tone];
-            const role = toast.tone === "error" ? "alert" : "status";
+    <div aria-label="Notifikasi" className="toast-viewport">
+      {toasts.map((toast) => {
+        const Icon = toastIcons[toast.tone];
+        const isAssertive = toast.tone === "error" || toast.tone === "warning";
+        const role = isAssertive ? "alert" : "status";
+        const iconSize = toast.presentation === "sheet" ? 22 : 18;
 
-            return (
-              <div
-                className="toast"
-                data-tone={toast.tone}
-                key={toast.id}
-                aria-atomic="true"
-                aria-live={toast.tone === "error" ? "assertive" : "polite"}
-                role={role}
-              >
-                <Icon aria-hidden="true" size={18} />
-                <span>{toast.message}</span>
-                <button
-                  aria-label="Tutup notifikasi"
-                  className="toast__close"
-                  type="button"
-                  onClick={() => dismissFeedback(toast)}
-                >
-                  <X aria-hidden="true" size={15} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-      {mobileNotification ? (
-        <MobileNotificationSheet feedback={mobileNotification} onClose={() => dismissFeedback(mobileNotification)} />
-      ) : null}
-    </>
+        return (
+          <div
+            aria-atomic="true"
+            aria-live={isAssertive ? "assertive" : "polite"}
+            className={toast.presentation === "sheet" ? "toast toast--sheet route-feedback-sheet" : "toast"}
+            data-presentation={toast.presentation}
+            data-tone={toast.tone}
+            key={toast.id}
+            role={role}
+          >
+            <span className="toast__icon" aria-hidden="true">
+              <Icon size={iconSize} strokeWidth={2.25} />
+            </span>
+            <span className="toast__copy">
+              {toast.presentation === "sheet" ? <strong className="toast__title">{toast.title}</strong> : null}
+              <span className="toast__message">{toast.message}</span>
+            </span>
+            <button
+              aria-label="Tutup notifikasi"
+              className="toast__close"
+              type="button"
+              onClick={() => dismissFeedback(toast)}
+            >
+              <X aria-hidden="true" size={15} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -3,7 +3,6 @@ import { Inbox } from "lucide-react";
 import { BulkImportPanel } from "./bulk-import-panel";
 import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { SectionCard } from "@/components/operator/section-card";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
@@ -264,7 +263,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
     <div className="stack intake-native-page">
       <div className="intake-desktop-grid">
         <div className="intake-desktop-primary stack">
-          <PwaInstallCard />
           <section className="intake-native-surface" aria-label="Workflow intake produk">
             <IntakeWorkflowForm
               affiliateProfiles={affiliateProfilesWithAvatars}

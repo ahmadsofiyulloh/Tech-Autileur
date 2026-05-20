@@ -1,5 +1,4 @@
 import {
-  SkeletonPwaInstallCard,
   SkeletonIntakeStepper,
 } from "@/components/operator/loading-skeleton";
 
@@ -8,7 +7,6 @@ export default function NewProductLoading() {
     <div className="stack intake-native-page" aria-busy="true">
       <div className="intake-desktop-grid">
         <div className="intake-desktop-primary stack">
-          <SkeletonPwaInstallCard />
           <section className="intake-native-surface" aria-label="Memuat workflow intake produk">
             <section className="intake-workflow stack loading-skeleton-static">
               <SkeletonIntakeStepper />

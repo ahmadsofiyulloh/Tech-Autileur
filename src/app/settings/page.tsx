@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { cookies } from "next/headers.js";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import {
@@ -12,13 +11,11 @@ import {
 import { AffiliateProfileHero } from "@/components/operator/affiliate-profile-hero";
 import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
 import { EmptyState } from "@/components/operator/empty-state";
-import { PwaInstallCard } from "@/components/operator/pwa-install-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeAnchorButton, NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
 import { activateAffiliateProfile, disconnectGoogleDrive } from "./actions";
-import { ThemeToggle } from "./theme-mode-picker";
 import {
   getPrimaryAffiliateProfileForWorkspace,
   listAffiliateProfiles,
@@ -31,7 +28,6 @@ import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } f
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
 import { getWorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { THEME_COOKIE_NAME, type ThemePreference, readThemePreference } from "@/lib/theme-preference";
 
 export const dynamic = "force-dynamic";
 
@@ -113,17 +109,6 @@ function SettingsGroup({ title, cards }: { title: string; cards: SettingsCard[] 
   );
 }
 
-function ThemePreferenceGroup({ themePreference }: { themePreference: ThemePreference }) {
-  return (
-    <section className="settings-native-group">
-      <h2>Preferensi</h2>
-      <div className="settings-native-card settings-preference-card">
-        <ThemeToggle initialTheme={themePreference} />
-      </div>
-    </section>
-  );
-}
-
 function AffiliateProfileSwitchGroup({
   currentProfileId,
   profiles,
@@ -191,7 +176,7 @@ function AffiliateProfileSwitchGroup({
 }
 
 export default async function SettingsPage() {
-  const [cookieStore, supabase] = await Promise.all([cookies(), createSupabaseServerClient()]);
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -208,7 +193,6 @@ export default async function SettingsPage() {
   let driveIsConnected = false;
   let accountStatus: ReactNode = <StatusBadge status="Ready" tone="success" />;
   let workspaceId: string | null = null;
-  const themePreference = readThemePreference(cookieStore.get(THEME_COOKIE_NAME)?.value);
 
   try {
     const workspaceState = await getWorkspaceSelectionState();
@@ -332,9 +316,7 @@ export default async function SettingsPage() {
         title={currentAffiliateProfile?.profile_name ?? "Belum ada profile aktif."}
         variant="overview"
       />
-      <PwaInstallCard />
       <section className="settings-native-list">
-        <ThemePreferenceGroup themePreference={themePreference} />
         <AffiliateProfileSwitchGroup
           currentProfileId={currentAffiliateProfile?.id ?? null}
           profiles={affiliateProfilesWithAvatars}

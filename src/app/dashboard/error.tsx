@@ -10,13 +10,16 @@ export default function DashboardError({
   reset: () => void;
 }) {
   return (
-    <ErrorState
-      title="Dashboard tidak tersedia."
-      action={
-        <NativeButton className="primary" type="button" onClick={reset}>
-          Coba lagi
-        </NativeButton>
-      }
-    />
+    <div className="dashboard-page dashboard-page--command">
+      <ErrorState
+        title="Dashboard tidak tersedia."
+        description="Muat ulang untuk melihat ringkasan operasi."
+        action={
+          <NativeButton className="primary" type="button" onClick={reset}>
+            Coba lagi
+          </NativeButton>
+        }
+      />
+    </div>
   );
 }
