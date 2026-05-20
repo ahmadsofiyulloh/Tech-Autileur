@@ -107,7 +107,7 @@ Drive
 /flow           -> frozen route redirect to /products/new
 ```
 
-The topbar right action is the approved Settings gear entry point on every non-Settings route. `/settings` must not render a right-side topbar action. Settings is not a bottom navigation item in Phase 1, and the shell must not show a workspace picker.
+The topbar has two distinct global controls: Notifications and Profile avatar menu. The Profile avatar opens the profile overview and includes menu actions for `Pengaturan` and `Sign out`. `/settings` remains the locked Pengaturan hub route and must not render a duplicate standalone Settings gear/action. Settings is not a bottom navigation item in Phase 1, and the shell must not show a workspace picker.
 
 Compatibility routes remain available, but are not primary surfaces:
 
@@ -119,7 +119,7 @@ Compatibility routes remain available, but are not primary surfaces:
 
 When `/controller` or `/flow` is opened during Phase 1, the app redirects the operator to `/products/new`. The Flow/Controller backend must not be deleted as part of this freeze.
 
-`Sign out` must live only in `Pengaturan > Account`.
+`Sign out` is allowed from the Profile avatar menu and remains available from `Pengaturan > Account`.
 
 ### 1.3 Required Step Order
 
@@ -332,7 +332,7 @@ Pengaturan is the configuration hub for:
 
 `/settings` is overview-only. The hub must surface compact cards for Affiliate Profiles, Gemini, Drive, Account, and Flow link. Workspace may remain visible only as retained internal support until its UI is removed by a dedicated micro-task. It must not become the operator's primary planning concept.
 
-The Settings overview is opened through the global topbar gear on non-Settings routes. This single gear is the approved visual entry point and is not considered a duplicate Settings affordance.
+The Settings overview is opened from the Profile avatar menu `Pengaturan` action. The topbar must not add a separate standalone Settings gear; Notifications and the Profile avatar menu are the two approved global controls.
 
 The top of `/settings` may surface a compact Gemini Usage overview before the settings card groups. It shows current app-side `RPD`, `RPM`, and `TPM` usage against model-derived limits, grouped by `project + model` when project metadata exists. With multiple Gemini keys, the overview uses a carousel with mobile swipe. The card uses a thick, static donut chart on the left half and quota numbers on the right half; chart tap should not open tooltip/focus framing. When no key/usage card is available, only the inline header row remains.
 
@@ -409,7 +409,7 @@ Primary `/drive` Phase 1 surface:
 - long-press enters client-side multi-select for select/preview state only.
 - no batch archive/delete mutation is required in the initial visual manager.
 
-`Pengaturan > Account` owns Chrome profile pairing, App API Token, and sign out. Chrome pairing actions are `Buat`, `Salin`, `Unduh JSON`, and `Lepas Pairing`.
+`Pengaturan > Account` owns Chrome profile pairing and App API Token. `Sign out` may appear there and in the Profile avatar menu. Chrome pairing actions are `Buat`, `Salin`, `Unduh JSON`, and `Lepas Pairing`.
 
 `/controller` helper actions are `Buka Profil`, `Buka Flow`, and `Ekspor Manifest`. Pairing controls do not live there.
 
@@ -456,7 +456,7 @@ Locked baseline:
 - no oversized hero blocks on functional pages.
 - 8px radius or less for cards and framed surfaces unless a component already has a stronger local rule.
 - clear type hierarchy with page title above section title above card title above label/body.
-- the only global Settings affordance is the topbar gear on non-Settings routes.
+- topbar global controls are Notifications and the Profile avatar menu; Settings is a Profile menu action, not a standalone global gear.
 - shared custom picker for choice fields instead of raw browser dropdowns.
 - static suggestions with free fallback for non-relational text fields that still need loose input.
 - loading, empty, and error states on every active surface.

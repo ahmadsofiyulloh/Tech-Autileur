@@ -8,8 +8,9 @@
 - Mobile bottom nav is exactly `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
 - `Dashboard` is the secondary analytics route in the shell nav.
 - `/controller` is hidden from mobile bottom nav.
-- Topbar shows one Settings gear on every non-Settings route.
-- `/settings` has no right-side topbar gear/action.
+- Topbar shows two distinct global controls: Notifications and Profile avatar menu.
+- The Profile avatar menu opens profile overview and includes `Pengaturan` and `Sign out` actions.
+- `/settings` has no duplicate standalone Settings gear/action.
 - The global shell does not show a workspace picker.
 - Compatibility routes keep working without becoming primary duplicate funnels.
 - Metadata is stored in Supabase.
@@ -194,7 +195,7 @@
 - Empty states use at most one short sentence.
 - Error states use at most one short sentence.
 - Overview pages may use a short summary line, but operational pages do not.
-- The only global Settings entry point is the topbar gear on non-Settings routes.
+- Settings is reached from the Profile avatar menu and is not a standalone global topbar gear or bottom-nav item.
 - The UI uses Inter as the base type family.
 - The UI follows the Visual PWA Mobile-First light native design tokens from 2026-05-04.
 - Primary color is `#007AFF`.

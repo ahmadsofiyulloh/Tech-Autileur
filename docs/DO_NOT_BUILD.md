@@ -30,7 +30,7 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Adding a new Metadata route for the 2026-05-07 Intake refactor.
 - Reintroducing an Affiliate Profile switching carousel inside Intake during the 2026-05-07 refactor.
 - Treating Gemini metadata success as the only way a product can be durably captured.
-- Multiple simultaneous Settings entry points across topbar, header, sidebar, and bottom nav. The single approved topbar Settings gear on non-Settings routes is allowed.
+- Duplicate standalone Settings entry points across topbar, header, sidebar, and bottom nav. Settings is allowed as a Profile avatar menu action only; Settings must not appear in bottom navigation.
 - A separate Settings CRUD surface for Flow Accounts in Phase awal.
 - Inline flat settings forms replacing the locked overview + section route + drawer grammar.
 - Raw desktop data tables as the primary mobile list interaction.
@@ -52,7 +52,7 @@ Codex must not implement these items during MVP unless the user explicitly updat
 
 ## Explicitly Allowed In Phase Awal
 
-- One global Settings gear in the topbar on every non-Settings route. `/settings` must hide the right-side topbar action.
+- Two global topbar controls: Notifications and Profile avatar menu. The Profile avatar opens profile overview and may expose `Pengaturan` and `Sign out` menu actions. `/settings` must not render a duplicate standalone Settings gear/action.
 
 Windows Helper is allowed only as a local companion that:
 

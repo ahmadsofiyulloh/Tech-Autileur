@@ -53,6 +53,60 @@ The visual shell rebrand is locked by `docs/UI_SHELL_REBRAND_LOCK.md`. These tas
 7. `UI-SHELL-DRIVE-01` - drive shell polish.
 8. `UI-SHELL-SETTINGS-01` - settings account shell polish.
 
+## Operator Shell Polish Fix Queue
+
+Source request: operator UI polish follow-up, 2026-05-20. These tasks are scoped to presentation and existing owner-scoped data wiring only; no schema migration, service role exposure, or new workflow concept is approved.
+
+### UI-OP-POLISH-00 - Backlog and scope lock _(IN PROGRESS)_
+**Goal:** Document the approved shell/settings/intake/dashboard/prompt/search polish before runtime implementation.
+**Owner:** Codex
+**Scope:** backlog docs only.
+**Acceptance:** micro-tasks below are recorded with scope, constraints, and validation expectations.
+
+### UI-OP-POLISH-01 - Notification and profile shell polish
+**Goal:** Replace notification floating overview with a right-side scrollable panel, make mobile full-page style, fix avatar button transparency, fix theme toggle stale-state behavior, move mobile feedback overview below the topbar, and simplify profile overview actions.
+**Owner:** Codex
+**Scope:** `src/components/operator/topbar-global-controls.tsx`, `src/components/operator/theme-toggle.tsx`, shell feedback CSS, and related shared CSS only.
+**Acceptance:** notifications load in a right drawer/sheet with thin branded scrollbar; avatar trigger is transparent on mobile and desktop; theme choice does not revert after reopening the menu; mobile feedback no longer floats above bottom nav; profile menu shows theme below the profile block, removes `Kelola akun`, keeps `Pengaturan` and `Sign out`, and exposes `Ganti Akun` beside the active profile name.
+**Follow-up:** Desktop notification activity scroll must not close the panel; scroll-to-close remains limited to the desktop profile popover.
+
+### UI-OP-POLISH-02 - Settings duplicate action cleanup
+**Goal:** Remove duplicated theme and logout actions from Settings because theme and sign out are owned by the avatar overview.
+**Owner:** Codex
+**Scope:** `/settings` overview and `/settings/account` only.
+**Acceptance:** Settings no longer renders the theme selector or Account logout action; account/token and pairing behavior are unchanged.
+
+### UI-OP-POLISH-03 - In-app PWA install card cleanup
+**Goal:** Remove the custom install-app card and its local bridge while preserving browser-native PWA manifest/icon support.
+**Owner:** Codex
+**Scope:** install-card component/usages/CSS/tests/bridge script only.
+**Acceptance:** no in-app install card remains on desktop or Intake; manifest and icon metadata stay intact; no dependency is kept solely for the removed card.
+
+### UI-OP-POLISH-04 - Intake tablet width correction
+**Goal:** Remove the unintended side gutters around the Intake card at 450px-750px.
+**Owner:** Codex
+**Scope:** `/products/new` layout CSS only.
+**Acceptance:** Intake uses available width cleanly across 450px-750px without changing the locked capture/metadata lifecycle.
+
+### UI-OP-POLISH-05 - Dashboard greeting hierarchy
+**Goal:** Remove duplicate dashboard body header and replace it with an operator greeting hierarchy.
+**Owner:** Codex
+**Scope:** dashboard page/loading/error CSS only.
+**Acceptance:** dashboard body starts with `Halo`, prominent operator name, concise subtitle, and monospace last-updated timestamp; topbar remains the global page title.
+
+### UI-OP-POLISH-06 - Prompt variant launcher redesign
+**Goal:** Remove AI subtitle copy from variant choices and open the variant picker from prompt creation/bulk queue buttons instead of showing a separate field.
+**Owner:** Codex
+**Scope:** prompt workbench, variant picker shared component, and related CSS only.
+**Acceptance:** `Buat Prompt` and bulk prompt actions open the picker first; variant options use a custom scroll surface without verbose copy; bulk submit label becomes `Antrikan`; prompt contracts and server actions are unchanged.
+**Follow-up:** Shared picker options use neutral Vercel-like interactions with no blue hover/focus/active treatment, tighter value spacing, and no subtitle rows in picker values/options. Prompt action launchers (`Buat Prompt`, `Antrikan`) open a compact floating option menu anchored to the button on mobile and desktop, without a sheet header or close button.
+
+### UI-OP-POLISH-07 - Search and clear action cleanup
+**Goal:** Standardize `Bersihkan` behavior across product and prompt surfaces.
+**Owner:** Codex
+**Scope:** shared search input plus product/prompt list surfaces.
+**Acceptance:** search clear moves inside the search field as an icon-only control; bulk clear controls only appear when there is an active selection; labels do not wrap on compact widths.
+
 ## Controller UI Polish Runtime Mapping
 
 Source planning doc: `docs/codex-controller-polish-tasks.md`.
@@ -256,9 +310,9 @@ These tasks document the visual implementation state after the 2026-05-04 Visual
 **Acceptance:** `src/app/globals.css` contains visual token utilities and `src/app/layout.tsx` uses Inter as the app font.
 
 ### VIS-002 - App Shell _(DONE)_
-**Goal:** Remove the workspace picker from the shell, keep fixed bottom nav for Intake/Produk/Prompt/Drive, and add the topbar Settings gear.
+**Goal:** Remove the workspace picker from the shell, keep fixed bottom nav for Intake/Produk/Prompt/Drive, and add the approved global topbar controls.
 **Owner:** Codex
-**Acceptance:** non-Settings routes show one Settings gear, `/settings` shows no right-side topbar action, and safe-area spacing is preserved.
+**Acceptance:** non-Settings routes show Notifications and Profile avatar menu, `/settings` shows no duplicate standalone Settings action, and safe-area spacing is preserved.
 
 ### VIS-003 - Intake _(DONE visually)_
 **Goal:** Align `/products/new` with the mobile visual reference using camera-style preview, upload cards, profile carousel, and Gemini skeleton/loading treatment.
@@ -301,7 +355,7 @@ Known visual/backend gaps:
 ### S1-001 - Lock desktop and mobile nav _(DONE)_
 **Goal:** Shell navigation is Dashboard, Intake, Produk, Prompt, Drive. Mobile bottom nav is Dashboard, Intake, Produk, Prompt, Drive.
 **Owner:** Codex
-**Acceptance:** `/controller` is hidden from shell nav, `/flow` and `/controller` redirect to `/products/new`, Settings is reached by the approved topbar gear on non-Settings routes, and `/settings` has no right-side topbar action.
+**Acceptance:** `/controller` is hidden from shell nav, `/flow` and `/controller` redirect to `/products/new`, Settings is reached by the Profile avatar menu, and `/settings` has no duplicate standalone Settings action.
 
 ### S1-002 - Route compatibility _(DONE)_
 **Goal:** Keep `/intake`, `/flow`, and `/outputs` compatibility behavior without creating duplicate primary funnels.
@@ -309,9 +363,9 @@ Known visual/backend gaps:
 **Acceptance:** `/products/new`, `/prompts`, `/controller`, and product detail remain the locked working surfaces.
 
 ### S1-003 - Shell settings and account lock _(DONE)_
-**Goal:** Move Sign out and Chrome profile pairing into `Pengaturan > Account`, with no duplicate shell settings entry points.
+**Goal:** Move Chrome profile pairing into `Pengaturan > Account` and allow Sign out from the Profile avatar menu and Account, with no duplicate shell settings entry points.
 **Owner:** Codex
-**Acceptance:** Settings remains the only configuration hub, the shell uses one approved topbar gear on non-Settings routes, Sign out is not in the header, and Chrome profile pairing includes Buat, Salin, Unduh JSON, and Lepas Pairing.
+**Acceptance:** Settings remains the only configuration hub, the shell uses Notifications and Profile avatar menu as global topbar controls, Sign out is allowed from the Profile avatar menu and Account, and Chrome profile pairing includes Buat, Salin, Unduh JSON, and Lepas Pairing.
 
 ## S2 - Intake Workflow
 
@@ -420,7 +474,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### S6-004 - Nested settings routing desktop/mobile _(DONE)_
 **Goal:** Split `/settings` into overview plus nested sections so desktop and mobile have clear section routing without adding a second global settings nav.
 **Owner:** Codex
-**Acceptance:** `/settings` stays overview-first, nested sections exist for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link, desktop gets compact internal section navigation, mobile stays scroll-efficient, and `Pengaturan > Account` remains the only place for Chrome pairing, App API Token, and sign out.
+**Acceptance:** `/settings` stays overview-first, nested sections exist for Workspace, Affiliate Profiles, Gemini, Drive, Account, and Flow link, desktop gets compact internal section navigation, mobile stays scroll-efficient, `Pengaturan > Account` remains the place for Chrome pairing and App API Token, and sign out is allowed from Account and the Profile avatar menu.
 
 ### S6-005 - List drawer table/card grammar _(DONE)_
 **Goal:** Apply the locked list + drawer CRUD grammar across mutable master surfaces.

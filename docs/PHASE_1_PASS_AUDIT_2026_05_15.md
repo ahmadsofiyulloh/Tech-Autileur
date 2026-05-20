@@ -31,7 +31,7 @@ Phase 1 is accepted as the locked MVP baseline for:
 - `Paket Prompt` generation, regeneration, structured JSON output, copy-ready fields, and history.
 - Google Drive as asset/file source of truth.
 - Visual Drive manager with grid/list and preview behavior.
-- Pengaturan hub through topbar Settings gear.
+- Pengaturan hub access, superseded by the Profile avatar menu Settings action.
 - Account surface for Chrome pairing and App API Token.
 - Retained Flow batch, manifest, and helper callback backend compatibility.
 - Phase 1 freeze of Controller/Flow primary UI surfaces.

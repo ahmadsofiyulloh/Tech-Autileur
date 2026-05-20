@@ -15,7 +15,7 @@ The MVP streams below remain the Phase 1 completion model. Phase 2 streams are l
 | Stream | Name | Purpose | Owner |
 |---|---|---|---|
 | S0 | Project Control | Docs, AGENTS, repo rules, quality gates | Codex + User review |
-| S1 | App Shell | Dashboard/Intake/Produk/Prompt/Drive nav, topbar Settings gear, route lock, settings/account shell, compatibility routes | Codex |
+| S1 | App Shell | Dashboard/Intake/Produk/Prompt/Drive nav, Notifications and Profile avatar menu, route lock, settings/account shell, compatibility routes | Codex |
 | S2 | Intake Workflow | `/products/new`, real image/screenshot uploads, Gemini analysis | Codex |
 | S3 | Paket Prompt | Affiliate personas, workspace links, prompt rules, editor/generator, versioning, prompt context | Codex |
 | S4 | Flow Control | global Flow pool, board, manifest, Windows Helper callback | Codex |
@@ -44,7 +44,7 @@ Login
 -> active Affiliate Account readiness
 -> Paket Prompt
 -> Drive visual grid/gallery
--> Pengaturan via topbar gear
+-> Pengaturan via Profile avatar menu
 -> Pengaturan > Account pairing/token
 -> Output package/history
 ```

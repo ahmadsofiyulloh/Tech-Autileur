@@ -9,8 +9,8 @@ The commit-backed ledger lives in `docs/BACKLOG_AUDIT.md`; treat this note as a 
 
 - The 2026-05-04 Visual PWA Mobile-First references override older shell and UI baseline conflicts.
 - Bottom navigation is `Dashboard`, `Intake`, `Produk`, `Prompt`, `Drive`.
-- Settings is opened through one topbar gear on non-Settings routes.
-- `/settings` has no right-side topbar action.
+- Settings access is superseded by the Profile avatar menu Settings action.
+- `/settings` has no duplicate standalone Settings action.
 - The workspace picker has been removed from the global shell.
 - The app uses Inter and light native mobile design tokens.
 - Drive uses a grid/gallery with bottom-sheet preview.

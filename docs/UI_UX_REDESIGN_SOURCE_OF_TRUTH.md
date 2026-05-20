@@ -37,8 +37,9 @@ If this document conflicts with the PRD, the PRD wins.
   - `Prompt`
   - `Drive`
 - `Flow Control` and `Controller` must not appear in Phase 1 workflow navigation.
-- The topbar Settings gear is the only global Settings entry point on non-Settings routes.
-- `/settings` must not render a right-side topbar Settings action.
+- Topbar global controls are Notifications and Profile avatar menu.
+- The Profile avatar opens profile overview and includes menu actions for `Pengaturan` and `Sign out`.
+- `/settings` must not render a duplicate standalone Settings gear/action.
 - The shell must not show a workspace picker.
 
 ### Copy
@@ -96,8 +97,8 @@ If this document conflicts with the PRD, the PRD wins.
   - `/settings/gemini`
   - `/settings/account`
   - `/settings/drive -> /settings`
-- `Pengaturan > Account` owns Chrome pairing, App API Token, and sign out.
-- Sign out must live only in `Pengaturan > Account`.
+- `Pengaturan > Account` owns Chrome pairing and App API Token.
+- Sign out is allowed from the Profile avatar menu and `Pengaturan > Account`.
 - Google Drive connect/status lives on the Settings overview row.
 - `/settings/drive` remains a compatibility redirect only.
 - Workspace is retained internal support and must not be expanded into an operator planning model.
@@ -179,8 +180,9 @@ Existing CSS breakpoints may be migrated gradually, but every redesigned surface
 - `Flow Control` must not appear in workflow nav during Phase 1.
 - `Controller` must not appear as primary navigation during Phase 1.
 - No workspace picker is allowed in the shell.
-- Settings gear appears only on non-Settings routes.
-- `/settings` hides the right-side Settings gear.
+- Topbar has two global controls: Notifications and Profile avatar menu.
+- Settings is a Profile avatar menu action, not a standalone topbar gear.
+- `/settings` hides duplicate standalone Settings actions.
 - Desktop shell polish must preserve route contracts, search params, form contracts, and data behavior.
 
 ## 7. Component Contract
@@ -189,7 +191,7 @@ Redesign work should converge on these shared operator components. If a componen
 
 ### AppShell
 
-Owns global shell layout, topbar, desktop sidebar, mobile bottom nav, safe-area spacing, and global Settings gear behavior.
+Owns global shell layout, topbar Notifications, Profile avatar menu, desktop sidebar, mobile bottom nav, safe-area spacing, and Settings menu behavior.
 
 Current reference: `src/components/app-shell.tsx`.
 
@@ -393,7 +395,7 @@ Desktop:
 Mobile:
 
 - Keep grouped native-list feel.
-- Settings remains accessible through topbar gear, not bottom nav.
+- Settings remains accessible through the Profile avatar menu, not bottom nav.
 - Active Affiliate Profile switch may live on the overview when backed by real state.
 
 Desktop:
@@ -416,7 +418,7 @@ Desktop:
 - Workspace remains retained internal support only.
 - Affiliate Profiles keep Character and Environment asset cards with `Lock Character` and `Lock Environment`.
 - Gemini keeps multi-key list + drawer CRUD with approved fields and actions only.
-- Account remains the only place for Chrome pairing, App API Token, and sign out.
+- Account remains the place for Chrome pairing and App API Token; sign out is also allowed from the Profile avatar menu.
 
 ## 9. Validation Rules
 

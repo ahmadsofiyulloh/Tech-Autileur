@@ -53,7 +53,7 @@ Core flow:
 8. Paket Prompt generated output, copy-ready fields, regenerate, and history.
 9. Drive visual grid/gallery review with bottom-sheet preview.
 10. Output package and history when available.
-11. Pengaturan hub through the topbar Settings gear, including `Pengaturan > Account` for Chrome pairing, App API Token, and sign out.
+11. Pengaturan hub through the Profile avatar menu Settings action, with `Pengaturan > Account` for Chrome pairing and App API Token.
 12. Controller/Flow and Windows Helper execution remain retained backend/desktop surfaces, but are not primary Phase 1 mobile navigation.
 
 ## Phase 1 Baseline Rule
@@ -70,7 +70,7 @@ Do not start broad feature work. Start with the locked vertical slice:
 -> /products visual card list
 -> /prompts Paket Prompt
 -> /drive visual grid/gallery
--> /settings grouped native list through topbar gear
+-> /settings grouped native list through Profile avatar menu
 -> Output package/history
 ```
 

@@ -32,11 +32,12 @@ Controller/Flow: Dormant/Frozen, backend retained
 
 Shell rules:
 
-- topbar right action is a Settings gear on every non-Settings route.
-- `/settings` must render no right-side topbar action.
-- the Settings gear is the only global Settings entry point and is not a duplicate navigation stack.
+- topbar global controls are Notifications and the Profile avatar menu.
+- the Profile avatar opens the profile overview and includes menu actions for `Pengaturan` and `Sign out`.
+- `/settings` must render no duplicate standalone Settings gear/action.
+- Settings remains the locked `/settings` route and must not be added to bottom navigation.
 - workspace picker must not be shown in the global shell.
-- `Sign out` lives only in `Pengaturan > Account`.
+- `Sign out` is allowed from the Profile avatar menu and `Pengaturan > Account`.
 - mobile app shell uses fixed bottom navigation for Dashboard, Intake, Produk, Prompt, and Drive.
 - bottom navigation must use safe-area padding and stay above page content.
 - bottom sheets must use safe-area padding and render above bottom navigation.
@@ -95,7 +96,7 @@ Forbidden:
 - repeated explanatory paragraphs.
 - marketing language.
 - hardcoded prompt guidance in UI copy.
-- multiple simultaneous Settings affordances in header, topbar, sidebar, or bottom nav. The approved topbar gear on non-Settings routes is allowed.
+- duplicate standalone Settings affordances in header, topbar, sidebar, or bottom nav. Settings is allowed only as a Profile avatar menu action and through the locked `/settings` route.
 
 ## UI Baseline
 
@@ -260,7 +261,7 @@ Settings detail grammar:
 - Google Drive connect/status lives in the Connected Services overview row; `/settings/drive` is a compatibility redirect only.
 - Drive folder provisioning is automatic under `/AffiliateAI/`; Workspace settings must not expose manual Drive root URL/path/ref setup.
 - Drive primary route: hierarchical Grid/List browser rooted at the active Affiliate Account workspace folder, with mobile bottom-sheet preview and desktop right-side drawer preview.
-- Account: Chrome pairing labels, App API Token, and sign out.
+- Account: Chrome pairing labels, App API Token, and sign out. Sign out is also allowed from the Profile avatar menu.
 - Flow Accounts are controller-owned execution tools for Phase 2 and must not become a separate Settings CRUD surface.
 
 ## Deployment

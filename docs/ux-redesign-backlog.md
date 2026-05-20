@@ -630,7 +630,7 @@ Changes applied:
 
 **Out of scope:**
 - Topbar content changes
-- Settings gear behavior
+- Profile avatar Settings behavior
 - Avatar changes
 
 **Acceptance criteria:**

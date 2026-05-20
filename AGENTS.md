@@ -88,7 +88,7 @@ If a task conflicts with these docs, stop and ask the user before coding.
 - Workflow navigation labels are exactly `Intake`, `Produk`, `Prompt`, and `Drive`.
 - Mobile bottom navigation labels are exactly `Dashboard`, `Intake`, `Produk`, `Prompt`, and `Drive`.
 - `Flow Control` and `Controller` must not appear in Phase 1 workflow navigation.
-- The only global Settings entry is the topbar gear on non-Settings routes. `/settings` must not show a right-side topbar action.
+- The topbar has two distinct global controls: Notifications and Profile avatar menu. The Profile avatar opens profile overview and includes `Pengaturan` and `Sign out` menu actions. `/settings` must not show a duplicate standalone Settings gear/action.
 - Do not add a workspace picker, Controller/Flow primary UI, mobile Flow queue, dense mobile tables, or full edit forms inside Drive preview sheets.
 - UI language is concise Indonesian operational copy. Every active UI surface must include loading, empty, and error states.
 

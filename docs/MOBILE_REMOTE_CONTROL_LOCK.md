@@ -24,7 +24,7 @@ Drive
 `Dashboard` is the secondary analytics route in the mobile shell.
 `Flow Control` is hidden from mobile bottom navigation.
 
-Settings is not a mobile bottom navigation item in Phase 1. Mobile uses one global Settings gear in the topbar on every non-Settings route. `/settings` renders no right-side topbar gear.
+Settings is not a mobile bottom navigation item in Phase 1. Mobile topbar has two global controls: Notifications and Profile avatar menu. The Profile avatar opens profile overview and includes `Pengaturan` and `Sign out` menu actions. `/settings` renders no duplicate standalone Settings gear/action.
 
 ## Mobile Surfaces
 
@@ -38,7 +38,7 @@ In scope on mobile:
 - Paket Prompt generated output/regenerate/history.
 - Drive visual grid/gallery and bottom-sheet preview.
 - Output package review through product detail when available.
-- Pengaturan access through the topbar gear for workspace, affiliate profile, Gemini, Drive, and account basics.
+- Pengaturan access through the Profile avatar menu for workspace, affiliate profile, Gemini, Drive, and account basics.
 
 Out of scope on mobile:
 

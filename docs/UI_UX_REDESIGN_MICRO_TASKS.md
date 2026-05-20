@@ -127,7 +127,7 @@ Align root redirect, mobile nav order, workflow nav, and Controller access with 
 - `/controller` follows the active phase lock: frozen redirect during Phase 1-only work, or approved desktop-only Controller behavior during Phase 2 reactivation.
 - Desktop workflow nav does not expose `Flow Control` or `Controller`.
 - Mobile bottom nav order matches the PRD exactly.
-- Settings gear behavior is unchanged: visible on non-Settings routes, hidden on `/settings`.
+- Topbar global controls behavior is unchanged: Notifications and Profile avatar menu are visible, and `/settings` has no duplicate standalone Settings action.
 - No unapproved Controller/Flow primary UI is introduced.
 
 ### Validation
@@ -1071,7 +1071,7 @@ Polish Settings overview layout, grouping, and desktop density.
 - Desktop should use compact sections/cards without marketing copy.
 - Google Drive status stays on Settings overview row.
 - `/settings/drive` remains a redirect.
-- Sign out stays only in Account.
+- Sign out is allowed in Account and from the Profile avatar menu.
 
 ### Acceptance Criteria
 
@@ -1102,7 +1102,7 @@ npm run build
 
 - Do not touch account secret/token behavior.
 - Do not add Settings > Drive UI.
-- Confirm Settings gear rule is preserved.
+- Confirm Notifications, Profile avatar menu, and Settings menu-action rules are preserved.
 
 ### Prompt For Claude
 
@@ -1389,7 +1389,7 @@ Check shell navigation, drawers, bottom sheets, overflow menus, buttons, search 
 
 ### Acceptance Criteria
 
-- Shell nav and Settings gear are keyboard reachable.
+- Shell nav, Notifications, Profile avatar menu, and Settings menu action are keyboard reachable.
 - Drawers and bottom sheets have usable focus behavior.
 - Overflow menus and copy buttons are keyboard reachable.
 - Interactive icon buttons have accessible labels.
@@ -1458,7 +1458,7 @@ Review the completed UI redesign and produce a final compliance note.
 
 ### Implementation Notes
 
-- Review must explicitly check route redirects, nav labels/order, Settings gear, Intake lifecycle, Prompt labels, Drive constraints, Settings constraints, copy policy, and Controller/Flow behavior against the current phase locks.
+- Review must explicitly check route redirects, nav labels/order, Notifications/Profile controls, Settings menu action, Intake lifecycle, Prompt labels, Drive constraints, Settings constraints, copy policy, and Controller/Flow behavior against the current phase locks.
 - Phase 1-only Controller dormancy checks are superseded where `docs/PHASE_2_ARCHITECTURE_LOCK.md` approves desktop Controller reactivation.
 - The review must still confirm no mobile Flow queue, browser automation, Google Flow auto-submit, fake progress, or unapproved primary mobile Flow UI was introduced.
 - If a violation remains, document it as a blocker or follow-up.
