@@ -357,9 +357,9 @@ test("desktop prompt workbench can enqueue selected ready products", async ({ pa
     await expect(actionBar).toBeVisible();
     await expect(actionBar).toContainText("0 dipilih");
 
-    const clearButton = actionBar.getByRole("button", { name: "Bersihkan" });
-    const enqueueButton = actionBar.getByRole("button", { name: "Antrikan Prompt" });
-    await expect(clearButton).toBeDisabled();
+    const clearButton = actionBar.getByRole("button", { name: "Bersihkan pilihan" });
+    const enqueueButton = actionBar.getByRole("button", { name: "Antrikan" });
+    await expect(clearButton).toHaveCount(0);
     await expect(enqueueButton).toBeDisabled();
 
     const selectButton = page
@@ -371,12 +371,15 @@ test("desktop prompt workbench can enqueue selected ready products", async ({ pa
     await selectButton.click();
 
     await expect(actionBar).toContainText("1 dipilih");
-    await expect(clearButton).toBeEnabled();
+    await expect(actionBar.getByRole("button", { name: "Bersihkan pilihan" })).toBeEnabled();
     await expect(enqueueButton).toBeEnabled();
 
     const promptPackCountBefore = initialPromptPackSnapshot.data?.length ?? 0;
     const taskCountBefore = initialTaskSnapshot.data?.length ?? 0;
     await enqueueButton.click();
+    const variantMenu = page.getByRole("menu", { name: "Pilih varian konten" });
+    await expect(variantMenu).toBeVisible();
+    await variantMenu.getByRole("menuitem", { name: "Hero Hook" }).click();
 
     await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.get("queue") === "1" && url.searchParams.has("message"), { timeout: 30_000 });
     await expect(page.locator('aside[aria-label="Antrian prompt"]')).toBeVisible();
@@ -450,7 +453,7 @@ test("desktop prompt workbench paginates and searches server-side", async ({ pag
     await expect(page.locator(".prompt-list-card").filter({ hasText: targetName })).toHaveCount(1);
     await expect(page.locator(".prompt-list-card")).toHaveCount(1);
 
-    await page.getByRole("link", { name: "Bersihkan" }).click();
+    await page.getByRole("link", { name: "Bersihkan pencarian" }).click();
     await page.waitForURL((url) => url.pathname === "/prompts" && !url.searchParams.has("q"), {
       timeout: 30_000,
     });

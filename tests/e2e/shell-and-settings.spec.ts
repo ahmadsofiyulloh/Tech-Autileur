@@ -19,13 +19,49 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(desktopSidebar).toContainText("Prompt");
     await expect(desktopSidebar).toContainText("Drive");
     await expect(desktopSidebar).toContainText("Dashboard");
-    await expect(desktopSidebar).toContainText("Flow Control");
-    await expect(desktopSidebar.getByRole("link", { name: "Flow Control" })).toHaveAttribute("href", "/controller");
+    await expect(desktopSidebar).not.toContainText("Flow Control");
+    await expect(desktopSidebar.getByRole("link", { name: "Flow Control" })).toHaveCount(0);
     await expect(desktopSidebar).not.toContainText("Pengaturan");
-    await expect(page.getByRole("link", { name: "Pengaturan" })).toBeVisible();
-    await expect(page.locator('.topbar-profile-link[href="/settings"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Buka notifikasi" })).toBeVisible();
+    const profileButton = page.getByRole("button", { name: "Buka menu profil" });
+    await expect(profileButton).toBeVisible();
+    await expect(page.locator('.topbar-profile-link[href="/settings"]')).toHaveCount(0);
     await expect(page.locator(".topbar-settings-link")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).not.toBeVisible();
+
+    await profileButton.click();
+    const profilePanel = page.getByRole("dialog", { name: "Menu profil" });
+    await expect(profilePanel).toBeVisible();
+    await expect(profilePanel.getByRole("link", { name: /Kelola akun/ })).toHaveCount(0);
+    await expect(profilePanel.getByRole("link", { name: /Ganti Akun/ })).toHaveAttribute("href", "/settings");
+    await expect(profilePanel.getByRole("link", { name: /Pengaturan/ })).toHaveAttribute("href", "/settings");
+    await expect(profilePanel.getByText("Tema")).toBeVisible();
+    await expect(profilePanel.locator('form[action="/auth/signout"][method="post"]')).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(profilePanel).toHaveCount(0);
+
+    const activityResponse = await page.request.get("/api/operator/activity-feed?limit=4");
+    expect(activityResponse.ok()).toBe(true);
+    const activityPayload = (await activityResponse.json()) as {
+      ok?: boolean;
+      data?: {
+        items?: Array<{ title?: string }>;
+      };
+    };
+    expect(activityPayload.ok).toBe(true);
+    const firstActivityTitle = activityPayload.data?.items?.[0]?.title ?? null;
+
+    await page.getByRole("button", { name: "Buka notifikasi" }).click();
+    const notificationPanel = page.getByRole("dialog", { name: "Panel notifikasi" });
+    await expect(notificationPanel).toBeVisible();
+    await expect(notificationPanel).not.toContainText("Aktivitas dummy");
+    if (firstActivityTitle) {
+      await expect(notificationPanel.getByText(firstActivityTitle).first()).toBeVisible();
+    } else {
+      await expect(notificationPanel).toContainText("Belum ada aktivitas.");
+    }
+    await page.locator(".topbar-title").click();
+    await expect(notificationPanel).toHaveCount(0);
 
     const sidebarHeader = desktopSidebar.locator(".sidebar-header");
     const sidebarNav = desktopSidebar.locator(".sidebar-nav");
@@ -148,6 +184,17 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
     await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByRole("heading", { name: "Pengaturan", level: 1 })).toBeVisible();
     await expect(page.locator(".tab-nav")).toHaveCount(0);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("navigation", { name: "Mobile operator navigation" })).toBeVisible();
+    await page.getByRole("button", { name: "Buka menu profil" }).click();
+    const mobileProfilePanel = page.getByRole("dialog", { name: "Menu profil" });
+    await expect(mobileProfilePanel).toBeVisible();
+    await expect(mobileProfilePanel).not.toContainText("Kelola akun");
+    await expect(mobileProfilePanel).toContainText("Ganti Akun");
+    await page.keyboard.press("Escape");
+    await expect(mobileProfilePanel).toHaveCount(0);
   } catch (error) {
     throw classifySmokeError("shell and settings", error);
   }
@@ -186,35 +233,45 @@ test("settings theme preference supports light dark and system modes", async ({ 
   try {
     await page.setViewportSize({ width: 1280, height: 1600 });
     await page.emulateMedia({ colorScheme: "light" });
-    await page.goto("/settings", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Pengaturan", level: 1 })).toBeVisible();
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
-    const lightThemeButton = page.getByRole("button", { name: "Light theme" });
-    const systemThemeButton = page.getByRole("button", { name: "System theme" });
-    const darkThemeButton = page.getByRole("button", { name: "Dark theme" });
-    await expect(lightThemeButton).toHaveAttribute("aria-pressed", "true");
+    const openProfilePanel = async () => {
+      await page.getByRole("button", { name: "Buka menu profil" }).click();
+      const panel = page.getByRole("dialog", { name: "Menu profil" });
+      await expect(panel).toBeVisible();
+      return panel;
+    };
+
+    let profileThemePanel = await openProfilePanel();
+    await profileThemePanel.getByRole("button", { name: "Light theme" }).click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("light");
 
-    await darkThemeButton.click();
+    await profileThemePanel.getByRole("button", { name: "Dark theme" }).click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("dark");
     await expect.poll(() => readThemeCookie(page)).toBe("dark");
+    await page.keyboard.press("Escape");
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("dark");
 
+    profileThemePanel = await openProfilePanel();
+    await expect(profileThemePanel.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", "true");
     await page.emulateMedia({ colorScheme: "dark" });
-    await systemThemeButton.click();
+    await profileThemePanel.getByRole("button", { name: "System theme" }).click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("system");
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("dark");
     await expect.poll(() => readThemeCookie(page)).toBe("system");
 
     await page.emulateMedia({ colorScheme: "light" });
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
+    await page.keyboard.press("Escape");
 
-    await lightThemeButton.click();
+    profileThemePanel = await openProfilePanel();
+    await expect(profileThemePanel.getByRole("button", { name: "System theme" })).toHaveAttribute("aria-pressed", "true");
+    await profileThemePanel.getByRole("button", { name: "Light theme" }).click();
     await expect.poll(() => page.locator("html").getAttribute("data-theme")).toBe("light");
     await expect.poll(() => page.locator("html").getAttribute("data-theme-mode")).toBe("light");
     await expect.poll(() => readThemeCookie(page)).toBe("light");

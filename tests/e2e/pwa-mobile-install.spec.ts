@@ -281,7 +281,7 @@ test("mobile shell exposes a pull-to-refresh fallback when the gesture is active
   }
 });
 
-test("install affordance appears only when the browser exposes an install prompt", async ({ page }) => {
+test("in-app install affordance stays removed when the browser exposes an install prompt", async ({ page }) => {
   try {
     await page.goto("/products/new");
     await expect(page.getByRole("heading", { name: "Intake", level: 1 })).toBeVisible();
@@ -300,14 +300,14 @@ test("install affordance appears only when the browser exposes an install prompt
       window.dispatchEvent(installEvent);
     });
 
-    await expect(page.getByRole("region", { name: "Pasang app" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pasang" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Pasang app" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Pasang" })).toHaveCount(0);
   } catch (error) {
     throw classifySmokeError("PWA install affordance", error);
   }
 });
 
-test("standalone display mode hides install affordance", async ({ page }) => {
+test("standalone display mode has no custom install affordance", async ({ page }) => {
   try {
     await page.addInitScript(() => {
       const browserMatchMedia = window.matchMedia.bind(window);

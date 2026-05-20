@@ -1715,45 +1715,54 @@ test("route toaster replays identical toasts after dismissal", async ({ page }) 
   await expect(page.locator('.toast[data-tone="success"]').last()).toContainText("App API Token saved");
 });
 
-test("route toaster maps important mobile feedback to body-only notification sheet", async ({ page }) => {
+test("route toaster maps important mobile feedback to a non-blocking sheet toast", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/settings?error=Google%20Drive%20connection%20failed.");
 
-  const sheet = page.locator(".mobile-notification-sheet");
+  const dock = page.locator(".feedback-dock");
+  const sheet = page.locator(".route-feedback-sheet");
+  const bottomNav = page.locator(".bottom-nav");
 
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator(".mobile-notification-sheet__icon")).toBeVisible();
-  await expect(sheet.locator(".mobile-notification-sheet__title")).toContainText("Gagal");
-  await expect(sheet.locator(".mobile-notification-sheet__message")).toContainText("Google Drive connection failed.");
-  await expect(page.locator(".mobile-notification-sheet__header")).toHaveCount(0);
-  await expect(page.locator(".toast")).toHaveCount(0);
+  await expect(sheet.locator(".toast__icon")).toBeVisible();
+  await expect(sheet.locator(".toast__title")).toContainText("Gagal");
+  await expect(sheet.locator(".toast__message")).toContainText("Google Drive connection failed.");
+  await expect(page.locator(".mobile-notification-sheet")).toHaveCount(0);
+  await expect(page.locator(".mobile-notification-sheet__backdrop")).toHaveCount(0);
+  await expect(dock).toHaveCSS("pointer-events", "none");
+  await expect(sheet).toHaveCSS("pointer-events", "auto");
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
   const sheetBox = await sheet.boundingBox();
-  if (!sheetBox) {
-    throw new Error("Expected mobile notification sheet to have a layout box.");
+  const bottomNavBox = await bottomNav.boundingBox();
+  if (!sheetBox || !bottomNavBox) {
+    throw new Error("Expected mobile feedback and bottom nav to have layout boxes.");
   }
-  expect(Math.round(sheetBox.x)).toBe(0);
-  expect(Math.round(sheetBox.width)).toBe(390);
-  expect(Math.round(sheetBox.y + sheetBox.height)).toBe(844);
-  await expect(sheet).toHaveCSS("border-top-width", "0px");
+  expect(Math.round(sheetBox.x)).toBeGreaterThan(0);
+  expect(Math.round(sheetBox.width)).toBeLessThan(390);
+  expect(Math.round(sheetBox.y + sheetBox.height)).toBeLessThanOrEqual(Math.round(bottomNavBox.y) + 1);
   await expect
     .poll(() => new URL(page.url()).searchParams.has("error"), {
-      message: "route feedback param is cleared after queueing the mobile sheet",
+      message: "route feedback param is cleared after queueing the mobile feedback",
     })
     .toBe(false);
-  await expect(sheet).toHaveCount(0, { timeout: 7000 });
+  await expect(sheet).toHaveCount(0, { timeout: 7500 });
 });
 
-test("route toaster maps important desktop feedback to centered modal", async ({ page }) => {
+test("route toaster maps important desktop feedback to a docked expanded toast", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/settings?error=Google%20Drive%20connection%20failed.");
 
-  const sheet = page.locator(".mobile-notification-sheet");
+  const dock = page.locator(".feedback-dock");
+  const sheet = page.locator(".route-feedback-sheet");
 
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator(".mobile-notification-sheet__title")).toContainText("Gagal");
-  await expect(sheet.locator(".mobile-notification-sheet__message")).toContainText("Google Drive connection failed.");
-  await expect(page.locator(".toast")).toHaveCount(0);
-  await expect(sheet).toHaveCSS("border-top-width", "0px");
+  await expect(sheet.locator(".toast__title")).toContainText("Gagal");
+  await expect(sheet.locator(".toast__message")).toContainText("Google Drive connection failed.");
+  await expect(page.locator(".mobile-notification-sheet")).toHaveCount(0);
+  await expect(page.locator(".mobile-notification-sheet__backdrop")).toHaveCount(0);
+  await expect(dock).toHaveCSS("pointer-events", "none");
+  await expect(sheet).toHaveCSS("pointer-events", "auto");
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
 
   const sheetBox = await sheet.boundingBox();
   const viewport = page.viewportSize();
@@ -1761,6 +1770,9 @@ test("route toaster maps important desktop feedback to centered modal", async ({
     throw new Error("Expected desktop notification sheet to have viewport and layout boxes.");
   }
 
-  expect(Math.abs(sheetBox.x + sheetBox.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(2);
-  expect(Math.abs(sheetBox.y + sheetBox.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(2);
+  expect(Math.round(viewport.width - (sheetBox.x + sheetBox.width))).toBeLessThanOrEqual(24);
+  expect(Math.round(viewport.height - (sheetBox.y + sheetBox.height))).toBeLessThanOrEqual(32);
+
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
 });
