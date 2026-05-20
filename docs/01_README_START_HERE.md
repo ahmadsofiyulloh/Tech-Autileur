@@ -38,6 +38,14 @@ Read these docs in order:
 18. `docs/SMOKE_E2E_RUNBOOK.md`
 19. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
 
+## Stream-Specific Feature Docs
+Read these only when implementing matching stream micro-tasks:
+
+- `docs/AI_MEDIA_LAB_PRD.md` - approved AI Media Lab stream PRD for frontend-first Magnific API testing work.
+- `docs/AI_MEDIA_LAB_FRONTEND_AUDIT.md` - current frontend dummy implementation audit for the AI Media Lab branch state.
+
+Stream-specific docs extend the app only through approved micro-tasks. They must not override the Phase 1 baseline route, mobile navigation, storage, security, or Flow constraints unless a later lock explicitly approves that change.
+
 ## MVP Core
 The MVP is not a generic affiliate planner. It is an AI production control center for one operator.
 

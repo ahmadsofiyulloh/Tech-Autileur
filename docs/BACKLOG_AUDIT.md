@@ -79,6 +79,9 @@ This document is the evidence layer for backlog progress. Use it before editing 
 | 2026-05-16 | 973fc6e | P2-S1-002B | Legacy evidence: added bulk-import prompt handoff, readiness projection, and auto-reviewed `bulk_import_v1` backfill/test coverage. |
 | 2026-05-16 | d9ac721 | P2-S1-002, P2-S2-001, P2-S2-002 | Legacy evidence: added the prompt workbench, queue drawer, server queue routes, and smoke coverage for enqueue/retry/cancel/pagination. |
 | 2026-05-17 | 650c4db | P2-S3-001B, P2-S4-001A | Stabilized controller/helper stage lanes and the manifest/helper staging contract. |
+| 2026-05-20 | 46ca253 | AI-MEDIA-001..AI-MEDIA-011, UI-OP-POLISH-05 | Shipped the AI Media Lab frontend dummy routes, Magnific settings surface, dashboard quick action, and shell/dashboard hierarchy polish. |
+| 2026-05-20 | 7f2923a | support | Expanded the dashboard quick-action rail with a prompt card, added the prompt quick-action asset, and updated the Next route type reference. |
+| 2026-05-20 | 293b99d | support | Stabilized the dashboard badge count token and locked `next-env.d.ts` to the build-generated route type reference. |
 
 ## Legacy Foundation Checkpoints
 

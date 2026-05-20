@@ -30,6 +30,11 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - MT-DRIVE-HIERARCHY-01
 - P2-LOCK-01, P2-S1-001, P2-S1-002, P2-S1-002B, P2-S2-001, P2-S2-002, P2-S3-001A, P2-S3-001B, P2-S4-001A
 - DOCS-HUASHU-ADAPT-00, DOCS-HUASHU-ADAPT-01
+- AI-MEDIA-001, AI-MEDIA-002, AI-MEDIA-003, AI-MEDIA-004, AI-MEDIA-005, AI-MEDIA-006, AI-MEDIA-007, AI-MEDIA-008, AI-MEDIA-009, AI-MEDIA-010, AI-MEDIA-011, UI-OP-POLISH-05
+
+AI Media Lab frontend dummy audit:
+
+- AI-MEDIA-PRD-001 through AI-MEDIA-012 are tracked below. The current branch audit is recorded in `docs/AI_MEDIA_LAB_FRONTEND_AUDIT.md`.
 
 ## UI/UX Polish References
 - [UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md](UI_UX_POLISH_SEGMENT_A_TOKEN_AUDIT_PROMPT.md)
@@ -39,6 +44,114 @@ Completed on this branch, audit-backed via `docs/BACKLOG_AUDIT.md`:
 - [UI_UX_POLISH_QUICKSTART.md](UI_UX_POLISH_QUICKSTART.md)
 - [UI_UX_POLISH_PLAN.md](UI_UX_POLISH_PLAN.md)
 - [UI_UX_POLISH_IMPLEMENTER_GUIDE.md](UI_UX_POLISH_IMPLEMENTER_GUIDE.md)
+
+## AI Media Lab Frontend-First Stream
+
+Source PRD: `docs/AI_MEDIA_LAB_PRD.md`.
+Current branch audit: `docs/AI_MEDIA_LAB_FRONTEND_AUDIT.md`.
+
+This section registers AI Media Lab as an approved stream-specific PRD for later frontend-first implementation. The Phase 1 baseline in `docs/PRD_SOURCE_OF_TRUTH.md` remains unchanged: `/products/new` stays the entrypoint, mobile bottom navigation remains `Dashboard`, `Intake`, `Produk`, `Prompt`, and `Drive`, and Controller/Flow constraints remain governed by the existing locks.
+
+Section lock:
+
+- Current audit task `AI-MEDIA-012` is the docs audit recorded in `docs/AI_MEDIA_LAB_FRONTEND_AUDIT.md`.
+- Later AI Media Lab work must be implemented one micro-task at a time.
+- Frontend tasks use dummy data first and must not call Magnific or add backend wiring.
+- Backend, migrations, real Magnific API calls, encrypted key storage, task DB wiring, and Drive output wiring are out of scope until the frontend UI is approved.
+
+Implementation order:
+
+1. `AI-MEDIA-PRD-001` - register approved PRD and backlog sequence.
+2. `AI-MEDIA-001` - route placeholders.
+3. `AI-MEDIA-002` - Dashboard entrypoint.
+4. `AI-MEDIA-003` - desktop sidebar group.
+5. `AI-MEDIA-004` - overview dummy UI.
+6. `AI-MEDIA-005` - shared UI components.
+7. `AI-MEDIA-006` - Motion Control dummy page.
+8. `AI-MEDIA-007` - Image to Video dummy page.
+9. `AI-MEDIA-008` - Upscaler dummy page.
+10. `AI-MEDIA-009` - History dummy page.
+11. `AI-MEDIA-010` - Usage dummy page.
+12. `AI-MEDIA-011` - Magnific settings minimal dummy UI.
+13. `AI-MEDIA-012` - frontend dummy readiness audit.
+
+### AI-MEDIA-PRD-001 - Register AI Media Lab stream PRD
+**Goal:** Register AI Media Lab as an approved stream-specific PRD and prepare this backlog for later frontend-first implementation.
+**Owner:** Codex
+**Scope:** docs only; `docs/01_README_START_HERE.md`, `docs/MICRO_TASK_BACKLOG.md`, and verification that `docs/AI_MEDIA_LAB_PRD.md` exists and is readable.
+**Acceptance:** README references the stream PRD; this backlog records the ordered frontend-first task sequence; no runtime code, routes, components, navigation changes, migrations, dependencies, API calls, key storage, task DB wiring, or Drive output wiring are added.
+
+### AI-MEDIA-001 - Route placeholders
+**Goal:** Add static placeholder pages for the final AI Media Lab routes.
+**Owner:** Codex
+**Scope:** `/tools/ai-media`, `/tools/ai-media/motion-control`, `/tools/ai-media/image-to-video`, `/tools/ai-media/upscaler`, `/tools/ai-media/history`, `/tools/ai-media/usage`, and `/settings/magnific` placeholders only.
+**Acceptance:** routes do not 404; pages are static/dummy only; no backend/API calls, migrations, navigation expansion beyond the approved route placeholders, or dependencies are added.
+
+### AI-MEDIA-002 - Dashboard entrypoint
+**Goal:** Add a Dashboard quick action card linking to `/tools/ai-media`.
+**Owner:** Codex
+**Scope:** Dashboard entrypoint only.
+**Acceptance:** mobile Dashboard exposes `AI Media Lab` with `Buka` CTA; mobile bottom navigation remains unchanged; no backend calls are added.
+
+### AI-MEDIA-003 - Desktop sidebar group
+**Goal:** Add the approved desktop sidebar group for AI Media Lab.
+**Owner:** Codex
+**Scope:** desktop sidebar navigation and route title metadata only.
+**Acceptance:** parent `AI Media Lab` links to `/tools/ai-media`; children are `Motion Control`, `Image to Video`, `Upscaler`, `History`, and `Usage`; there is no `Overview` child; collapsed sidebar hides children; mobile nav items remain unchanged.
+
+### AI-MEDIA-004 - Overview dummy UI
+**Goal:** Build the `/tools/ai-media` overview/lobby with structured dummy data.
+**Owner:** Codex
+**Scope:** overview page UI only.
+**Acceptance:** provider status, usage mini summary, full-clickable tool cards, settings shortcut, loading, empty, and error dummy states render; mobile uses a 2-card grid; desktop uses up to 3 columns; no native dropdown, backend call, migration, or live API call is added.
+
+### AI-MEDIA-005 - Shared UI components
+**Goal:** Create reusable frontend components needed by the AI Media Lab dummy UI.
+**Owner:** Codex
+**Scope:** shared AI Media Lab UI components only.
+**Acceptance:** components use existing semantic tokens/classes, shared loading/empty/error patterns, and no hardcoded component-level color or typography values; no backend call is added.
+
+### AI-MEDIA-006 - Motion Control dummy page
+**Goal:** Build the Motion Control dummy workflow page.
+**Owner:** Codex
+**Scope:** frontend dummy stepper, preview, mobile log, desktop log panel, and dummy generate state.
+**Acceptance:** steps render for Provider, Reference, Prompt, Settings, Preview & Generate, and Output; dummy logs include fallback behavior; operator toast copy stays simple; no live API call is added.
+
+### AI-MEDIA-007 - Image to Video dummy page
+**Goal:** Build the Image to Video dummy workflow page.
+**Owner:** Codex
+**Scope:** frontend dummy stepper, preview, log terminal, and dummy output state.
+**Acceptance:** Provider, Image, Prompt, Settings, Preview & Generate, and Output steps render with structured dummy state; no unsupported first-wave fields or live API calls are added.
+
+### AI-MEDIA-008 - Upscaler dummy page
+**Goal:** Build the Upscaler dummy workflow page.
+**Owner:** Codex
+**Scope:** frontend dummy stepper, before/after preview, and log terminal.
+**Acceptance:** mobile compare layout avoids side-by-side overlap; desktop shows a compare panel; no backend call, migration, or live API call is added.
+
+### AI-MEDIA-009 - History dummy page
+**Goal:** Build the AI Media Lab history dummy page.
+**Owner:** Codex
+**Scope:** frontend dummy task history only.
+**Acceptance:** mobile uses compact cards, desktop uses searchable list/table plus drawer, and dummy rows include success, failed, running, and waiting-for-key states; no hard delete flow or backend wiring is added.
+
+### AI-MEDIA-010 - Usage dummy page
+**Goal:** Build the AI Media Lab usage dummy page.
+**Owner:** Codex
+**Scope:** frontend dummy usage and provider/fallback state only.
+**Acceptance:** dummy metrics match the expected future backend shape for requests, status counts, active keys, rate-limited keys, fallback readiness, last used, and recent errors; no real usage tracking or backend wiring is added.
+
+### AI-MEDIA-011 - Magnific settings minimal dummy UI
+**Goal:** Build the minimal Magnific settings dummy UI.
+**Owner:** Codex
+**Scope:** `/settings/magnific` dummy settings UI only.
+**Acceptance:** UI exposes only `Nama key`, `API key`, `Tes koneksi`, `Simpan`, optional `Status`, and optional `Terakhir dites`; dummy states cover no key, loading, success, failed, saved, and invalid key; no raw key persistence, encrypted storage, migration, or live API call is added.
+
+### AI-MEDIA-012 - Frontend dummy readiness audit
+**Goal:** Audit the completed AI Media Lab frontend dummy implementation before backend work.
+**Owner:** Codex
+**Scope:** docs audit only; `docs/AI_MEDIA_LAB_FRONTEND_AUDIT.md` and backlog progress notes.
+**Acceptance:** audit covers route availability, Dashboard quick action, desktop sidebar group, mobile nav, overview grid/cards, local back button, topbar boundary, stepper pages, previews, log terminal, simplified errors, Magnific settings field scope, native select exclusion, backend/API/migration exclusion, verification status, and follow-up risks.
 
 ## UI Shell Rebrand Polish Sequence
 
