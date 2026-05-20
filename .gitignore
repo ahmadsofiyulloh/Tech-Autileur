@@ -26,3 +26,6 @@ tools/windows-helper/work/
 tools/windows-helper/tokens/
 tools/windows-helper/downloads/
 tools/windows-helper/imported/
+.kiro/
+.openclaude/
+.vscode/

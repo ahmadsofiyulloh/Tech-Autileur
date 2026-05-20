@@ -3,10 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
+import { MetricCard } from "@/components/operator/metric-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import {
   getDashboardViewModel,
-  type DashboardMetricViewModel,
   type DashboardQuotaViewModel,
   type DashboardTone,
   type DashboardViewModel,
@@ -56,16 +56,6 @@ function ToneDot({ tone }: { tone: DashboardTone }) {
   return <span className="dashboard-tone-dot" data-tone={tone} aria-hidden="true" />;
 }
 
-function GeminiMetric({ item }: { item: DashboardMetricViewModel }) {
-  return (
-    <article className="dashboard-ops-metric" data-tone={item.tone}>
-      <span>{item.label}</span>
-      <strong>{item.value}</strong>
-      <small>{item.detail}</small>
-    </article>
-  );
-}
-
 function QuotaRow({ item }: { item: DashboardQuotaViewModel }) {
   return (
     <div className="dashboard-quota-row" data-tone={item.tone}>
@@ -97,9 +87,9 @@ function GeminiOperations({ viewModel }: { viewModel: DashboardViewModel["gemini
     >
       <div className="dashboard-ops__body">
         <div className="dashboard-ops__main">
-          <div className="dashboard-ops-metrics" aria-label="Kesehatan task Gemini">
+          <div className="metric-grid ai-media-kpi-grid ai-media-kpi-grid--dashboard" aria-label="Kesehatan task Gemini">
             {viewModel.health.map((item) => (
-              <GeminiMetric item={item} key={item.id} />
+              <MetricCard className="ai-media-kpi" label={item.label} value={item.value} detail={item.detail} key={item.id} />
             ))}
           </div>
 
@@ -197,6 +187,29 @@ function ActionQueue({ viewModel }: { viewModel: DashboardViewModel["actionQueue
   );
 }
 
+function ToolsQuickActions() {
+  return (
+    <DashboardPanel
+      className="dashboard-panel--secondary"
+      eyebrow="Tools"
+      id="dashboard-tools-quick-actions"
+      title="Quick actions"
+    >
+      <div className="dashboard-compact-list">
+        <Link className="dashboard-compact-row" data-tone="info" href="/tools/ai-media">
+          <ToneDot tone="info" />
+          <span className="dashboard-compact-row__copy">
+            <strong>AI Media Lab</strong>
+            <span>Motion, I2V, Upscale.</span>
+          </span>
+          <span className="dashboard-compact-row__count">Buka</span>
+          <ChevronRight size={15} aria-hidden="true" />
+        </Link>
+      </div>
+    </DashboardPanel>
+  );
+}
+
 function Pipeline({ viewModel }: { viewModel: DashboardViewModel["pipeline"] }) {
   const emptyTitle = viewModel.status === "unavailable" ? "Pipeline tidak tersedia." : "Pipeline kosong.";
   const emptyDescription = viewModel.errorMessage ?? "Belum ada produk aktif.";
@@ -213,22 +226,15 @@ function Pipeline({ viewModel }: { viewModel: DashboardViewModel["pipeline"] }) 
       {viewModel.stages.length === 0 ? (
         <EmptyState title={emptyTitle} description={emptyDescription} />
       ) : (
-        <ol className="dashboard-pipeline-list" aria-label="Pipeline produk">
+        <div className="metric-grid ai-media-kpi-grid ai-media-kpi-grid--dashboard" aria-label="Pipeline produk">
           {viewModel.stages.map((stage) => (
-            <li className="dashboard-pipeline-item" data-tone={stage.tone} key={stage.id}>
-              <Link href={stage.href}>
-                <span className="dashboard-pipeline-item__copy">
-                  <strong>{stage.label}</strong>
-                  <span>{stage.detail}</span>
-                </span>
-                <span className="dashboard-pipeline-item__count">{stage.count}</span>
-                <span className="dashboard-pipeline-item__bar" style={progressStyle(stage.percent)}>
-                  <span />
-                </span>
-              </Link>
-            </li>
+            <Link className="ai-media-kpi dashboard-pipeline-kpi" data-tone={stage.tone} href={stage.href} key={stage.id}>
+              <span className="dashboard-pipeline-kpi__label">{stage.label}</span>
+              <strong className="dashboard-pipeline-kpi__count">{stage.count}</strong>
+              <small className="dashboard-pipeline-kpi__detail">{stage.detail}</small>
+            </Link>
           ))}
-        </ol>
+        </div>
       )}
     </DashboardPanel>
   );
@@ -278,6 +284,7 @@ export default async function DashboardPage() {
 
         <aside className="dashboard-command-layout__side" aria-label="Ringkasan kerja">
           <ActionQueue viewModel={viewModel.actionQueue} />
+          <ToolsQuickActions />
           <Pipeline viewModel={viewModel.pipeline} />
         </aside>
       </div>

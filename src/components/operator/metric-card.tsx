@@ -19,14 +19,18 @@ export function MetricCard({ className, detail, label, progressPercent, status, 
     typeof progressPercent === "number"
       ? ({ "--metric-fill": `${normalizeProgressPercent(progressPercent)}%` } as CSSProperties)
       : undefined;
+  const hasStatus = Boolean(status);
 
   return (
-    <div className={cn("operator-metric-card metric", className)} style={style}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {detail ? <small>{detail}</small> : null}
-      {status}
-      {typeof progressPercent === "number" ? <i aria-hidden="true" /> : null}
+    <div
+      className={cn("operator-metric-card metric", hasStatus && "operator-metric-card--with-status", className)}
+      style={style}
+    >
+      <span className="operator-metric-card__label">{label}</span>
+      <strong className="operator-metric-card__value">{value}</strong>
+      {detail ? <small className="operator-metric-card__detail">{detail}</small> : null}
+      {status ? <div className="operator-metric-card__status">{status}</div> : null}
+      {typeof progressPercent === "number" ? <i className="operator-metric-card__progress" aria-hidden="true" /> : null}
     </div>
   );
 }
