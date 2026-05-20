@@ -5550,7 +5550,7 @@ select {
   color: var(--bg-flat);
   font-size: var(--type-caption-size);
   font-weight: var(--type-weight-600);
-  line-height: 20px;
+  line-height: var(--type-caption-line);
   text-align: center;
 }
 
