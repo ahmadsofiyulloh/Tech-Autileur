@@ -52,10 +52,6 @@ function DashboardPanel({
   );
 }
 
-function ToneDot({ tone }: { tone: DashboardTone }) {
-  return <span className="dashboard-tone-dot" data-tone={tone} aria-hidden="true" />;
-}
-
 function QuotaRow({ item }: { item: DashboardQuotaViewModel }) {
   return (
     <div className="dashboard-quota-row" data-tone={item.tone}>
@@ -152,42 +148,7 @@ function GeminiOperations({ viewModel }: { viewModel: DashboardViewModel["gemini
   );
 }
 
-function ActionQueue({ viewModel }: { viewModel: DashboardViewModel["actionQueue"] }) {
-  const emptyTitle = viewModel.status === "unavailable" ? "Action queue tidak tersedia." : "Tidak ada aksi.";
-  const emptyDescription = viewModel.errorMessage ?? "Queue operasional kosong.";
-  const statusLabel = viewModel.status === "available" ? undefined : viewModel.status === "partial" ? "Data terbatas" : "Tidak tersedia";
-
-  return (
-    <DashboardPanel
-      className="dashboard-panel--secondary"
-      eyebrow="Prioritas"
-      id="dashboard-action-queue"
-      status={statusLabel}
-      title={viewModel.title}
-      tone="warning"
-    >
-      {viewModel.items.length === 0 ? (
-        <EmptyState title={emptyTitle} description={emptyDescription} />
-      ) : (
-        <div className="dashboard-compact-list">
-          {viewModel.items.map((item) => (
-            <Link className="dashboard-compact-row" data-tone={item.tone} href={item.href} key={item.id}>
-              <ToneDot tone={item.tone} />
-              <span className="dashboard-compact-row__copy">
-                <strong>{item.label}</strong>
-                <span>{item.detail}</span>
-              </span>
-              <span className="dashboard-compact-row__count">{item.count}</span>
-              <ChevronRight size={15} aria-hidden="true" />
-            </Link>
-          ))}
-        </div>
-      )}
-    </DashboardPanel>
-  );
-}
-
-function ToolsQuickActions() {
+function ToolsQuickActions({ actionCount }: { actionCount: number }) {
   return (
     <DashboardPanel
       className="dashboard-panel--secondary"
@@ -195,15 +156,25 @@ function ToolsQuickActions() {
       id="dashboard-tools-quick-actions"
       title="Quick actions"
     >
-      <div className="dashboard-compact-list">
-        <Link className="dashboard-compact-row" data-tone="info" href="/tools/ai-media">
-          <ToneDot tone="info" />
-          <span className="dashboard-compact-row__copy">
-            <strong>AI Media Lab</strong>
-            <span>Motion, I2V, Upscale.</span>
-          </span>
-          <span className="dashboard-compact-row__count">Buka</span>
-          <ChevronRight size={15} aria-hidden="true" />
+      <div className="dashboard-tools-grid">
+        <Link className="ai-media-tool-card native-button" href="/tools/ai-media">
+          <div className="ai-media-tool-card__visual">
+            <img src="/ai-media/tool-cards/motion-control.webp" alt="" aria-hidden="true" className="ai-media-tool-card__image" loading="lazy" />
+          </div>
+          <div className="ai-media-tool-card__body">
+            <strong className="ai-media-tool-card__title">AI Media Lab</strong>
+            <span className="ai-media-tool-card__label">Motion, I2V, Upscale.</span>
+          </div>
+        </Link>
+        <Link className="ai-media-tool-card native-button" href="/prompts">
+          <div className="ai-media-tool-card__visual">
+            <img src="/ai-media/tool-cards/prompt.webp" alt="" aria-hidden="true" className="ai-media-tool-card__image" loading="lazy" />
+          </div>
+          <div className="ai-media-tool-card__body">
+            <strong className="ai-media-tool-card__title">Buat Prompt</strong>
+            <span className="ai-media-tool-card__label">Workbench prompt.</span>
+          </div>
+          {actionCount > 0 ? <span className="dashboard-tool-card__count">{actionCount}</span> : null}
         </Link>
       </div>
     </DashboardPanel>
@@ -283,8 +254,7 @@ export default async function DashboardPage() {
         </div>
 
         <aside className="dashboard-command-layout__side" aria-label="Ringkasan kerja">
-          <ActionQueue viewModel={viewModel.actionQueue} />
-          <ToolsQuickActions />
+          <ToolsQuickActions actionCount={viewModel.actionQueue.items.length} />
           <Pipeline viewModel={viewModel.pipeline} />
         </aside>
       </div>
