@@ -38,11 +38,23 @@ Read these docs in order:
 18. `docs/SMOKE_E2E_RUNBOOK.md`
 19. `prompts/CODEX_TASK_PROMPT_TEMPLATE.md`
 
+## Agent Workflow Docs
+
+Read these when working with the repo-specific agent workflows:
+
+- `PLAYBOOK.md` - OpenClaude entrypoint and repo operating rules.
+- `docs/OPENCLAUDE_WORKFLOW.md` - OpenClaude workflow control.
+- `docs/KIRO_WORKFLOW.md` - Kiro workflow control.
+- `prompts/OPENCLAUDE_TASK_PROMPT_TEMPLATE.md` - OpenClaude task starter.
+- `prompts/KIRO_TASK_PROMPT_TEMPLATE.md` - Kiro task starter.
+
 ## Stream-Specific Feature Docs
 Read these only when implementing matching stream micro-tasks:
 
 - `docs/AI_MEDIA_LAB_PRD.md` - approved AI Media Lab stream PRD for frontend-first Magnific API testing work.
 - `docs/AI_MEDIA_LAB_FRONTEND_AUDIT.md` - current frontend dummy implementation audit for the AI Media Lab branch state.
+- `docs/AI_MEDIA_LAB_BACKEND_SCHEMA_PROPOSAL.md` - active AI Media Lab backend schema and backend backlog decision doc.
+- `docs/AI_MEDIA_LAB_BACKEND_ARCHITECTURE_PLAN.md` - AI Media Lab backend page/data-flow plan and implementation sequence lock.
 
 Stream-specific docs extend the app only through approved micro-tasks. They must not override the Phase 1 baseline route, mobile navigation, storage, security, or Flow constraints unless a later lock explicitly approves that change.
 

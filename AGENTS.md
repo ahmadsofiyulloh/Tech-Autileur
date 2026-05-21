@@ -14,7 +14,9 @@ Before any implementation task, read these documents:
 6. `docs/MICRO_TASK_BACKLOG.md`
 7. `docs/PROMPT_PIPELINE_LOCK.md`
 8. `docs/MOBILE_REMOTE_CONTROL_LOCK.md`
-9. The stream-specific lock doc for the task being implemented.
+9. `PLAYBOOK.md`
+10. `docs/OPENCLAUDE_WORKFLOW.md`
+11. The stream-specific lock doc for the task being implemented.
 
 If a task conflicts with these docs, stop and ask the user before coding.
 
@@ -52,6 +54,7 @@ If a task conflicts with these docs, stop and ask the user before coding.
 - `AGENTS.md` is the universal manifest for Codex CLI and OpenClaude CLI. Do not create or rely on `CLAUDE.md`.
 - Codex CLI owns planning, repository audits, documentation updates, task decomposition, diff review, and final acceptance notes unless the user explicitly asks it to implement.
 - OpenClaude CLI owns implementation execution for approved micro-tasks and must follow this manifest exactly.
+- OpenClaude CLI should also read `PLAYBOOK.md`, `docs/OPENCLAUDE_WORKFLOW.md`, and `prompts/OPENCLAUDE_TASK_PROMPT_TEMPLATE.md` before implementation so its task preflight and handoff format stay aligned with the repo rules.
 - Both agents must read the required source-of-truth docs before implementation work and stop if a requested change conflicts with them.
 - Both agents must keep work scoped to the active micro-task and document any blocker instead of expanding scope.
 
