@@ -125,7 +125,7 @@ Operational pages must not use hero blocks, marketing layouts, oversized promoti
 
 Use visual hierarchy through layout, spacing, borders, type scale, surface weight, and action placement before adding decoration. Do not add filler cards, fake stats, arbitrary badges, random gradients, or icons that do not represent a real state, action, or navigation affordance.
 
-The primary accent remains `#007AFF` through the shared token layer. New or edited UI must consume semantic design tokens for color and typography. If a visual value is missing, extend the token layer first.
+As of 2026-05-21, non-badge UI color is locked to a neutral black/white/grayscale system through the shared token layer. Buttons, active states, focus rings, navigation states, controls, and operational surfaces must not use blue accents or gradient backgrounds. Status badges remain the only approved colored UI family and must continue to use semantic badge/status tokens. New or edited UI must consume semantic design tokens for color and typography. If a visual value is missing, extend the token layer first.
 
 ## 4. Responsive Breakpoints
 
@@ -427,6 +427,7 @@ For UI, route, shell, component, or CSS changes, run:
 ```bash
 npm run audit:colors
 npm run audit:typography
+npm run audit:neutral-ui
 npm run lint
 npm run typecheck
 npm run build

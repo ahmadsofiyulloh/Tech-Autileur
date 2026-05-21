@@ -107,7 +107,8 @@ Locked presentation:
 - Visual PWA Mobile-First references from 2026-05-04 are the active UI baseline.
 - compact spacing and dense information hierarchy.
 - Inter is the default type family.
-- primary action color is `#007AFF`.
+- non-badge UI color is neutral black/white/grayscale through shared tokens; primary actions must not use blue or gradient backgrounds.
+- semantic status badge colors remain allowed for badges only.
 - surface tokens cover topbar, bottom nav, base page, borders, and inactive components.
 - semantic tokens cover success, warning, error, and info states.
 - typography and color for any new or edited UI must come from shared semantic tokens, not hardcoded literals in component code.

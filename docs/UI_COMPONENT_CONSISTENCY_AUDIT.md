@@ -8,6 +8,20 @@ Reviewed: StatusBadge, NativeButton variants (primary/compact/tertiary/destructi
 
 ---
 
+## 2026-05-21 Addendum: Neutral Action Token Contract
+
+Non-badge action UI is now locked to black/white/grayscale tokens. Buttons, destructive buttons, nav links, bottom nav links, topbar menu actions, segmented controls, view toggles, focus rings, selected cards/rows, and active control indicators must use `--control-*` or `--btn-*` tokens instead of blue, gradient, `--color-primary`, `--accent`, `--auth-primary`, or status-color tokens.
+
+Badge styling remains the only approved colored UI exception. The neutral action contract is enforced by:
+
+```bash
+npm run audit:neutral-ui
+```
+
+This audit verifies the late neutral override import, required action selector coverage, no badge restyling in the override, no blue literals in action-token contract files, no gradient button/control rules, and no direct action-color token bypasses in button/control CSS.
+
+---
+
 ## Finding 1: Button min-height inconsistency across contexts
 
 **Problem:** `.button` base min-height is `32px` (desktop-appropriate) but on mobile this is below the 44px touch target recommendation. Several contexts override this ad-hoc:
@@ -127,6 +141,7 @@ Reviewed: StatusBadge, NativeButton variants (primary/compact/tertiary/destructi
 | UI-AUDIT-05 | Consolidate StatusBadge CSS into single location | LOW | `globals.css` | DEFERRED (cascade risk in minified CSS) |
 | UI-AUDIT-06 | Add `.button.icon-only` variant | LOW | `globals.css` | ✅ DONE |
 | UI-AUDIT-07 | (DEFERRED) Refactor button variants to prop-based | MEDIUM | 30+ files | DEFERRED |
+| UI-AUDIT-08 | Enforce neutral action token contract | LOW | `src/styles`, `scripts`, docs | DONE |
 
 ---
 
@@ -138,6 +153,8 @@ Reviewed: StatusBadge, NativeButton variants (primary/compact/tertiary/destructi
 4. **UI-AUDIT-05** (CSS consolidation)
 5. **UI-AUDIT-02** (StatusBadge size audit — per-page, multiple PRs)
 6. **UI-AUDIT-07** (DEFERRED — tech debt, not urgent)
+
+7. **UI-AUDIT-08** (DONE - neutral action token audit)
 
 ---
 

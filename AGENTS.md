@@ -100,6 +100,7 @@ If a task conflicts with these docs, stop and ask the user before coding.
   ```bash
   npm run audit:colors
   npm run audit:typography
+  npm run audit:neutral-ui
   npm run lint
   npm run typecheck
   npm run build

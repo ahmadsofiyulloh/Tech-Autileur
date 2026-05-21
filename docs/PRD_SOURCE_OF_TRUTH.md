@@ -450,7 +450,8 @@ Locked baseline:
 - Visual PWA Mobile-First references from 2026-05-04 are the active UI baseline.
 - Inter is the base typography.
 - light native mobile surfaces are the default visual treatment.
-- primary action color is `#007AFF`.
+- non-badge UI color is neutral black/white/grayscale through shared tokens; primary actions must not use blue or gradient backgrounds.
+- status badges may retain semantic status colors.
 - status, topbar, navbar, surface, border, and inactive component colors come from the visual design tokens.
 - compact operational spacing.
 - no oversized hero blocks on functional pages.
