@@ -4,7 +4,7 @@
 .product-list-toolbar .product-search,.prompt-workbench-search-toolbar .prompt-workbench-search{width:100%;min-width:0}
 .product-list-toolbar>.button[type=submit],.prompt-workbench-search-toolbar>.button[type=submit]{white-space:nowrap;justify-content:center}
 .product-list-toolbar>.button.tertiary,.prompt-workbench-search-toolbar>.button.tertiary{grid-column:1/-1;justify-self:start}
-.settings-inline-summary .button{background:var(--color-primary-soft);min-height:30px;color:var(--color-primary);box-shadow:none;padding:.38rem .68rem}
+.settings-inline-summary .button{background:var(--control-active-bg);min-height:30px;color:var(--control-active-text);box-shadow:none;padding:.38rem .68rem}
 .settings-list-summary{min-height:54px;padding:10px 12px}
 .settings-manager .product-card{padding:12px}
 .settings-manager .product-card__meta{gap:9px}

@@ -8,9 +8,9 @@
 .intake-draft-queue__copy strong{font-size:var(--type-control-size);line-height:var(--type-control-line)}
 .intake-draft-queue__copy span,.intake-draft-queue__copy small{color:var(--color-text-secondary);font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line)}
 .intake-draft-queue__actions{justify-items:end}
-.intake-segment-control{border:1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);background:var(--color-status-info-soft);border-radius:8px;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;padding:3px;display:grid}
+.intake-segment-control{border:1px solid var(--control-hover-border);background:var(--surface-flat-elevated);border-radius:8px;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;padding:3px;display:grid}
 .intake-segment-control__button{min-height:34px;color:var(--color-text-secondary);font-size:var(--type-control-size);line-height:var(--type-control-line);font-weight:var(--type-control-weight);background:0 0;border:0;border-radius:7px}
-.intake-segment-control__button[data-active=true]{background:var(--color-primary);color:var(--color-button-primary-text);box-shadow:0 6px 14px color-mix(in srgb, var(--color-primary) 20%, transparent)}
+.intake-segment-control__button[data-active=true]{background:var(--control-active-bg);color:var(--control-active-text);box-shadow:none}
 .intake-segment-panels{display:grid}
 .intake-segment-panel{gap:12px;display:none}
 .intake-segment-panel[data-active=true]{display:grid}

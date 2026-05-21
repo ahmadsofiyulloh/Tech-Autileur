@@ -20,7 +20,7 @@
 .topbar-profile-overview__avatar {
   width: var(--shell-topbar-menu-avatar-size);
   height: var(--shell-topbar-menu-avatar-size);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border-standard));
+  border: 1px solid var(--control-hover-border);
   border-radius: 999px;
   background: var(--color-surface-base);
   overflow: hidden;
@@ -74,9 +74,9 @@
 
 .topbar-menu-item:hover,
 .topbar-menu-item:focus-visible {
-  border-color: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  border-color: var(--control-hover-border);
   background: var(--color-floating-hover);
-  color: var(--color-primary);
+  color: var(--control-active-text);
 }
 
 .topbar-menu-item span {
@@ -94,14 +94,14 @@
 }
 
 .topbar-menu-item--danger {
-  color: var(--color-status-error);
+  color: var(--btn-destructive-text);
 }
 
 .topbar-menu-item--danger:hover,
 .topbar-menu-item--danger:focus-visible {
-  border-color: var(--color-status-error-border);
-  background: var(--color-status-error-soft);
-  color: var(--color-status-error);
+  border-color: var(--btn-destructive-hover-border);
+  background: var(--btn-destructive-hover-bg);
+  color: var(--btn-destructive-text);
 }
 
 .topbar-menu-theme-row {
@@ -110,4 +110,3 @@
   border-radius: calc(var(--radius) - 2px);
   background: var(--color-surface-muted-soft);
 }
-

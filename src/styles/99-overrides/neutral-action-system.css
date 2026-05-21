@@ -1,0 +1,272 @@
+/* 2026-05-21 neutral action system: non-badge UI stays grayscale. */
+
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"] {
+  --control-active-bg: color-mix(in srgb, var(--text-flat-strong) 8%, transparent);
+  --control-active-bg-strong: color-mix(in srgb, var(--text-flat-strong) 12%, transparent);
+  --control-active-text: var(--text-flat-strong);
+  --control-hover-bg: var(--surface-flat-hover);
+  --control-hover-border: var(--border-flat-strong);
+  --control-focus-ring: color-mix(in srgb, var(--text-flat-strong) 42%, transparent);
+  --control-accent: var(--text-flat-strong);
+  --color-primary: var(--control-accent);
+  --color-primary-soft: var(--control-active-bg);
+  --color-primary-strong: var(--text-flat);
+  --accent: var(--control-accent);
+  --accent-strong: var(--control-accent);
+  --accent-soft: var(--control-active-bg);
+  --lab-accent-cool: var(--control-accent);
+  --color-button-primary-text: var(--btn-primary-text);
+  --color-button-primary-shadow: none;
+  --color-button-primary-hover: var(--btn-primary-hover-bg);
+  --color-page-selection: var(--control-active-bg);
+  --color-surface-selected: color-mix(in srgb, var(--text-flat-strong) 7%, var(--surface-flat));
+  --color-sidebar-brand-border: var(--border-flat);
+  --color-sidebar-brand-background: var(--surface-flat-elevated);
+  --color-sidebar-brand-foreground: var(--text-flat-strong);
+  --color-progress-fill: var(--control-accent);
+  --auth-primary: var(--control-accent);
+  --auth-primary-strong: var(--text-flat);
+  --auth-primary-soft: var(--control-active-bg);
+  --auth-focus-border: var(--control-focus-ring);
+  --auth-focus-ring: color-mix(in srgb, var(--text-flat-strong) 28%, transparent);
+  --auth-button-shadow: none;
+  --auth-illustration-ink: color-mix(in srgb, var(--text-flat-strong) 24%, transparent);
+  --auth-illustration-ink-strong: color-mix(in srgb, var(--text-flat-strong) 34%, transparent);
+}
+
+body {
+  accent-color: var(--control-accent);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--control-focus-ring);
+  outline-offset: 2px;
+}
+
+.button,
+.native-button,
+.button.compact {
+  background: var(--btn-secondary-bg);
+  border-color: var(--btn-secondary-border);
+  color: var(--btn-secondary-text);
+  box-shadow: none;
+}
+
+.button:hover,
+.button:focus-visible,
+.native-button:hover,
+.native-button:focus-visible {
+  background: var(--btn-secondary-hover-bg);
+  border-color: var(--btn-secondary-hover-border);
+  color: var(--control-active-text);
+  box-shadow: none;
+}
+
+.button.primary,
+.auth-form .auth-submit,
+.dashboard-action-card .button.primary {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  box-shadow: none;
+}
+
+.button.primary:hover,
+.button.primary:focus-visible,
+.auth-form .auth-submit:hover,
+.auth-form .auth-submit:focus-visible,
+.dashboard-action-card .button.primary:hover,
+.dashboard-action-card .button.primary:focus-visible {
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-bg);
+  color: var(--btn-primary-text);
+  box-shadow: none;
+}
+
+.button.tertiary,
+.dashboard-action-card .button:not(.primary) {
+  background: var(--btn-tertiary-bg);
+  border-color: var(--btn-tertiary-border);
+  color: var(--btn-tertiary-text);
+  box-shadow: none;
+}
+
+.button.tertiary:hover,
+.button.tertiary:focus-visible,
+.dashboard-action-card .button:not(.primary):hover,
+.dashboard-action-card .button:not(.primary):focus-visible {
+  background: var(--btn-tertiary-hover-bg);
+  border-color: var(--btn-secondary-hover-border);
+  color: var(--btn-tertiary-hover-text);
+}
+
+.button.destructive,
+.delete-action-button {
+  background: var(--btn-destructive-bg);
+  border-color: var(--btn-destructive-border);
+  color: var(--btn-destructive-text);
+  box-shadow: none;
+}
+
+.button.destructive:hover,
+.button.destructive:focus-visible,
+.delete-action-button:hover,
+.delete-action-button:focus-visible {
+  background: var(--btn-destructive-hover-bg);
+  border-color: var(--btn-destructive-hover-border);
+  color: var(--btn-destructive-text);
+  box-shadow: none;
+}
+
+.auth-inline-cta__button,
+.auth-inline-link,
+.auth-inline-cta__button:hover,
+.auth-inline-cta__button:focus-visible,
+.auth-inline-link:hover,
+.auth-inline-link:focus-visible {
+  color: var(--control-active-text);
+}
+
+.nav-link:hover,
+.nav-link:focus-visible,
+.nav-link[data-active="true"],
+.nav-link[data-active=true],
+.bottom-nav__link:hover,
+.bottom-nav__link:focus-visible,
+.bottom-nav__link[data-active="true"],
+.bottom-nav__link[data-active=true] {
+  background: var(--control-active-bg);
+  border-color: var(--color-transparent);
+  color: var(--control-active-text);
+  box-shadow: none;
+}
+
+.topbar-settings-link:hover,
+.topbar-settings-link:focus-visible,
+.topbar-profile-overview__switch,
+.topbar-profile-overview__switch:hover,
+.topbar-profile-overview__switch:focus-visible,
+.operator-search-input__clear:hover,
+.operator-search-input__clear:focus-visible {
+  background: var(--control-hover-bg);
+  border-color: var(--control-hover-border);
+  color: var(--control-active-text);
+}
+
+.drive-view-toggle__button[data-active=true],
+.intake-segment-control__button[data-active=true],
+.prompt-list-card__meta-row > .button[data-active=true],
+.settings-inline-summary .button,
+.content-filter-tab[data-active=true],
+.theme-mode-toggle__option[data-active=true],
+.shell-pull-to-refresh__button[data-state=armed],
+.shell-pull-to-refresh__button[data-state=refreshing],
+.shell-pull-to-refresh__button[data-state=refreshing] .shell-pull-to-refresh__icon {
+  background: var(--control-active-bg);
+  border-color: var(--control-hover-border);
+  color: var(--control-active-text);
+  box-shadow: none;
+}
+
+.content-filter-tab[data-active=true]:after,
+.gemini-usage-dot[aria-pressed=true],
+.bulk-import-progress-bar span,
+.controller-workflow-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__button:after {
+  background: var(--control-accent);
+}
+
+.drive-breadcrumb__button:hover,
+.drive-breadcrumb__button:focus-visible,
+.drive-breadcrumb__button[data-current=true],
+.variant-submit-picker__option.button:hover,
+.variant-submit-picker__option.button:focus-visible,
+.prompt-workbench-selection-summary .button:hover,
+.prompt-workbench-selection-summary .button:focus-visible,
+.prompt-workbench-pagination .button:hover,
+.prompt-workbench-pagination .button:focus-visible {
+  background: var(--control-hover-bg);
+  border-color: var(--control-hover-border);
+  color: var(--control-active-text);
+}
+
+.drive-tile[data-active=true],
+.drive-tile[data-selected=true],
+.drive-list-row[data-active=true],
+.drive-list-row[data-selected=true],
+.prompt-list-card[data-open=true],
+.prompt-list-card[data-selected=true],
+.profile-card[data-active=true],
+.settings-manager[data-has-detail=true] tr[data-active=true],
+.product-table tr[data-active=true] td,
+.ai-media-option-picker__btn.is-selected,
+.ai-media-model-card.is-selected {
+  background: var(--control-active-bg);
+  border-color: var(--control-hover-border);
+  box-shadow: none;
+}
+
+.drive-tile__check,
+.drive-list-row__check,
+.settings-switch-row__toggle:checked:before,
+.controller-workflow-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__button,
+.controller-workstation-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__button {
+  background: var(--control-accent);
+  border-color: var(--control-accent);
+  color: var(--btn-primary-text);
+}
+
+.sidebar-brand__mark,
+.icon-frame,
+.section-card__icon,
+.empty-state__icon,
+.settings-native-row__icon,
+.settings-profile-hero__avatar,
+.image-preview-upload-card__trigger,
+.prompt-field-stepper__index,
+.ai-media-model-card.is-selected .ai-media-model-card__icon,
+.dashboard-action-card__orb {
+  background: var(--control-active-bg);
+  border-color: var(--control-hover-border);
+  color: var(--control-active-text);
+  box-shadow: none;
+}
+
+.drive-tile[data-folder=true] .drive-tile__thumb,
+.drive-list-row[data-folder=true] .drive-list-row__thumb,
+.visual-list-card__thumb,
+.drive-tile__thumb,
+.drive-list-row__thumb,
+.product-row-preview,
+.drive-preview-sheet__media {
+  background: var(--surface-flat-elevated);
+  color: var(--text-flat-muted);
+}
+
+.topbar-floating-panel,
+.topbar-activity-list,
+.relational-picker__list,
+.variant-submit-picker__list {
+  scrollbar-color: var(--border-flat-strong) transparent;
+}
+
+.topbar-floating-panel::-webkit-scrollbar-thumb,
+.topbar-activity-list::-webkit-scrollbar-thumb,
+.relational-picker__list::-webkit-scrollbar-thumb,
+.variant-submit-picker__list::-webkit-scrollbar-thumb {
+  background: var(--border-flat-strong);
+}
+
+.shell-pull-to-refresh__icon-wrap,
+.prompt-list-card__copy > span,
+.product-search svg,
+.dashboard-command-card__icon,
+.controller-stepper-rail__button:hover,
+.controller-stepper-rail__button:focus-visible {
+  color: var(--control-active-text);
+}

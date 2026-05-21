@@ -9,7 +9,7 @@
 .intake-stepper__rail{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:6px 10px 0;display:grid;position:relative}
 .intake-stepper__rail:before{content:"";inset-inline:22px;background:var(--color-border-standard);height:1px;position:absolute;top:20px}
 .intake-stepper__rail-button{gap:8px;padding:0 4px 6px}
-.intake-stepper__rail-button:hover .intake-stepper__rail-dot{border-color:color-mix(in srgb, var(--color-primary) 32%, var(--color-border-standard))}
+.intake-stepper__rail-button:hover .intake-stepper__rail-dot{border-color:var(--control-hover-border)}
 .intake-stepper__stack{gap:10px}
 .intake-stepper__step-header{padding:14px}
 .intake-stepper__step-body{padding:0 14px 14px}

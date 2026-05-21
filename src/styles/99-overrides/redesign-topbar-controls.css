@@ -37,19 +37,19 @@
 .topbar-avatar-button:focus-visible {
   border-color: var(--ui-shell-border-emphasis);
   background: var(--ui-shell-surface-selected);
-  color: var(--color-primary);
+  color: var(--control-active-text);
 }
 
 .topbar-icon-button:hover,
 .topbar-icon-button:focus-visible {
   border: none;
   background: transparent;
-  color: var(--color-primary);
+  color: var(--control-active-text);
 }
 
 .topbar-icon-button:focus-visible,
 .topbar-avatar-button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 34%, transparent);
+  outline: 2px solid var(--control-focus-ring);
   outline-offset: 2px;
 }
 
@@ -66,6 +66,5 @@
   height: calc(var(--space-1) + 2px);
   border: 1px solid var(--color-surface-base);
   border-radius: 999px;
-  background: var(--color-status-error);
+  background: var(--control-accent);
 }
-

@@ -230,7 +230,7 @@
   .intake-workflow--dense .intake-stepper__rail:before {
     inset-inline: calc(var(--space-4) + var(--intake-step-dot-size));
     top: calc(var(--space-2) + (var(--intake-step-dot-size) / 2));
-    background: color-mix(in srgb, var(--color-border-standard) 82%, var(--color-primary) 18%);
+    background: var(--control-hover-border);
   }
 
   .intake-workflow--dense .intake-stepper__rail-item {
@@ -246,9 +246,9 @@
   }
 
   .intake-workflow--dense .intake-stepper__rail-button[aria-current="step"] {
-    border-color: color-mix(in srgb, var(--color-primary) 24%, var(--color-border-standard));
+    border-color: var(--control-hover-border);
     background: var(--color-surface-base);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 8%, transparent);
+    box-shadow: inset 0 0 0 1px var(--control-active-bg);
     color: var(--color-text-primary);
   }
 
@@ -333,4 +333,3 @@
     max-width: var(--intake-desktop-primary-wide-max-width);
   }
 }
-

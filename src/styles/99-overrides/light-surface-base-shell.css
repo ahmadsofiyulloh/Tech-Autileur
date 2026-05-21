@@ -9,26 +9,26 @@
 body{color:var(--color-text-primary);background:radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--color-status-info) 16%, transparent), transparent 24rem), radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--color-status-success) 10%, transparent), transparent 20rem), var(--color-page-background);letter-spacing:var(--type-letter-0)}
 input,textarea,select{border-color:var(--color-border-standard);color:var(--color-text-primary);background:var(--color-surface-base);box-shadow:none}
 input::placeholder,textarea::placeholder{color:var(--color-text-placeholder)}
-input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid color-mix(in srgb, var(--color-primary) 42%, transparent);outline-offset:2px}
+input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--control-focus-ring);outline-offset:2px}
 .operator-shell{background:0 0}
 .sidebar{border-right-color:var(--color-border-standard);background:linear-gradient(180deg, color-mix(in srgb, var(--color-surface-base) 94%, transparent), color-mix(in srgb, var(--color-surface-muted-strong) 92%, transparent)), var(--color-surface-base);box-shadow:var(--color-sidebar-shadow)}
 .sidebar:before{opacity:0}
 .sidebar-brand,.nav-link,.bottom-nav__link,.topbar-action,.button{border-radius:8px}
-.sidebar-brand__mark,.icon-frame{border-color:var(--color-sidebar-brand-border);background:var(--color-primary-soft);color:var(--color-primary);box-shadow:none}
+.sidebar-brand__mark,.icon-frame{border-color:var(--control-hover-border);background:var(--control-active-bg);color:var(--control-active-text);box-shadow:none}
 .operator-topbar{border-bottom:1px solid var(--color-border-standard);background:var(--color-topbar-background);min-height:72px;box-shadow:var(--shadow-soft)}
 .operator-topbar h1{color:var(--color-text-primary);font-size:var(--type-display-size);font-weight:var(--type-weight-600);line-height:var(--type-display-line)}
 .topbar-title__copy p{color:var(--color-text-secondary);font-size:var(--type-subtitle-size);line-height:var(--type-subtitle-line)}
 .topbar-tools:empty{display:none}
 .topbar-action{border-color:var(--color-border-standard);background:var(--color-surface-base);min-width:42px;min-height:42px;color:var(--color-text-secondary);font-size:var(--type-control-size);line-height:var(--type-control-line);box-shadow:var(--shadow-soft)}
-.topbar-settings-link:hover,.topbar-settings-link:focus-visible{color:var(--color-primary);background:var(--color-primary-soft);border-color:color-mix(in srgb, var(--color-primary) 26%, transparent)}
+.topbar-settings-link:hover,.topbar-settings-link:focus-visible{color:var(--control-active-text);background:var(--control-hover-bg);border-color:var(--control-hover-border)}
 .shell-main{width:min(1120px,100% - 32px);padding-top:16px}
 .panel,.hero,.section-card,.muted-box,details,.metric,.product-card,.product-drawer,.timeline-item,.list li,.table-wrap{border-color:var(--color-border-standard);background:var(--color-surface-base);box-shadow:var(--shadow-soft)}
 .section-card.panel{padding:var(--space-4)}
 .section-card .section-card__title,.panel h3,.panel h2,.hero h2,.empty-state .empty-state__title,.product-card strong{color:var(--color-text-primary);font-weight:var(--type-weight-600)}
 .section-card p,.empty-state p,.subtle,.field-note,.surface-context{color:var(--color-text-secondary)}
 .button{border-color:var(--color-border-standard);border-radius:6px;background:var(--color-surface-base);min-height:32px;color:var(--color-text-primary);font-size:var(--button-font-size);line-height:var(--type-control-line);padding:4px 10px;box-shadow:none}
-.button.primary{background:var(--color-primary);color:var(--color-button-primary-text);border-color:var(--color-transparent)}
-.button:hover,.button:focus-visible{border-color:color-mix(in srgb, var(--color-primary) 30%, transparent);background:var(--color-primary-soft);color:var(--color-primary)}
+.button.primary{background:var(--btn-primary-bg);color:var(--btn-primary-text);border-color:var(--btn-primary-bg)}
+.button:hover,.button:focus-visible{border-color:var(--btn-secondary-hover-border);background:var(--btn-secondary-hover-bg);color:var(--control-active-text)}
 .nav-link{color:var(--color-text-secondary);font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line);box-shadow:none;background:0 0;border-color:var(--color-transparent)}
 .nav-link:hover,.nav-link:focus-visible,.nav-link[data-active=true]{border-color:color-mix(in srgb, var(--text-strong) 10%, transparent);background:color-mix(in srgb, var(--text-strong) 6%, transparent);color:var(--text-strong);box-shadow:none}
 .nav-link[data-active=true] .nav-link__icon,.bottom-nav__link[data-active=true] .bottom-nav__icon{color:inherit}

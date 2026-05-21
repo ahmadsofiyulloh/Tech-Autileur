@@ -11,8 +11,8 @@ body{background:var(--color-shell-canvas)}
 .shell-pull-to-refresh__line{pointer-events:auto;justify-content:center;align-items:center;min-height:34px;padding:2px 0 4px;display:flex}
 .shell-pull-to-refresh__button{width:100%;color:var(--color-text-primary);text-align:center;background:0 0;border:0;justify-content:center;align-items:center;gap:10px;padding:0;display:inline-flex}
 .shell-pull-to-refresh__button:disabled{cursor:progress}
-.shell-pull-to-refresh__button[data-state=armed],.shell-pull-to-refresh__button[data-state=refreshing],.shell-pull-to-refresh__button[data-state=refreshing] .shell-pull-to-refresh__icon{color:var(--color-primary)}
-.shell-pull-to-refresh__icon-wrap{width:18px;height:18px;color:var(--color-primary);flex:none;place-items:center;display:inline-grid}
+.shell-pull-to-refresh__button[data-state=armed],.shell-pull-to-refresh__button[data-state=refreshing],.shell-pull-to-refresh__button[data-state=refreshing] .shell-pull-to-refresh__icon{color:var(--control-active-text)}
+.shell-pull-to-refresh__icon-wrap{width:18px;height:18px;color:var(--control-active-text);flex:none;place-items:center;display:inline-grid}
 .shell-pull-to-refresh__icon{width:18px;height:18px}
 .shell-pull-to-refresh__icon--spinning{animation:.8s linear infinite spin}
 .shell-pull-to-refresh__copy{text-align:center;place-items:center;gap:1px;min-width:0;display:grid;overflow:hidden}
@@ -25,7 +25,7 @@ body{background:var(--color-shell-canvas)}
 }
 @media (max-width:420px){.shell-pull-to-refresh__hint{display:none}
 }
-.button.primary{background:var(--color-primary);color:var(--color-button-primary-text);box-shadow:var(--color-button-primary-shadow);border-color:var(--color-transparent)}
-.button.primary:hover,.button.primary:focus-visible{background:var(--color-button-primary-hover);color:var(--color-button-primary-text)}
+.button.primary{background:var(--btn-primary-bg);color:var(--btn-primary-text);box-shadow:none;border-color:var(--btn-primary-bg)}
+.button.primary:hover,.button.primary:focus-visible{background:var(--btn-primary-hover-bg);border-color:var(--btn-primary-hover-bg);color:var(--btn-primary-text)}
 .public-shell{background:var(--color-shell-canvas);min-height:100svh;padding:0}
 .public-main{width:100%;min-height:100svh}

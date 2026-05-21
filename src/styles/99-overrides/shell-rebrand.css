@@ -144,9 +144,9 @@ details,
 }
 
 .button.primary {
-  background: var(--color-primary);
-  border-color: transparent;
-  box-shadow: var(--color-button-primary-shadow);
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  box-shadow: none;
 }
 
 .settings-inline-summary .button.primary {
@@ -157,21 +157,27 @@ details,
 .button:focus-visible {
   border-color: var(--ui-shell-border-emphasis);
   background: var(--ui-shell-surface-selected);
-  color: var(--color-primary);
+  color: var(--control-active-text);
 }
 
 .button.primary:hover,
 .button.primary:focus-visible {
-  background: var(--color-primary-strong);
-  color: var(--color-button-primary-text);
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-bg);
+  color: var(--btn-primary-text);
 }
 
-.button.destructive,
+.button.destructive {
+  border-color: var(--btn-destructive-border);
+  background: var(--btn-destructive-bg);
+  color: var(--btn-destructive-text);
+}
+
 .button.destructive:hover,
 .button.destructive:focus-visible {
-  border-color: var(--color-status-error-border);
-  background: var(--color-status-error-soft);
-  color: var(--color-status-error);
+  border-color: var(--btn-destructive-hover-border);
+  background: var(--btn-destructive-hover-bg);
+  color: var(--btn-destructive-text);
 }
 
 .status-badge {
@@ -217,7 +223,7 @@ select {
 }
 
 .content-filter-tab[data-active="true"] {
-  color: var(--color-primary);
+  color: var(--control-active-text);
 }
 
 .nav-link,
@@ -259,4 +265,3 @@ select {
     padding-top: var(--ui-shell-panel-gap);
   }
 }
-

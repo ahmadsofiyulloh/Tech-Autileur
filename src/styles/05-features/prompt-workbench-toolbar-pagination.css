@@ -6,7 +6,7 @@
 .product-list-toolbar>.button.compact,.prompt-workbench-search-toolbar>.button.compact{min-height:var(--toolbar-search-control-height)}
 .prompt-workbench-pagination{align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;display:flex}
 .prompt-workbench-pagination .button{background:var(--color-surface-base);color:var(--color-text-secondary);box-shadow:none}
-.prompt-workbench-pagination .button:hover,.prompt-workbench-pagination .button:focus-visible{background:color-mix(in srgb, var(--color-primary) 4%, var(--color-surface-base));color:var(--color-text-primary)}
+.prompt-workbench-pagination .button:hover,.prompt-workbench-pagination .button:focus-visible{background:var(--control-hover-bg);color:var(--color-text-primary)}
 .list-pagination-stepper{align-items:center;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap;display:flex}
 .list-pagination-stepper__controls{align-items:center;justify-content:flex-end;gap:var(--space-1);flex-wrap:wrap;display:flex}
 .list-pagination-stepper__status{min-width:0}

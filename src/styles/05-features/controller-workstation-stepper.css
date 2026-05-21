@@ -117,12 +117,12 @@
 }
 
 .controller-stepper-rail__button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 58%, white);
+  outline: 2px solid var(--control-focus-ring);
   outline-offset: 2px;
 }
 
 .controller-workflow-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__button {
-  color: var(--color-primary);
+  color: var(--control-active-text);
 }
 
 .controller-workflow-stepper .controller-stepper-rail__index {
@@ -140,9 +140,9 @@
 }
 
 .controller-workflow-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__index {
-  border-color: color-mix(in srgb, var(--color-primary) 42%, var(--color-border-standard));
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  border-color: var(--control-hover-border);
+  background: var(--control-active-bg);
+  color: var(--control-active-text);
 }
 
 .controller-workflow-stepper .controller-stepper-rail__label {
@@ -162,6 +162,5 @@
   bottom: 0;
   height: 2px;
   border-radius: 999px;
-  background: var(--color-primary);
+  background: var(--control-accent);
 }
-

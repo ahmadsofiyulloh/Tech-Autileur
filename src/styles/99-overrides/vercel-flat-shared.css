@@ -275,7 +275,7 @@ body {
 .button.destructive:hover,
 .button.destructive:focus-visible {
   background: var(--btn-destructive-hover-bg);
-  border-color: var(--btn-destructive-text);
+  border-color: var(--btn-destructive-hover-border);
   color: var(--btn-destructive-text);
 }
 
@@ -447,4 +447,3 @@ input, textarea, select {
 .sidebar-nav__group-toggle[data-expanded="false"] {
   transform: rotate(-90deg);
 }
-

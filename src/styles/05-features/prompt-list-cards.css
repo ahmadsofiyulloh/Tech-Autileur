@@ -1,12 +1,12 @@
 .prompt-list-card{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px}
-.prompt-list-card[data-open=true]{border-color:var(--color-primary);background:var(--color-surface-selected)}
-.prompt-list-card[data-selected=true]{border-color:var(--color-primary);background:var(--color-surface-selected)}
+.prompt-list-card[data-open=true]{border-color:var(--control-hover-border);background:var(--color-surface-selected)}
+.prompt-list-card[data-selected=true]{border-color:var(--control-hover-border);background:var(--color-surface-selected)}
 .prompt-list-card summary,.prompt-list-card__header{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;display:grid}
 .prompt-list-card__copy{gap:3px;min-width:0;display:grid}
-.prompt-list-card__copy>span{color:var(--color-primary);font-size:var(--type-control-sm-size);font-weight:var(--type-control-weight);line-height:var(--type-control-sm-line)}
+.prompt-list-card__copy>span{color:var(--control-active-text);font-size:var(--type-control-sm-size);font-weight:var(--type-control-weight);line-height:var(--type-control-sm-line)}
 .prompt-list-card__meta-row{flex-wrap:wrap;gap:6px;min-width:0;display:flex}
 .prompt-list-card__meta-row>.button{border:1px solid var(--color-border-standard);background:var(--color-surface-base);max-width:100%;min-height:24px;color:var(--color-text-secondary);font-size:var(--type-control-sm-size);font-weight:var(--type-control-weight);line-height:var(--type-control-sm-line);text-overflow:ellipsis;white-space:nowrap;border-radius:8px;align-items:center;padding:0 8px;display:inline-flex;overflow:hidden}
-.prompt-list-card__meta-row>.button[data-active=true]{border-color:color-mix(in srgb, var(--color-primary) 40%, var(--color-border-standard));background:var(--color-primary-soft);color:var(--color-primary)}
+.prompt-list-card__meta-row>.button[data-active=true]{border-color:var(--control-hover-border);background:var(--control-active-bg);color:var(--control-active-text)}
 .prompt-list-card__task-note{gap:3px;border-left:2px solid var(--color-status-error);padding-left:8px;min-width:0;display:grid}
 .prompt-list-card__task-note>span{color:var(--color-text-secondary);font-size:var(--type-control-sm-size);font-weight:var(--type-control-weight);line-height:var(--type-control-sm-line)}
 .prompt-list-card__task-note>strong{color:var(--color-text-primary);font-size:var(--type-control-sm-size);font-weight:var(--type-control-weight);line-height:var(--type-control-sm-line);overflow-wrap:anywhere}

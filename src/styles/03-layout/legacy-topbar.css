@@ -7,7 +7,7 @@
 .topbar-title__copy h1{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 .topbar-title__copy p{color:var(--muted);font-size:var(--type-subtitle-size);line-height:var(--type-subtitle-line);white-space:nowrap;text-overflow:ellipsis;margin:0;overflow:hidden}
 .topbar-action{justify-content:center;align-items:center;gap:var(--space-2);border:1px solid var(--border);border-radius:var(--radius);background:var(--color-surface-ghost);min-height:38px;color:var(--text);font-size:var(--type-control-size);line-height:var(--type-control-line);padding:0 .74rem;display:inline-flex;position:relative}
-.topbar-action:hover,.topbar-action:focus-visible{border-color:color-mix(in srgb, var(--accent-strong) 34%, transparent);background:color-mix(in srgb, var(--accent-strong) 9%, transparent)}
+.topbar-action:hover,.topbar-action:focus-visible{border-color:var(--control-hover-border);background:var(--control-hover-bg)}
 .topbar-profile-link{width:var(--shell-topbar-profile-link-size);min-width:var(--shell-topbar-profile-link-size);height:var(--shell-topbar-profile-link-size);color:var(--color-text-secondary);box-shadow:none;background:0 0;border:0;border-radius:999px;place-items:center;padding:0;display:inline-grid;overflow:visible}
 .topbar-profile-link:hover,.topbar-profile-link:focus-visible{color:var(--color-primary);background:0 0}
 .topbar-profile-link:focus-visible{outline:2px solid color-mix(in srgb, var(--color-primary) 32%, transparent);outline-offset:3px}
