@@ -45,6 +45,14 @@ const requiredNeutralSelectors = [
   ".content-filter-tab[data-active=true]",
   ".theme-mode-toggle__option[data-active=true]",
 ];
+const requiredNeutralTokenDeclarations = [
+  "--color-primary: var(--control-accent)",
+  "--color-status-success: var(--control-active-text)",
+  "--color-status-warning: var(--control-active-text)",
+  "--color-status-error: var(--control-active-text)",
+  "--color-status-info: var(--control-active-text)",
+  "--chart-1: var(--text-flat-strong)",
+];
 
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -183,6 +191,17 @@ function collectNeutralContractViolations(text, filePath) {
         line: 1,
         column: 1,
         message: `neutral action override is missing required selector coverage: ${selector}`,
+      });
+    }
+  }
+
+  for (const declaration of requiredNeutralTokenDeclarations) {
+    if (!text.includes(declaration)) {
+      violations.push({
+        filePath,
+        line: 1,
+        column: 1,
+        message: `neutral action override is missing required token declaration: ${declaration}`,
       });
     }
   }
