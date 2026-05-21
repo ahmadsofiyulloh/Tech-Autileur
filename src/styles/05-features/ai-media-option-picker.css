@@ -4,59 +4,59 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .ai-media-option-picker__legend {
-  color: var(--muted);
-  font-size: var(--type-label-size);
-  font-weight: var(--type-label-weight);
-  line-height: var(--type-label-line);
-  margin-bottom: var(--space-1);
+  color: var(--text-flat-muted);
+  font-size: var(--type-overline-size);
+  font-weight: var(--type-overline-weight);
+  letter-spacing: var(--type-overline-letter);
+  line-height: var(--type-overline-line);
+  text-transform: uppercase;
 }
 
 .ai-media-option-picker__options {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .ai-media-option-picker__btn {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--color-surface-ghost);
-  color: var(--text);
+  border: 1px solid var(--border-flat);
+  border-radius: var(--radius-flat);
+  background: var(--surface-flat);
+  color: var(--text-flat);
   font-size: var(--type-control-size);
   line-height: var(--type-control-line);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-2);
   display: grid;
-  gap: 2px;
+  gap: 1px;
   text-align: left;
-  transition: border-color 0.16s, background-color 0.16s;
+  transition: border-color 150ms, background 150ms;
 }
 
 .ai-media-option-picker__btn strong {
   font-size: var(--type-control-size);
   font-weight: var(--type-control-strong-weight);
   line-height: var(--type-control-line);
-  color: var(--text-strong);
+  color: var(--text-flat-strong);
 }
 
 .ai-media-option-picker__btn span {
   font-size: var(--type-control-sm-size);
   line-height: var(--type-control-sm-line);
-  color: var(--muted);
+  color: var(--text-flat-muted);
 }
 
 .ai-media-option-picker__btn:hover,
 .ai-media-option-picker__btn:focus-visible {
-  border-color: color-mix(in srgb, var(--accent-strong) 34%, transparent);
-  background: color-mix(in srgb, var(--accent-strong) 8%, transparent);
+  border-color: var(--border-flat-strong);
+  background: var(--surface-flat-hover);
 }
 
 .ai-media-option-picker__btn.is-selected {
-  border-color: color-mix(in srgb, var(--accent-strong) 52%, transparent);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-strong) 14%, transparent), color-mix(in srgb, var(--accent) 6%, transparent)), color-mix(in srgb, var(--text-strong) 3%, transparent);
+  border-color: var(--accent-strong);
+  background: var(--surface-flat-elevated);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-strong) 18%, transparent);
 }
-

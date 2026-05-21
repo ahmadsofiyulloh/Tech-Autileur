@@ -1,34 +1,22 @@
-"use client";
-
-import { Suspense } from "react";
 import { Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
 import { ErrorState } from "@/components/operator/error-state";
-import { SkeletonMetricGrid } from "@/components/operator/loading-skeleton";
-import { mockProviderStatus, mockToolCards } from "@/lib/ai-media/mock-data";
-import { useAiMediaDemoState } from "@/lib/ai-media/use-demo-state";
+import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
 import { AiMediaPageHeader } from "./ai-media-page-header";
 import { AiMediaProviderStatus } from "./ai-media-provider-status";
-import { AiMediaToolGrid } from "./ai-media-tool-grid";
+import { AiMediaToolGrid, type AiMediaToolGridStatusOverride } from "./ai-media-tool-grid";
 
-function OverviewInner() {
-  const { isLoading, isError, isEmpty } = useAiMediaDemoState();
+export async function AiMediaOverviewContent() {
+  let snapshot: Awaited<ReturnType<typeof getAiMediaOverviewSnapshot>> = null;
+  let loadError: string | null = null;
 
-  if (isLoading) {
-    return (
-      <div className="stack">
-        <AiMediaPageHeader backHref="/dashboard" />
-        <SkeletonMetricGrid count={5} />
-        <div className="ai-media-lobby__grid">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="ai-media-tool-card skeleton" aria-hidden="true" />
-          ))}
-        </div>
-      </div>
-    );
+  try {
+    snapshot = await getAiMediaOverviewSnapshot();
+  } catch (err) {
+    loadError = err instanceof Error ? err.message : "Gagal memuat status.";
   }
 
-  if (isError) {
+  if (loadError) {
     return (
       <div className="stack">
         <AiMediaPageHeader backHref="/dashboard" />
@@ -37,7 +25,7 @@ function OverviewInner() {
     );
   }
 
-  if (isEmpty) {
+  if (!snapshot) {
     return (
       <div className="stack">
         <AiMediaPageHeader backHref="/dashboard" />
@@ -46,19 +34,29 @@ function OverviewInner() {
     );
   }
 
+  const overrides: AiMediaToolGridStatusOverride[] = [
+    {
+      cardId: "history",
+      status: snapshot.recentTaskCount > 0 ? `${snapshot.recentTaskCount} task` : "Kosong",
+      statusTone: snapshot.recentTaskCount > 0 ? "info" : "neutral",
+    },
+    {
+      cardId: "settings",
+      status: snapshot.provider.activeKeyCount > 0 ? `${snapshot.provider.activeKeyCount} aktif` : "Belum",
+      statusTone: snapshot.provider.activeKeyCount > 0 ? "success" : "warning",
+    },
+    {
+      cardId: "usage",
+      status: snapshot.provider.requestsToday > 0 ? `${snapshot.provider.requestsToday} req` : "Normal",
+      statusTone: "neutral",
+    },
+  ];
+
   return (
     <div className="stack">
       <AiMediaPageHeader backHref="/dashboard" />
-      <AiMediaProviderStatus provider={mockProviderStatus} />
-      <AiMediaToolGrid cards={mockToolCards} />
+      <AiMediaProviderStatus provider={snapshot.provider} />
+      <AiMediaToolGrid statusOverrides={overrides} />
     </div>
-  );
-}
-
-export function AiMediaOverviewContent() {
-  return (
-    <Suspense fallback={<SkeletonMetricGrid count={5} />}>
-      <OverviewInner />
-    </Suspense>
   );
 }

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
 import { MotionControlSteps } from "../_components/motion-control-steps";
 
 export const dynamic = "force-dynamic";
@@ -12,5 +13,8 @@ export default async function MotionControlPage() {
     redirect("/login");
   }
 
-  return <div className="stack"><MotionControlSteps /></div>;
+  const snapshot = await getAiMediaOverviewSnapshot();
+  const provider = snapshot?.provider ?? null;
+
+  return <div className="stack"><MotionControlSteps provider={provider} /></div>;
 }

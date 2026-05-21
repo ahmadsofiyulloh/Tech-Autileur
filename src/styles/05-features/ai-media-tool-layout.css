@@ -1,8 +1,7 @@
-/* --- AI Media Task Status Card --- */
 /* --- AI Media Tool Page Layout --- */
 .ai-media-tool-layout {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .ai-media-tool-layout__stepper {
@@ -10,7 +9,12 @@
 }
 
 .ai-media-tool-layout__side {
-  display: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ai-media-tool-layout__side .ai-media-log-terminal {
+  max-height: 180px;
 }
 
 .ai-media-tool-layout__log-desktop {
@@ -20,4 +24,3 @@
 .ai-media-tool-layout__log-mobile {
   display: contents;
 }
-

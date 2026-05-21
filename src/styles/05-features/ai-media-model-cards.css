@@ -1,0 +1,70 @@
+/* --- AI Media Model Cards (Higgsfield-style tile picker) --- */
+.ai-media-model-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.ai-media-model-card {
+  border: 1px solid var(--border-flat);
+  border-radius: var(--radius-flat);
+  background: var(--surface-flat);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  transition: border-color 150ms, background 150ms;
+}
+
+.ai-media-model-card:hover,
+.ai-media-model-card:focus-visible {
+  border-color: var(--border-flat-strong);
+  background: var(--surface-flat-hover);
+}
+
+.ai-media-model-card:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.ai-media-model-card.is-selected {
+  border-color: var(--accent-strong);
+  background: var(--surface-flat-elevated);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-strong) 18%, transparent);
+}
+
+.ai-media-model-card__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--surface-flat-elevated);
+  color: var(--text-flat-strong);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ai-media-model-card.is-selected .ai-media-model-card__icon {
+  background: color-mix(in srgb, var(--accent-strong) 12%, transparent);
+  color: var(--accent-strong);
+}
+
+.ai-media-model-card__copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ai-media-model-card__copy strong {
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  color: var(--text-flat-strong);
+}
+
+.ai-media-model-card__copy span {
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  color: var(--text-flat-muted);
+}

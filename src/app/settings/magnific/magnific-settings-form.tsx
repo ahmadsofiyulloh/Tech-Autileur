@@ -1,119 +1,171 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useActionState, useState } from "react";
 import { KeyRound } from "lucide-react";
-import { ErrorState } from "@/components/operator/error-state";
-import { SkeletonLine, SkeletonButton } from "@/components/operator/loading-skeleton";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeButton } from "@/components/ui/native-button";
-import { useAiMediaDemoState } from "@/lib/ai-media/use-demo-state";
+import { saveMagnificKeyAction, testMagnificKeyAction } from "./actions";
+import type { MagnificSaveResult, MagnificTestResult } from "./actions";
 
-type TestState = "idle" | "loading" | "success" | "failed" | "saved" | "invalid";
+type MagnificSettingsFormProps = {
+  keyId: string | null;
+  label: string;
+  status: string | null;
+  lastTestedAt: string | null;
+  lastErrorMessage: string | null;
+  hasSecret: boolean;
+};
 
-function statusLabel(state: TestState, hasSaved: boolean) {
-  if (state === "loading") return "TESTING";
-  if (state === "success") return "SUCCESS";
-  if (state === "failed") return "FAILED";
-  if (state === "invalid") return "INVALID";
-  if (state === "saved" || hasSaved) return "SAVED";
-  return "NO KEY";
+function statusLabel(status: string | null, hasSecret: boolean) {
+  if (!hasSecret) return "NO KEY";
+  if (status === "ACTIVE") return "ACTIVE";
+  if (status === "RATE_LIMITED") return "RATE_LIMITED";
+  if (status === "ERROR") return "ERROR";
+  if (status === "DISABLED") return "DISABLED";
+  if (status === "COOLDOWN") return "COOLDOWN";
+  return "SAVED";
 }
 
-function statusTone(state: TestState, hasSaved: boolean) {
-  if (state === "success" || state === "saved" || hasSaved) return "success" as const;
-  if (state === "failed" || state === "invalid") return "danger" as const;
-  if (state === "loading") return "warning" as const;
-  return "neutral" as const;
+function statusTone(status: string | null, hasSecret: boolean) {
+  if (!hasSecret) return "neutral" as const;
+  if (status === "ACTIVE") return "success" as const;
+  if (status === "ERROR" || status === "DISABLED") return "danger" as const;
+  if (status === "RATE_LIMITED" || status === "COOLDOWN") return "warning" as const;
+  return "success" as const;
 }
 
-function SettingsFormInner() {
-  const { isLoading, isError } = useAiMediaDemoState();
-  const [keyName, setKeyName] = useState("");
+function formatTestedAt(value: string | null) {
+  if (!value) return null;
+  try {
+    const date = new Date(value);
+    return date.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return null;
+  }
+}
+
+export function MagnificSettingsForm({
+  keyId,
+  label: savedLabel,
+  status,
+  lastTestedAt,
+  lastErrorMessage,
+  hasSecret,
+}: MagnificSettingsFormProps) {
+  const [keyName, setKeyName] = useState(savedLabel);
   const [apiKey, setApiKey] = useState("");
-  const [savedKeyName, setSavedKeyName] = useState("");
-  const [state, setState] = useState<TestState>("idle");
-  const [message, setMessage] = useState("Belum ada key.");
+  const [message, setMessage] = useState<string | null>(lastErrorMessage);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
 
-  if (isLoading) {
-    return (
-      <div className="stack loading-skeleton-static" aria-hidden="true">
-        <SkeletonLine size="medium" />
-        <SkeletonLine size="long" />
-        <SkeletonLine size="long" />
-        <SkeletonButton />
-      </div>
-    );
+  const [saveState, saveAction, isSaving] = useActionState(
+    async (_prev: MagnificSaveResult | null, formData: FormData) => {
+      setMessage(null);
+      const result = await saveMagnificKeyAction(formData);
+      if (result.success) {
+        setApiKey("");
+        setMessage("Key tersimpan.");
+      } else {
+        setMessage(result.error ?? "Gagal menyimpan.");
+      }
+      return result;
+    },
+    null,
+  );
+
+  async function handleTest() {
+    setIsTesting(true);
+    setTestMessage(null);
+    try {
+      const formData = new FormData();
+      formData.set("key_id", keyId ?? "");
+      const result: MagnificTestResult = await testMagnificKeyAction(formData);
+      if (result.success) {
+        setTestMessage("Tes berhasil.");
+      } else {
+        setTestMessage(result.error ?? "Tes gagal.");
+      }
+    } catch {
+      setTestMessage("Tes gagal.");
+    } finally {
+      setIsTesting(false);
+    }
   }
 
-  if (isError) return <ErrorState title="Gagal memuat settings." />;
-
-  const hasSaved = Boolean(savedKeyName);
-
-  function handleTest() {
-    if (!apiKey.trim() && !hasSaved) { setState("idle"); setMessage("API key belum diisi."); return; }
-    if (apiKey.trim().length < 8) { setState("invalid"); setMessage("API key tidak valid."); return; }
-    setState("loading"); setMessage("Tes koneksi...");
-    setTimeout(() => {
-      if (apiKey.trim().toLowerCase().includes("fail")) { setState("failed"); setMessage("Tes gagal."); }
-      else { setState("success"); setMessage("Tes berhasil."); }
-    }, 800);
-  }
-
-  function handleSave() {
-    if (!keyName.trim()) { setState("invalid"); setMessage("Nama key wajib."); return; }
-    if (apiKey.trim().length < 8) { setState("invalid"); setMessage("API key tidak valid."); return; }
-    setSavedKeyName(keyName.trim());
-    setApiKey("");
-    setState("saved");
-    setMessage("Key tersimpan.");
-  }
+  const testedAtLabel = formatTestedAt(lastTestedAt);
+  const isProcessing = isSaving || isTesting;
+  const displayMessage = testMessage ?? message ?? (hasSecret ? null : "Belum ada key.");
 
   return (
     <div className="stack">
       <div className="settings-list-summary">
         <div className="stack-tight">
           <strong>Magnific</strong>
-          <span className="settings-card-meta-line">{hasSaved ? savedKeyName : "Belum ada key"}</span>
+          <span className="settings-card-meta-line">{hasSecret ? savedLabel : "Belum ada key"}</span>
         </div>
-        <StatusBadge status={statusLabel(state, hasSaved)} tone={statusTone(state, hasSaved)} size="sm" />
+        <StatusBadge status={statusLabel(status, hasSecret)} tone={statusTone(status, hasSecret)} size="sm" />
       </div>
 
-      <div className="stack">
-        <div className="ai-media-step-field">
-          <label className="ai-media-step-field__label" htmlFor="magnific-key-name">Nama key</label>
-          <input id="magnific-key-name" type="text" placeholder="Main Magnific" value={keyName} onChange={(e) => setKeyName(e.target.value)} disabled={state === "loading"} autoComplete="off" />
-        </div>
-        <div className="ai-media-step-field">
-          <label className="ai-media-step-field__label" htmlFor="magnific-api-key">API key</label>
-          <input id="magnific-api-key" type="password" placeholder={hasSaved ? "************" : "Masukkan API key"} value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={state === "loading"} autoComplete="off" />
-          {hasSaved && <span className="ai-media-step-field__hint">Tersimpan: ************</span>}
-        </div>
-      </div>
+      <form action={saveAction}>
+        {keyId && <input type="hidden" name="key_id" value={keyId} />}
 
-      <div className="settings-card-actions">
-        <NativeButton className="tertiary" type="button" onClick={handleTest} disabled={state === "loading"}>
-          <KeyRound size={14} />
-          {state === "loading" ? "Menguji..." : "Tes koneksi"}
-        </NativeButton>
-        <NativeButton className="primary" type="button" onClick={handleSave} disabled={state === "loading"}>
-          Simpan
-        </NativeButton>
-      </div>
+        <div className="stack">
+          <div className="ai-media-step-field">
+            <label className="ai-media-step-field__label" htmlFor="magnific-key-name">Nama key</label>
+            <input
+              id="magnific-key-name"
+              name="label"
+              type="text"
+              placeholder="Main Magnific"
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+              disabled={isProcessing}
+              autoComplete="off"
+            />
+          </div>
+          <div className="ai-media-step-field">
+            <label className="ai-media-step-field__label" htmlFor="magnific-api-key">API key</label>
+            <input
+              id="magnific-api-key"
+              name="api_key"
+              type="password"
+              placeholder={hasSecret ? "************" : "Masukkan API key"}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              disabled={isProcessing}
+              autoComplete="off"
+            />
+            {hasSecret && <span className="ai-media-step-field__hint">Tersimpan: ************</span>}
+          </div>
+        </div>
+
+        <div className="settings-card-actions">
+          <NativeButton
+            className="tertiary"
+            type="button"
+            onClick={handleTest}
+            disabled={isProcessing || !hasSecret}
+          >
+            <KeyRound size={14} />
+            {isTesting ? "Menguji..." : "Tes koneksi"}
+          </NativeButton>
+          <NativeButton className="primary" type="submit" disabled={isProcessing}>
+            {isSaving ? "Menyimpan..." : "Simpan"}
+          </NativeButton>
+        </div>
+      </form>
 
       <div className="settings-list-summary">
         <div className="stack-tight">
           <strong>Status</strong>
-          <span className="settings-card-meta-line">{message}</span>
+          <span className="settings-card-meta-line">
+            {displayMessage ?? (status === "ACTIVE" ? "Key aktif." : "—")}
+          </span>
+          {testedAtLabel && (
+            <span className="settings-card-meta-line">Terakhir dites: {testedAtLabel}</span>
+          )}
         </div>
       </div>
     </div>
-  );
-}
-
-export function MagnificSettingsForm() {
-  return (
-    <Suspense fallback={<div className="stack loading-skeleton-static"><SkeletonLine size="long" /><SkeletonButton /></div>}>
-      <SettingsFormInner />
-    </Suspense>
   );
 }

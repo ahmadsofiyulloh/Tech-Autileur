@@ -1,15 +1,8 @@
-import type { ReactNode } from "react";
 import { SkeletonLine } from "@/components/operator/loading-skeleton";
 
-function DashboardPanelSkeleton({
-  children,
-  primary = false,
-}: {
-  children: ReactNode;
-  primary?: boolean;
-}) {
+function GeminiOperationsSkeleton() {
   return (
-    <section className={`dashboard-panel${primary ? " dashboard-panel--primary dashboard-ops" : " dashboard-panel--secondary"}`}>
+    <section className="dashboard-panel dashboard-panel--primary dashboard-ops">
       <div className="dashboard-panel__header loading-skeleton-static" aria-hidden="true">
         <div className="dashboard-panel__title">
           <SkeletonLine size="short" />
@@ -17,27 +10,18 @@ function DashboardPanelSkeleton({
         </div>
         <span className="skeleton-pill" />
       </div>
-      {children}
-    </section>
-  );
-}
-
-function GeminiOperationsSkeleton() {
-  return (
-    <DashboardPanelSkeleton primary>
-      <div className="dashboard-ops__body loading-skeleton-static" aria-hidden="true">
+      <div className="dashboard-ops__body">
         <div className="dashboard-ops__main">
-          <div className="dashboard-ops-metrics">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <article className="dashboard-ops-metric" key={index}>
+          <div className="metric-grid ai-media-kpi-grid ai-media-kpi-grid--dashboard loading-skeleton-static" aria-hidden="true">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div className="ai-media-kpi metric" key={i}>
                 <SkeletonLine size="short" />
                 <SkeletonLine size="medium" />
                 <SkeletonLine size="short" />
-              </article>
+              </div>
             ))}
           </div>
-
-          <article className="dashboard-issue-card">
+          <article className="dashboard-issue-card loading-skeleton-static" aria-hidden="true">
             <div>
               <SkeletonLine size="short" />
               <SkeletonLine size="medium" />
@@ -46,37 +30,33 @@ function GeminiOperationsSkeleton() {
             <SkeletonLine size="short" />
           </article>
         </div>
-
-        <div className="dashboard-ops__side">
+        <div className="dashboard-ops__side loading-skeleton-static" aria-hidden="true">
           <div className="dashboard-quota-panel">
             <div className="dashboard-subsection-title">
               <SkeletonLine size="short" />
               <SkeletonLine size="short" />
             </div>
             <div className="dashboard-quota-list">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div className="dashboard-quota-row" key={index}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div className="dashboard-quota-row" key={i}>
                   <div className="dashboard-quota-row__meta">
                     <SkeletonLine size="short" />
                     <SkeletonLine size="short" />
                   </div>
-                  <span className="dashboard-quota-row__bar">
-                    <span />
-                  </span>
+                  <span className="dashboard-quota-row__bar"><span /></span>
                   <SkeletonLine size="short" />
                 </div>
               ))}
             </div>
           </div>
-
           <div className="dashboard-key-panel">
             <div className="dashboard-subsection-title">
               <SkeletonLine size="short" />
               <SkeletonLine size="short" />
             </div>
             <div className="dashboard-key-list">
-              {Array.from({ length: 2 }).map((_, index) => (
-                <article className="dashboard-key-row" key={index}>
+              {Array.from({ length: 2 }).map((_, i) => (
+                <article className="dashboard-key-row" key={i}>
                   <div>
                     <SkeletonLine size="medium" />
                     <SkeletonLine size="short" />
@@ -88,50 +68,47 @@ function GeminiOperationsSkeleton() {
           </div>
         </div>
       </div>
-    </DashboardPanelSkeleton>
+    </section>
   );
 }
 
-function ActionQueueSkeleton() {
+function ToolsQuickActionsSkeleton() {
   return (
-    <DashboardPanelSkeleton>
-      <div className="dashboard-compact-list loading-skeleton-static" aria-hidden="true">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <div className="dashboard-compact-row" key={index}>
-            <span className="dashboard-tone-dot skeleton-icon skeleton-icon--small" />
-            <span className="dashboard-compact-row__copy">
-              <SkeletonLine size="medium" />
-              <SkeletonLine size="short" />
-            </span>
-            <span className="skeleton-pill" />
-            <span className="skeleton-icon skeleton-icon--small" />
-          </div>
+    <section className="dashboard-panel dashboard-panel--secondary">
+      <div className="dashboard-panel__header loading-skeleton-static" aria-hidden="true">
+        <div className="dashboard-panel__title">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="medium" />
+        </div>
+      </div>
+      <div className="dashboard-tools-grid loading-skeleton-static" aria-hidden="true">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div className="ai-media-tool-card skeleton" key={i} />
         ))}
       </div>
-    </DashboardPanelSkeleton>
+    </section>
   );
 }
 
 function PipelineSkeleton() {
   return (
-    <DashboardPanelSkeleton>
-      <ol className="dashboard-pipeline-list loading-skeleton-static" aria-hidden="true">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <li className="dashboard-pipeline-item" key={index}>
-            <div>
-              <span className="dashboard-pipeline-item__copy">
-                <SkeletonLine size="medium" />
-                <SkeletonLine size="short" />
-              </span>
-              <SkeletonLine size="short" />
-              <span className="dashboard-pipeline-item__bar">
-                <span />
-              </span>
-            </div>
-          </li>
+    <section className="dashboard-panel dashboard-panel--secondary">
+      <div className="dashboard-panel__header loading-skeleton-static" aria-hidden="true">
+        <div className="dashboard-panel__title">
+          <SkeletonLine size="short" />
+          <SkeletonLine size="medium" />
+        </div>
+      </div>
+      <div className="metric-grid ai-media-kpi-grid ai-media-kpi-grid--pipeline loading-skeleton-static" aria-hidden="true">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div className="ai-media-kpi metric" key={i}>
+            <SkeletonLine size="short" />
+            <SkeletonLine size="medium" />
+            <SkeletonLine size="short" />
+          </div>
         ))}
-      </ol>
-    </DashboardPanelSkeleton>
+      </div>
+    </section>
   );
 }
 
@@ -151,9 +128,8 @@ export default function DashboardLoading() {
         <div className="dashboard-command-layout__primary">
           <GeminiOperationsSkeleton />
         </div>
-
         <aside className="dashboard-command-layout__side" aria-label="Memuat ringkasan kerja">
-          <ActionQueueSkeleton />
+          <ToolsQuickActionsSkeleton />
           <PipelineSkeleton />
         </aside>
       </div>

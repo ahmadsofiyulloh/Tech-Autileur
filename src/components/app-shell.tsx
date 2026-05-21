@@ -3,7 +3,7 @@
 import { ChevronDown, LockKeyhole, PanelLeftClose, PanelLeftOpen, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { BulkImportJobRunner } from "@/components/operator/bulk-import-job-runner";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
 import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
@@ -55,8 +55,9 @@ function OperatorShellContent({
   const pathname = usePathname();
   const shellMainRef = useRef<HTMLElement | null>(null);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return {};
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem("operator-sidebar-expanded");
       const parsed: Record<string, boolean> = stored ? JSON.parse(stored) : {};
@@ -66,9 +67,10 @@ function OperatorShellContent({
           parsed[item.href] = true;
         }
       }
-      return parsed;
-    } catch { return {}; }
-  });
+      setExpandedGroups(parsed);
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const persistExpanded = useCallback((next: Record<string, boolean>) => {
     setExpandedGroups(next);
@@ -84,11 +86,6 @@ function OperatorShellContent({
   const activeSubtitle = override?.subtitle ?? activeRoute?.subtitle ?? "Content OS.";
   const ActiveIcon = activeRoute?.icon ?? Workflow;
   const currentAffiliateProfile = shellContext.currentAffiliateProfile;
-  const mobileCenterNavItem =
-    mobileNavItems.find((item) => item.href === "/products/new") ?? mobileNavItems[0] ?? null;
-  const mobileSideNavItems = mobileNavItems.filter((item) => item.href !== mobileCenterNavItem?.href);
-  const mobileLeftNavItems = mobileSideNavItems.slice(0, 2);
-  const mobileRightNavItems = mobileSideNavItems.slice(2);
   const sidebarToggleLabel = isSidebarCollapsed ? "Perluas sidebar" : "Ciutkan sidebar";
   const SidebarToggleIcon = isSidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
 
@@ -223,38 +220,7 @@ function OperatorShellContent({
       </div>
 
       <nav className="bottom-nav" aria-label="Mobile operator navigation">
-        {mobileLeftNavItems.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <Link
-              aria-current={isActive(item.href) ? "page" : undefined}
-              className="bottom-nav__link"
-              data-active={isActive(item.href) ? "true" : undefined}
-              href={item.href}
-              key={item.href}
-            >
-              <Icon className="bottom-nav__icon" aria-hidden="true" size={19} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-        {mobileCenterNavItem ? (
-          <Link
-            aria-label={mobileCenterNavItem.label}
-            aria-current={isActive(mobileCenterNavItem.href) ? "page" : undefined}
-            className="bottom-nav__link bottom-nav__link--center"
-            data-active={isActive(mobileCenterNavItem.href) ? "true" : undefined}
-            href={mobileCenterNavItem.href}
-            key={mobileCenterNavItem.href}
-          >
-            <span className="bottom-nav__center-iconWrap" aria-hidden="true">
-              <mobileCenterNavItem.icon className="bottom-nav__icon bottom-nav__center-icon" aria-hidden="true" size={22} />
-            </span>
-          </Link>
-        ) : null}
-        {mobileRightNavItems.length === 1 ? <span className="bottom-nav__spacer" aria-hidden="true" /> : null}
-        {mobileRightNavItems.map((item) => {
+        {mobileNavItems.map((item) => {
           const Icon = item.icon;
 
           return (

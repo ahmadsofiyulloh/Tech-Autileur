@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
 import { UpscalerSteps } from "../_components/upscaler-steps";
 
 export const dynamic = "force-dynamic";
@@ -12,5 +13,8 @@ export default async function UpscalerPage() {
     redirect("/login");
   }
 
-  return <div className="stack"><UpscalerSteps /></div>;
+  const snapshot = await getAiMediaOverviewSnapshot();
+  const provider = snapshot?.provider ?? null;
+
+  return <div className="stack"><UpscalerSteps provider={provider} /></div>;
 }

@@ -1,9 +1,9 @@
+import type { AiMediaProviderProjection } from "@/lib/server/ai-media";
 import { MetricCard } from "@/components/operator/metric-card";
 import { StatusBadge } from "@/components/operator/status-badge";
-import type { AiMediaProviderStatus as AiMediaProviderStatusData } from "@/lib/ai-media/mock-data";
 
 type AiMediaProviderStatusProps = {
-  provider: AiMediaProviderStatusData;
+  provider: AiMediaProviderProjection;
 };
 
 export function AiMediaProviderStatus({ provider }: AiMediaProviderStatusProps) {
@@ -13,7 +13,7 @@ export function AiMediaProviderStatus({ provider }: AiMediaProviderStatusProps) 
         className="ai-media-kpi ai-media-kpi--span"
         label="Provider"
         value={provider.provider}
-        detail="Magnific API v2"
+        detail="Magnific API"
         status={
           <StatusBadge
             status={provider.state === "active" ? "ACTIVE" : provider.state === "missing" ? "MISSING" : "ERROR"}
@@ -21,7 +21,12 @@ export function AiMediaProviderStatus({ provider }: AiMediaProviderStatusProps) 
           />
         }
       />
-      <MetricCard className="ai-media-kpi" label="Kunci Aktif" value={provider.activeKeyCount} detail="Main + Backup" />
+      <MetricCard
+        className="ai-media-kpi"
+        label="Kunci Aktif"
+        value={provider.activeKeyCount}
+        detail={provider.disabledKeyCount > 0 ? `${provider.disabledKeyCount} nonaktif` : "Tersedia"}
+      />
       <MetricCard
         className="ai-media-kpi"
         label="Fallback"

@@ -1,3 +1,12 @@
+/* --- AI Media: horizontal rail no-wrap at tablet (860px+) --- */
+@media (min-width: 860px) {
+  .ai-media-tool-layout .intake-stepper__rail {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+}
+
 @media (min-width: 1024px) {
   .ai-media-lobby__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -29,5 +38,32 @@
 
   .ai-media-tool-layout__log-mobile {
     display: none;
+  }
+
+  /* --- AI Media: horizontal rail no-wrap, hide vertical stepper --- */
+  .ai-media-tool-layout .intake-stepper__rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .ai-media-tool-layout .intake-stepper__step[data-expanded="false"] {
+    display: none;
+  }
+
+  .ai-media-tool-layout .intake-stepper__step-header {
+    display: none;
+  }
+
+  .ai-media-tool-layout .intake-stepper__step[data-expanded="true"] .intake-stepper__step-body {
+    padding: var(--space-3);
+  }
+
+  .ai-media-tool-layout .intake-stepper__step[data-expanded="true"] {
+    border: none;
+    box-shadow: none;
+    background: transparent;
   }
 }

@@ -101,7 +101,7 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
   const disableDisabled = initialKey?.status === "DISABLED";
 
   return (
-    <section className="product-master settings-manager settings-manager--gemini" aria-label="Gemini">
+    <section className="product-master settings-manager settings-manager--gemini" data-has-detail={drawerOpen ? "true" : undefined} aria-label="Gemini">
       <div className="product-master__list stack">
         <div className="settings-inline-summary">
           <span>{activeKeyCount} key aktif</span>
@@ -118,42 +118,46 @@ export function GeminiSettingsBoard({ geminiKeys }: GeminiSettingsBoardProps) {
                 <thead>
                   <tr>
                     <th>Nama</th>
-                    <th>Model / Purpose</th>
+                    {!drawerOpen && <th>Model / Purpose</th>}
                     <th>Status</th>
-                    <th>Aksi</th>
+                    {!drawerOpen && <th>Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {visibleGeminiKeys.map((key) => (
-                    <tr data-active={selectedKey?.id === key.id && !isCreating ? "true" : undefined} key={key.id}>
+                    <tr data-active={selectedKey?.id === key.id && !isCreating ? "true" : undefined} key={key.id} onClick={() => openEditDrawer(key.id)} style={{ cursor: "pointer" }}>
                       <td>
                         <div className="stack-tight">
                           <strong>{key.label}</strong>
                           <span className="subtle">{geminiKeyDetail(key)}</span>
                         </div>
                       </td>
-                      <td>
-                        <div className="stack-tight">
-                          <span className="subtle">{getGeminiModelLabel(key.model_name)}</span>
-                          <StatusBadge status={key.role} tone="info" />
-                        </div>
-                      </td>
+                      {!drawerOpen && (
+                        <td>
+                          <div className="stack-tight">
+                            <span className="subtle">{getGeminiModelLabel(key.model_name)}</span>
+                            <StatusBadge status={key.role} tone="info" />
+                          </div>
+                        </td>
+                      )}
                       <td>
                         <StatusBadge status={key.status} />
                       </td>
-                      <td>
-                        <div className="product-row-actions">
-                          <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
-                            <PanelRightOpen size={15} aria-hidden="true" />
-                            Kelola
-                          </NativeButton>
-                          <form action={saveGeminiKey}>
-                            <input type="hidden" name="intent" value="disable" />
-                            <input type="hidden" name="id" value={key.id} />
-                            <DeleteActionButton confirmMessage={`Hapus Gemini key "${key.label}"?`} disabled={key.status === "DISABLED"} />
-                          </form>
-                        </div>
-                      </td>
+                      {!drawerOpen && (
+                        <td>
+                          <div className="product-row-actions">
+                            <NativeButton className="compact primary" type="button" onClick={() => openEditDrawer(key.id)}>
+                              <PanelRightOpen size={15} aria-hidden="true" />
+                              Kelola
+                            </NativeButton>
+                            <form action={saveGeminiKey}>
+                              <input type="hidden" name="intent" value="disable" />
+                              <input type="hidden" name="id" value={key.id} />
+                              <DeleteActionButton confirmMessage={`Hapus Gemini key "${key.label}"?`} disabled={key.status === "DISABLED"} />
+                            </form>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

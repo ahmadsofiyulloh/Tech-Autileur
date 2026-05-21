@@ -87,5 +87,9 @@
   .ai-media-kpi-grid--pipeline {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .ai-media-kpi-grid--provider {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 

@@ -1,17 +1,20 @@
 "use client";
 
-import type { AiMediaSelectOption } from "@/lib/ai-media/mock-data";
+import type { AiMediaSelectOption } from "@/lib/ai-media/tool-config";
 
 type AiMediaOptionPickerProps = {
   label: string;
   options: AiMediaSelectOption[];
   value: string;
   onChange: (id: string) => void;
+  compact?: boolean;
 };
 
-export function AiMediaOptionPicker({ label, options, value, onChange }: AiMediaOptionPickerProps) {
+export function AiMediaOptionPicker({ label, options, value, onChange, compact }: AiMediaOptionPickerProps) {
+  const cls = compact ? "ai-media-option-picker ai-media-option-picker--compact" : "ai-media-option-picker";
+
   return (
-    <fieldset className="ai-media-option-picker">
+    <fieldset className={cls}>
       <legend className="ai-media-option-picker__legend">{label}</legend>
       <div className="ai-media-option-picker__options">
         {options.map((opt) => (

@@ -1,8 +1,7 @@
-import { KeyRound } from "lucide-react";
 import { redirect } from "next/navigation";
-import { SectionCard } from "@/components/operator/section-card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { MagnificSettingsForm } from "./magnific-settings-form";
+import { listMagnificKeys } from "@/lib/server/ai-media/keys";
+import { MagnificSettingsBoard } from "./magnific-settings-board";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +15,11 @@ export default async function MagnificSettingsPage() {
     redirect("/login");
   }
 
+  const keys = await listMagnificKeys();
+
   return (
     <div className="stack settings-page-body">
-      <SectionCard icon={KeyRound} title="Magnific">
-        <MagnificSettingsForm />
-      </SectionCard>
+      <MagnificSettingsBoard magnificKeys={keys} />
     </div>
   );
 }

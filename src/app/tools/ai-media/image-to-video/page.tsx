@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
 import { ImageToVideoSteps } from "../_components/image-to-video-steps";
 
 export const dynamic = "force-dynamic";
@@ -12,5 +13,8 @@ export default async function ImageToVideoPage() {
     redirect("/login");
   }
 
-  return <div className="stack"><ImageToVideoSteps /></div>;
+  const snapshot = await getAiMediaOverviewSnapshot();
+  const provider = snapshot?.provider ?? null;
+
+  return <div className="stack"><ImageToVideoSteps provider={provider} /></div>;
 }
