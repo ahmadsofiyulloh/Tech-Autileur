@@ -59,14 +59,15 @@
 
 /* Desktop 2-column: key list left, detail drawer right */
 @media (min-width:1024px){
-.settings-manager{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start}
+.settings-manager{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start;width:100%;min-width:0}
 .settings-manager[data-has-detail=true]{grid-template-columns:minmax(0,1fr) minmax(320px,420px)}
 .settings-manager .product-drawer-backdrop{display:none}
-.settings-manager .product-drawer{position:sticky;top:78px;max-height:calc(100dvh - 96px);overflow-y:auto;transform:none;visibility:visible;pointer-events:auto;border:1px solid var(--color-border-standard);border-radius:var(--radius);background:var(--color-surface-base);box-shadow:var(--shadow-soft);padding:14px}
+.settings-manager .product-drawer{position:sticky;top:var(--space-3);justify-self:stretch;width:100%;max-height:calc(100dvh - var(--shell-topbar-desktop-min-height) - var(--space-5));overflow-y:auto;transform:none;visibility:visible;pointer-events:auto;border:1px solid var(--color-border-standard);border-radius:var(--radius);background:var(--color-surface-base);box-shadow:var(--shadow-soft);padding:14px}
 .settings-manager .product-drawer[data-open=false]{display:none}
 .settings-manager[data-has-detail=true] .product-drawer__close{display:flex}
 .settings-manager .settings-bottom-sheet__handle{display:none}
-.settings-manager .products-table-desktop{overflow-x:auto;border:0;border-radius:0;box-shadow:none}
+.settings-manager .products-table-desktop{display:block;overflow-x:auto;border:0;border-radius:0;box-shadow:none}
+.settings-manager .products-cards-mobile{display:none}
 .settings-manager .product-table{min-width:0;table-layout:auto}
 .settings-manager[data-has-detail=true] .product-table th,
 .settings-manager[data-has-detail=true] .product-table td{padding-inline:var(--space-2)}

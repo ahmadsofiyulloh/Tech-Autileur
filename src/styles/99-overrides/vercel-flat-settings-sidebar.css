@@ -3,10 +3,22 @@
   max-width: 100%;
 }
 
+.settings-page-body--wide {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
 @media (min-width: 768px) {
   .settings-page-body {
     max-width: 520px;
     margin: 0 auto;
+  }
+
+  .settings-page-body--wide {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
   }
 }
 
@@ -21,4 +33,3 @@
   flex: 1;
   min-width: 0;
 }
-

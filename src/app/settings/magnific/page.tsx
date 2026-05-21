@@ -18,7 +18,7 @@ export default async function MagnificSettingsPage() {
   const keys = await listMagnificKeys();
 
   return (
-    <div className="stack settings-page-body">
+    <div className="stack settings-page-body settings-page-body--wide">
       <MagnificSettingsBoard magnificKeys={keys} />
     </div>
   );

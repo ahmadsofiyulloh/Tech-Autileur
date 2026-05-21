@@ -35,7 +35,7 @@ export default async function GeminiSettingsPage() {
   }
 
   return (
-    <div className="stack settings-page-body">
+    <div className="stack settings-page-body settings-page-body--wide">
       <GeminiSettingsBoard geminiKeys={(geminiKeys ?? []) as GeminiKeyRecord[]} />
     </div>
   );
