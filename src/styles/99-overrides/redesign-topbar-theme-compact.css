@@ -1,0 +1,28 @@
+.theme-mode-toggle--compact {
+  gap: var(--space-2);
+}
+
+.theme-mode-toggle--compact .theme-mode-toggle__label {
+  min-height: 32px;
+  gap: var(--space-2);
+}
+
+.theme-mode-toggle--compact .theme-mode-toggle__label-icon {
+  width: var(--shell-topbar-panel-icon-size);
+  height: var(--shell-topbar-panel-icon-size);
+}
+
+.theme-mode-toggle--compact .theme-mode-toggle__label-text {
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-weight);
+  line-height: var(--type-control-line);
+}
+
+.theme-mode-toggle--compact .theme-mode-toggle__switch {
+  min-inline-size: 128px;
+}
+
+.theme-mode-toggle--compact .theme-mode-toggle__option {
+  min-height: 28px;
+}
+

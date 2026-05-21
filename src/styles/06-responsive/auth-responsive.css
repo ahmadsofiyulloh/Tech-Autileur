@@ -1,0 +1,8 @@
+@media (max-width:860px){.auth-screen{grid-template-columns:minmax(0,1fr)}
+.auth-visual-panel{display:none}
+.auth-login-panel{padding-inline:var(--space-4)}
+.auth-card{gap:var(--space-3);width:100%;min-height:0;padding:var(--space-5) var(--space-4);transform:none}
+.auth-mobile-lock{display:grid}
+.auth-card h1,.auth-login-subtitle{text-align:center}
+.auth-footer-row{justify-content:center;align-items:center;gap:var(--space-2);flex-direction:column}
+}

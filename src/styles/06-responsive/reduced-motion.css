@@ -1,0 +1,4 @@
+@media (prefers-reduced-motion:reduce){*,:before,:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+.sidebar-link.nav-link:active,.bottom-nav__link:active{transform:none!important}
+}
+

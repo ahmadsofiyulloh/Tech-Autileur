@@ -1,0 +1,77 @@
+@media (min-width: 1101px) {
+  .controller-stepper-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controller-workflow-stepper__body {
+    grid-template-columns: minmax(0, 1fr) var(--controller-ref-support-column);
+  }
+
+  .controller-workflow-stepper__aside {
+    position: sticky;
+    top: var(--space-3);
+  }
+
+  .controller-batch-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controller-batch-card > .controller-batch-info-grid,
+  .controller-batch-card > .controller-batch-card__meta,
+  .controller-batch-card > .controller-card-section {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .controller-batch-card > .controller-action-row {
+    align-items: center;
+    justify-content: flex-end;
+    flex-direction: row;
+  }
+
+  .controller-batch-card > .controller-action-row > form,
+  .controller-batch-card > .controller-action-row .button {
+    width: auto;
+  }
+
+  .controller-account-lane-form,
+  .controller-add-account-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 1100px) {
+  .controller-workflow-stepper .controller-stepper-rail {
+    padding-inline: var(--space-2);
+  }
+
+  .controller-workflow-stepper .controller-stepper-rail:before {
+    inset-inline: calc(var(--space-2) + var(--controller-ref-rail-index-size));
+  }
+
+  .controller-workflow-stepper .controller-stepper-rail__label {
+    font-size: var(--type-control-sm-size);
+    line-height: var(--type-control-sm-line);
+  }
+
+  .controller-manifest-form__field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .controller-desktop-content {
+    display: none;
+  }
+
+  .mobile-desktop-required {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .controller-manifest-popover {
+    animation: none;
+  }
+}
+

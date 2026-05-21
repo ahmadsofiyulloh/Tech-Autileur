@@ -1,0 +1,18 @@
+/* --- Tool card visual sizing --- */
+.ai-media-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4);
+}
+
+.ai-media-visual svg {
+  width: 100%;
+  height: 100%;
+  max-width: 140px;
+  max-height: 90px;
+  color: var(--text-flat-faint);
+}
+

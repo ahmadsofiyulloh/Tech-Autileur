@@ -1,0 +1,17 @@
+/* UI-SHELL-REBRAND-02: global shell/token polish, presentation-only. */
+:root {
+  --font-sans: var(--font-geist-sans), sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+  --ui-shell-surface-base: var(--color-surface-base);
+  --ui-shell-surface-muted: color-mix(in srgb, var(--color-surface-muted-soft) 78%, var(--color-surface-base));
+  --ui-shell-surface-raised: color-mix(in srgb, var(--color-surface-base) 94%, var(--color-primary-soft));
+  --ui-shell-surface-selected: color-mix(in srgb, var(--color-primary-soft) 72%, var(--color-surface-base));
+  --ui-shell-border-muted: color-mix(in srgb, var(--color-border-standard) 84%, transparent);
+  --ui-shell-border-emphasis: color-mix(in srgb, var(--color-primary) 24%, var(--color-border-standard));
+  --ui-shell-shadow-rest: 0 6px 18px color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+  --ui-shell-shadow-raised: 0 12px 28px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  --ui-shell-icon-frame-size: 30px;
+  --ui-shell-status-min-height: 22px;
+  --ui-shell-row-gap: var(--space-2);
+  --ui-shell-panel-gap: var(--space-3);
+}

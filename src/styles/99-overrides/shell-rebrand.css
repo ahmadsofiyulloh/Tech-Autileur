@@ -1,0 +1,262 @@
+body {
+  background: var(--color-shell-canvas);
+}
+
+.sidebar {
+  border-right-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  box-shadow: inset -1px 0 0 var(--ui-shell-border-muted);
+}
+
+.sidebar-brand {
+  border: 1px solid transparent;
+}
+
+.sidebar-brand:hover {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-muted);
+}
+
+.sidebar-brand__mark,
+.icon-frame {
+  width: var(--ui-shell-icon-frame-size);
+  height: var(--ui-shell-icon-frame-size);
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-muted);
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.sidebar-brand__mark {
+  color: var(--color-primary);
+}
+
+.section-card__icon,
+.empty-state__icon {
+  width: var(--ui-shell-icon-frame-size);
+  height: var(--ui-shell-icon-frame-size);
+}
+
+.operator-topbar {
+  border-bottom-color: var(--ui-shell-border-muted);
+  background: color-mix(in srgb, var(--color-shell-canvas) 94%, transparent);
+  box-shadow: none;
+}
+
+.topbar-title__icon {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.topbar-profile-link {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+}
+
+.topbar-profile-link:hover,
+.topbar-profile-link:focus-visible,
+.topbar-action:hover,
+.topbar-action:focus-visible {
+  border-color: var(--ui-shell-border-emphasis);
+  background: var(--ui-shell-surface-selected);
+}
+
+.shell-header,
+.shell-footer,
+.panel,
+.hero,
+.section-card,
+.product-card,
+.visual-list-card,
+.drive-tile,
+.drive-list-row,
+.operator-detail-drawer,
+.drive-preview-drawer,
+.table-wrap {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.section-card.panel,
+.muted-box,
+.empty-state,
+details,
+.timeline-item,
+.list li,
+.product-card__meta div,
+.product-drawer__meta div,
+.controller-lane-card,
+.controller-stepper-rail__item {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-muted);
+  box-shadow: none;
+}
+
+.controller-stepper-summary-strip,
+.controller-step-section--active,
+.controller-stepper-rail__item[data-active="true"],
+.visual-list-card[data-active="true"] {
+  border-color: var(--ui-shell-border-emphasis);
+  background: var(--ui-shell-surface-selected);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.metric,
+.dashboard-kpi,
+.dashboard-analysis-chart__plot,
+.dashboard-analysis-table__row,
+.dashboard-telemetry-row,
+.dashboard-action-card,
+.dashboard-status-row {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.metric {
+  min-height: 68px;
+}
+
+.metric:before,
+.dashboard-kpi:after,
+.dashboard-action-card:before {
+  display: none;
+}
+
+.dashboard-action-card__orb {
+  border: 1px solid var(--ui-shell-border-muted);
+  border-radius: var(--radius);
+  background: var(--ui-shell-surface-muted);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.dashboard-action-card--primary {
+  border-color: var(--ui-shell-border-emphasis);
+  box-shadow: var(--ui-shell-shadow-raised);
+}
+
+.button {
+  border-color: var(--ui-shell-border-muted);
+  box-shadow: none;
+}
+
+.button.primary {
+  background: var(--color-primary);
+  border-color: transparent;
+  box-shadow: var(--color-button-primary-shadow);
+}
+
+.settings-inline-summary .button.primary {
+  color: var(--color-button-primary-text);
+}
+
+.button:hover,
+.button:focus-visible {
+  border-color: var(--ui-shell-border-emphasis);
+  background: var(--ui-shell-surface-selected);
+  color: var(--color-primary);
+}
+
+.button.primary:hover,
+.button.primary:focus-visible {
+  background: var(--color-primary-strong);
+  color: var(--color-button-primary-text);
+}
+
+.button.destructive,
+.button.destructive:hover,
+.button.destructive:focus-visible {
+  border-color: var(--color-status-error-border);
+  background: var(--color-status-error-soft);
+  color: var(--color-status-error);
+}
+
+.status-badge {
+  min-height: var(--ui-shell-status-min-height);
+  border-radius: calc(var(--radius) - 2px);
+  padding: calc(var(--space-1) / 2) var(--space-2);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  font-weight: var(--type-control-sm-weight);
+}
+
+.status-badge:before {
+  width: calc(var(--space-1) + 1px);
+  height: calc(var(--space-1) + 1px);
+}
+
+.settings-inline-summary,
+.settings-list-summary {
+  gap: var(--ui-shell-row-gap);
+}
+
+.settings-list-summary {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.settings-inline-summary > span {
+  color: var(--color-text-secondary);
+}
+
+.product-search input,
+input,
+textarea,
+select {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  box-shadow: none;
+}
+
+.content-filter-tabs {
+  border-bottom-color: var(--ui-shell-border-muted);
+}
+
+.content-filter-tab[data-active="true"] {
+  color: var(--color-primary);
+}
+
+.nav-link,
+.bottom-nav__link {
+  box-shadow: none;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible,
+.nav-link[data-active="true"],
+.bottom-nav__link[data-active="true"] {
+  border-color: color-mix(in srgb, var(--text-strong) 10%, transparent);
+  background: color-mix(in srgb, var(--text-strong) 6%, transparent);
+  color: var(--text-strong);
+}
+
+.bottom-nav {
+  border-color: var(--ui-shell-border-muted);
+  background: color-mix(in srgb, var(--color-surface-bottom-nav) 90%, var(--color-surface-base));
+  box-shadow: var(--ui-shell-shadow-raised);
+}
+
+.bottom-nav__center-iconWrap {
+  background: color-mix(in srgb, var(--color-button-primary-text) 12%, transparent);
+  box-shadow: none;
+}
+
+.bottom-nav__link--center,
+.bottom-nav__link--center:hover,
+.bottom-nav__link--center:focus-visible,
+.bottom-nav__link--center[data-active="true"] {
+  border-color: color-mix(in srgb, var(--text-strong) 10%, transparent);
+  background: color-mix(in srgb, var(--text-strong) 8%, transparent);
+  color: var(--text-strong);
+}
+
+@media (min-width: 861px) {
+  .shell-main {
+    padding-top: var(--ui-shell-panel-gap);
+  }
+}
+

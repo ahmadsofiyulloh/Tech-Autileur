@@ -6,6 +6,9 @@ import path from "node:path";
 const projectRoot = process.cwd();
 const srcRoot = path.join(projectRoot, "src");
 const globalsCssPath = path.join(srcRoot, "app", "globals.css");
+const stylesRoot = path.join(srcRoot, "styles");
+const tokensRoot = path.join(stylesRoot, "00-tokens");
+const themesRoot = path.join(stylesRoot, "02-themes");
 const layoutPath = path.join(srcRoot, "app", "layout.tsx");
 const colorPattern = /(#(?:[0-9a-fA-F]{3,8})\b|\b(?:rgba?|hsla?)\s*\()/g;
 const sourceExtensions = new Set([".css", ".js", ".jsx", ".ts", ".tsx"]);
@@ -71,6 +74,44 @@ function collectCssBlockRanges(text, selectorPattern) {
   return ranges;
 }
 
+function isInsideDirectory(filePath, directoryPath) {
+  const relativePath = path.relative(directoryPath, filePath);
+
+  return relativePath.length > 0 && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+}
+
+function isTokenRootBlock(text, range) {
+  const [start, end] = range;
+  const block = text.slice(start, end);
+  const bodyStart = block.indexOf("{");
+  const bodyEnd = block.lastIndexOf("}");
+
+  if (bodyStart === -1 || bodyEnd === -1 || bodyEnd <= bodyStart) {
+    return false;
+  }
+
+  const declarations = block
+    .slice(bodyStart + 1, bodyEnd)
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean);
+
+  return declarations.every((declaration) => declaration.startsWith("--") || declaration.startsWith("color-scheme:"));
+}
+
+function collectAllowedTokenRootRanges(text, filePath) {
+  const isDesignTokenSource =
+    filePath === globalsCssPath || isInsideDirectory(filePath, tokensRoot) || isInsideDirectory(filePath, themesRoot);
+
+  if (!isDesignTokenSource) {
+    return [];
+  }
+
+  const rootBlockRanges = collectCssBlockRanges(text, /:root(?:\[[^\]]+\])?\s*\{/g);
+
+  return rootBlockRanges.filter((range) => isTokenRootBlock(text, range));
+}
+
 function isInsideRange(index, ranges) {
   return ranges.some(([start, end]) => index >= start && index < end);
 }
@@ -99,7 +140,7 @@ function collectLiteralViolations(text, filePath, allowedRanges = []) {
 }
 
 function collectGlobalsCssViolations(text, filePath) {
-  const tokenBlockRanges = collectCssBlockRanges(text, /:root(?:\[[^\]]+\])?\s*\{/g);
+  const tokenBlockRanges = collectAllowedTokenRootRanges(text, filePath);
 
   return collectLiteralViolations(text, filePath, tokenBlockRanges);
 }
@@ -129,7 +170,7 @@ async function main() {
   for (const filePath of files) {
     const text = await readFile(filePath, "utf8");
 
-    if (filePath === globalsCssPath) {
+    if (filePath === globalsCssPath || (path.extname(filePath) === ".css" && isInsideDirectory(filePath, stylesRoot))) {
       violations.push(...collectGlobalsCssViolations(text, filePath));
       continue;
     }

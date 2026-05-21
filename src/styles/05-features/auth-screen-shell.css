@@ -1,0 +1,3 @@
+.auth-screen{background:var(--auth-page-background);min-height:100svh;color:var(--auth-text-primary);--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light;grid-template-columns:minmax(0,1.015fr) minmax(0,1fr);display:grid}
+.auth-visual-panel{background:var(--auth-left-background);min-height:100svh;position:relative;overflow:hidden}
+.auth-visual-panel:before{background:var(--auth-left-soft-overlay);content:"";pointer-events:none;position:absolute;inset:0}

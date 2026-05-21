@@ -1,0 +1,4 @@
+@keyframes intake-stepper-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--color-primary) 18%, transparent)}
+70%{box-shadow:0 0 0 8px color-mix(in srgb, var(--color-primary) 0%, transparent)}
+to{box-shadow:0 0 0 0 color-mix(in srgb, var(--color-primary) 0%, transparent)}
+}

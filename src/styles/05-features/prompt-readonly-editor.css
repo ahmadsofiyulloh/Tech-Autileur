@@ -1,0 +1,6 @@
+.prompt-readonly-field{gap:6px;display:grid}
+.prompt-readonly-field__header{justify-content:space-between;align-items:center;gap:8px;display:flex}
+.prompt-readonly-field__header strong{color:var(--color-text-primary);font-size:var(--type-control-size);font-weight:var(--type-control-weight);line-height:var(--type-control-line)}
+.prompt-readonly-field__body{border:1px solid var(--color-border-standard);background:var(--color-surface-muted-soft);min-height:72px;color:var(--color-text-primary);font-family:var(--font-mono);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line);overflow-wrap:anywhere;white-space:pre-wrap;border-radius:8px;padding:10px 12px;overflow:auto}
+.prompt-readonly-field__body[data-empty=true]{color:var(--color-text-secondary)}
+.prompt-editor-grid{grid-template-columns:minmax(260px,.84fr) minmax(0,1.16fr);align-items:start;gap:14px;display:grid}

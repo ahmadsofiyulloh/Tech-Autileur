@@ -1,0 +1,10 @@
+.chart-container{min-width:0;min-height:0;position:relative}
+.chart-container .recharts-wrapper,.chart-container .recharts-surface,.chart-container .recharts-layer,.chart-container .recharts-sector{outline:none}
+.chart-tooltip{border:1px solid var(--color-border-standard);border-radius:var(--radius);background:var(--color-surface-base);min-width:112px;box-shadow:var(--shadow-soft);color:var(--color-text-primary);padding:var(--space-2)}
+.chart-tooltip__label{color:var(--color-text-primary);font-size:var(--type-label-size);font-weight:var(--type-label-weight);line-height:var(--type-label-line);margin-bottom:6px}
+.chart-tooltip__items{gap:6px;display:grid}
+.chart-tooltip__item{font-size:var(--type-meta-size);line-height:var(--type-meta-line);grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;display:grid}
+.chart-tooltip__indicator{border-radius:999px;width:8px;height:8px}
+.chart-tooltip__name,.chart-tooltip__value{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.chart-tooltip__name{color:var(--color-text-secondary)}
+.chart-tooltip__value{color:var(--color-text-primary);font-variant-numeric:var(--type-numeric-tabular)}

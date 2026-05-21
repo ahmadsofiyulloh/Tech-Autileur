@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, Workflow } from "lucide-react";
+import { ChevronDown, LockKeyhole, PanelLeftClose, PanelLeftOpen, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useRef, useState, type ReactNode } from "react";
@@ -113,9 +113,11 @@ function OperatorShellContent({
       <aside className="sidebar sidebar--dense" aria-label="Operator navigation" data-collapsed={isSidebarCollapsed ? "true" : undefined}>
         <div className="sidebar-header">
           <Link className="sidebar-brand sidebar-brand--dense" href="/dashboard">
-            <span className="sidebar-brand__mark" aria-hidden="true">AI</span>
+            <span className="sidebar-brand__mark" aria-hidden="true">
+              <LockKeyhole size={16} />
+            </span>
             <span className="sidebar-brand__copy">
-              <strong>Operator</strong>
+              Affiliate <strong>AI</strong>
             </span>
           </Link>
         </div>

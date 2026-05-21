@@ -1,0 +1,255 @@
+/* UI-014: Prompt workbench density polish, presentation-only. */
+
+.prompt-workbench-table-head,
+.prompt-list-card__desktop-context {
+  display: none;
+}
+
+.prompt-detail-panel,
+.prompt-output-fields--prompt-pack,
+.prompt-queue-drawer {
+  gap: var(--space-2);
+}
+
+.prompt-detail-section.panel {
+  padding: var(--space-3);
+}
+
+.prompt-detail-section .section-card__header {
+  align-items: center;
+}
+
+.prompt-output-copy-grid {
+  gap: var(--space-2);
+  margin-top: 0;
+}
+
+.prompt-output-fields--prompt-pack .section-card__actions {
+  gap: var(--space-2);
+}
+
+.operator-detail-drawer .prompt-output-fields--prompt-pack .prompt-readonly-field__body {
+  max-height: min(36dvh, calc(var(--space-6) * 10));
+}
+
+.operator-detail-drawer .prompt-field-stepper__field .prompt-readonly-field__body {
+  max-height: min(42dvh, calc(var(--space-6) * 12));
+}
+
+.prompt-queue-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-queue-metric,
+.prompt-queue-row {
+  box-shadow: none;
+}
+
+.prompt-queue-controls .button {
+  flex: 1 1 calc(var(--space-6) * 6);
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .prompt-list-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--space-2);
+  }
+
+  .prompt-list-stack > .prompt-workbench-table-head,
+  .prompt-list-stack > .muted-box,
+  .prompt-list-stack > .product-mobile-load-more {
+    grid-column: 1 / -1;
+  }
+
+  .prompt-list-card {
+    height: 100%;
+    align-content: start;
+  }
+
+  .prompt-list-card__desktop-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+}
+
+@media (min-width: 1024px) {
+  .prompt-page-stack {
+    gap: var(--space-2);
+  }
+
+  .prompt-list-stack {
+    gap: 0;
+  }
+
+  .prompt-workbench-search-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .prompt-workbench-search-toolbar > .button.tertiary {
+    grid-column: auto;
+    justify-self: auto;
+  }
+
+  .prompt-workbench-selection-summary {
+    border: 1px solid var(--color-border-standard);
+    border-radius: var(--radius);
+    background: var(--color-surface-base);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .prompt-workbench-selection-summary__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .prompt-workbench-table-head.desktop-action-set {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.1fr) minmax(calc(var(--space-6) * 9), 0.9fr) minmax(calc(var(--space-6) * 3), auto) minmax(calc(var(--space-6) * 7), auto);
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid var(--color-border-standard);
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--color-surface-muted-soft);
+    color: var(--color-text-secondary);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .prompt-workbench-table-head span {
+    min-width: 0;
+    font-size: var(--type-overline-size);
+    font-weight: var(--type-overline-weight);
+    line-height: var(--type-overline-line);
+    letter-spacing: var(--type-overline-letter);
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .prompt-workbench-table-head + .prompt-list-card {
+    border-top: 0;
+    border-radius: 0;
+  }
+
+  .prompt-list-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(calc(var(--space-6) * 9), 0.9fr) minmax(calc(var(--space-6) * 3), auto) minmax(calc(var(--space-6) * 7), auto);
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .prompt-list-card + .prompt-list-card {
+    border-top: 0;
+  }
+
+  .prompt-list-card__header {
+    grid-column: 1;
+    align-items: center;
+  }
+
+  .prompt-list-card__copy {
+    gap: calc(var(--space-1) / 2);
+  }
+
+  .prompt-list-card__copy strong {
+    font-size: var(--type-control-size);
+    line-height: var(--type-control-line);
+  }
+
+  .prompt-list-card__desktop-context.desktop-action-set {
+    grid-column: 2;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .prompt-list-card__desktop-context span {
+    display: grid;
+    gap: calc(var(--space-1) / 2);
+    min-width: 0;
+  }
+
+  .prompt-list-card__desktop-context small {
+    color: var(--color-text-secondary);
+    font-size: var(--type-caption-size);
+    font-weight: var(--type-caption-weight);
+    line-height: var(--type-caption-line);
+    text-transform: uppercase;
+    letter-spacing: var(--type-letter-001);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .prompt-list-card__desktop-context strong {
+    color: var(--color-text-primary);
+    font-size: var(--type-control-sm-size);
+    font-weight: var(--type-control-sm-weight);
+    line-height: var(--type-control-sm-line);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .prompt-list-card__meta-row {
+    grid-column: 3;
+    justify-content: center;
+  }
+
+  .prompt-list-card__desktop-actions {
+    grid-column: 4;
+  }
+
+  .operator-detail-layout[data-has-detail="true"] .prompt-workbench-table-head.desktop-action-set,
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card {
+    grid-template-columns: minmax(0, 1fr) minmax(calc(var(--space-6) * 3), auto) minmax(calc(var(--space-6) * 6), auto);
+  }
+
+  .operator-detail-layout[data-has-detail="true"] .prompt-workbench-table-head span:nth-child(2),
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card__desktop-context {
+    display: none !important;
+  }
+
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card__meta-row {
+    grid-column: 2;
+  }
+
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card__desktop-actions {
+    grid-column: 3;
+    flex-wrap: wrap;
+  }
+
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card__desktop-actions .prompt-list-card__action-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    justify-items: stretch;
+  }
+
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card__desktop-actions .prompt-list-card__action-form select,
+  .operator-detail-layout[data-has-detail="true"] .prompt-list-card__desktop-actions .prompt-list-card__action-form .button {
+    width: 100%;
+  }
+
+  .prompt-list-card__task-note {
+    grid-column: 1 / -1;
+  }
+
+  .prompt-list-card__divider,
+  .prompt-list-card__mobile-actions {
+    display: none !important;
+  }
+
+  .prompt-queue-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+

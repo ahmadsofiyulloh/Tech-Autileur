@@ -1,0 +1,8 @@
+.prompt-workbench-selection-summary{align-items:center;justify-content:space-between;gap:8px}
+.prompt-workbench-selection-summary__copy{align-items:center;gap:8px;min-width:0;display:flex;flex-wrap:wrap}
+.prompt-workbench-selection-summary__copy>span{min-width:0;max-width:100%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.prompt-workbench-selection-summary__copy .status-badge{min-height:24px;font-size:var(--type-control-sm-size);padding:0 8px}
+.prompt-workbench-selection-summary .button{background:var(--color-surface-base);color:var(--color-text-secondary);box-shadow:none}
+.prompt-workbench-selection-summary .button:hover,.prompt-workbench-selection-summary .button:focus-visible{background:color-mix(in srgb, var(--color-primary) 4%, var(--color-surface-base));color:var(--color-text-primary)}
+.prompt-workbench-enqueue-placeholder:disabled{background:var(--color-component-inactive);color:var(--color-text-secondary);box-shadow:none}
+.prompt-workbench-selection-summary__actions{align-items:center;gap:8px;display:flex}

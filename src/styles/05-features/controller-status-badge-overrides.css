@@ -1,0 +1,8 @@
+.status-badge {
+  letter-spacing: var(--type-letter-0);
+}
+
+.status-badge--badge {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 9%, transparent);
+}
+

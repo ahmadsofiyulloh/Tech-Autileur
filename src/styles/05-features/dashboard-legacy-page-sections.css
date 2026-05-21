@@ -1,0 +1,7 @@
+.dashboard-page{gap:26px;width:min(920px,100%);margin:0 auto;display:grid}
+.dashboard-page--analysis{gap:22px}
+.dashboard-section{gap:14px;display:grid}
+.dashboard-section__header{align-items:center;gap:10px;display:flex}
+.dashboard-section__header h2{color:var(--text-strong);font-size:var(--type-section-size);font-weight:var(--type-section-weight);letter-spacing:var(--type-letter-0);line-height:var(--type-section-line);margin:0}
+.dashboard-section__icon{display:none}
+.dashboard-summary-note{flex-wrap:wrap;gap:8px;display:flex}

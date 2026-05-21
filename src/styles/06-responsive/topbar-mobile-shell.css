@@ -1,0 +1,3 @@
+@media (max-width:860px){.operator-topbar{background:color-mix(in srgb, var(--color-shell-canvas) 90%, transparent);border-bottom-color:color-mix(in srgb, var(--color-primary) 6%, transparent);box-shadow:0 1px 0 color-mix(in srgb, var(--color-primary) 5%, transparent)}
+.shell-main{padding-top:8px}
+}

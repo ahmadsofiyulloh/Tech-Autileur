@@ -1,0 +1,7 @@
+.mobile-desktop-required{display:none}
+.controller-board{gap:var(--space-3);grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;display:grid}
+.controller-board>.section-card{min-width:0}
+.controller-support-panel summary{justify-content:space-between;align-items:center;gap:var(--space-3);min-width:0;display:flex}
+.controller-support-panel__summary{justify-content:flex-end}
+.controller-support-panel__body{margin-top:var(--space-4)}
+.controller-account-list li{align-items:flex-start}

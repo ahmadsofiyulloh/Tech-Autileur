@@ -1,0 +1,25 @@
+@media (max-width: 860px) {
+  
+
+  .button {
+    min-height: var(--button-min-height);
+  }
+
+  .button.compact {
+    min-height: var(--button-compact-min-height);
+  }
+}
+
+/* UI-AUDIT-06: Icon-only button variant */
+
+.button.icon-only {
+  width: var(--button-icon-only-size);
+  min-width: var(--button-icon-only-size);
+  height: var(--button-icon-only-size);
+  min-height: var(--button-icon-only-size);
+  padding: 0;
+  aspect-ratio: 1;
+  justify-content: center;
+  align-items: center;
+}
+

@@ -1,0 +1,93 @@
+/* --- AI Media Lab Lobby --- */
+.ai-media-lobby__header {
+  gap: var(--space-2);
+  display: grid;
+}
+
+.ai-media-lobby__header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ai-media-lobby__title-row {
+  align-items: center;
+  gap: var(--space-2);
+  display: flex;
+}
+
+.ai-media-lobby__title-icon {
+  color: var(--accent-strong);
+  flex: none;
+}
+
+.ai-media-lobby__title {
+  color: var(--text-strong);
+  font-size: var(--type-page-size);
+  font-weight: var(--type-page-weight);
+  line-height: var(--type-page-line);
+  letter-spacing: var(--type-letter-0);
+  margin: 0;
+}
+
+.ai-media-lobby__grid {
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: grid;
+}
+
+.ai-media-tool-card {
+  gap: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 4.5%, transparent), transparent), color-mix(in srgb, var(--text-strong) 2.2%, transparent);
+  padding: var(--space-3);
+  display: grid;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.16s, background-color 0.16s;
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-media-tool-card:hover,
+.ai-media-tool-card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-strong) 46%, transparent);
+  background: color-mix(in srgb, var(--accent-strong) 8%, transparent);
+}
+
+.ai-media-tool-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-strong) 58%, transparent);
+  outline-offset: 2px;
+}
+
+.ai-media-tool-card__visual {
+  color: var(--accent-strong);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-strong) 11%, transparent), color-mix(in srgb, var(--accent) 5%, transparent)), color-mix(in srgb, var(--text-strong) 3%, transparent);
+  place-items: center;
+  display: grid;
+}
+
+.ai-media-tool-card__body {
+  gap: 2px;
+  display: grid;
+}
+
+.ai-media-tool-card__title {
+  color: var(--text-strong);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+}
+
+.ai-media-tool-card__label {
+  color: var(--muted);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+}
+

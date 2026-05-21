@@ -197,7 +197,7 @@ function Pipeline({ viewModel }: { viewModel: DashboardViewModel["pipeline"] }) 
       {viewModel.stages.length === 0 ? (
         <EmptyState title={emptyTitle} description={emptyDescription} />
       ) : (
-        <div className="metric-grid ai-media-kpi-grid ai-media-kpi-grid--dashboard" aria-label="Pipeline produk">
+        <div className="metric-grid ai-media-kpi-grid ai-media-kpi-grid--pipeline" aria-label="Pipeline produk">
           {viewModel.stages.map((stage) => (
             <Link className="ai-media-kpi dashboard-pipeline-kpi" data-tone={stage.tone} href={stage.href} key={stage.id}>
               <span className="dashboard-pipeline-kpi__label">{stage.label}</span>

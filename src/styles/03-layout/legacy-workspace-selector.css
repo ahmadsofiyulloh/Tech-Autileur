@@ -1,0 +1,7 @@
+.workspace-selector{align-items:center;gap:var(--space-2);min-width:0;color:var(--muted);font-size:var(--type-control-sm-size);font-weight:var(--type-control-strong-weight);display:flex}
+.relational-picker{gap:var(--space-2);width:100%;min-width:0;position:relative}
+.relational-picker__control{width:100%;min-width:0;position:relative}
+.workspace-selector__picker{width:242px;max-width:242px}
+.workspace-selector__picker .relational-picker__trigger{border-color:var(--color-floating-border);background:var(--color-floating-surface);min-height:42px;box-shadow:inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 3%, transparent), var(--shadow-soft);padding:.55rem .78rem}
+.workspace-selector__picker .relational-picker__value strong{font-size:var(--type-control-size)}
+.workspace-selector__picker .relational-picker__value span{font-size:var(--type-control-sm-size)}

@@ -1,0 +1,26 @@
+/* --- AI Media Step Fields --- */
+.ai-media-step-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ai-media-step-field__label {
+  color: var(--muted);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  line-height: var(--type-label-line);
+}
+
+.ai-media-step-field__hint {
+  color: var(--muted);
+  font-size: var(--type-control-sm-size);
+  line-height: var(--type-control-sm-line);
+  font-style: italic;
+}
+
+.ai-media-step-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+

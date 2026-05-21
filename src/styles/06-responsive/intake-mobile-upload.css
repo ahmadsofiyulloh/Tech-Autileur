@@ -1,0 +1,10 @@
+@media (max-width:860px){.operator-topbar{padding-top:max(10px, env(safe-area-inset-top))}
+.image-preview-upload-card__actions{flex-wrap:nowrap;gap:4px;top:8px;right:8px}
+.image-preview-upload-card__actions .button{gap:0;min-width:34px;min-height:34px;padding:0}
+.image-preview-upload-card__action-label{display:none}
+.intake-stepper__step-header{padding:10px}
+.intake-stepper__step-body{padding:0 10px 10px}
+.intake-stepper__single-upload,.intake-evidence-grid__card,.intake-evidence-grid--supporting .intake-evidence-grid__card{justify-self:stretch;width:100%;min-width:0;max-width:none}
+.intake-evidence-grid:not(.intake-evidence-grid--supporting){grid-template-columns:minmax(0,1fr)}
+.intake-stepper__step-meta .status-badge{display:none}
+}

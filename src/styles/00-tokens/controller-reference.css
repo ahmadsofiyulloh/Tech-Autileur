@@ -1,0 +1,9 @@
+/* CTRL-DESIGN-REF-01: controller reference UI adoption, presentation-only. */
+:root {
+  --controller-ref-rail-index-size: calc(var(--space-4) + var(--space-4));
+  --controller-ref-panel-width: min(760px, calc(100vw - (var(--space-6) * 2)));
+  --controller-ref-support-column: minmax(260px, 320px);
+  --controller-ref-shell-max-width: 1180px;
+  --controller-ref-shell-gutter: var(--space-3);
+  --controller-ref-layout-gap: var(--space-3);
+}

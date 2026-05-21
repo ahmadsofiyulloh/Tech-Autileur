@@ -1,0 +1,29 @@
+@media (max-width: 860px) {
+  .topbar-global-controls {
+    gap: calc(var(--space-1) / 2);
+  }
+
+  .topbar-icon-button {
+    width: var(--shell-topbar-profile-link-mobile-size);
+    min-width: var(--shell-topbar-profile-link-mobile-size);
+    height: var(--shell-topbar-profile-link-mobile-size);
+    min-height: var(--shell-topbar-profile-link-mobile-size);
+    border-radius: var(--radius);
+  }
+
+  .topbar-floating-panel--sheet {
+    top: auto !important;
+    right: var(--space-3);
+    bottom: calc(var(--shell-bottom-sheet-offset) + var(--space-3) + env(safe-area-inset-bottom));
+    left: var(--space-3) !important;
+    width: auto;
+    max-height: min(var(--shell-topbar-sheet-max-height), calc(82vh - var(--shell-bottom-sheet-offset)));
+    border-radius: var(--radius);
+  }
+
+  .topbar-panel__header {
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border-standard);
+  }
+}
+

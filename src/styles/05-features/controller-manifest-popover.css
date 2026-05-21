@@ -1,0 +1,89 @@
+.controller-manifest-popover__backdrop {
+  position: fixed;
+  z-index: 144;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--color-overlay-backdrop);
+  backdrop-filter: blur(2px);
+  padding: var(--space-4);
+}
+
+.controller-manifest-popover {
+  position: relative;
+  display: grid;
+  gap: 0;
+  width: var(--controller-ref-panel-width);
+  max-height: min(720px, calc(100vh - (var(--space-6) * 2)));
+  border-color: var(--ui-shell-border-muted);
+  background: var(--color-surface-base);
+  box-shadow: var(--ui-shell-shadow-raised);
+  padding: 0;
+  overflow: hidden;
+  animation: controller-manifest-enter var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.controller-manifest-popover__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  background: var(--color-surface-muted-soft);
+  padding: var(--space-3) var(--space-4);
+}
+
+.controller-manifest-popover__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-primary);
+}
+
+.controller-manifest-popover__title svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.controller-manifest-popover__body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+.controller-manifest-popover__status {
+  justify-content: flex-end;
+}
+
+.controller-manifest-form {
+  gap: var(--space-3);
+}
+
+.controller-manifest-form__field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.controller-manifest-form__divider {
+  height: 1px;
+  background: var(--ui-shell-border-muted);
+}
+
+.controller-manifest-form .auth-field input {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+
+.controller-manifest-form__footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--ui-shell-border-muted);
+  margin: var(--space-1) calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-muted-soft);
+}
+
+.controller-manifest-form__footer .button {
+  width: auto;
+}
+

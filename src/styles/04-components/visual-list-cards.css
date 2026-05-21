@@ -1,0 +1,29 @@
+.intake-hero-grid{grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);align-items:start;gap:14px;display:grid}
+.profile-carousel{scroll-snap-type:x mandatory;grid-auto-columns:minmax(228px,252px);grid-auto-flow:column;gap:12px;padding:2px 2px 10px;display:grid;overflow-x:auto}
+.profile-card{scroll-snap-align:start;border:1px solid var(--color-border-standard);background:var(--color-surface-base);min-height:74px;box-shadow:var(--shadow-soft);text-align:left;border-radius:8px;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 12px;display:grid}
+.profile-card[data-active=true]{border-color:var(--color-primary);background:var(--color-surface-selected)}
+.profile-card__avatar{background:linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, var(--color-text-on-accent)), color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-base)) 48%, var(--color-surface-muted-strong));width:46px;height:46px;color:var(--color-primary);font-size:var(--type-card-size);font-weight:var(--type-card-weight);border-radius:999px;place-items:center;display:grid}
+.profile-card__avatar img{object-fit:cover;width:100%;height:100%;display:block}
+.profile-card__copy{gap:2px;min-width:0;display:grid}
+.profile-card__copy strong,.profile-card__copy span{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.visual-list-card,.prompt-list-card{border:1px solid var(--color-border-standard);background:var(--color-surface-base);box-shadow:var(--shadow-soft);border-radius:8px;grid-template-columns:80px minmax(0,1fr);align-items:start;gap:12px;padding:10px;display:grid}
+.visual-list-card__body,.visual-list-card>.stack-tight{min-width:0}
+.visual-list-card__body{align-content:start;gap:8px;display:grid}
+.visual-list-card__header,.dashboard-action-card__title-row{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;display:grid}
+.visual-list-card__copy{gap:3px;min-width:0;display:grid}
+.visual-list-card__copy strong,.prompt-list-card__copy strong{color:var(--color-text-primary);font-size:var(--type-card-size);font-weight:var(--type-card-weight);line-height:var(--type-card-line);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.visual-list-card__copy span,.visual-list-card__copy small,.prompt-list-card__copy small{color:var(--color-text-secondary);font-size:var(--type-subtitle-size);line-height:var(--type-subtitle-line);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.visual-list-card__copy small{font-size:var(--type-control-sm-size)}
+.visual-list-card__status{justify-items:end;gap:3px;min-width:0;max-width:132px;display:grid}
+.visual-list-card__status .status-badge,.dashboard-action-card__title-row .status-badge,.prompt-list-card__header .status-badge{min-height:22px;font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line);padding:.22rem .48rem}
+.visual-list-card__status .settings-card-meta-line{text-align:right}
+.visual-chip-row{flex-wrap:wrap;gap:6px;display:flex}
+.visual-list-card__thumb,.drive-tile__thumb,.drive-list-row__thumb,.product-row-preview,.drive-preview-sheet__media{background:linear-gradient(135deg, var(--color-surface-muted-soft), var(--color-surface-base));color:var(--color-primary);border-radius:8px;place-items:center;display:grid;position:relative;overflow:hidden}
+.visual-list-card__thumb{width:80px;height:80px}
+.product-row-preview{flex-shrink:0;width:68px;height:68px}
+.visual-list-card__thumb img,.drive-tile__thumb img,.drive-list-row__thumb img,.product-row-preview img,.drive-preview-sheet__media img{object-fit:cover;width:100%;height:100%;position:absolute;inset:0}
+.visual-chip{background:var(--color-component-inactive);min-height:24px;color:var(--color-text-primary);font-size:var(--type-control-size);line-height:var(--type-line-100);border-radius:8px;align-items:center;padding:0 8px;display:inline-flex}
+.visual-list-card__footer{min-width:0;color:var(--color-text-secondary);font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line);flex-wrap:wrap;gap:8px;display:flex}
+.visual-list-card__footer span{text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:100%;overflow:hidden}
+.visual-list-card__actions{align-items:center}
+.visual-list-card__actions .button{flex:1 1 0;min-width:0}

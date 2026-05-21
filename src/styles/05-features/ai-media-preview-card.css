@@ -1,0 +1,41 @@
+/* --- AI Media Preview Card --- */
+.ai-media-preview-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted-strong);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ai-media-preview-card__label {
+  color: var(--muted);
+  font-size: var(--type-overline-size);
+  font-weight: var(--type-overline-weight);
+  letter-spacing: var(--type-letter-007);
+  line-height: var(--type-overline-line);
+  text-transform: uppercase;
+}
+
+.ai-media-preview-card__frame {
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--color-surface-ghost);
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.ai-media-preview-card__image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.ai-media-preview-card__empty {
+  color: var(--muted);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+

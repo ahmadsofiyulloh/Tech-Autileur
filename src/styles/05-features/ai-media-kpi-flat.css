@@ -1,0 +1,91 @@
+/* ============================================================
+   AI MEDIA KPI GRID — Vercel-style varied layout
+   ============================================================ */
+
+.ai-media-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border-flat);
+  border-radius: var(--radius-flat);
+  overflow: hidden;
+  background: var(--border-flat);
+}
+
+.ai-media-kpi {
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-flat);
+  transition: background 160ms;
+  cursor: default;
+}
+
+.ai-media-kpi:hover {
+  background: var(--surface-flat-elevated);
+}
+
+.ai-media-kpi--span {
+  grid-column: span 2;
+}
+
+@media (min-width: 768px) {
+  .ai-media-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-media-kpi--span {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ai-media-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .ai-media-kpi--span {
+    grid-column: span 1;
+  }
+
+  .ai-media-kpi-grid--usage {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ai-media-kpi-grid--usage .ai-media-kpi--span {
+    grid-column: span 4;
+  }
+
+  .ai-media-kpi-grid--dashboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .ai-media-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .ai-media-kpi-grid--usage {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ai-media-kpi-grid--dashboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* --- Dashboard KPI: last item span on mobile/tablet --- */
+.ai-media-kpi-grid--dashboard > :last-child {
+  grid-column: span 2;
+}
+
+@media (min-width: 1024px) {
+  .ai-media-kpi-grid--dashboard > :last-child {
+    grid-column: span 1;
+  }
+
+  .ai-media-kpi-grid--pipeline {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+

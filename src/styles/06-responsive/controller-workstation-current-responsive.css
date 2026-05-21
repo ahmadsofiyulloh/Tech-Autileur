@@ -1,0 +1,15 @@
+@media (max-width: 1100px) {
+  .controller-workflow-header,
+  .controller-stepper-panel .controller-prompt-card,
+  .controller-stepper-panel .controller-batch-selection-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controller-workflow-header__badges {
+    justify-content: flex-start;
+  }
+
+  .controller-manifest-form .grid.two-up {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

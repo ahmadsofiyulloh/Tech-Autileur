@@ -1,0 +1,11 @@
+/* --- Primary color: Vercel blue, re-asserted for cascade --- */
+:root {
+  --color-primary: #0070f3;
+  --color-primary-soft: #0070f314;
+  --color-primary-strong: #3291ff;
+}
+:root[data-theme=light] {
+  --color-primary: #0070f3;
+  --color-primary-soft: #edf4ff;
+  --color-primary-strong: #005cc5;
+}

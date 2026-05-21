@@ -1,0 +1,3 @@
+.operator-shell{grid-template-columns:238px minmax(0,1fr);min-height:100vh;display:grid}
+.public-shell{min-height:100vh;padding:var(--space-6);place-items:center;display:grid}
+.public-main{width:min(760px,100%)}

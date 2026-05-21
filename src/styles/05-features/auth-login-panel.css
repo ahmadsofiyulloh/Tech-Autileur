@@ -1,0 +1,5 @@
+.auth-login-panel{background:var(--auth-page-background);min-height:100svh;padding:max(var(--space-6), env(safe-area-inset-top)) var(--space-5) max(var(--space-6), env(safe-area-inset-bottom));place-items:center;display:grid}
+.auth-mobile-lock{width:var(--auth-brand-mark-size);height:var(--auth-brand-mark-size);margin-inline:auto;display:none}
+.auth-card{width:min(var(--auth-card-width), 100%);min-height:var(--auth-card-min-height);gap:var(--space-2);border:1px solid var(--auth-card-border);border-radius:var(--auth-control-radius);background:var(--auth-card-background);box-shadow:var(--auth-card-shadow);padding:var(--auth-card-padding-block) var(--auth-card-padding-inline);transform:translateY(calc(var(--space-1) * -1));display:grid}
+.auth-card h1{color:var(--auth-text-primary);font-size:var(--type-size-26);font-weight:var(--type-weight-700);line-height:var(--type-line-112);margin:0}
+.auth-login-subtitle{margin:calc(var(--space-2) * -1) 0 var(--space-2);color:var(--auth-text-secondary);font-size:var(--type-size-14);font-weight:var(--type-weight-400);line-height:var(--type-line-124)}

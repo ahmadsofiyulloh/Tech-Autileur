@@ -1,0 +1,23 @@
+/* --- AI Media Task Status Card --- */
+/* --- AI Media Tool Page Layout --- */
+.ai-media-tool-layout {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ai-media-tool-layout__stepper {
+  min-width: 0;
+}
+
+.ai-media-tool-layout__side {
+  display: none;
+}
+
+.ai-media-tool-layout__log-desktop {
+  display: none;
+}
+
+.ai-media-tool-layout__log-mobile {
+  display: contents;
+}
+

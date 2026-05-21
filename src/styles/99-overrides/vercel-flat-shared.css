@@ -1,0 +1,450 @@
+/* ============================================================
+   VERCEL-FLAT OVERRIDE LAYER
+   Rule overrides for flat surfaces. Tokens live in :root at top of file.
+   ============================================================ */
+
+
+
+/* --- Body: flat background --- */
+html { background: var(--bg-flat); }
+body {
+  background: var(--bg-flat);
+  color: var(--text-flat);
+}
+
+/* --- Sidebar: flat, no radial/linear gradient --- */
+.sidebar,
+.sidebar--dense {
+  background: var(--bg-flat);
+  border-right: 1px solid var(--border-flat);
+  box-shadow: none;
+}
+
+.sidebar-brand,
+.sidebar-brand--dense {
+  background: none;
+  border: none;
+}
+
+.sidebar-brand__mark {
+  background: var(--surface-flat-elevated);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+  color: var(--text-flat-strong);
+}
+
+.sidebar-brand:hover {
+  background: var(--surface-flat-hover);
+}
+
+/* --- Sidebar footer: Vercel icon-only collapse toggle --- */
+.sidebar-footer {
+  border-top: none;
+}
+
+.sidebar-toggle,
+.sidebar-toggle--dense {
+  width: var(--shell-sidebar-toggle-size);
+  height: var(--shell-sidebar-toggle-size);
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar-toggle__label {
+  display: none;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+  background: color-mix(in srgb, var(--text-flat-strong) 4%, transparent);
+  color: var(--text-flat-strong);
+}
+
+/* --- Nav links: flat active state (Vercel neutral tint) --- */
+.nav-link:hover,
+.nav-link:focus-visible {
+  background: color-mix(in srgb, var(--text-flat-strong) 4%, transparent);
+  border: none;
+  color: var(--text-flat-strong);
+}
+
+.nav-link[data-active="true"],
+.nav-link[data-active=true] {
+  background: color-mix(in srgb, var(--text-flat-strong) 6%, transparent);
+  border: none;
+  box-shadow: none;
+  color: var(--text-flat-strong);
+}
+
+/* --- Topbar: flat --- */
+.operator-topbar,
+.operator-topbar--dense {
+  background: var(--bg-flat);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom: 1px solid var(--border-flat);
+}
+
+/* --- Panels, cards, heroes: flat --- */
+.shell-header,
+.shell-footer,
+.panel,
+.hero {
+  background: var(--surface-flat);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.section-card.panel {
+  background: var(--surface-flat);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+}
+
+/* --- Metric cards: flat, no radial pseudo --- */
+.metric {
+  background: var(--surface-flat);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+}
+
+.metric::before,
+.metric:before {
+  display: none;
+}
+
+/* --- Shared operator MetricCard standard --- */
+.operator-metric-card {
+  --operator-metric-card-min-block-size: calc(var(--space-6) + var(--space-5) + var(--space-4));
+  min-height: var(--operator-metric-card-min-block-size);
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  position: relative;
+}
+
+.operator-metric-card--with-status {
+  padding-inline-end: var(--space-4);
+}
+
+.operator-metric-card .operator-metric-card__label {
+  color: var(--text-flat-muted);
+  display: block;
+  font-size: var(--type-control-sm-size);
+  font-weight: var(--type-control-sm-weight);
+  line-height: var(--type-control-sm-line);
+  letter-spacing: var(--type-letter-001);
+  margin: 0;
+  max-width: 100%;
+  text-transform: none;
+  width: fit-content;
+}
+
+.operator-metric-card.operator-metric-card--with-status .operator-metric-card__label {
+  max-width: calc(100% - (var(--space-6) * 3));
+}
+
+.operator-metric-card .operator-metric-card__value {
+  color: var(--text-flat-strong);
+  display: block;
+  font-size: var(--type-card-size);
+  font-weight: var(--type-card-weight);
+  line-height: var(--type-card-line);
+  letter-spacing: var(--type-letter-0);
+  font-variant-numeric: var(--type-numeric-tabular);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  width: fit-content;
+}
+
+.operator-metric-card .operator-metric-card__detail {
+  color: var(--text-flat-faint);
+  display: block;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  width: fit-content;
+}
+
+.operator-metric-card__status {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 1;
+  display: inline-flex;
+  justify-content: flex-end;
+  max-width: min(calc(var(--space-6) * 4), calc(100% - (var(--space-4) * 2)));
+  min-width: 0;
+}
+
+.operator-metric-card__status .status-badge {
+  display: inline-flex;
+  margin: 0;
+  max-width: 100%;
+  text-transform: none;
+  letter-spacing: var(--type-letter-0);
+}
+
+.operator-metric-card__progress {
+  background: var(--color-progress-track);
+  border-radius: var(--radius);
+  width: 100%;
+  height: var(--space-1);
+  margin-top: var(--space-1);
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+.operator-metric-card__progress:before {
+  content: "";
+  width: var(--metric-fill, 0%);
+  border-radius: inherit;
+  background: var(--color-progress-fill);
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+/* --- Dashboard KPI + chart: flat --- */
+.dashboard-kpi {
+  background: var(--surface-flat-elevated);
+  box-shadow: none;
+}
+
+.dashboard-analysis-chart__plot {
+  background: var(--surface-flat-elevated);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+}
+
+/* --- Buttons: Vercel-flat token system --- */
+.button {
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--btn-secondary-border);
+  color: var(--btn-secondary-text);
+  box-shadow: none;
+  border-radius: var(--radius-flat);
+}
+
+.button:hover,
+.button:focus-visible {
+  background: var(--btn-secondary-hover-bg);
+  border-color: var(--btn-secondary-hover-border);
+  color: var(--text-flat-strong);
+}
+
+.button.primary {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  box-shadow: none;
+}
+
+.button.primary:hover,
+.button.primary:focus-visible {
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-bg);
+  color: var(--btn-primary-text);
+}
+
+.button.tertiary {
+  background: var(--btn-tertiary-bg);
+  border-color: var(--btn-tertiary-border);
+  color: var(--btn-tertiary-text);
+  box-shadow: none;
+}
+
+.button.tertiary:hover,
+.button.tertiary:focus-visible {
+  background: var(--btn-tertiary-hover-bg);
+  border-color: var(--btn-secondary-hover-border);
+  color: var(--btn-tertiary-hover-text);
+}
+
+.button.destructive {
+  background: var(--btn-destructive-bg);
+  border-color: var(--btn-destructive-border);
+  color: var(--btn-destructive-text);
+  box-shadow: none;
+}
+
+.button.destructive:hover,
+.button.destructive:focus-visible {
+  background: var(--btn-destructive-hover-bg);
+  border-color: var(--btn-destructive-text);
+  color: var(--btn-destructive-text);
+}
+
+.dashboard-action-card .button {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  box-shadow: none;
+}
+
+.dashboard-action-card .button:not(.primary) {
+  background: var(--btn-secondary-bg);
+  border-color: var(--btn-secondary-border);
+  color: var(--btn-secondary-text);
+}
+
+/* --- Topbar action: flat --- */
+.topbar-action {
+  background: var(--surface-flat);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+}
+
+.topbar-action:hover,
+.topbar-action:focus-visible {
+  background: var(--surface-flat-hover);
+  border-color: var(--border-flat-strong);
+}
+
+/* --- Input: flat --- */
+input, textarea, select {
+  background: var(--surface-flat);
+  border: 1px solid var(--border-flat);
+  box-shadow: none;
+  color: var(--text-flat);
+}
+
+/* --- Overlay/floating: flat --- */
+.relational-picker__panel {
+  background: var(--surface-flat-elevated);
+  border: 1px solid var(--border-flat);
+  box-shadow: var(--shadow);
+}
+
+/* --- Bottom nav: flat --- */
+.bottom-nav {
+  background: var(--bg-flat);
+  border-top: 1px solid var(--border-flat);
+  box-shadow: none;
+}
+
+.bottom-nav__link {
+  border-radius: var(--radius-flat);
+  border: none;
+}
+
+.bottom-nav__link:hover,
+.bottom-nav__link:focus-visible {
+  background: color-mix(in srgb, var(--text-flat-strong) 4%, transparent);
+  color: var(--text-flat-strong);
+}
+
+.bottom-nav__link[data-active="true"],
+.bottom-nav__link[data-active=true] {
+  border: none;
+  background: color-mix(in srgb, var(--text-flat-strong) 6%, transparent);
+  color: var(--text-flat-strong);
+}
+
+.bottom-nav__link--center {
+  border: none;
+  border-radius: var(--radius-flat);
+}
+
+.bottom-nav__link--center[data-active="true"],
+.bottom-nav__link--center[data-active=true] {
+  border: none;
+  background: color-mix(in srgb, var(--text-flat-strong) 6%, transparent);
+  color: var(--text-flat-strong);
+}
+
+/* --- Badge: Vercel-flat (subtle tint, no visible border, no dot) --- */
+.status-badge {
+  border: none;
+  box-shadow: none;
+  background: var(--badge-gray-bg);
+  color: var(--badge-gray-text);
+}
+
+.status-badge:before {
+  display: none;
+}
+
+.status-badge--success {
+  background: var(--badge-green-bg);
+  color: var(--badge-green-text);
+}
+
+.status-badge--info {
+  background: var(--badge-blue-bg);
+  color: var(--badge-blue-text);
+}
+
+.status-badge--warning {
+  background: var(--badge-amber-bg);
+  color: var(--badge-amber-text);
+}
+
+.status-badge--danger {
+  background: var(--badge-red-bg);
+  color: var(--badge-red-text);
+}
+
+.status-badge--neutral {
+  background: var(--badge-gray-bg);
+  color: var(--badge-gray-text);
+}
+
+.status-badge--muted {
+  opacity: 0.6;
+}
+
+.status-badge--badge {
+  box-shadow: none;
+}
+
+/* --- Sidebar children collapse --- */
+.sidebar-nav__children {
+  overflow: hidden;
+  transition: max-height 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-nav__children[data-collapsed="true"] {
+  max-height: 0;
+}
+
+.sidebar-nav__children[data-collapsed="false"] {
+  max-height: 500px;
+}
+
+.sidebar-nav__children .sidebar-link {
+  min-height: 28px;
+  padding-left: calc(var(--shell-sidebar-link-padding-x) + 20px);
+}
+
+.sidebar-nav__group-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  color: var(--text-flat-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 150ms var(--motion-ease-standard), transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.sidebar-nav__group-toggle:hover {
+  color: var(--color-primary);
+}
+
+.sidebar-nav__group-toggle[data-expanded="true"] {
+  transform: rotate(0deg);
+}
+
+.sidebar-nav__group-toggle[data-expanded="false"] {
+  transform: rotate(-90deg);
+}
+

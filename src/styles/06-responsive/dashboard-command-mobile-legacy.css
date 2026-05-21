@@ -1,0 +1,21 @@
+
+@media (max-width: 767px) {
+  .dashboard-page--command {
+    gap: var(--space-3);
+  }
+
+  .dashboard-page-header {
+    align-items: start;
+  }
+
+  .dashboard-issue-card,
+  .dashboard-quota-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .dashboard-inline-link {
+    justify-self: start;
+  }
+}
+

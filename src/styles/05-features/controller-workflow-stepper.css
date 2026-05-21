@@ -1,0 +1,114 @@
+.controller-workflow-stepper {
+  gap: var(--controller-ref-layout-gap);
+}
+
+.controller-workflow-stepper__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--controller-ref-layout-gap);
+  min-width: 0;
+}
+
+.controller-workflow-stepper__aside {
+  min-width: 0;
+}
+
+.controller-workflow-stepper__body > .controller-stepper-panel,
+.controller-workflow-stepper__body > .controller-workflow-stepper__aside {
+  min-width: 0;
+}
+
+.controller-workflow-stepper__body > .controller-stepper-panel > .controller-step-section,
+.controller-workflow-stepper__body > .controller-workflow-stepper__aside > .controller-support-panel {
+  width: 100%;
+  margin: 0;
+}
+
+.controller-workflow-stepper .controller-stepper-rail {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border: 1px solid var(--ui-shell-border-muted);
+  border-radius: var(--radius);
+  background: var(--color-surface-base);
+  box-shadow: var(--ui-shell-shadow-rest);
+  overflow: visible;
+  scrollbar-width: auto;
+}
+
+.controller-workflow-stepper .controller-stepper-rail:before {
+  top: calc(var(--space-3) + (var(--controller-ref-rail-index-size) / 2));
+  inset-inline: calc(var(--space-3) + var(--controller-ref-rail-index-size));
+  background: var(--ui-shell-border-muted);
+}
+
+.controller-workflow-stepper .controller-stepper-rail__item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.controller-stepper-rail__button {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: var(--space-1);
+  min-height: auto;
+  text-align: center;
+  padding: 0 var(--space-1);
+}
+
+.controller-stepper-rail__button:hover,
+.controller-stepper-rail__button:focus-visible {
+  color: var(--color-primary);
+}
+
+.controller-workflow-stepper .controller-stepper-rail__index {
+  width: var(--controller-ref-rail-index-size);
+  height: var(--controller-ref-rail-index-size);
+  border-color: var(--ui-shell-border-muted);
+  background: var(--color-surface-muted-soft);
+  color: var(--color-text-secondary);
+  font-weight: var(--type-control-strong-weight);
+}
+
+.controller-workflow-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__index {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-button-primary-text);
+}
+
+.controller-workflow-stepper .controller-stepper-rail__item[data-empty="true"]:not([data-active="true"]) .controller-stepper-rail__index {
+  opacity: var(--status-badge-muted-opacity);
+}
+
+.controller-workflow-stepper .controller-stepper-rail__copy {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.controller-workflow-stepper .controller-stepper-rail__label {
+  color: inherit;
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  text-align: center;
+}
+
+.controller-workflow-stepper .controller-stepper-rail__meta {
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-sm-size);
+  font-weight: var(--type-control-sm-weight);
+  line-height: var(--type-control-sm-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.controller-workflow-stepper .controller-stepper-rail__item[data-active="true"] .controller-stepper-rail__button:after {
+  inset-inline: var(--space-2);
+  bottom: calc(var(--space-1) * -1);
+}
+

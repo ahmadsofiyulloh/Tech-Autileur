@@ -1,0 +1,6 @@
+.dashboard-analysis-chart__skeleton-frame{gap:12px;display:grid}
+.dashboard-analysis-chart__skeleton-axis{justify-content:space-between;gap:8px;display:flex}
+.dashboard-analysis-chart__skeleton-bars{gap:10px;display:grid}
+.dashboard-analysis-chart__skeleton-row{grid-template-columns:minmax(88px,.9fr) minmax(0,1.7fr) auto;align-items:center;gap:10px;display:grid}
+.dashboard-analysis-chart__skeleton-bar{background:var(--color-progress-track);border-radius:999px;height:14px;overflow:hidden}
+.dashboard-analysis-chart__skeleton-bar span{border-radius:inherit;background:var(--color-progress-fill);opacity:.6;width:72%;height:100%;display:block}

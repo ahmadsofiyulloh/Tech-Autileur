@@ -1,0 +1,5 @@
+.settings-native-list{gap:18px;display:grid}
+.settings-native-group{gap:8px;display:grid}
+.settings-native-group h2{color:var(--color-text-primary);font-size:var(--type-section-title-size);font-weight:var(--type-section-title-weight);line-height:var(--type-section-title-line);margin:0}
+.settings-native-card{border:1px solid var(--color-border-standard);border-radius:var(--radius);background:var(--color-surface-base);box-shadow:var(--shadow-soft);overflow:hidden}
+.settings-preference-card{padding:var(--space-3)}

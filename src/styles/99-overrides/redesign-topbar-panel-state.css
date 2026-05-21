@@ -1,0 +1,36 @@
+.topbar-panel-state {
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  min-height: 136px;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-standard);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted-soft);
+  color: var(--color-text-secondary);
+  text-align: center;
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-weight);
+  line-height: var(--type-control-line);
+}
+
+.topbar-panel-state[data-state="error"] {
+  border-color: var(--color-status-error-border);
+  background: var(--color-status-error-soft);
+  color: var(--color-status-error);
+}
+
+.topbar-panel-state__skeleton {
+  width: 58%;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-muted-soft),
+    color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-base)),
+    var(--color-surface-muted-soft)
+  );
+  background-size: 200% 100%;
+  animation: 1.2s ease-in-out infinite shimmer;
+}
+

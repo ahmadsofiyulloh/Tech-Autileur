@@ -1,0 +1,31 @@
+/* MT-SHELL-RESP-01: collapsible desktop sidebar and restored 5-item mobile nav. */
+:root {
+  --shell-sidebar-width: 238px;
+  --shell-sidebar-collapsed-width: 76px;
+  --shell-sidebar-compact-width: 76px;
+  --shell-sidebar-padding-block: 22px;
+  --shell-sidebar-padding-x: 14px;
+  --shell-sidebar-compact-padding-block: 18px;
+  --shell-sidebar-compact-padding-x: 10px;
+  --shell-sidebar-toggle-size: 40px;
+  --shell-sidebar-toggle-gap: var(--space-2);
+  --shell-sidebar-toggle-padding-inline: var(--space-3);
+  --shell-sidebar-footer-padding-top: var(--space-4);
+  --shell-sidebar-footer-padding-bottom: var(--space-1);
+  --shell-topbar-desktop-min-height: 56px;
+  --shell-topbar-desktop-padding-x: clamp(20px, 2.4vw, 32px);
+  --shell-topbar-desktop-padding-top: 10px;
+  --shell-topbar-desktop-padding-bottom: 8px;
+  --shell-topbar-desktop-action-height: 36px;
+  --shell-topbar-desktop-avatar-size: 26px;
+  --shell-topbar-desktop-title-icon-size: 28px;
+  --shell-topbar-desktop-title-size: var(--type-section-size);
+  --shell-topbar-desktop-title-line: var(--type-section-line);
+  --shell-topbar-desktop-subtitle-size: var(--type-control-sm-size);
+  --shell-topbar-desktop-subtitle-line: var(--type-control-sm-line);
+  --shell-topbar-popover-width: 320px;
+  --shell-topbar-activity-width: 360px;
+  --shell-topbar-sheet-max-height: 520px;
+  --shell-topbar-panel-icon-size: 30px;
+  --shell-topbar-menu-avatar-size: 40px;
+}

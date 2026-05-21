@@ -1,0 +1,37 @@
+/* --- Dashboard Pipeline KPI cell --- */
+.dashboard-pipeline-kpi {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 150ms var(--motion-ease-standard);
+}
+
+.dashboard-pipeline-kpi__label {
+  color: var(--color-text-secondary);
+  font-size: var(--type-overline-size);
+  font-weight: var(--type-overline-weight);
+  letter-spacing: var(--type-overline-letter);
+  line-height: var(--type-overline-line);
+  text-transform: uppercase;
+}
+
+.dashboard-pipeline-kpi__count {
+  font-size: var(--type-page-size);
+  font-variant-numeric: var(--type-numeric-tabular);
+  font-weight: var(--type-page-weight);
+  line-height: var(--type-page-line);
+}
+
+.dashboard-pipeline-kpi__detail {
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+
+.dashboard-pipeline-kpi:hover {
+  background: var(--surface-flat-hover);
+}
+

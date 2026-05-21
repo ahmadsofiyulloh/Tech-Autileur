@@ -13,11 +13,11 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "smoke:e2e": "node --conditions react-server ./node_modules/@playwright/test/cli.js test",
-    "smoke:e2e:live-loop": "playwright test tests/e2e/intake-prompt-live-loop.spec.ts",
+    "smoke:e2e:live-loop": "node --conditions react-server ./node_modules/@playwright/test/cli.js test tests/e2e/intake-prompt-live-loop.spec.ts",
     "smoke:e2e:live-batch": "node scripts/run-smoke-live-batch.mjs",
     "smoke:e2e:live-100": "node scripts/run-smoke-live-batch.mjs",
-    "smoke:e2e:headed": "playwright test --headed",
-    "smoke:e2e:report": "playwright show-report"
+    "smoke:e2e:headed": "node --conditions react-server ./node_modules/@playwright/test/cli.js test --headed",
+    "smoke:e2e:report": "node --conditions react-server ./node_modules/@playwright/test/cli.js show-report"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

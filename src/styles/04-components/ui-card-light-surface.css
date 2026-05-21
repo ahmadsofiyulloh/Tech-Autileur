@@ -1,0 +1,5 @@
+.ui-card{border:1px solid var(--ui-card-border-color);border-radius:var(--ui-card-radius);background:var(--color-surface-base);color:var(--color-text-primary);box-shadow:var(--shadow-soft);padding:.75rem;overflow:hidden}
+.ui-card__header,.ui-card__content,.ui-card__footer{min-width:0;padding:0}
+.ui-card__header{gap:4px;margin-bottom:.5rem;display:grid}
+.ui-card__title{color:var(--ui-card-title-color);font-size:var(--ui-card-title-size);font-weight:var(--ui-card-title-weight);line-height:var(--type-card-line)}
+.ui-card__description{color:var(--color-text-secondary);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line)}

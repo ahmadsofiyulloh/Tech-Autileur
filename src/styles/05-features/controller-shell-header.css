@@ -1,0 +1,44 @@
+.shell-main:has(> .controller-desktop-content) {
+  width: min(var(--controller-ref-shell-max-width), calc(100% - (var(--controller-ref-shell-gutter) * 2)));
+  padding-top: var(--controller-ref-shell-gutter);
+}
+
+.shell-main:has(> .controller-placeholder) {
+  width: min(var(--controller-ref-shell-max-width), calc(100% - (var(--controller-ref-shell-gutter) * 2)));
+  padding-top: var(--controller-ref-shell-gutter);
+}
+
+.controller-desktop-content {
+  gap: var(--controller-ref-layout-gap);
+}
+
+.controller-placeholder {
+  gap: var(--controller-ref-layout-gap);
+}
+
+.controller-placeholder .empty-state {
+  min-height: calc(var(--space-6) * 8);
+}
+
+.controller-workflow-header {
+  border-color: var(--ui-shell-border-muted);
+  background: var(--color-surface-base);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.controller-workflow-header__workspace span:first-child,
+.controller-workflow-header__workspace span:last-child,
+.controller-lane-card__meta span,
+.controller-batch-selection-card__meta span,
+.controller-stage-row span,
+.controller-account-row__primary span {
+  color: var(--color-text-secondary);
+}
+
+.controller-workflow-header__workspace strong,
+.controller-lane-card__header strong,
+.controller-batch-info-grid strong,
+.controller-account-row__primary strong {
+  color: var(--color-text-primary);
+}
+

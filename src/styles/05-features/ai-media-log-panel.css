@@ -1,0 +1,30 @@
+/* --- AI Media Log Panel (mobile overlay) --- */
+.ai-media-log-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  padding: var(--space-4);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.ai-media-log-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-media-log-panel__title {
+  color: var(--text-strong);
+  font-size: var(--type-card-size);
+  font-weight: var(--type-card-weight);
+  line-height: var(--type-card-line);
+}
+
+.ai-media-log-panel .ai-media-log-terminal {
+  max-height: none;
+  height: 100%;
+}
+

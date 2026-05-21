@@ -1,0 +1,78 @@
+/* --- AI Media Usage --- */
+.ai-media-usage-page {
+  min-width: 0;
+}
+
+.ai-media-usage-layout,
+.ai-media-usage-placeholder-grid,
+.ai-media-usage-key-list,
+.ai-media-usage-event-list,
+.ai-media-usage-state-list {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ai-media-usage-key-row,
+.ai-media-usage-chart,
+.ai-media-usage-event-row,
+.ai-media-usage-state-row {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ai-media-usage-key-row + .ai-media-usage-key-row,
+.ai-media-usage-event-row + .ai-media-usage-event-row,
+.ai-media-usage-state-row {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.ai-media-usage-row-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ai-media-usage-row-heading strong,
+.ai-media-usage-row-heading span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-media-usage-detail-list {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-media-usage-detail-list div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ai-media-usage-detail-list dt {
+  color: var(--muted);
+  font-size: var(--type-overline-size);
+  font-weight: var(--type-overline-weight);
+  letter-spacing: var(--type-letter-007);
+  line-height: var(--type-overline-line);
+  text-transform: uppercase;
+}
+
+.ai-media-usage-detail-list dd {
+  color: var(--text-strong);
+  font-size: var(--type-control-size);
+  font-variant-numeric: var(--type-numeric-tabular);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+

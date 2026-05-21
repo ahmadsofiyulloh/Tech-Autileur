@@ -1,0 +1,116 @@
+.controller-stepper-panel {
+  min-width: 0;
+}
+
+.controller-stepper-panel .controller-step-section {
+  gap: var(--space-2);
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.controller-stepper-panel .controller-step-section .section-card__header {
+  align-items: center;
+  border-bottom: 1px solid var(--ui-shell-border-muted);
+  padding-bottom: var(--space-2);
+}
+
+.controller-stepper-panel .controller-lane-card {
+  gap: var(--space-1);
+  min-height: auto;
+  border-color: var(--ui-shell-border-muted);
+  background: var(--color-surface-base);
+  box-shadow: none;
+  padding: var(--space-2);
+}
+
+.controller-stepper-panel .controller-lane-card + .controller-lane-card {
+  margin-top: 0;
+}
+
+.controller-stepper-panel .controller-prompt-card,
+.controller-stepper-panel .controller-batch-selection-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.controller-support-panel {
+  border-color: var(--ui-shell-border-muted);
+}
+
+.controller-support-panel > summary {
+  cursor: pointer;
+  min-height: 42px;
+  padding: var(--space-2);
+}
+
+.controller-support-panel[open] > summary {
+  border-bottom: 1px solid var(--ui-shell-border-muted);
+}
+
+.controller-support-panel__body {
+  padding: var(--space-2);
+}
+
+.controller-manifest-popover__trigger {
+  white-space: nowrap;
+}
+
+.controller-manifest-popover {
+  z-index: 145;
+  display: grid;
+  gap: var(--space-2);
+  width: min(520px, calc(100vw - (var(--space-4) * 2)));
+  max-height: min(620px, calc(100vh - (var(--space-4) * 2)));
+  border: 1px solid var(--ui-shell-border-muted);
+  border-radius: var(--radius);
+  background: var(--color-overlay-surface);
+  box-shadow: var(--ui-shell-shadow-raised);
+  padding: var(--space-2);
+  position: fixed;
+  overflow: auto;
+}
+
+.controller-manifest-popover__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--ui-shell-border-muted);
+  padding-bottom: var(--space-2);
+}
+
+.controller-manifest-popover__header strong {
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.controller-manifest-popover__close {
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.controller-manifest-popover__body,
+.controller-manifest-form {
+  min-width: 0;
+}
+
+.controller-manifest-popover__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.controller-manifest-form .grid.two-up {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+

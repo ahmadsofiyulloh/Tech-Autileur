@@ -1,0 +1,187 @@
+.dashboard-quota-panel,
+.dashboard-key-panel {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--border-flat);
+  border-radius: var(--radius);
+  background: var(--surface-flat);
+  padding: var(--space-3);
+}
+
+.dashboard-subsection-title,
+.dashboard-quota-row__meta,
+.dashboard-key-row,
+.dashboard-compact-row,
+.dashboard-pipeline-item a,
+.dashboard-pipeline-item > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.dashboard-subsection-title {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.dashboard-subsection-title strong,
+.dashboard-quota-row__meta strong,
+.dashboard-key-row strong,
+.dashboard-compact-row__copy strong,
+.dashboard-pipeline-item__copy strong {
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+}
+
+.dashboard-subsection-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-quota-row {
+  grid-template-columns: minmax(0, 1fr) minmax(5rem, 0.68fr) auto;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border-flat);
+}
+
+.dashboard-quota-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.dashboard-quota-row:last-child {
+  padding-bottom: 0;
+}
+
+.dashboard-quota-row__bar,
+.dashboard-pipeline-item__bar {
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-progress-track);
+}
+
+.dashboard-quota-row__bar {
+  height: var(--space-1);
+}
+
+.dashboard-quota-row__bar span,
+.dashboard-pipeline-item__bar span {
+  display: block;
+  width: var(--dashboard-progress, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dashboard-tone);
+}
+
+.dashboard-quota-row__percent,
+.dashboard-pipeline-item__count,
+.dashboard-compact-row__count {
+  color: var(--color-text-primary);
+  font-size: var(--type-control-size);
+  font-variant-numeric: var(--type-numeric-tabular);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+}
+
+.dashboard-key-row {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-flat);
+}
+
+.dashboard-key-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.dashboard-key-row div,
+.dashboard-compact-row__copy,
+.dashboard-pipeline-item__copy {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  min-width: 0;
+}
+
+.dashboard-key-row span:not(.status-badge),
+.dashboard-compact-row__copy span,
+.dashboard-pipeline-item__copy span {
+  color: var(--color-text-secondary);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-compact-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  min-height: calc(var(--space-6) + var(--space-3));
+  border: 1px solid var(--border-flat);
+  border-radius: var(--radius-flat);
+  background: var(--surface-flat);
+  color: var(--color-text-primary);
+  padding: var(--space-2);
+  text-decoration: none;
+  transition: border-color 220ms, transform 160ms, background 160ms;
+}
+
+.dashboard-compact-row:hover,
+.dashboard-pipeline-item a:hover {
+  border-color: var(--border-flat-strong);
+  background: var(--surface-flat-hover);
+  transform: scale(1.01);
+}
+
+.dashboard-tone-dot {
+  display: inline-block;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: 999px;
+  background: var(--dashboard-tone);
+}
+
+.dashboard-tone-dot[data-tone="info"] {
+  --dashboard-tone: var(--color-status-info);
+}
+
+.dashboard-tone-dot[data-tone="success"] {
+  --dashboard-tone: var(--color-status-success);
+}
+
+.dashboard-tone-dot[data-tone="warning"] {
+  --dashboard-tone: var(--color-status-warning);
+}
+
+.dashboard-tone-dot[data-tone="danger"] {
+  --dashboard-tone: var(--color-status-error);
+}
+
+.dashboard-pipeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-pipeline-item a,
+.dashboard-pipeline-item > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 1px solid var(--color-border-standard);
+  border-radius: var(--radius);
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  padding: var(--space-2);
+  text-decoration: none;
+}
+
+.dashboard-pipeline-item__bar {
+  grid-column: 1 / -1;
+  height: calc(var(--space-1) + 1px);
+}
+

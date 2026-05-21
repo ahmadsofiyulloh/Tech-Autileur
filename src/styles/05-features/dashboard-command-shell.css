@@ -1,0 +1,124 @@
+/* Micro-task 8: Dashboard frontend-first command layout. */
+
+.dashboard-page--command {
+  width: min(1240px, 100%);
+  gap: var(--space-3);
+}
+
+.dashboard-page--command > .dashboard-greeting {
+  margin-bottom: var(--space-2);
+}
+
+.dashboard-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.dashboard-tool-card__count {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 2;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: var(--bg-flat);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-weight-600);
+  line-height: var(--type-caption-line);
+  text-align: center;
+}
+
+.dashboard-panel__header {
+  margin-bottom: calc(var(--space-1) * -1);
+}
+
+.dashboard-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.dashboard-page-header div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dashboard-page-header span {
+  color: var(--color-text-secondary);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.dashboard-page-header h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--type-page-size);
+  font-weight: var(--type-page-weight);
+  letter-spacing: var(--type-letter-0);
+  line-height: var(--type-page-line);
+}
+
+.dashboard-command-layout,
+.dashboard-command-layout__primary,
+.dashboard-command-layout__side {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.dashboard-panel {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.dashboard-panel--primary {
+  gap: var(--space-4);
+}
+
+.dashboard-panel--secondary {
+  gap: var(--space-2);
+}
+
+.dashboard-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.dashboard-panel__title {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dashboard-panel__title > span {
+  color: var(--color-text-secondary);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.dashboard-panel__title h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--type-section-size);
+  font-weight: var(--type-section-weight);
+  letter-spacing: var(--type-letter-0);
+  line-height: var(--type-section-line);
+}
+
+.dashboard-panel--secondary .dashboard-panel__title h2 {
+  font-size: var(--type-card-size);
+  font-weight: var(--type-card-weight);
+  line-height: var(--type-card-line);
+}
+

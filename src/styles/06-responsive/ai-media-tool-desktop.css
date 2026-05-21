@@ -1,0 +1,33 @@
+@media (min-width: 1024px) {
+  .ai-media-lobby__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ai-media-tool-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+    grid-template-rows: auto;
+    align-items: start;
+  }
+
+  .ai-media-tool-layout__stepper {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .ai-media-tool-layout__side {
+    grid-column: 2;
+    grid-row: 1;
+    display: grid;
+    gap: var(--space-3);
+    position: sticky;
+    top: 100px;
+  }
+
+  .ai-media-tool-layout__log-desktop {
+    display: block;
+  }
+
+  .ai-media-tool-layout__log-mobile {
+    display: none;
+  }
+}

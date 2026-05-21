@@ -1,0 +1,11 @@
+/* UI-SHELL-CTRL-01: controller desktop workstation polish, presentation-only. */
+:root {
+  --controller-summary-side-min: 220px;
+  --controller-summary-focus-min: 280px;
+  --controller-step-rail-min: 136px;
+  --controller-step-rail-min-height: 92px;
+  --controller-step-index-size: 24px;
+  --controller-card-min-height: 76px;
+  --controller-batch-meta-column: 220px;
+  --controller-batch-action-column: 132px;
+}

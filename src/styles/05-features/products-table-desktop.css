@@ -1,0 +1,80 @@
+.product-table-product-cell {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.product-table-product-cell .stack-tight,
+.product-table-product-cell strong,
+.product-table-product-cell .settings-card-meta-line {
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.product-table-thumb {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, var(--color-surface-muted-soft), var(--color-surface-base));
+  color: var(--color-primary);
+  border-radius: var(--radius);
+  place-items: center;
+  display: grid;
+  position: relative;
+  overflow: hidden;
+}
+
+.product-table-thumb img {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.product-row-actions--desktop,
+.prompt-list-card__desktop-actions {
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.product-row-actions--desktop > .button,
+.prompt-list-card__desktop-actions > .button,
+.prompt-list-card__desktop-actions .prompt-list-card__action-form > .button {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.product-row-actions--desktop > .overflow-action-menu,
+.prompt-list-card__desktop-actions > .overflow-action-menu {
+  flex: none;
+}
+
+.prompt-list-card__desktop-actions .prompt-list-card__action-form {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.prompt-list-card__desktop-actions .prompt-list-card__action-form > .button {
+  min-width: 112px;
+}
+
+.prompt-list-card__desktop-actions > .button {
+  min-width: 92px;
+}
+
+.visual-list-card[data-active="true"] {
+  border-color: color-mix(in srgb, var(--color-primary) 44%, var(--color-border-standard));
+  background: color-mix(in srgb, var(--color-primary-soft) 74%, var(--color-surface-base));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent), var(--shadow-soft);
+}
+

@@ -1,0 +1,4 @@
+.intake-native-page{gap:10px;width:min(430px,100%);margin:0 auto}
+.intake-desktop-grid,.intake-desktop-primary{min-width:0}
+.intake-desktop-grid,.intake-desktop-primary{gap:10px;display:grid}
+.intake-native-surface{gap:12px;display:grid}

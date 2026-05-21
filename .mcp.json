@@ -9,11 +9,17 @@
       "url": "https://mcp.supabase.com/mcp?project_ref=laychawloumnhvzgegmj&read_only=true&features=database,docs"
     },
     "playwright": {
-      "command": "uvx",
-      "args": ["@playwright/mcp@latest"],
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
       "env": {
         "PLAYWRIGHT_TEST_BASE_URL": "http://localhost:3000"
       },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
       "disabled": false,
       "autoApprove": []
     }

@@ -1,0 +1,18 @@
+html{background:var(--color-shell-canvas);overscroll-behavior-x:none;-webkit-tap-highlight-color:transparent;overflow-x:clip}
+html,body{touch-action:pan-x pan-y}
+body{accent-color:var(--color-primary);min-width:0;overflow-x:clip}
+@supports not (overflow:clip){html,body{overflow-x:hidden}
+}
+a,button,summary,[role=button],[role=tab],.bottom-nav,.bottom-nav__link,.drive-tile,.drive-list-row,.image-preview-upload-card__frame,.overflow-action-menu__trigger,.prompt-readonly-field__body,pre,code{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.bottom-nav,.bottom-nav__link,.drive-tile,.drive-list-row,.image-preview-upload-card__frame,.image-preview-upload-card__actions,.operator-bottom-sheet__handle{-webkit-user-select:none;user-select:none}
+.operator-topbar{padding-top:max(24px, env(safe-area-inset-top))}
+.operator-bottom-sheet{will-change:transform}
+.operator-bottom-sheet[data-dragging=true]{transition:none}
+.operator-bottom-sheet__handle{touch-action:none;cursor:grab}
+.operator-bottom-sheet__handle:active{cursor:grabbing}
+.drive-tile,.drive-list-row{-webkit-touch-callout:none}
+input,textarea,select,[contenteditable=true]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.prompt-readonly-field__body{cursor:default}
+.image-preview-upload-card__actions{z-index:1;flex-wrap:wrap;justify-content:flex-end;gap:6px;display:flex;position:absolute;top:10px;right:10px}
+.image-preview-upload-card__actions .button{border:1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border-standard));background:color-mix(in srgb, var(--color-surface-base) 82%, transparent);min-height:30px;color:var(--color-text-primary);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.image-preview-upload-card__clear{position:static;top:auto;right:auto}

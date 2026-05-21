@@ -1,0 +1,13 @@
+.bulk-import-result{gap:var(--space-3)}
+.bulk-import-result__header{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);border:1px solid var(--color-border-standard);border-radius:var(--radius);background:var(--color-surface-muted-soft);padding:var(--space-3);display:grid}
+.bulk-import-result__header strong{color:var(--color-text-primary);font-size:var(--type-control-size);font-weight:var(--type-control-strong-weight);line-height:var(--type-control-line);text-overflow:ellipsis;white-space:nowrap;display:block;overflow:hidden}
+.bulk-import-result__header svg{color:var(--color-status-success)}
+.bulk-import-summary,.bulk-import-summary-grid{gap:var(--space-2);display:grid}
+.bulk-import-summary-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+.bulk-import-summary-metric{--bulk-import-summary-tone:var(--color-text-secondary);--bulk-import-summary-background:var(--color-surface-muted-soft);--bulk-import-summary-border:var(--color-border-standard);min-width:0;border:1px solid var(--bulk-import-summary-border);border-radius:var(--radius);background:var(--bulk-import-summary-background);gap:calc(var(--space-1) / 2);padding:var(--space-2);display:grid}
+.bulk-import-summary-metric[data-tone=info]{--bulk-import-summary-tone:var(--color-primary);--bulk-import-summary-background:var(--color-status-info-soft);--bulk-import-summary-border:color-mix(in srgb, var(--color-primary) 24%, var(--color-border-standard))}
+.bulk-import-summary-metric[data-tone=success]{--bulk-import-summary-tone:var(--color-status-success);--bulk-import-summary-background:var(--color-status-success-soft);--bulk-import-summary-border:var(--color-status-success-border)}
+.bulk-import-summary-metric[data-tone=warning]{--bulk-import-summary-tone:var(--color-status-warning);--bulk-import-summary-background:var(--color-status-warning-soft);--bulk-import-summary-border:color-mix(in srgb, var(--color-status-warning) 42%, var(--color-border-standard))}
+.bulk-import-summary-metric[data-tone=danger]{--bulk-import-summary-tone:var(--color-status-error);--bulk-import-summary-background:var(--color-status-error-soft);--bulk-import-summary-border:var(--color-status-error-border)}
+.bulk-import-summary-metric strong{color:var(--bulk-import-summary-tone);font-size:var(--type-card-size);font-weight:var(--type-card-weight);line-height:var(--type-card-line);font-variant-numeric:var(--type-numeric-tabular)}
+.bulk-import-summary-metric span{color:var(--color-text-secondary);font-size:var(--type-control-sm-size);font-weight:var(--type-control-sm-weight);line-height:var(--type-control-sm-line);text-transform:uppercase;letter-spacing:var(--type-letter-001)}

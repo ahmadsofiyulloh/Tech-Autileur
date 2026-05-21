@@ -1,0 +1,22 @@
+.bulk-import-table-wrap{border-color:var(--color-border-standard);background:var(--color-surface-base);box-shadow:none}
+.bulk-import-table{min-width:860px;table-layout:fixed}
+.bulk-import-table th,.bulk-import-table td{padding:var(--space-2) 10px}
+.bulk-import-table th{background:var(--color-surface-muted-soft)}
+.bulk-import-table tbody tr:hover td{background:color-mix(in srgb, var(--color-primary) 4%, transparent)}
+.bulk-import-table th:nth-child(1),.bulk-import-table td:nth-child(1){width:24%}
+.bulk-import-table th:nth-child(2),.bulk-import-table td:nth-child(2){width:28%}
+.bulk-import-table th:nth-child(3),.bulk-import-table td:nth-child(3){width:16%}
+.bulk-import-table th:nth-child(4),.bulk-import-table td:nth-child(4){width:18%}
+.bulk-import-table th:nth-child(5),.bulk-import-table td:nth-child(5){width:14%}
+.bulk-import-table__product,.bulk-import-table__links,.bulk-import-table__status,.bulk-import-prompt-cell{min-width:0}
+.bulk-import-table__product strong{color:var(--color-text-primary);font-size:var(--type-control-size);font-weight:var(--type-control-strong-weight);line-height:var(--type-control-line);text-overflow:ellipsis;white-space:nowrap;display:block;overflow:hidden}
+.bulk-import-table__links{gap:var(--space-2);display:grid}
+.bulk-import-table__link{min-width:0;gap:calc(var(--space-1) / 2);display:grid}
+.bulk-import-table__link-label{color:var(--color-text-secondary);font-size:var(--type-caption-size);font-weight:var(--type-caption-weight);line-height:var(--type-caption-line);text-transform:uppercase;letter-spacing:var(--type-letter-001)}
+.bulk-import-table__link-value{max-width:100%;color:var(--color-text-primary);font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line);text-overflow:ellipsis;white-space:nowrap;display:block;overflow:hidden}
+.bulk-import-table__status{gap:var(--space-2);align-items:start;display:grid}
+.bulk-import-table__status .status-badge{justify-content:flex-start;width:max-content;max-width:100%;font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line)}
+.bulk-import-prompt-cell{gap:var(--space-2);align-items:start;display:grid}
+.bulk-import-prompt-cell form{min-width:0}
+.bulk-import-prompt-cell .button{justify-content:center;width:100%;min-height:30px;font-size:var(--type-control-sm-size);line-height:var(--type-control-sm-line);padding:var(--space-1) var(--space-2)}
+.bulk-import-prompt-cell__reasons{gap:var(--space-1);display:grid}

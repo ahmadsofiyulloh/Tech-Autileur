@@ -1,0 +1,193 @@
+.controller-desktop-content {
+  gap: var(--space-2);
+}
+
+.controller-stepper-summary-strip {
+  grid-template-columns:
+    minmax(var(--controller-summary-side-min), 0.85fr)
+    minmax(var(--controller-summary-focus-min), 1.25fr)
+    minmax(var(--controller-summary-focus-min), 1fr);
+  align-items: stretch;
+  gap: var(--space-2);
+  background: var(--ui-shell-surface-base);
+  padding: var(--space-3);
+}
+
+.controller-stepper-summary-strip__workspace,
+.controller-stepper-summary-strip__focus,
+.controller-stepper-summary-strip__badges {
+  min-width: 0;
+  border: 1px solid var(--ui-shell-border-muted);
+  border-radius: var(--radius);
+  background: var(--ui-shell-surface-muted);
+  padding: var(--space-2);
+}
+
+.controller-stepper-summary-strip__workspace strong,
+.controller-stepper-summary-strip__focus strong {
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.controller-stepper-summary-strip__badges {
+  align-content: start;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.controller-stepper-shell {
+  gap: var(--space-3);
+}
+
+.controller-stepper-rail {
+  grid-template-columns: repeat(7, minmax(var(--controller-step-rail-min), 1fr));
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+  scrollbar-width: thin;
+}
+
+.controller-stepper-rail__item {
+  align-content: start;
+  gap: var(--space-2);
+  min-height: var(--controller-step-rail-min-height);
+  background: var(--ui-shell-surface-base);
+  padding: var(--space-2);
+  opacity: 0.76;
+}
+
+.controller-stepper-rail__item[data-active="true"] {
+  background: var(--ui-shell-surface-selected);
+  opacity: 1;
+}
+
+.controller-stepper-rail__index {
+  width: var(--controller-step-index-size);
+  height: var(--controller-step-index-size);
+}
+
+.controller-stepper-rail__copy span {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.controller-step-section {
+  gap: var(--space-2);
+  background: var(--ui-shell-surface-base);
+  box-shadow: none;
+}
+
+.controller-step-section--active {
+  background: var(--ui-shell-surface-raised);
+  box-shadow: var(--ui-shell-shadow-rest);
+}
+
+.controller-step-section .section-card__header {
+  align-items: center;
+  border-bottom: 1px solid var(--ui-shell-border-muted);
+  padding-bottom: var(--space-2);
+}
+
+.controller-lane-card {
+  gap: var(--space-2);
+  min-height: var(--controller-card-min-height);
+  background: var(--ui-shell-surface-base);
+}
+
+.controller-lane-card__header {
+  gap: var(--space-2);
+}
+
+.controller-card-status-stack {
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  display: flex;
+  min-width: 0;
+}
+
+.controller-card-status-stack .status-badge {
+  white-space: nowrap;
+}
+
+.controller-prompt-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.controller-prompt-card > .controller-lane-card__header {
+  grid-column: 1;
+}
+
+.controller-prompt-card > .controller-lane-card__meta {
+  grid-column: 1;
+}
+
+.controller-prompt-card > .controller-inline-form {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.controller-batch-selection-form {
+  gap: var(--space-2);
+}
+
+.controller-batch-selection-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.controller-batch-selection-card__meta {
+  align-content: center;
+}
+
+.controller-batch-selection-actions {
+  justify-content: flex-end;
+}
+
+.controller-stage-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.controller-stage-row {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+
+.controller-stage-row .controller-inline-badges {
+  align-items: flex-start;
+}
+
+.controller-support-panel > summary {
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  display: flex;
+}
+
+.controller-support-panel {
+  background: var(--ui-shell-surface-base);
+  box-shadow: none;
+}
+
+.controller-support-panel__summary {
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  display: flex;
+}
+
+.controller-support-panel__body {
+  padding-top: var(--space-2);
+}
+
+.controller-account-row {
+  grid-template-columns: minmax(0, 1fr) minmax(var(--controller-summary-side-min), auto);
+}
+

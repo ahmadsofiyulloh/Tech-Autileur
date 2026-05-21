@@ -1,0 +1,4 @@
+.auth-brand-lockup{top:max(var(--auth-brand-top), env(safe-area-inset-top));left:var(--auth-brand-left);z-index:2;align-items:center;gap:var(--auth-brand-gap);color:var(--auth-text-primary);font-size:var(--auth-brand-font-size);font-weight:var(--type-weight-700);line-height:var(--type-line-110);display:flex;position:absolute}
+.auth-brand-lockup strong{color:var(--auth-primary);font:inherit}
+.auth-brand-mark,.auth-mobile-lock{border-radius:var(--auth-control-radius);background:var(--auth-primary);color:var(--auth-card-background);place-items:center;display:grid}
+.auth-brand-mark{width:var(--auth-brand-mark-size);height:var(--auth-brand-mark-size);box-shadow:0 9px 20px var(--auth-primary-soft)}

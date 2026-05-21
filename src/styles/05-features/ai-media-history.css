@@ -1,0 +1,48 @@
+/* --- AI Media History --- */
+.ai-media-history-layout .operator-detail-layout__list {
+  min-width: 0;
+}
+
+.ai-media-history-toolbar .ai-media-history-search {
+  flex: 1 1 220px;
+}
+
+.ai-media-history-table {
+  min-width: 760px;
+}
+
+.ai-media-history-table td {
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-size);
+  line-height: var(--type-control-line);
+}
+
+.ai-media-history-table td:first-child {
+  color: var(--color-text-primary);
+}
+
+.ai-media-history-card-list {
+  display: none;
+}
+
+.ai-media-history-task-card[data-active="true"] {
+  border-color: color-mix(in srgb, var(--color-primary) 42%, var(--color-border-standard));
+  background: color-mix(in srgb, var(--color-primary-soft) 72%, var(--color-surface-base));
+}
+
+.ai-media-history-preview-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ai-media-history-detail .ai-media-log-terminal {
+  max-height: 320px;
+}
+
+.ai-media-history-detail__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+

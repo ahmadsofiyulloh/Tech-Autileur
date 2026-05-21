@@ -1,0 +1,25 @@
+@media (min-width: 861px) and (max-width: 1023px) {
+  .operator-shell .sidebar-nav__group-row {
+    justify-content: center;
+  }
+
+  .operator-shell .sidebar-nav__group-row .nav-link {
+    flex: none;
+  }
+
+  .operator-shell .sidebar-nav__group-toggle {
+    display: none;
+  }
+}
+
+.operator-shell[data-sidebar-collapsed="true"] .sidebar-nav__group-row {
+  justify-content: center;
+}
+
+.operator-shell[data-sidebar-collapsed="true"] .sidebar-nav__group-row .nav-link {
+  flex: none;
+}
+
+.operator-shell[data-sidebar-collapsed="true"] .sidebar-nav__group-toggle {
+  display: none;
+}

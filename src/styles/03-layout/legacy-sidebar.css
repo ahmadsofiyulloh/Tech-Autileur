@@ -1,0 +1,8 @@
+.sidebar{border-right:1px solid var(--border);background:var(--color-sidebar-background);height:100vh;box-shadow:none;padding:var(--shell-sidebar-padding-block) var(--shell-sidebar-padding-x);position:sticky;top:0;overflow:hidden}
+.sidebar:before{content:"";display:none}
+.sidebar-brand{z-index:1;align-items:center;gap:var(--space-3);border-radius:var(--radius);color:var(--text);padding:6px 8px;display:flex;position:relative}
+.sidebar-brand__mark{border:1px solid var(--color-sidebar-brand-border);background:var(--color-sidebar-brand-background);width:36px;height:36px;color:var(--color-sidebar-brand-foreground);box-shadow:none;font-weight:var(--type-weight-700);border-radius:8px;place-items:center;display:inline-grid}
+.sidebar-brand:hover{background:var(--color-sidebar-brand-hover)}
+.sidebar-brand strong,.sidebar-brand small{display:block}
+.sidebar-brand small{color:var(--muted);font-size:var(--type-subtitle-size);line-height:var(--type-subtitle-line);margin-top:2px}
+.sidebar-nav{z-index:1;gap:10px;margin-top:var(--shell-sidebar-nav-margin-top);display:grid;position:relative}

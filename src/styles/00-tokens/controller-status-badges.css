@@ -1,0 +1,11 @@
+/* CTRL-POLISH-01: shared StatusBadge visual weight controls. */
+:root {
+  --status-badge-sm-min-height: 20px;
+  --status-badge-radius-trim: 2px;
+  --status-badge-sm-padding-block: calc(var(--space-1) / 2);
+  --status-badge-sm-padding-inline: calc(var(--space-2) - var(--status-badge-radius-trim));
+  --status-badge-badge-radius: calc(var(--radius) - var(--status-badge-radius-trim));
+  --status-badge-pill-radius: 999px;
+  --status-badge-muted-opacity: 0.72;
+  --status-badge-muted-dot-opacity: 0.5;
+}

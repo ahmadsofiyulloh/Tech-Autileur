@@ -1,0 +1,15 @@
+.settings-native-row{border-bottom:1px solid var(--color-border-standard);grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-height:54px;padding:10px 12px;display:grid}
+.settings-native-row:last-child{border-bottom:0}
+.settings-native-row__icon{background:var(--color-primary-soft);width:28px;height:28px;color:var(--color-primary);border-radius:8px;place-items:center;display:grid}
+.settings-native-row__icon--asset{background:var(--color-surface-base);color:var(--color-text-primary)}
+.settings-native-row__icon--asset img,.settings-drive-connect-button img{width:18px;height:18px;display:block}
+.settings-native-row__copy{gap:3px;min-width:0;display:grid}
+.settings-native-row__copy strong,.settings-native-row__copy span{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.settings-switch-row{cursor:pointer;grid-template-columns:minmax(0,1fr) auto}
+.settings-switch-row__toggle{appearance:none;border:1px solid var(--color-border-standard);background:var(--color-component-inactive);border-radius:999px;justify-self:end;width:48px;height:30px;margin:0;transition:background-color .16s,border-color .16s,box-shadow .16s,transform .16s;position:relative}
+.settings-switch-row__toggle:before{content:"";border:1px solid var(--color-border-standard);background:var(--color-surface-base);width:22px;height:22px;box-shadow:var(--shadow-soft);border-radius:999px;transition:transform .16s,background-color .16s,border-color .16s;position:absolute;top:50%;left:3px;transform:translateY(-50%)}
+.settings-switch-row__toggle:checked{background:color-mix(in srgb, var(--color-primary) 20%, var(--color-surface-base));border-color:color-mix(in srgb, var(--color-primary) 40%, var(--color-border-standard))}
+.settings-switch-row__toggle:checked:before{background:var(--color-primary);border-color:var(--color-primary);transform:translate(18px,-50%)}
+.settings-switch-row__toggle:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb, var(--color-primary) 24%, transparent)}
+.settings-switch-row__toggle:hover{border-color:color-mix(in srgb, var(--color-primary) 30%, var(--color-border-standard))}
+.settings-switch-row__toggle:disabled{cursor:not-allowed;opacity:.55}

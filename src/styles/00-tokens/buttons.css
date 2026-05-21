@@ -1,0 +1,27 @@
+/* UI-AUDIT-01 + UI-AUDIT-03: Responsive button min-height tokens and mobile touch-target override */
+
+:root {
+  --color-transparent: #0000;
+  --button-font-size: var(--type-control-size);
+  --button-min-height: 32px;
+  --button-compact-min-height: 28px;
+  --button-icon-only-size: var(--button-min-height);
+  --toolbar-search-control-height: 44px;
+  --dense-table-header-size: var(--type-caption-size);
+  --dense-table-header-weight: var(--type-control-weight);
+  --dense-table-cell-size: var(--type-control-size);
+  --icon-line-height: 0;
+  --ui-card-border-color: var(--color-border-standard);
+  --ui-card-radius: calc(var(--radius) - 2px);
+  --ui-card-title-color: var(--color-text-primary);
+  --ui-card-title-size: var(--type-body-sm-size);
+  --ui-card-title-weight: var(--type-control-weight);
+}
+
+@media (max-width: 860px) {
+  :root {
+      --button-min-height: 36px;
+      --button-compact-min-height: 32px;
+      --button-icon-only-size: var(--button-min-height);
+    }
+}
