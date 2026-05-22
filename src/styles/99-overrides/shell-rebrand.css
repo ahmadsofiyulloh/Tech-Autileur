@@ -219,7 +219,8 @@ select {
 }
 
 .content-filter-tabs {
-  border-bottom-color: var(--ui-shell-border-muted);
+  border-color: var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base, var(--color-surface-base));
 }
 
 .content-filter-tab[data-active="true"] {

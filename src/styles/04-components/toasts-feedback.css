@@ -32,7 +32,7 @@
 .skeleton-pill{border-radius:999px;width:74px;min-height:22px;display:inline-flex}
 .skeleton-chip{border-radius:var(--radius);width:82px;min-height:24px;display:inline-flex}
 .skeleton-chip--wide{width:132px}
-.skeleton-tab{border-radius:calc(var(--radius) - 1px);width:76px;min-height:34px;display:inline-flex}
+.skeleton-tab{border-radius:var(--radius);width:76px;min-height:34px;display:inline-flex}
 .skeleton-avatar{border-radius:999px;flex:none;display:inline-grid}
 .skeleton-avatar--xl{width:76px;height:76px}
 .skeleton-media-thumb{min-width:100%;min-height:100%;display:inline-grid}

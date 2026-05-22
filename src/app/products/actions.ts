@@ -8,6 +8,13 @@ import {
   createProduct,
   updateProduct,
 } from "@/lib/server/products";
+import {
+  createPromptPackGenerationTask,
+  createPromptPackRegenerationVersion,
+  listPromptPacks,
+  runMockPromptPackTask,
+  runRealPromptPackTask,
+} from "@/lib/server/prompt-packs";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -125,4 +132,81 @@ export async function saveProductImage(formData: FormData) {
 
   revalidatePath("/products");
   redirect("/products?message=Source image attached");
+}
+
+type GenerationMode = "gemini" | "mock";
+
+async function generatePromptPack(promptPackId: string, generationMode: GenerationMode) {
+  const { task } = await createPromptPackGenerationTask(promptPackId, {
+    generationMode,
+    maxRetries: generationMode === "mock" ? 0 : 3,
+  });
+
+  return generationMode === "mock"
+    ? await runMockPromptPackTask(promptPackId, task.id)
+    : await runRealPromptPackTask(promptPackId, task.id);
+}
+
+export async function regenerateProductPrompt(formData: FormData) {
+  const productId = readText(formData, "product_id");
+  const revisionInstruction = readText(formData, "revision_instruction");
+  const generationMode: GenerationMode = "gemini";
+
+  if (!productId) {
+    fail("Product ID tidak ditemukan.");
+  }
+
+  if (revisionInstruction.length > 500) {
+    fail("Catatan perubahan terlalu panjang (max 500 karakter).");
+  }
+
+  let nextVersionId: string | null = null;
+  let generationMessage = "Prompt sedang digenerate";
+
+  try {
+    const productPromptPacks = await listPromptPacks({ productId, limit: 200 });
+    const visiblePromptPacks = productPromptPacks.filter((pack) => pack.status !== "ARCHIVED");
+    const latestPromptPack = visiblePromptPacks[0] ?? null;
+
+    if (!latestPromptPack) {
+      fail("Belum ada prompt pack untuk produk ini.");
+    }
+
+    if (latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING") {
+      fail("Prompt sedang diproses. Tunggu hingga selesai.");
+    }
+
+    const nextVersion = await createPromptPackRegenerationVersion(latestPromptPack.id, {
+      revisionInstruction: revisionInstruction || null,
+      regenerationScope: "full_pack",
+      productId,
+      intakeSessionId: latestPromptPack.intake_session_id,
+      affiliateProfileId: latestPromptPack.affiliate_profile_id,
+      sourceProductImageId: latestPromptPack.source_product_image_id,
+    });
+
+    nextVersionId = nextVersion.id;
+    const result = await generatePromptPack(nextVersion.id, generationMode);
+    nextVersionId = result.promptPack.id;
+
+    if (result.task.status !== "SUCCESS") {
+      generationMessage = result.message;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Gagal generate ulang prompt. Coba lagi.";
+    if (nextVersionId) {
+      revalidatePath("/products");
+      revalidatePath(`/products/${productId}`);
+      revalidatePath("/prompts");
+      redirect(`/prompts?detail=${nextVersionId}&error=${encodeURIComponent(message)}`);
+    }
+    fail(message);
+  }
+
+  revalidatePath("/products");
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/prompts");
+  revalidatePath(`/prompts/${nextVersionId}`);
+  revalidatePath(`/prompts/${nextVersionId}/history`);
+  redirect(`/prompts?detail=${nextVersionId}&message=${encodeURIComponent(generationMessage)}`);
 }

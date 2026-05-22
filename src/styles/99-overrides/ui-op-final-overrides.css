@@ -40,37 +40,6 @@
   background: var(--control-hover-bg);
 }
 
-.topbar-floating-panel,
-.topbar-activity-list,
-.relational-picker__list,
-.variant-submit-picker__list {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-flat-strong) transparent;
-}
-
-.topbar-floating-panel::-webkit-scrollbar,
-.topbar-activity-list::-webkit-scrollbar,
-.relational-picker__list::-webkit-scrollbar,
-.variant-submit-picker__list::-webkit-scrollbar {
-  width: var(--space-1);
-  height: var(--space-1);
-}
-
-.topbar-floating-panel::-webkit-scrollbar-track,
-.topbar-activity-list::-webkit-scrollbar-track,
-.relational-picker__list::-webkit-scrollbar-track,
-.variant-submit-picker__list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.topbar-floating-panel::-webkit-scrollbar-thumb,
-.topbar-activity-list::-webkit-scrollbar-thumb,
-.relational-picker__list::-webkit-scrollbar-thumb,
-.variant-submit-picker__list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--border-flat-strong);
-}
-
 .topbar-floating-panel[data-panel="activity"] {
   left: auto !important;
   top: var(--space-3) !important;

@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { Clock3, ExternalLink, FileText, Package } from "lucide-react";
+import { Clock3, ExternalLink, FileText, Package, RefreshCcw } from "lucide-react";
 import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { EmptyState } from "@/components/operator/empty-state";
 import { ErrorState } from "@/components/operator/error-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeAnchorButton, NativeLinkButton } from "@/components/ui/native-button";
+import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { ProductOutputFields } from "./product-output-fields";
+import { regenerateProductPrompt } from "./actions";
 import { listContents } from "@/lib/server/contents";
 import { listClipJobs, listGeneratedFiles } from "@/lib/server/clip-jobs";
 import { listDriveItems } from "@/lib/server/drive-items";
@@ -441,7 +443,7 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
   ].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
 
   return (
-    <div className="stack operator-detail-panel">
+    <div className="stack operator-detail-panel operator-detail-panel--flush">
       <nav className="tab-nav tab-nav--flush" aria-label="Tab detail produk">
         {productDetailTabs.map((tab) => {
           const tabSearchParams = new URLSearchParams(detailHrefBase.split("?")[1] ?? "");
@@ -518,6 +520,39 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
               ))}
             </ol>
           </SectionCard>
+
+          {latestPromptPack ? (
+            <SectionCard icon={RefreshCcw} title="Generate Ulang Prompt">
+              <form action={regenerateProductPrompt} className="stack">
+                <input type="hidden" name="product_id" value={product.id} />
+
+                <label className="stack auth-field" htmlFor="revision_instruction">
+                  <span>Catatan Perubahan</span>
+                  <textarea
+                    id="revision_instruction"
+                    name="revision_instruction"
+                    rows={3}
+                    placeholder="Opsional. Jelaskan perubahan yang ingin diterapkan."
+                    maxLength={500}
+                  />
+                </label>
+
+                <div className="button-row">
+                  <PendingActionButton
+                    className="primary"
+                    pendingLabel="Membuat versi baru..."
+                    disabled={latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING"}
+                  >
+                    Generate Ulang
+                  </PendingActionButton>
+                </div>
+
+                {latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING" ? (
+                  <p className="helper-text">Prompt sedang diproses. Tunggu hingga selesai.</p>
+                ) : null}
+              </form>
+            </SectionCard>
+          ) : null}
 
           <SectionCard icon={FileText} title="Versi Paket Prompt">
             {visiblePromptPacks.length ? (

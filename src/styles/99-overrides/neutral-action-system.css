@@ -265,20 +265,6 @@ a:focus-visible {
   color: var(--text-flat-muted);
 }
 
-.topbar-floating-panel,
-.topbar-activity-list,
-.relational-picker__list,
-.variant-submit-picker__list {
-  scrollbar-color: var(--border-flat-strong) transparent;
-}
-
-.topbar-floating-panel::-webkit-scrollbar-thumb,
-.topbar-activity-list::-webkit-scrollbar-thumb,
-.relational-picker__list::-webkit-scrollbar-thumb,
-.variant-submit-picker__list::-webkit-scrollbar-thumb {
-  background: var(--border-flat-strong);
-}
-
 .shell-pull-to-refresh__icon-wrap,
 .prompt-list-card__copy > span,
 .product-search svg,

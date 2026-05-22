@@ -331,7 +331,7 @@ export function ProductList({
   }, [isMobileViewport, loadMoreProducts, mobilePagination.hasNextPage]);
 
   return (
-    <section className="product-master" aria-label="Daftar produk" data-has-detail={isDetailMode ? "true" : undefined}>
+    <section className="product-master" aria-label="Daftar produk" data-has-detail={isDetailMode ? "true" : undefined} data-has-status-panel={selectedStatusProduct && !isMobileViewport ? "true" : undefined}>
       <div className="product-master__list stack">
         <ActionToolbar
           action="/products"
@@ -606,6 +606,7 @@ export function ProductList({
       <ProductStatusSheet
         open={Boolean(selectedStatusProduct)}
         product={selectedStatusProduct}
+        isMobile={isMobileViewport}
         onClose={() => setActiveStatusProductId(null)}
       />
     </section>

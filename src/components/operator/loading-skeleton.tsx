@@ -314,7 +314,7 @@ export function SkeletonPromptFieldStepper() {
 export function SkeletonPromptDetailContent() {
   return (
     <div className="stack loading-skeleton-static" aria-hidden="true">
-      <section className="grid two-up" aria-label="Caption dan tags">
+      <section className="grid two-up prompt-output-copy-grid" aria-label="Caption dan tags">
         <div className="prompt-readonly-field">
           <div className="prompt-readonly-field__header">
             <SkeletonLine size="short" />
