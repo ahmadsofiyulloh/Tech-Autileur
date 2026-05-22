@@ -94,6 +94,18 @@ Prompt generation must also consume reviewed Gemini output inside the active Aff
 
 Retryable Gemini temporary-unavailable failures from intake and prompt actions should surface as warning redirects, not silent failures, so the operator can dismiss the message and retry from the same surface.
 
+## Generation Options (Approved 2026-05-22)
+
+Operator may pass generation options as `personalization_json.generation_options` when creating or regenerating a prompt pack. These are UI-level metadata stored in the existing JSONB column — no schema migration required.
+
+Approved options:
+
+- `vo_enabled: boolean` (default `true`) — when `false`, both clips produce empty `voiceover_text` and `voiceover_timing: "none"`.
+- `vo_length_preset: "short" | "medium" | "long"` (default `"medium"`) — maps to maxChars 60 / 120 / 200 for `voiceover_text` validation and Gemini schema.
+- `video_model: string` (default `"veo-3.1"`) — used in structured I2V copy output `model` field; must resolve from the approved `VIDEO_MODEL_OPTIONS` constant in `src/lib/prompts/video-model-config.ts`.
+
+These options do not override character/environment locks, readiness gates, or I2V duration (still fixed at 8 seconds). They are backward-compatible: existing prompt packs without `generation_options` default to `vo_enabled: true`, `vo_length_preset: "medium"`, and `video_model: "veo-3.1"`, which is identical to prior behavior.
+
 2026-05-06 strict readiness guards before `Buat Prompt` or `Buat Ulang`:
 
 - active Affiliate Profile is required.
