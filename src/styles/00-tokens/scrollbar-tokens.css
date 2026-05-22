@@ -1,0 +1,7 @@
+:root {
+  --scrollbar-size: var(--space-1);
+  --scrollbar-thumb: var(--border-flat-strong);
+  --scrollbar-thumb-hover: var(--text-flat-muted);
+  --scrollbar-track: transparent;
+  --scrollbar-radius: 999px;
+}
