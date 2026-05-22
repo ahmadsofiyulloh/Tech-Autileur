@@ -357,34 +357,36 @@ const compactI2VTimelineSegmentSchema = {
   additionalProperties: false,
 } as const satisfies JsonSchema;
 
-const compactI2VAudioSchema = {
-  type: "object",
-  required: ["voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
-  properties: {
-    voiceover_text: {
-      ...stringSchema,
-      maxLength: PROMPT_PACK_VO_MAX_CHARS,
-      description:
-        "Short Indonesian spoken UGC hook for 00:00-00:02, grounded in product facts and 120 characters or fewer.",
+function buildCompactI2VAudioSchema(maxVoChars: number = PROMPT_PACK_VO_MAX_CHARS) {
+  return {
+    type: "object",
+    required: ["voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
+    properties: {
+      voiceover_text: {
+        ...stringSchema,
+        maxLength: maxVoChars,
+        description:
+          `Short Indonesian spoken UGC hook for 00:00-00:02, grounded in product facts and ${maxVoChars} characters or fewer.`,
+      },
+      voiceover_timing: { type: "string", enum: ["00:00-00:02", "none"] },
+      voice_style: {
+        ...stringSchema,
+        description: "Natural Indonesian UGC delivery style, not English marketing boilerplate.",
+      },
+      sfx_cues: {
+        ...stringSchema,
+        description: "Subtle product-relevant SFX that stays under VO.",
+      },
+      ambient_cues: {
+        ...stringSchema,
+        description: "Subtle native ambience that does not overpower VO.",
+      },
     },
-    voiceover_timing: { type: "string", enum: ["00:00-00:02"] },
-    voice_style: {
-      ...stringSchema,
-      description: "Natural Indonesian UGC delivery style, not English marketing boilerplate.",
-    },
-    sfx_cues: {
-      ...stringSchema,
-      description: "Subtle product-relevant SFX that stays under VO.",
-    },
-    ambient_cues: {
-      ...stringSchema,
-      description: "Subtle native ambience that does not overpower VO.",
-    },
-  },
-  additionalProperties: false,
-} as const satisfies JsonSchema;
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
+}
 
-function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2") {
+function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2", maxVoChars?: number) {
   return {
     type: "object",
     required: [
@@ -438,7 +440,7 @@ function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2") {
         ...stringSchema,
         description: "Negative prompt for Veo I2V without unsupported claims or second-reference instructions.",
       },
-      audio: compactI2VAudioSchema,
+      audio: buildCompactI2VAudioSchema(maxVoChars),
     },
     additionalProperties: false,
   } as const satisfies JsonSchema;
@@ -459,7 +461,10 @@ const uploadCopySchema = {
   additionalProperties: false,
 } as const satisfies JsonSchema;
 
-export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
+export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = buildGeminiPromptPackResponseSchema();
+
+export function buildGeminiPromptPackResponseSchema(maxVoChars?: number) {
+  return {
   type: "object",
   required: [
     "product_analysis",
@@ -549,8 +554,8 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
       type: "object",
       required: ["clip_1", "clip_2"],
       properties: {
-        clip_1: buildCompactI2VPromptSchema("clip_1"),
-        clip_2: buildCompactI2VPromptSchema("clip_2"),
+        clip_1: buildCompactI2VPromptSchema("clip_1", maxVoChars),
+        clip_2: buildCompactI2VPromptSchema("clip_2", maxVoChars),
       },
       additionalProperties: false,
     },
@@ -562,6 +567,7 @@ export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = {
   },
   additionalProperties: false,
 } as const satisfies JsonSchema;
+}
 
 const affiliateAssetVisualAnalysisSchema = {
   type: "object",

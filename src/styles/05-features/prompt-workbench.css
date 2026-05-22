@@ -19,7 +19,9 @@
   align-items: center;
 }
 
-.prompt-output-copy-grid {
+.prompt-output-copy-grid,
+.grid.prompt-output-copy-grid {
+  grid-template-columns: 1fr;
   gap: var(--space-2);
   margin-top: 0;
 }

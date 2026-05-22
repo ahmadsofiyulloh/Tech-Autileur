@@ -5,6 +5,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { PromptGenerationMonitor } from "@/components/operator/prompt-generation-monitor";
 import { RelationalPicker } from "@/components/operator/relational-picker";
+import { ToggleField } from "@/components/operator/toggle-field";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
@@ -12,6 +13,8 @@ import { getProductById, listProductImages } from "@/lib/server/products";
 import { getPromptPackById } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REGENERATION_SCOPES } from "@/lib/prompts/prompt-regeneration";
+import { VIDEO_MODEL_OPTIONS } from "@/lib/prompts/video-model-config";
+import { VO_LENGTH_PRESETS } from "@/lib/prompts/vo-length-presets";
 import { savePromptPack } from "./actions";
 import { PromptOutputFields } from "./prompt-output-fields";
 import {
@@ -136,7 +139,7 @@ export async function PromptDetailPanel({ detailHref, promptPackId }: PromptDeta
   const promptTaskStatus = promptTask?.status ?? promptPack.status;
   const isPromptGenerationPending = ["QUEUED", "GENERATING", "WAITING_FOR_KEY", "RETRYING"].includes(promptTaskStatus);
   return (
-    <div className="stack operator-detail-panel prompt-detail-panel">
+    <div className="stack operator-detail-panel operator-detail-panel--flush prompt-detail-panel">
       {promptErrorMessage ? <section className="error-box">{promptErrorMessage}</section> : null}
 
       {isPromptGenerationPending ? <PromptGenerationMonitor enabled promptPackId={promptPack.id} /> : null}
@@ -212,6 +215,37 @@ export async function PromptDetailPanel({ detailHref, promptPackId }: PromptDeta
                 description: scope.description,
               }))}
               defaultValue="full_pack"
+              searchable={false}
+            />
+
+            <RelationalPicker
+              label="Model Generator"
+              name="video_model"
+              options={VIDEO_MODEL_OPTIONS.map((m) => ({
+                value: m.key,
+                label: m.label,
+                description: m.description,
+              }))}
+              defaultValue="veo-3.1"
+              searchable={false}
+            />
+
+            <ToggleField
+              label="Sertakan Voiceover"
+              name="vo_enabled"
+              defaultChecked={true}
+              helperText="Nonaktifkan untuk prompt tanpa dialog/narasi"
+            />
+
+            <RelationalPicker
+              label="Panjang Voiceover"
+              name="vo_length_preset"
+              options={VO_LENGTH_PRESETS.map((p) => ({
+                value: p.key,
+                label: p.label,
+                description: p.description,
+              }))}
+              defaultValue="medium"
               searchable={false}
             />
 

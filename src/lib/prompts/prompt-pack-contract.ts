@@ -8,10 +8,68 @@ import {
   normalizeHashtagString,
   type PromptClipKey,
 } from "@/lib/prompts/validation";
+import type { VideoModelKey } from "@/lib/prompts/video-model-config";
+import type { VoLengthPresetKey } from "@/lib/prompts/vo-length-presets";
+import { DEFAULT_VIDEO_MODEL } from "@/lib/prompts/video-model-config";
+import { DEFAULT_VO_MAX_CHARS } from "@/lib/prompts/vo-length-presets";
 
 type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 export type JsonObject = Record<string, JsonValue>;
+
+export type PromptPackGenerationOptionsJson = {
+  vo_enabled?: boolean;
+  vo_length_preset?: VoLengthPresetKey;
+  video_model?: VideoModelKey;
+};
+
+export type PromptPackPersonalizationJson = JsonObject & {
+  prompt_context?: JsonObject | null;
+  caption?: string;
+  tags?: string;
+  upload_copy?: JsonObject;
+  target_marketplace?: string;
+  seed_character?: JsonObject;
+  environment?: JsonObject;
+  generation_options?: PromptPackGenerationOptionsJson;
+};
+
+function readGenerationOptions(value: unknown): PromptPackGenerationOptionsJson | undefined {
+  if (!isRecord(value)) return undefined;
+
+  return {
+    ...(typeof value.vo_enabled === "boolean" ? { vo_enabled: value.vo_enabled } : {}),
+    ...(typeof value.vo_length_preset === "string" ? { vo_length_preset: value.vo_length_preset as VoLengthPresetKey } : {}),
+    ...(typeof value.video_model === "string" ? { video_model: value.video_model as VideoModelKey } : {}),
+  };
+}
+
+function buildPersonalizationJson(
+  existing: Record<string, unknown>,
+  input: {
+    promptContext: JsonObject | null;
+    caption: string;
+    tags: string;
+    uploadCopy: JsonObject;
+    seedCharacter: JsonObject;
+    environment: JsonObject;
+    generationOptions?: PromptPackGenerationOptionsJson;
+  },
+): PromptPackPersonalizationJson {
+  const generationOptions = input.generationOptions ?? readGenerationOptions(existing.generation_options);
+
+  return {
+    ...(existing as PromptPackPersonalizationJson),
+    prompt_context: input.promptContext,
+    caption: input.caption,
+    tags: input.tags,
+    upload_copy: input.uploadCopy,
+    target_marketplace: PROMPT_TARGET_MARKETPLACE,
+    seed_character: input.seedCharacter,
+    environment: input.environment,
+    ...(generationOptions ? { generation_options: generationOptions } : {}),
+  };
+}
 
 type PromptPackProductRecord = {
   id: string;
@@ -146,7 +204,7 @@ export type PromptPackStructuredI2VCopyJson = {
   schema_version: typeof PROMPT_PACK_COPY_SCHEMA_VERSION;
   slot: PromptClipKey;
   stage: "i2v";
-  model: typeof PROMPT_PACK_I2V_COPY_MODEL;
+  model: typeof PROMPT_PACK_I2V_COPY_MODEL | VideoModelKey;
   duration_seconds: typeof PROMPT_PACK_I2V_DURATION_SECONDS;
   aspect_ratio: typeof PROMPT_PACK_I2V_COPY_ASPECT_RATIO;
   reference_image: "@firstframe";
@@ -222,8 +280,8 @@ type PromptPackCompactGenerationOutput = {
 
 export type PromptPackStoragePayload = {
   product_analysis_json?: JsonObject | null;
-  i2i_prompts_json: Record<PromptClipKey, PromptPackI2IClipJson>;
-  i2v_prompts_json: Record<PromptClipKey, PromptPackI2VPromptJson>;
+  i2i_prompts_json?: Record<PromptClipKey, PromptPackI2IClipJson>;
+  i2v_prompts_json?: Record<PromptClipKey, PromptPackI2VPromptJson>;
   consistency_rules_json?: JsonObject | null;
   negative_rules_json?: JsonObject | null;
   personalization_json: JsonObject;
@@ -1191,12 +1249,14 @@ function buildPromptI2VAudioEnvelope(input: {
   sfxCues?: string | null;
   ambientCues?: string | null;
   label?: string;
+  maxVoChars?: number;
 }) {
   const label = input.label ?? "audio";
   const voiceoverText = readString(input.voiceoverText);
   const voiceStyle = readString(input.voiceStyle);
   const sfxCues = readString(input.sfxCues);
   const ambientCues = readString(input.ambientCues);
+  const maxVoChars = input.maxVoChars ?? PROMPT_PACK_VO_MAX_CHARS;
 
   if (!voiceoverText && !input.voiceoverTiming && !voiceStyle && !sfxCues && !ambientCues) {
     return null;
@@ -1205,7 +1265,7 @@ function buildPromptI2VAudioEnvelope(input: {
   return {
     ...(voiceoverText
       ? {
-          voiceover_text: validateMaxChars(voiceoverText, `${label}.voiceover_text`, PROMPT_PACK_VO_MAX_CHARS),
+          voiceover_text: validateMaxChars(voiceoverText, `${label}.voiceover_text`, maxVoChars),
           voiceover_timing: input.voiceoverTiming ?? "00:00-00:02",
         }
       : input.voiceoverTiming
@@ -1352,6 +1412,7 @@ const STRUCTURED_I2V_SUBTLE_NATIVE_AMBIENCE = "subtle native ambience only";
 
 export function buildStructuredI2VPromptForCopy(
   clip: PromptPackI2VPromptJson,
+  videoModel?: VideoModelKey,
 ): PromptPackStructuredI2VCopyJson {
   const audio = clip.audio ?? {};
   const hasVoiceover = Boolean(readString(audio.voiceover_text));
@@ -1360,7 +1421,7 @@ export function buildStructuredI2VPromptForCopy(
     schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
     slot: clip.slot,
     stage: "i2v",
-    model: PROMPT_PACK_I2V_COPY_MODEL,
+    model: videoModel ?? PROMPT_PACK_I2V_COPY_MODEL,
     duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
     aspect_ratio: PROMPT_PACK_I2V_COPY_ASPECT_RATIO,
     reference_image: "@firstframe",
@@ -2157,7 +2218,7 @@ function readOptionalVoiceoverTiming(value: unknown, label: string) {
   return timing as "00:00-00:02";
 }
 
-function readI2VAudioFields(record: Record<string, unknown>, label: string) {
+function readI2VAudioFields(record: Record<string, unknown>, label: string, maxVoChars?: number) {
   if (record.audio !== undefined && record.audio !== null && !isRecord(record.audio)) {
     throw new Error(`${label}.audio must be an object when present.`);
   }
@@ -2169,6 +2230,7 @@ function readI2VAudioFields(record: Record<string, unknown>, label: string) {
   const voiceStyle = readOptionalPromptString(audioRecord.voice_style, `${audioLabel}.voice_style`);
   const sfxCues = readOptionalPromptString(audioRecord.sfx_cues, `${audioLabel}.sfx_cues`);
   const ambientCues = readOptionalPromptString(audioRecord.ambient_cues, `${audioLabel}.ambient_cues`);
+  const resolvedMaxVoChars = maxVoChars ?? PROMPT_PACK_VO_MAX_CHARS;
 
   if (voiceoverText && !voiceoverTiming) {
     throw new Error(`${audioLabel}.voiceover_timing must equal 00:00-00:02.`);
@@ -2177,7 +2239,7 @@ function readI2VAudioFields(record: Record<string, unknown>, label: string) {
   return {
     ...(voiceoverText
       ? {
-          voiceoverText: validateMaxChars(voiceoverText, `${audioLabel}.voiceover_text`, PROMPT_PACK_VO_MAX_CHARS),
+          voiceoverText: validateMaxChars(voiceoverText, `${audioLabel}.voiceover_text`, resolvedMaxVoChars),
         }
       : {}),
     ...(voiceoverTiming ? { voiceoverTiming } : {}),
@@ -2911,22 +2973,21 @@ export function buildPromptPackEditorStoragePayload(
   return {
     i2i_prompts_json: i2iPrompts,
     i2v_prompts_json: i2vPrompts,
-    personalization_json: {
-      ...existing,
-      prompt_context: promptContext,
+    personalization_json: buildPersonalizationJson(existing, {
+      promptContext,
       caption,
       tags,
-      upload_copy: uploadCopy,
-      target_marketplace: PROMPT_TARGET_MARKETPLACE,
-      seed_character: isRecord(existing.seed_character) ? (existing.seed_character as JsonObject) : EMPTY_LOCK_STATE,
+      uploadCopy,
+      seedCharacter: isRecord(existing.seed_character) ? (existing.seed_character as JsonObject) : EMPTY_LOCK_STATE,
       environment: isRecord(existing.environment) ? (existing.environment as JsonObject) : EMPTY_LOCK_STATE,
-    },
+    }),
   };
 }
 
 export function buildPromptPackStoragePayload(
   output: PromptPackGenerationOutput,
   promptContextOverride?: JsonObject | null,
+  generationOptions?: PromptPackGenerationOptionsJson,
 ): PromptPackStoragePayload {
   const tags = normalizeHashtagString(output.tags);
   const uploadCopy = requirePromptPackUploadCopyJson(output.upload_copy, "upload_copy");
@@ -2941,14 +3002,14 @@ export function buildPromptPackStoragePayload(
     negative_rules_json: {
       negative_prompt_rules: output.negative_prompt_rules,
     },
-    personalization_json: {
-      prompt_context: promptContextOverride ?? output.prompt_context,
+    personalization_json: buildPersonalizationJson({}, {
+      promptContext: promptContextOverride ?? output.prompt_context,
       caption: output.caption,
       tags,
-      upload_copy: uploadCopy,
-      target_marketplace: PROMPT_TARGET_MARKETPLACE,
-      seed_character: output.seed_character,
+      uploadCopy,
+      seedCharacter: output.seed_character,
       environment: output.environment,
-    },
+      generationOptions,
+    }),
   };
 }

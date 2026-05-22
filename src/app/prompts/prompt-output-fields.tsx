@@ -5,6 +5,7 @@ import {
   buildStructuredI2VPromptForCopy,
   readPromptPackEditorPromptSet,
   type PromptPackEditorPromptSet,
+  type PromptPackGenerationOptionsJson,
 } from "@/lib/prompts/prompt-pack-contract";
 import {
   PROMPT_CLIP_KEYS,
@@ -12,12 +13,34 @@ import {
   PROMPT_TARGET_MARKETPLACE,
   type PromptClipKey,
 } from "@/lib/prompts/validation";
+import { resolveVideoModel } from "@/lib/prompts/video-model-config";
+import { resolveVoLengthPreset, type VoLengthPresetKey } from "@/lib/prompts/vo-length-presets";
+
+const PROMPT_CLIP_SUBTITLES: Record<PromptClipKey, string> = {
+  clip_1: "Frame awal & prompt video",
+  clip_2: "Frame lanjutan & prompt video",
+};
 
 type PromptPackOutputRecord = {
   i2i_prompts_json?: unknown;
   i2v_prompts_json?: unknown;
   personalization_json?: unknown;
 };
+
+function readGenerationOptions(pack: PromptPackOutputRecord): PromptPackGenerationOptionsJson | undefined {
+  const personalization = readRecord(pack.personalization_json);
+  const options = readRecord(personalization.generation_options);
+
+  if (!options || Object.keys(options).length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(typeof options.vo_enabled === "boolean" ? { vo_enabled: options.vo_enabled } : {}),
+    ...(typeof options.vo_length_preset === "string" ? { vo_length_preset: resolveVoLengthPreset(options.vo_length_preset) } : {}),
+    ...(typeof options.video_model === "string" ? { video_model: resolveVideoModel(options.video_model) } : {}),
+  };
+}
 
 function readRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -93,6 +116,8 @@ export function PromptReadOnlyField({ label, value }: { label: string; value: st
 export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
   const promptSet = readPromptPackEditorPromptSet(pack);
   const shopeeCaptionTags = readStoredShopeeCaptionTags(pack);
+  const generationOptions = readGenerationOptions(pack);
+  const videoModel = generationOptions?.video_model ? resolveVideoModel(generationOptions.video_model) : undefined;
 
   return (
     <div className="stack prompt-output-fields prompt-output-fields--prompt-pack">
@@ -118,14 +143,19 @@ export function PromptOutputFields({ pack }: { pack: PromptPackOutputRecord }) {
             {
               id: `${clipKey}-i2v-prompt`,
               label: "I2V Prompt",
-              value: stringifyCopyJson(buildStructuredI2VPromptForCopy(clip.i2v_prompt_json)),
+              value: stringifyCopyJson(buildStructuredI2VPromptForCopy(clip.i2v_prompt_json, videoModel)),
               emptyLabel: "Belum ada prompt.",
             },
           ];
 
           return (
             <details className="prompt-output-section" key={clipKey} open={clipKey === PROMPT_CLIP_KEYS[0]}>
-              <summary>{PROMPT_CLIP_LABELS[clipKey]}</summary>
+              <summary>
+                <span className="prompt-output-section__summary-copy">
+                  <strong className="prompt-output-section__summary-title">{PROMPT_CLIP_LABELS[clipKey]}</strong>
+                  <span className="prompt-output-section__summary-subtitle">{PROMPT_CLIP_SUBTITLES[clipKey]}</span>
+                </span>
+              </summary>
               <div className="prompt-output-section__body">
                 <PromptFieldStepper steps={fieldSteps} />
               </div>

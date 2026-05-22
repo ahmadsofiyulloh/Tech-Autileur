@@ -21,7 +21,6 @@ import {
   normalizePromptCode,
 } from "@/lib/prompts/validation";
 import { supportsGeminiStructuredOutputTools, type GeminiModelName } from "@/lib/gemini/validation";
-import { GEMINI_PROMPT_PACK_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
 import { GeminiClientError, type GeminiGroundingSummary } from "@/lib/server/gemini-client";
 import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
@@ -43,7 +42,6 @@ import {
   PROMPT_PACK_I2V_DURATION_SECONDS,
   PROMPT_PACK_I2V_TIMELINE_WINDOWS,
   PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
-  PROMPT_PACK_VO_MAX_CHARS,
   buildPromptPackUploadCopy,
   buildPromptPackStoragePayload,
   parsePromptPackGenerationOutput,
@@ -54,7 +52,10 @@ import {
   type PromptPackStoragePayload,
   type PromptPackGenerationOutput,
   type PromptPackVisualReferenceJson,
+  type PromptPackGenerationOptionsJson,
 } from "@/lib/prompts/prompt-pack-contract";
+import { resolveVoMaxChars, DEFAULT_VO_MAX_CHARS } from "@/lib/prompts/vo-length-presets";
+import { buildGeminiPromptPackResponseSchema } from "@/lib/gemini/json-schemas";
 import { CONTENT_VARIANTS, getContentVariant } from "@/lib/prompts/content-variants";
 import { assertPromptMetadataComplete } from "@/lib/intake/metadata-essentials";
 import {
@@ -500,6 +501,7 @@ function buildPromptContextSnapshot(context: {
   sourceProductImage: ProductImageRecord | null;
   sourceProductImageDriveItemName: string | null;
   contentVariant: JsonObject;
+  generationOptions?: PromptPackGenerationOptionsJson;
 }) {
   const visualParsingMode = "CACHED_JSON_METADATA";
   const promptContext = {
@@ -541,7 +543,8 @@ function buildPromptContextSnapshot(context: {
         field: "audio",
         fields: ["voiceover_text", "voiceover_timing", "voice_style", "sfx_cues", "ambient_cues"],
       },
-      voiceover_text_max_chars: PROMPT_PACK_VO_MAX_CHARS,
+      voiceover_text_max_chars: resolveVoMaxChars(context.generationOptions?.vo_length_preset),
+      voiceover_enabled: context.generationOptions?.vo_enabled !== false,
       voiceover_timing: "00:00-00:02",
       upload_copy_fields: ["shopee_caption", "shopee_tags", "shopee_caption_tags"],
       shopee_caption_tags_max_chars: PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
@@ -672,6 +675,7 @@ async function loadPromptPackGenerationContext(promptPackId: string) {
     sourceProductImage: sourceProductImage as ProductImageRecord | null,
     sourceProductImageDriveItemName,
     contentVariant: buildPromptPackContentVariantForModel(promptPackRecord),
+    generationOptions: readPromptPackGenerationOptions(promptPackRecord),
   });
 
   const promptPackReferenceUpdates: Partial<Pick<PromptPackRecord, "intake_session_id" | "affiliate_profile_id">> = {};
@@ -1173,6 +1177,16 @@ function buildTags(context: MockPromptContext) {
 
 function readJsonRecord(value: unknown) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readPromptPackGenerationOptions(promptPack: PromptPackRecord): PromptPackGenerationOptionsJson {
+  const personalization = readJsonRecord(promptPack.personalization_json);
+  const options = readJsonRecord(personalization.generation_options);
+  return {
+    vo_enabled: typeof options.vo_enabled === "boolean" ? options.vo_enabled : true,
+    vo_length_preset: typeof options.vo_length_preset === "string" ? options.vo_length_preset as PromptPackGenerationOptionsJson["vo_length_preset"] : "medium",
+    video_model: typeof options.video_model === "string" ? options.video_model as PromptPackGenerationOptionsJson["video_model"] : "veo-3.1",
+  };
 }
 
 export type PromptPackRegenerationRequest = {
@@ -1820,12 +1834,12 @@ function buildPromptContextForModel(
   } satisfies JsonObject;
 }
 
-function buildRegenerationScopePromptRules(scopeKey: RegenerationScopeKey) {
+function buildRegenerationScopePromptRules(scopeKey: RegenerationScopeKey, maxVoChars: number = DEFAULT_VO_MAX_CHARS) {
     switch (scopeKey) {
     case "voiceover_only":
       return [
         "For voiceover_only, keep visual concept stable and improve the audio envelope inside each I2V prompt.",
-        `For voiceover_only, audio.voiceover_text remains ${PROMPT_PACK_VO_MAX_CHARS} characters or fewer and audio.voiceover_timing remains exactly 00:00-00:02.`,
+        `For voiceover_only, audio.voiceover_text remains ${maxVoChars} characters or fewer and audio.voiceover_timing remains exactly 00:00-00:02.`,
       ];
     case "stronger_hook":
       return [
@@ -1859,6 +1873,9 @@ function buildPromptPackGenerationPrompt(
 ) {
   const { promptPack } = context;
   const promptSet = readPromptPackEditorPromptSet(promptPack);
+  const generationOptions = readPromptPackGenerationOptions(promptPack);
+  const voEnabled = generationOptions.vo_enabled !== false;
+  const maxVoChars = resolveVoMaxChars(generationOptions.vo_length_preset);
   const regenerationRequest = readRegenerationRequest(promptPack);
   const regenerationScope = regenerationRequest ? getRegenerationScope(regenerationRequest.regeneration_scope) : null;
   const revisionInstruction = readRegenerationInstruction(promptPack);
@@ -1889,15 +1906,20 @@ function buildPromptPackGenerationPrompt(
     "Do not use nomor satu, paling bagus, or discount claims unless those exact claims are present in grounding_facts.",
     "Avoid AI-sounding Indonesian phrases: solusi terbaik, produk berkualitas tinggi, wajib punya, recommended banget, rekomendasi banget, cocok untuk semua orang, viral, terlaris, dijamin.",
     "If writing VO/dialogue inside i2v prompt_text or timeline action, keep it short, natural Indonesian spoken language, and anchored to grounding_facts.",
-    "Each i2v clip must include audio.voiceover_text as immediate Indonesian spoken-language hook audio for 00:00-00:02.",
-    "audio.voiceover_text must sound like real Indonesian UGC affiliate speech: direct, casual, concrete, and not promotional boilerplate.",
-    "VO must work as the first 0-2 second hook and must not wait for later timeline segments.",
-    "VO must use concrete facts from prompt_context_for_model.grounding_facts and must not invent product material, guarantee, discounts, medical claims, ranking, popularity, or results.",
-    "If metadata has pain_point, use pain_point for problem-solution hooks. If metadata has use_case, use use_case for practical hooks. If metadata has selling_angle, use selling_angle for hero/value hooks.",
-    "If only product name exists, write a safe hook based only on product name and visible category.",
-    "Use hook patterns such as pain-point hook, specific-buyer hook, honest-review hook, anti-hype hook, detail-proof hook, and use-case hook.",
-    'Every I2V prompt_text and the 00:00-00:02 timeline action must include dialogue/audio guidance formatted exactly as VO: "{audio.voiceover_text}".',
-    "The 00:00-00:02 timeline action must mention that the VO hook starts immediately.",
+    ...(voEnabled ? [
+      "Each i2v clip must include audio.voiceover_text as immediate Indonesian spoken-language hook audio for 00:00-00:02.",
+      "audio.voiceover_text must sound like real Indonesian UGC affiliate speech: direct, casual, concrete, and not promotional boilerplate.",
+      "VO must work as the first 0-2 second hook and must not wait for later timeline segments.",
+      "VO must use concrete facts from prompt_context_for_model.grounding_facts and must not invent product material, guarantee, discounts, medical claims, ranking, popularity, or results.",
+      "If metadata has pain_point, use pain_point for problem-solution hooks. If metadata has use_case, use use_case for practical hooks. If metadata has selling_angle, use selling_angle for hero/value hooks.",
+      "If only product name exists, write a safe hook based only on product name and visible category.",
+      "Use hook patterns such as pain-point hook, specific-buyer hook, honest-review hook, anti-hype hook, detail-proof hook, and use-case hook.",
+      'Every I2V prompt_text and the 00:00-00:02 timeline action must include dialogue/audio guidance formatted exactly as VO: "{audio.voiceover_text}".',
+      "The 00:00-00:02 timeline action must mention that the VO hook starts immediately.",
+    ] : [
+      "Voiceover is disabled. Set audio.voiceover_text to empty string and audio.voiceover_timing to 'none' for all clips.",
+      "Do not write VO hooks, dialogue, or spoken audio guidance in prompt_text or timeline actions.",
+    ]),
     "Do not use English marketing boilerplate in VO, caption, tags, or upload_copy.",
     "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Use it as writing guidance, but do not copy raw reference_cards or prompt_rules into output objects.",
     "reference_cards are ordered CHARACTER, ENVIRONMENT, PRODUCT. PRODUCT is the primary subject. CHARACTER is support only. ENVIRONMENT is the background anchor.",
@@ -1918,9 +1940,11 @@ function buildPromptPackGenerationPrompt(
     "Each i2i clip object must include slot, first_frame, and last_frame, and each frame must include slot, frame, and prompt_text.",
     "Each i2v clip object must include slot, prompt_text, duration_seconds, timeline, motion_prompt, camera_motion, continuity, negative_prompt, and audio.",
     "Each i2v audio object must include voiceover_text, voiceover_timing, voice_style, sfx_cues, and ambient_cues.",
+    voEnabled
+      ? `Each i2v clip must include audio.voiceover_text as immediate Indonesian spoken-language hook audio for 00:00-00:02. audio.voiceover_text must be ${maxVoChars} characters or fewer and audio.voiceover_timing must be exactly 00:00-00:02.`
+      : "Voiceover is disabled for this generation. Set audio.voiceover_text to empty string and audio.voiceover_timing to 'none' for all clips.",
     "Each i2v clip should produce concise fields that compile cleanly into structured JSON for Veo.",
     "For every i2v clip, duration_seconds must be 8 and timeline must contain exactly four segments with these time values in order: 00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08.",
-    `For every i2v clip, audio.voiceover_text must be ${PROMPT_PACK_VO_MAX_CHARS} characters or fewer and audio.voiceover_timing must be exactly 00:00-00:02.`,
     "For every i2v clip, audio.sfx_cues must be subtle and product-relevant, and audio.ambient_cues must stay below VO so they do not overpower speech.",
     "I2V prompt fields must use only @firstframe as the video reference for one continuous 8-second Veo I2V clip.",
     "Do not write I2V instructions that depend on a second frame reference or any separate closing reference image.",
@@ -1946,7 +1970,7 @@ function buildPromptPackGenerationPrompt(
           "Use revision_instruction as direction, not as permission to invent unsupported facts.",
           "Always return a complete valid prompt pack, even when the scope is voiceover_only, i2v_motion_only, or caption_tags_only.",
           "Use existing_prompt_set as the source snapshot to keep unrelated fields stable when scope is narrow.",
-          ...buildRegenerationScopePromptRules(regenerationScope.key),
+          ...buildRegenerationScopePromptRules(regenerationScope.key, maxVoChars),
           "Avoid solusi terbaik, produk berkualitas tinggi, wajib punya, recommended banget, cocok untuk semua orang, viral, terlaris, and dijamin.",
           "Use natural Indonesian UGC language. Keep copy short and spoken.",
         ]
@@ -1991,6 +2015,14 @@ function buildPromptPackRepairPrompt(
     "Prompt repair uses stored prompt context only; Google Search is not run during repair.",
   );
 
+  const generationOptions = readPromptPackGenerationOptions(context.promptPack);
+  const voEnabled = generationOptions.vo_enabled !== false;
+  const maxVoChars = resolveVoMaxChars(generationOptions.vo_length_preset);
+
+  const voRepairLine = voEnabled
+    ? `Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, negative_prompt, and audio. audio.voiceover_text must be <= ${maxVoChars} chars and audio.voiceover_timing exactly 00:00-00:02.`
+    : "Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, negative_prompt, and audio. Voiceover is disabled: set audio.voiceover_text to empty string and audio.voiceover_timing to 'none' for all clips.";
+
   return [
     "You are repairing a Gemini prompt-pack response into the compact JSON contract.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
@@ -2004,7 +2036,7 @@ function buildPromptPackRepairPrompt(
     "Keep clip_1 as a hook/hero look and clip_2 as a detail/benefit/use-case look.",
     "Each i2i first_frame.prompt_text must describe one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Each last_frame.prompt_text must remain non-empty as hidden legacy compatibility from @firstframe.",
     "Each i2v prompt must use @firstframe as the single starting image for one continuous 8-second video while keeping @lastframe only as a legacy compatibility input.",
-    `Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, negative_prompt, and audio. audio.voiceover_text must be <= ${PROMPT_PACK_VO_MAX_CHARS} chars and audio.voiceover_timing exactly 00:00-00:02.`,
+    voRepairLine,
     `upload_copy must include shopee_caption, shopee_tags, and shopee_caption_tags with shopee_caption_tags <= ${PROMPT_PACK_SHOPEE_COPY_MAX_CHARS} chars total.`,
     "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
     "Use the provided context to normalize structure; do not invent new assets or rules.",
@@ -2515,7 +2547,7 @@ async function repairPromptPackGenerationOutput(input: {
           temperature: 0,
           maxOutputTokens: 4096,
           timeoutMs: 120_000,
-          responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+          responseJsonSchema: buildGeminiPromptPackResponseSchema(resolveVoMaxChars(readPromptPackGenerationOptions(input.context.promptPack).vo_length_preset)),
         },
       });
 
@@ -2659,6 +2691,8 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
       throw new Error(message);
     }
 
+    const generationOptions = readPromptPackGenerationOptions(context.promptPack);
+    const promptPackResponseSchema = buildGeminiPromptPackResponseSchema(resolveVoMaxChars(generationOptions.vo_length_preset));
     let outputJson: PromptPackGenerationOutput | null = null;
     let selectedKeySelectionForSuccess: GeminiSelectedKey = selected.key;
     let googleSearchGroundingSummary: GeminiGroundingSummary | null = null;
@@ -2680,7 +2714,7 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
             temperature: 0.2,
             maxOutputTokens: 4096,
             timeoutMs: 120_000,
-            responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+            responseJsonSchema: promptPackResponseSchema,
             enableGoogleSearchGrounding: googleSearchGrounding.enabled,
           },
         });
@@ -2707,7 +2741,7 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
             temperature: 0.2,
             maxOutputTokens: 4096,
             timeoutMs: 120_000,
-            responseJsonSchema: GEMINI_PROMPT_PACK_RESPONSE_SCHEMA,
+            responseJsonSchema: promptPackResponseSchema,
             enableGoogleSearchGrounding: false,
           },
         });

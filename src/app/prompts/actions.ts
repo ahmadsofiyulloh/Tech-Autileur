@@ -20,7 +20,13 @@ import { getProductById } from "@/lib/server/products";
 import { listPromptReadinessProjections } from "@/lib/server/prompt-readiness";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { buildPromptPackEditorStoragePayload, type JsonObject } from "@/lib/prompts/prompt-pack-contract";
+import {
+  buildPromptPackEditorStoragePayload,
+  type JsonObject,
+  type PromptPackGenerationOptionsJson,
+} from "@/lib/prompts/prompt-pack-contract";
+import { resolveVideoModel } from "@/lib/prompts/video-model-config";
+import { resolveVoLengthPreset } from "@/lib/prompts/vo-length-presets";
 import {
   buildContentVariantPromptCode,
   getContentVariant,
@@ -42,6 +48,18 @@ function readText(formData: FormData, key: string) {
 function readNullableText(formData: FormData, key: string) {
   const value = readText(formData, key);
   return value.length > 0 ? value : null;
+}
+
+function readGenerationOptions(formData: FormData): PromptPackGenerationOptionsJson {
+  const voEnabled = formData.get("vo_enabled") !== "false";
+  const voLengthPreset = resolveVoLengthPreset(formData.get("vo_length_preset"));
+  const videoModel = resolveVideoModel(formData.get("video_model"));
+
+  return {
+    vo_enabled: voEnabled,
+    vo_length_preset: voLengthPreset,
+    video_model: videoModel,
+  };
 }
 
 type GenerationMode = "gemini" | "mock";
@@ -201,6 +219,7 @@ function readRegenerationScopeFromForm(formData: FormData) {
 function withContentVariantPersonalization(
   personalizationJson: JsonObject | null | undefined,
   contentVariant: NonNullable<ReturnType<typeof getContentVariant>>,
+  generationOptions?: PromptPackGenerationOptionsJson,
 ): JsonObject {
   return {
     ...(personalizationJson ?? {}),
@@ -212,6 +231,7 @@ function withContentVariantPersonalization(
       hookStrategy: contentVariant.hookStrategy,
       sourcePriority: contentVariant.sourcePriority,
     },
+    ...(generationOptions ? { generation_options: generationOptions } : {}),
   };
 }
 
@@ -575,7 +595,12 @@ export async function savePromptPack(formData: FormData) {
 
       const storagePayload = intent === "create" ? readPromptEditorPayload(formData) : null;
       const contentVariant = readContentVariant(formData);
-      const personalizationJson = withContentVariantPersonalization(storagePayload?.personalization_json, contentVariant);
+      const generationOptions = intent === "create_generate" ? readGenerationOptions(formData) : undefined;
+      const personalizationJson = withContentVariantPersonalization(
+        storagePayload?.personalization_json,
+        contentVariant,
+        generationOptions,
+      );
       const promptPack = await createPromptPack({
         product_id: productId,
         intake_session_id: readNullableText(formData, "intake_session_id"),
@@ -661,9 +686,18 @@ export async function savePromptPack(formData: FormData) {
 
     try {
       const regenerationScope = readRegenerationScopeFromForm(formData);
+      const generationOptions = readGenerationOptions(formData);
       const existing = await getPromptPackById(id);
       productId = productId ?? existing.product_id;
       const nextVersion = await createPromptPackRegenerationVersion(existing.id, {
+        storagePayload: {
+          personalization_json: {
+            ...(existing.personalization_json && typeof existing.personalization_json === "object" && !Array.isArray(existing.personalization_json)
+              ? (existing.personalization_json as JsonObject)
+              : {}),
+            generation_options: generationOptions,
+          },
+        },
         revisionInstruction: readNullableText(formData, "revision_instruction"),
         regenerationScope: regenerationScope.key,
         productId,
