@@ -1,4 +1,5 @@
 @import "../styles/00-tokens/legacy-bootstrap.css";
+@import "../styles/00-tokens/scrollbar-tokens.css";
 @import "../styles/02-themes/light-flat-bootstrap.css";
 @import "../styles/01-base/reset-elements-accessibility.css";
 @import "../styles/03-layout/legacy-operator-public-shell.css";
@@ -81,6 +82,7 @@
 @import "../styles/00-tokens/shell-responsive.css";
 @import "../styles/03-layout/shell-responsive.css";
 @import "../styles/03-layout/topbar-desktop-shell.css";
+@import "../styles/03-layout/custom-scrollbar.css";
 @import "../styles/05-features/product-detail-layout.css";
 @import "../styles/05-features/controller-stepper-desktop.css";
 @import "../styles/05-features/product-detail-panels.css";
@@ -146,4 +148,5 @@
 @import "../styles/05-features/dashboard-flat.css";
 @import "../styles/05-features/ai-media-visual-sizing.css";
 @import "../styles/99-overrides/vercel-flat-sidebar-responsive.css";
+@import "../styles/99-overrides/unified-nav-tabs.css";
 @import "../styles/99-overrides/neutral-action-system.css";

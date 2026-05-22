@@ -1,0 +1,176 @@
+/* 2026-05-22 Unified Nav Tabs: Connected table-style global tab treatment */
+
+/* ============================================================================
+   A. Product Detail Tabs (.tab-nav / .tab-link)
+   ============================================================================ */
+
+.tab-nav {
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  border-radius: var(--radius);
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+.tab-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-link {
+  flex: 1 0 auto;
+  min-width: max-content;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: 0;
+  border-right: 1px solid var(--ui-shell-border-muted);
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  white-space: nowrap;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.tab-link:last-child {
+  border-right: 0;
+}
+
+.tab-link:hover,
+.tab-link:focus-visible {
+  background: var(--ui-shell-surface-muted);
+  color: var(--color-text-primary);
+  border-bottom-color: transparent;
+}
+
+.tab-link[data-active="true"] {
+  background: var(--ui-shell-surface-base);
+  color: var(--color-text-primary);
+  border-bottom-color: var(--ui-shell-border-emphasis);
+}
+
+/* ============================================================================
+   B. Content Filter Tabs (.content-filter-tabs / .content-filter-tab)
+   ============================================================================ */
+
+.content-filter-tabs {
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  border-radius: var(--radius);
+  overflow: hidden;
+  scrollbar-width: none;
+  width: 100%;
+  max-width: 100%;
+}
+
+.content-filter-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.content-filter-tab {
+  flex: 1 0 auto;
+  min-width: max-content;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: 0;
+  border: 0;
+  border-right: 1px solid var(--ui-shell-border-muted);
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--type-control-size);
+  font-weight: var(--type-control-strong-weight);
+  line-height: var(--type-control-line);
+  white-space: nowrap;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.content-filter-tab:last-child {
+  border-right: 0;
+}
+
+.content-filter-tab::after {
+  display: none;
+}
+
+.content-filter-tab:hover,
+.content-filter-tab:focus-visible {
+  background: var(--ui-shell-surface-muted);
+  color: var(--color-text-primary);
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+
+.content-filter-tab[data-active="true"] {
+  background: var(--ui-shell-surface-base);
+  color: var(--color-text-primary);
+  border-bottom-color: var(--ui-shell-border-emphasis);
+  box-shadow: none;
+}
+
+/* Sub-tabs: more compact */
+.content-filter-tabs--sub .content-filter-tab {
+  min-height: 30px;
+  font-size: var(--type-control-sm-size);
+  padding: 0 var(--space-2);
+}
+
+/* ============================================================================
+   C. Drive View Toggle (.drive-view-toggle / .drive-view-toggle__button)
+   ============================================================================ */
+
+.drive-view-toggle {
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--ui-shell-border-muted);
+  background: var(--ui-shell-surface-base);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.drive-view-toggle__button {
+  border-radius: 0;
+  border: 0;
+  border-right: 1px solid var(--ui-shell-border-muted);
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.drive-view-toggle__button:last-child {
+  border-right: 0;
+}
+
+.drive-view-toggle__button:hover,
+.drive-view-toggle__button:focus-visible {
+  background: var(--ui-shell-surface-muted);
+  color: var(--color-text-primary);
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+
+.drive-view-toggle__button[data-active="true"] {
+  background: var(--ui-shell-surface-base);
+  color: var(--color-text-primary);
+  border-bottom-color: var(--ui-shell-border-emphasis);
+  box-shadow: none;
+}
+
+/* ============================================================================
+   D. Skeleton Compatibility
+   ============================================================================ */
+
+.loading-skeleton-static .tab-link.skeleton-tab,
+.loading-skeleton-static .content-filter-tab.skeleton-tab {
+  flex: 0 0 80px;
+  min-width: 80px;
+  border-bottom-color: transparent;
+}

@@ -1,5 +1,5 @@
 details{border-radius:var(--radius);border:1px solid var(--border);background:var(--color-surface-ghost-soft);padding:14px 16px}
-details+details{margin-top:12px}
+details+details{margin-top:0px}
 summary{cursor:pointer;color:var(--text);font-weight:var(--type-control-strong-weight)}
 summary::marker{color:var(--accent-strong)}
 .json-block{border-radius:var(--radius);border:1px solid var(--border);background:var(--color-surface-muted-strong);color:color-mix(in srgb, var(--text-strong) 90%, var(--accent-strong));white-space:pre-wrap;word-break:break-word;font-size:var(--type-body-sm-size);line-height:var(--type-line-160);font-family:var(--font-mono);margin:12px 0 0;padding:14px;overflow:auto}
