@@ -220,6 +220,44 @@ Source request: operator UI polish follow-up, 2026-05-20. These tasks are scoped
 **Scope:** shared search input plus product/prompt list surfaces.
 **Acceptance:** search clear moves inside the search field as an icon-only control; bulk clear controls only appear when there is an active selection; labels do not wrap on compact widths.
 
+### UI-OP-POLISH-08 - Products bulk selection and archive
+**Goal:** Add selection mode to `/products` desktop table and mobile cards for bulk archive (soft delete).
+**Owner:** Codex
+**Scope:** `/products` desktop table and mobile cards, product selection mode, bulk archive server action, mobile long-press + tap fallback, loading/empty/error/disabled states.
+**Constraints:**
+- Archive-first only; no hard delete.
+- Server-side owner/workspace validation; never trust client selected IDs.
+- Max bulk size: 50.
+- No Drive batch archive/delete.
+- No schema migration unless later audit proves necessary.
+- Select-all scope: visible/loaded rows only, not cross-pagination.
+- Mobile must not use dense tables.
+**Acceptance:**
+- Desktop can select visible eligible products and archive them in bulk.
+- Mobile can enter selection by long-press or explicit `Pilih` fallback.
+- Archived products leave active list via existing `ARCHIVED` exclusion.
+- Bulk action requires confirmation.
+- No permanent delete is introduced.
+- Keyboard shortcuts: `Escape` clears/exits selection, `Ctrl/Cmd+A` selects visible eligible.
+- All visible non-archived products are archivable in first wave.
+
+### UI-OP-POLISH-09 - Prompts bulk queue selection parity
+**Goal:** Polish existing prompts bulk selection for queue parity with products selection grammar, add mobile long-press, and enforce main-page delete guardrail.
+**Owner:** Codex
+**Scope:** `/prompts` workbench selection UX, mobile long-press, clear selection, disabled/guarded states, and main-page destructive action removal.
+**Constraints:**
+- Bulk queue keeps using existing `ai_tasks` and `bulkEnqueuePromptPacks`.
+- No delete/archive action on main `/prompts` page.
+- Prompt destructive cleanup belongs to `/prompts/[id]/history` only.
+- Prompt history cleanup is archive-first unless hard delete is separately approved.
+- Server must revalidate prompt readiness; do not trust client selected IDs.
+**Acceptance:**
+- Existing `Antrikan` flow still works.
+- Mobile long-press added for eligible prompt cards.
+- Clear selection and disabled states match Products grammar.
+- Main `/prompts` page has no delete/archive destructive action.
+- `/prompts/[id]/history` is the only path for destructive version cleanup (archive-first).
+
 ## Controller UI Polish Runtime Mapping
 
 Source planning doc: `docs/codex-controller-polish-tasks.md`.
@@ -800,3 +838,141 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Scope:** prompt generation contract, manifest prompt extraction, and tests only; no design advisor UI.
 **Acceptance:** prompt copy must include reviewed product context, valid reference handles, active profile rules, and stage-specific instructions; generic filler or missing evidence fails validation before Flow handoff.
+
+## Share Workspace Redesign Stream
+
+Source spec: `docs/superpowers/specs/2026-05-23-share-workspace-redesign.md`.
+Implementation plan: `C:\Users\Acer\.openclaude\plans\generic-weaving-narwhal.md`.
+
+This section registers Share Workspace Redesign as an approved stream-specific spec for multi-page route implementation. The Phase 1 baseline in `docs/PRD_SOURCE_OF_TRUTH.md` remains unchanged: `/products/new` stays the entrypoint, mobile bottom navigation remains `Dashboard`, `Intake`, `Produk`, `Prompt`, and `Drive`, and Controller/Flow constraints remain governed by the existing locks.
+
+Section lock:
+
+- Share workspace is a new multi-page route: `/share` (platform picker) → `/share/[platform]` (product list) → `/share/[platform]?detail=[productId]&tab=[output|history]` (drawer).
+- Product list is lintas semua affiliate profile (not isolated per workspace like `/products`).
+- Drawer input requires affiliate URL before generate; affiliate URL is separate from product_url and only used for CTA in Gemini caption output.
+- Generate creates batch in `share_generations` table; Output tab shows latest batch, History tab shows all versions with regenerate action.
+- Mobile drawer is full-screen (NOT bottom sheet), matching product/prompt detail behavior.
+- UI patterns reuse `/products` desktop table + mobile cards, `OperatorDetailDrawer`, `operator-detail-layout`, and prompt history regenerate flow.
+- Implementation must be one micro-task at a time.
+- Verification: `npm run audit:colors`, `npm run audit:typography`, `npm run audit:neutral-ui`, `npm run lint`, `npm run typecheck`, `npm run build`, and `npm run smoke:e2e` when practical.
+
+Implementation order:
+
+1. `SHARE-001` - Database migration for share tables.
+2. `SHARE-002` - Server library and contracts.
+3. `SHARE-003` - Platform picker route.
+4. `SHARE-004` - Product list route and component.
+5. `SHARE-005` - Drawer input form.
+6. `SHARE-006` - Drawer output and history tabs.
+7. `SHARE-007` - Feature CSS and styling.
+8. `SHARE-008` - Navigation and cleanup.
+9. `SHARE-009` - E2E tests and verification.
+
+### SHARE-001 - Database migration for share tables
+**Goal:** Create `share_product_links` and `share_generations` tables with RLS owner policies.
+**Owner:** OpenClaude
+**Scope:** Migration file only; no server actions, UI, or routes.
+**Acceptance:** 
+- `share_product_links` table: `id` (uuid PK), `user_id` (uuid FK auth.users), `product_id` (uuid FK products), `affiliate_url` (text NOT NULL), `created_at`, `updated_at`. Unique constraint `(user_id, product_id)`. RLS policy allows owner CRUD.
+- `share_generations` table: `id` (uuid PK), `user_id` (uuid FK auth.users), `product_id` (uuid FK products), `platform` (text: facebook | threads | x | pinterest), `angle` (text: benefit_focused | problem_solution | social_proof | urgency_scarcity | educational | storytelling), `variant_count` (int 1-4), `output_json` (jsonb), `status` (text: generating | generated | error), `error_message` (text nullable), `created_at`. Index `(user_id, product_id, platform, created_at DESC)`. RLS policy allows owner CRUD.
+- Migration applies cleanly with `supabase db push` or MCP apply.
+- Schema lock doc updated if necessary.
+
+### SHARE-002 - Server library and contracts
+**Goal:** Create server-side contracts, platform constants, and server actions for share workspace.
+**Owner:** OpenClaude
+**Scope:** `src/lib/share/`, `src/lib/server/share-*.ts` only; no UI or routes.
+**Acceptance:**
+- `src/lib/share/share-list-contract.ts`: URL state normalization, pagination contract (pattern: `src/lib/products/product-list-contract.ts`).
+- `src/lib/share/share-platform.ts`: platform constants (facebook, threads, x, pinterest), labels, icon paths.
+- `src/lib/server/share-generations.ts`: server actions for list, get-by-product-platform, generate, regenerate. Owner-scoped queries only.
+- `src/lib/server/share-product-links.ts`: server actions for get, upsert affiliate URL. Owner-scoped queries only.
+- TypeScript compiles, lint passes.
+
+### SHARE-003 - Platform picker route
+**Goal:** Rewrite `/share` as platform workspace picker with 4 platform cards.
+**Owner:** OpenClaude
+**Scope:** `src/app/share/page.tsx`, `src/app/share/share-platform-picker.tsx` only.
+**Acceptance:**
+- `/share` renders 4 platform cards: Facebook, Threads, X, Pinterest.
+- Card layout: 2-column grid mobile (360-767), 3-4 column tablet/desktop (768+).
+- Card visual follows tool picker pattern (like ai-media) using operator dashboard tokens.
+- Click card → `router.push('/share/[platform]')`.
+- Remove old `src/app/share/share-view.tsx` and `src/app/share/mock-data.ts` if still present.
+- Verification: lint, typecheck, build pass.
+
+### SHARE-004 - Product list route and component
+**Goal:** Build `/share/[platform]` product list with real Supabase data, lintas semua affiliate profile.
+**Owner:** OpenClaude
+**Scope:** `src/app/share/[platform]/page.tsx`, `src/app/share/[platform]/share-product-list.tsx` only.
+**Acceptance:**
+- Server component validates platform param (facebook | threads | x | pinterest), fetches products lintas workspace, fetches affiliate links, fetches latest generation per product.
+- Desktop (1024+): dense table like `/products`.
+- Mobile (360-767): product cards like `/products`.
+- Tablet (768-1023): hybrid pattern existing.
+- Toolbar: search input, summary badge (item count, platform context), filter chips if needed.
+- Status badge per product: `Perlu Link Affiliate`, `Siap Generate`, `Selesai`, `Error` (derived from affiliate_url presence and generation status).
+- Pagination: keyset desktop, infinite scroll mobile (pattern: `/products`).
+- Loading, empty, error states present.
+- Click product → URL updates to `?detail=[productId]` (drawer opens).
+- Verification: lint, typecheck, build pass.
+
+### SHARE-005 - Drawer input form
+**Goal:** Build drawer input form with product hero, Buka Produk button, affiliate URL field, angle/variant selectors, and generate CTA.
+**Owner:** OpenClaude
+**Scope:** `src/app/share/[platform]/share-detail-panel.tsx`, `src/app/share/[platform]/share-input-form.tsx` only.
+**Acceptance:**
+- Drawer opens when `searchParams.detail` exists and no generation exists yet (tabless input mode).
+- Product hero: image, name, marketplace platform, status badge.
+- **Tombol Buka Produk**: anchor to `product_url` with `target="_blank" rel="noopener"`.
+- **Field Affiliate URL**: text input, wajib sebelum generate. Inline warning if empty.
+- **Platform selector**: readonly/display-only, shows current platform from route.
+- **Angle selector**: 6 options (Fokus Manfaat, Solusi Masalah, Bukti Sosial, Urgensi & Kelangkaan, Edukatif, Cerita).
+- **Variant count**: 1-4.
+- **CTA Generate**: disabled if affiliate_url empty.
+- Generate action calls server action with `product_id`, `platform`, `angle`, `variant_count`, `affiliate_url`.
+- After success, redirect to `?detail=[productId]&tab=output`.
+- Drawer uses `OperatorDetailDrawer` (full-screen mobile, side panel desktop).
+- Verification: lint, typecheck, build pass.
+
+### SHARE-006 - Drawer output and history tabs
+**Goal:** Build drawer output and history tabs with regenerate flow.
+**Owner:** OpenClaude
+**Scope:** `src/app/share/[platform]/share-output-tab.tsx`, `src/app/share/[platform]/share-history-tab.tsx` only.
+**Acceptance:**
+- Drawer switches to tabbed mode when generation exists: **Output** and **History** tabs.
+- **Tab Output**: shows latest batch (latest `created_at` for product+platform). List varian caption with Copy and Manual Share actions per varian. Status badge per varian: angle, platform.
+- **Tab History**: shows all batches for product+platform, ordered by `created_at DESC`. Layout follows prompt history pattern: list batch with timestamp, angle, variant count, preview caption. Action per batch: **Regenerate** (opens drawer input with batch settings pre-filled, operator can edit, then generate → new batch becomes latest Output, old batch stays in History).
+- Tab navigation follows product detail tab pattern (stretch + scroll).
+- Verification: lint, typecheck, build pass.
+
+### SHARE-007 - Feature CSS and styling
+**Goal:** Add token-based feature CSS for share workspace.
+**Owner:** OpenClaude
+**Scope:** `src/styles/05-features/share-workspace.css`, `src/app/globals.css` only.
+**Acceptance:**
+- `src/styles/05-features/share-workspace.css` created with token-based styling (pattern: `src/styles/05-features/prompt-history.css`).
+- Import added to `src/app/globals.css` (NOT via `src/styles/index.css`): `@import '../styles/05-features/share-workspace.css';`.
+- Remove or rename `src/styles/05-features/share-pack.css` if still present.
+- Verification: `npm run audit:colors`, `npm run audit:typography`, `npm run audit:neutral-ui`, lint, typecheck, build pass.
+
+### SHARE-008 - Navigation and cleanup
+**Goal:** Ensure Share nav entry is consistent and clean up prototype files.
+**Owner:** OpenClaude
+**Scope:** `src/components/operator/nav-config.ts`, cleanup of old share files.
+**Acceptance:**
+- `src/components/operator/nav-config.ts`: Share label consistent with nav pattern.
+- Remove old prototype files if not already removed: `src/app/share/share-view.tsx`, `src/app/share/mock-data.ts`, `src/styles/05-features/share-pack.css`.
+- Verification: lint, typecheck, build pass.
+
+### SHARE-009 - E2E tests and verification
+**Goal:** Add E2E smoke test for share workspace flow and verify all breakpoints.
+**Owner:** OpenClaude
+**Scope:** `tests/e2e/share-page-design.spec.ts` rewrite, manual breakpoint verification.
+**Acceptance:**
+- `tests/e2e/share-page-design.spec.ts`: covers platform picker → list → drawer input → generate (mock) → output → history → regenerate → mobile full-screen drawer behavior.
+- Smoke test breakpoints: 360px, 768px, 1024px, 1280px.
+- Manual verification: `/share` renders 4 cards, `/share/facebook` (dst) renders product list seamless with `/products`, drawer input with affiliate URL empty → generate disabled, generate success → URL changes to `?detail=...&tab=output`, tab History shows all batches, regenerate opens input with batch settings, mobile (360px) drawer is full-screen (not bottom sheet), close button closes drawer and returns to list, tombol Buka Produk opens `product_url` in new tab.
+- Verification: `npm run smoke:e2e` or targeted test run, lint, typecheck, build pass.
+- Document any blockers or verification gaps.

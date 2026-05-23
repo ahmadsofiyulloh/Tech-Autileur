@@ -30,3 +30,5 @@ tools/windows-helper/imported/
 .kiro/
 .openclaude/
 .vscode/
+.claude/
+.superpowers/

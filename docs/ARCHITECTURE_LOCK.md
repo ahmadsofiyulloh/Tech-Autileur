@@ -53,6 +53,7 @@ Shell rules:
 /products/new   -> mobile-first intake workflow
 /products/[id]  -> Metadata, Output, History
 /prompts        -> Paket Prompt editor surface
+/share          -> Share Pack mock prototype for manual-share review
 /drive          -> visual Drive manager
 /dashboard      -> secondary analytics route
 /settings       -> Pengaturan hub

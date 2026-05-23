@@ -152,6 +152,13 @@ Buat Prompt
 Buat Ulang
 ```
 
+Destructive action guardrail (approved 2026-05-22):
+
+- Delete/archive actions must not appear on the main `/prompts` page.
+- Destructive prompt version cleanup belongs only in `/prompts/[id]/history`.
+- History cleanup is archive-first (`prompt_packs.status = 'ARCHIVED'`) unless hard delete is separately approved.
+- Bulk queue on main `/prompts` uses existing `ai_tasks` and `bulkEnqueuePromptPacks`; no delete/archive bulk action is allowed on main page.
+
 Prompt set structure:
 
 - `/prompts` is a list/launcher surface.
