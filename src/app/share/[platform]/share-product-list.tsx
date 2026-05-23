@@ -11,10 +11,7 @@ import {
   type PaginationState,
   type ShareListRow,
 } from "@/lib/share/share-list-contract";
-import {
-  SHARE_PLATFORM_LABELS,
-  type SharePlatform,
-} from "@/lib/share/share-platform";
+import { type SharePlatform } from "@/lib/share/share-platform";
 
 type ShareProductListProps = {
   activeProductId: string | null;
@@ -90,12 +87,6 @@ export function ShareProductList({
     return (
       <div className="stack-lg">
         <section className="connected-section connected-section--flush">
-          <div className="connected-section__header connected-section__header--stack connected-section__header--flush">
-            <div>
-              <h1>Share {SHARE_PLATFORM_LABELS[platform]}</h1>
-              <p>Pilih produk untuk mulai generate caption.</p>
-            </div>
-          </div>
           <div className="connected-section__body connected-section__body--flush">
             <form method="get" className="share-list-toolbar">
               <SearchInput
@@ -122,12 +113,6 @@ export function ShareProductList({
   return (
     <div className="stack-lg">
       <section className="connected-section connected-section--flush">
-        <div className="connected-section__header connected-section__header--stack connected-section__header--flush">
-          <div>
-            <h1>Share {SHARE_PLATFORM_LABELS[platform]}</h1>
-            <p>Pilih produk untuk mulai generate caption manual.</p>
-          </div>
-        </div>
         <div className="connected-section__body connected-section__body--flush">
           <form method="get" className="share-list-toolbar">
             <SearchInput
