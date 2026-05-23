@@ -87,6 +87,7 @@
 @import "../styles/05-features/controller-stepper-desktop.css";
 @import "../styles/05-features/product-detail-panels.css";
 @import "../styles/05-features/products-table-desktop.css";
+@import "../styles/05-features/product-selection.css";
 @import "../styles/06-responsive/product-detail-responsive.css";
 @import "../styles/00-tokens/shell-rebrand.css";
 @import "../styles/99-overrides/shell-rebrand.css";
@@ -137,6 +138,7 @@
 @import "../styles/06-responsive/ai-media-history-usage-responsive.css";
 @import "../styles/06-responsive/dashboard-command-mobile-legacy.css";
 @import "../styles/05-features/prompt-workbench.css";
+@import "../styles/05-features/share-workspace.css";
 @import "../styles/00-tokens/buttons.css";
 @import "../styles/04-components/buttons.css";
 @import "../styles/99-overrides/ui-op-final-overrides.css";

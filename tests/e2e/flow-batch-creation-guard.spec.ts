@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { buildPromptPackEditorStoragePayload } from "../../src/lib/prompts/prompt-pack-contract";
+import {
+  PROMPT_PACK_COPY_SCHEMA_VERSION,
+  PROMPT_PACK_I2V_DURATION_SECONDS,
+  PROMPT_PACK_I2V_TIMELINE_WINDOWS,
+  buildPromptPackEditorStoragePayload,
+} from "../../src/lib/prompts/prompt-pack-contract";
 import { buildFlowAssignmentPlan, type ControllerPromptPackRecord } from "../../src/lib/server/controller";
 import {
   assertFlowAccountAvailableForBatchCreation,
@@ -9,19 +14,66 @@ import {
 } from "../../src/lib/server/flow-batches";
 import type { FlowAccountPoolRecord } from "../../src/lib/server/flow-accounts";
 
+function buildTestI2VTimeline() {
+  return PROMPT_PACK_I2V_TIMELINE_WINDOWS.map((time, index) => ({
+    time,
+    action:
+      index === 0
+        ? "start from @firstframe single first image"
+        : index === 3
+          ? "resolve from the same first-frame setup with @lastframe kept for compatibility"
+          : "continue the same first-frame setup into smooth product motion",
+  }));
+}
+
+function buildTestI2IFrame(slot: "clip_1" | "clip_2", frame: "first_frame" | "last_frame", promptText: string) {
+  return JSON.stringify({
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot,
+    stage: frame === "first_frame" ? "i2i_first_frame" : "i2i_last_frame",
+    image_inputs: frame === "first_frame" ? ["@character", "@environment", "@product.png"] : ["@firstframe"],
+    prompt_text: promptText,
+    must_keep: ["keep product shape"],
+    must_avoid: ["no extra props"],
+  });
+}
+
+function buildTestI2VPrompt(slot: "clip_1" | "clip_2", promptText: string) {
+  return JSON.stringify({
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot,
+    stage: "i2v",
+    duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
+    frame_inputs: ["@firstframe", "@lastframe"],
+    timeline: buildTestI2VTimeline(),
+    motion_prompt: `${promptText} motion`,
+    camera_motion: "slow push-in",
+    prompt_text: promptText,
+    continuity: "use @firstframe as the single starting image while @lastframe stays legacy-compatible",
+    negative_prompt: "no extra props",
+    audio: {
+      voiceover_text: slot === "clip_1" ? "Cek detail produk ini dalam dua detik pertama." : "Detailnya jelas untuk bahan pertimbangan checkout.",
+      voiceover_timing: "00:00-00:02",
+      voice_style: "natural Indonesian UGC",
+      sfx_cues: "soft product handling",
+      ambient_cues: "quiet indoor room tone",
+    },
+  });
+}
+
 function buildPromptPackFixture(overrides?: Record<string, unknown>) {
   const storagePayload = buildPromptPackEditorStoragePayload(
     {
       clips: {
         clip_1: {
-          i2i_first_frame: "Clip 1 first frame prompt.",
-          i2i_last_frame: "Clip 1 last frame prompt.",
-          i2v_prompt: "Clip 1 video prompt.",
+          i2i_first_frame: buildTestI2IFrame("clip_1", "first_frame", "Clip 1 first frame prompt."),
+          i2i_last_frame: buildTestI2IFrame("clip_1", "last_frame", "Clip 1 last frame prompt."),
+          i2v_prompt: buildTestI2VPrompt("clip_1", "Clip 1 video prompt."),
         },
         clip_2: {
-          i2i_first_frame: "Clip 2 first frame prompt.",
-          i2i_last_frame: "Clip 2 last frame prompt.",
-          i2v_prompt: "Clip 2 video prompt.",
+          i2i_first_frame: buildTestI2IFrame("clip_2", "first_frame", "Clip 2 first frame prompt."),
+          i2i_last_frame: buildTestI2IFrame("clip_2", "last_frame", "Clip 2 last frame prompt."),
+          i2v_prompt: buildTestI2VPrompt("clip_2", "Clip 2 video prompt."),
         },
       },
       caption: "Caption.",
