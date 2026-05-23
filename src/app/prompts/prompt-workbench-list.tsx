@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, Clock3, Edit3, ListChecks, Package, Square, X } from "lucide-react";
+import { ArrowRight, Check, Clock3, Edit3, ListChecks, Package, Square, Trash2, X } from "lucide-react";
 import type { AffiliateProfilePromptReadinessInput } from "@/lib/affiliate-profiles/readiness";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { StatusBadge } from "@/components/operator/status-badge";
-import { DeleteActionButton } from "@/components/ui/delete-action-button";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { unwrapJsonApiData, type JsonApiResponse } from "@/lib/api-response-contract";
 import { OverflowActionMenu } from "@/components/ui/overflow-action-menu";
@@ -20,6 +19,8 @@ import type { PromptQueueSnapshot, PromptQueueSummary } from "@/lib/prompts/prom
 import { bulkEnqueuePromptPacks, cancelPromptPackGeneration, savePromptPack } from "./actions";
 
 const PROMPT_WORKBENCH_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
+const LONG_PRESS_DELAY_MS = 420;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
 const BULK_VARIANT_SELECTABLE_PROMPT_STATUSES = new Set([
   "READY_FOR_PROMPT",
   "PROMPT_QUEUED",
@@ -119,8 +120,85 @@ type PromptPackCreateFormProps = {
 
 type PromptWorkbenchRowCardProps = PromptWorkbenchRowData & {
   selected: boolean;
+  selectionMode: boolean;
+  onBeginSelection: (productId: string) => void;
   onToggleSelected: (productId: string) => void;
 };
+
+function isInteractiveChild(target: EventTarget | null) {
+  const element = target instanceof HTMLElement ? target : null;
+  return Boolean(element?.closest("a, button, input, select, textarea, form, [role='button']"));
+}
+
+function createLongPressHandlers({
+  enabled,
+  onLongPress,
+}: {
+  enabled: boolean;
+  onLongPress: () => void;
+}) {
+  const state = {
+    timer: null as number | null,
+    startX: 0,
+    startY: 0,
+    triggered: false,
+  };
+
+  const clearTimer = () => {
+    if (state.timer) {
+      window.clearTimeout(state.timer);
+      state.timer = null;
+    }
+  };
+
+  return {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (!enabled || event.pointerType === "mouse" || isInteractiveChild(event.target)) {
+        return;
+      }
+
+      state.startX = event.clientX;
+      state.startY = event.clientY;
+      state.triggered = false;
+      clearTimer();
+      state.timer = window.setTimeout(() => {
+        state.triggered = true;
+        onLongPress();
+      }, LONG_PRESS_DELAY_MS);
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      if (!state.timer) {
+        return;
+      }
+
+      const deltaX = Math.abs(event.clientX - state.startX);
+      const deltaY = Math.abs(event.clientY - state.startY);
+
+      if (deltaX > LONG_PRESS_MOVE_TOLERANCE_PX || deltaY > LONG_PRESS_MOVE_TOLERANCE_PX) {
+        clearTimer();
+      }
+    },
+    onPointerUp: () => {
+      clearTimer();
+    },
+    onPointerCancel: () => {
+      clearTimer();
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => {
+      if (state.triggered) {
+        event.preventDefault();
+      }
+      state.triggered = false;
+    },
+    onClickCapture: (event: React.MouseEvent<HTMLElement>) => {
+      if (state.triggered) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.triggered = false;
+      }
+    },
+  };
+}
 
 function useIsDesktopPromptWorkbenchViewport() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -180,6 +258,8 @@ function PromptWorkbenchRowCard({
   latest_activity_label,
   defaultAffiliateProfileName,
   selected,
+  selectionMode,
+  onBeginSelection,
   onToggleSelected,
   productContinueHref,
   productDetailHref,
@@ -211,6 +291,21 @@ function PromptWorkbenchRowCard({
   const affiliateProfileLabel = affiliateProfile?.profile_name ?? defaultAffiliateProfileName;
   const sourceImageLabel = sourceImageDriveItem?.name ?? (sourceImage?.drive_item_ref_id ? "Gambar Drive" : "Gambar belum ada");
   const taskLabel = generationTask?.status ?? (promptPack ? promptPack.status : "Belum dibuat");
+
+  const longPressHandlers = createLongPressHandlers({
+    enabled: isSelectable && !selectionMode,
+    onLongPress: () => onBeginSelection(product.id),
+  });
+
+  const handleMobileCardClick = selectionMode && isSelectable
+    ? (event: React.MouseEvent<HTMLElement>) => {
+        if (!isInteractiveChild(event.target)) {
+          event.preventDefault();
+          onToggleSelected(product.id);
+        }
+      }
+    : undefined;
+
   const renderProductAction = () => (
     <>
       <NativeLinkButton className="compact primary" href={productActionHref}>
@@ -246,7 +341,13 @@ function PromptWorkbenchRowCard({
   );
 
   return (
-    <article className="prompt-list-card stack" data-open={isOpen ? "true" : undefined} data-selected={selected ? "true" : undefined}>
+    <article
+      className="prompt-list-card stack"
+      data-open={isOpen ? "true" : undefined}
+      data-selected={selected ? "true" : undefined}
+      onClick={handleMobileCardClick}
+      {...longPressHandlers}
+    >
       <div className="prompt-list-card__header">
         <div className="prompt-list-card__copy">
           <span>{promptPack ? `Paket Prompt v${promptPack.version}` : "Paket Prompt"}</span>
@@ -321,13 +422,6 @@ function PromptWorkbenchRowCard({
                   </PendingActionButton>
                 </form>
               ) : null}
-              <form action={savePromptPack}>
-                <input type="hidden" name="intent" value="archive" />
-                <input type="hidden" name="return_to" value={returnHref} />
-                <input type="hidden" name="id" value={promptPack.id} />
-                <input type="hidden" name="product_id" value={promptPack.product_id} />
-                <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
-              </form>
             </OverflowActionMenu>
           </>
         ) : (
@@ -363,13 +457,6 @@ function PromptWorkbenchRowCard({
                   </PendingActionButton>
                 </form>
               ) : null}
-              <form action={savePromptPack}>
-                <input type="hidden" name="intent" value="archive" />
-                <input type="hidden" name="return_to" value={returnHref} />
-                <input type="hidden" name="id" value={promptPack.id} />
-                <input type="hidden" name="product_id" value={promptPack.product_id} />
-                <DeleteActionButton confirmMessage={`Hapus prompt untuk "${product.product_name}"?`} />
-              </form>
             </OverflowActionMenu>
           </>
         ) : (
@@ -407,6 +494,7 @@ export function PromptWorkbenchList({
   search,
 }: PromptWorkbenchListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [mobileRows, setMobileRows] = useState<PromptWorkbenchRowData[]>(() => rows.slice(0, PROMPT_WORKBENCH_MOBILE_PAGE_SIZE));
   const [mobilePagination, setMobilePagination] = useState<PromptWorkbenchPaginationState>(() => derivePromptMobilePagination(pagination.totalCount));
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -470,6 +558,34 @@ export function PromptWorkbenchList({
       return next.size === current.size ? current : next;
     });
   }, [selectableRowIds]);
+
+  useEffect(() => {
+    if (selectionMode && selectedIds.size === 0) {
+      setSelectionMode(false);
+    }
+  }, [selectionMode, selectedIds.size]);
+
+  const beginSelection = useCallback((productId: string) => {
+    if (!selectableRowIds.has(productId)) {
+      return;
+    }
+
+    setSelectionMode(true);
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.add(productId);
+      return next;
+    });
+  }, [selectableRowIds]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
 
   function toggleSelected(productId: string) {
     if (!selectableRowIds.has(productId)) {
@@ -600,7 +716,7 @@ export function PromptWorkbenchList({
               aria-label="Bersihkan pilihan"
               className="compact tertiary icon-only"
               type="button"
-              onClick={() => setSelectedIds(new Set())}
+              onClick={clearSelection}
             >
               <X size={15} aria-hidden="true" />
             </NativeButton>
@@ -635,8 +751,10 @@ export function PromptWorkbenchList({
           <PromptWorkbenchRowCard
             {...row}
             key={row.product.id}
+            onBeginSelection={beginSelection}
             onToggleSelected={toggleSelected}
             selected={selectedIds.has(row.product.id)}
+            selectionMode={selectionMode}
           />
         ))}
         {loadMoreError ? <section className="muted-box">{loadMoreError}</section> : null}
@@ -647,6 +765,40 @@ export function PromptWorkbenchList({
           </NativeButton>
         ) : null}
       </section>
+
+      {selectionMode ? (
+        <div className="product-selection-summary product-selection-summary--mobile" role="group" aria-label="Aksi bulk prompt mobile">
+          <div className="product-selection-summary__copy">
+            <span aria-live="polite">{selectedCount} dipilih</span>
+          </div>
+          <div className="product-selection-summary__actions">
+            <NativeButton
+              aria-label={selectedCount > 0 ? "Bersihkan pilihan" : "Keluar mode seleksi"}
+              className="compact tertiary icon-only"
+              type="button"
+              onClick={selectedCount > 0 ? clearSelection : exitSelectionMode}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+            </NativeButton>
+            <VariantSubmitButton
+              action={bulkEnqueuePromptPacks}
+              buttonLabel="Antrikan"
+              className="compact primary"
+              disabled={!selectedCount}
+              hiddenFields={[
+                { name: "return_to", value: queueHref },
+                { name: "generation_mode", value: "gemini" },
+                ...selectedProductIds.map((selectedProductId) => ({
+                  name: "product_ids",
+                  value: selectedProductId,
+                })),
+              ]}
+              pendingLabel="Mengantrikan"
+              pickerLabel="Pilih varian konten"
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
