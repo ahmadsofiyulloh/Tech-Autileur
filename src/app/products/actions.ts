@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   archiveProduct,
   attachProductSourceImage,
+  bulkArchiveProducts,
   createProduct,
   updateProduct,
 } from "@/lib/server/products";
@@ -209,4 +210,23 @@ export async function regenerateProductPrompt(formData: FormData) {
   revalidatePath(`/prompts/${nextVersionId}`);
   revalidatePath(`/prompts/${nextVersionId}/history`);
   redirect(`/prompts?detail=${nextVersionId}&message=${encodeURIComponent(generationMessage)}`);
+}
+
+export async function bulkArchiveProductsAction(formData: FormData) {
+  const productIds = formData.getAll("product_ids").map((value) => String(value));
+
+  if (!productIds.length) {
+    fail("Tidak ada produk yang dipilih.");
+  }
+
+  try {
+    const result = await bulkArchiveProducts(productIds);
+    revalidatePath("/products");
+    revalidatePath("/products/new");
+    revalidatePath("/intake");
+    redirect(`/products?message=${encodeURIComponent(`${result.archivedCount} produk diarsipkan.`)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Gagal mengarsipkan produk.";
+    fail(message);
+  }
 }

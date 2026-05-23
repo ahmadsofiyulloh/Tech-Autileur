@@ -282,6 +282,69 @@ export async function archiveProduct(id: string) {
   return archivedProduct;
 }
 
+const MAX_BULK_ARCHIVE_PRODUCTS = 50;
+
+export async function bulkArchiveProducts(ids: string[]) {
+  const { supabase, user } = await requireUser();
+
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+
+  if (!uniqueIds.length) {
+    throw new Error("Tidak ada produk yang dipilih.");
+  }
+
+  if (uniqueIds.length > MAX_BULK_ARCHIVE_PRODUCTS) {
+    throw new Error(`Maksimal ${MAX_BULK_ARCHIVE_PRODUCTS} produk per batch.`);
+  }
+
+  // Re-query to validate ownership and active status
+  const { data: validProducts, error: queryError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("user_id", user.id)
+    .neq("status", "ARCHIVED")
+    .in("id", uniqueIds);
+
+  if (queryError) {
+    throw new Error(queryError.message);
+  }
+
+  const validIds = (validProducts ?? []).map((p) => p.id);
+
+  if (!validIds.length) {
+    throw new Error("Tidak ada produk valid untuk diarsipkan.");
+  }
+
+  // Archive products
+  const { error: archiveError } = await supabase
+    .from("products")
+    .update({ status: "ARCHIVED" })
+    .eq("user_id", user.id)
+    .in("id", validIds);
+
+  if (archiveError) {
+    throw new Error(archiveError.message);
+  }
+
+  // Archive related intake sessions
+  const { error: intakeError } = await supabase
+    .from("product_intake_sessions")
+    .update({ status: "ARCHIVED" })
+    .eq("user_id", user.id)
+    .in("product_id", validIds);
+
+  if (intakeError) {
+    throw new Error(intakeError.message);
+  }
+
+  revalidatePath("/products");
+  revalidatePath("/products/new");
+  revalidatePath("/intake");
+  revalidatePath("/prompts");
+
+  return { archivedCount: validIds.length };
+}
+
 export async function listProductImages(input?: { productId?: string; limit?: number }) {
   const { supabase, user } = await requireUser();
 

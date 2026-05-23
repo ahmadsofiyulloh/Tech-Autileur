@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Edit3, FileText, Package, Plus, Search } from "lucide-react";
+import { Archive, ArrowLeft, ArrowRight, Check, Edit3, FileText, Package, Plus, Search, Square, Trash2 } from "lucide-react";
 import { ActionToolbar } from "@/components/operator/action-toolbar";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FilterChips } from "@/components/operator/filter-chips";
@@ -22,10 +22,138 @@ import {
   type ProductListRow,
   type ProductUploadScope,
 } from "@/lib/products/product-list-contract";
-import { saveProduct } from "./actions";
+import { bulkArchiveProductsAction, saveProduct } from "./actions";
 import { ProductStatusSheet } from "./product-metadata-sheet";
 
 const PRODUCT_LIST_MOBILE_MEDIA_QUERY = "(max-width: 860px)";
+const LONG_PRESS_DELAY_MS = 420;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
+
+function isTextInputTarget(target: EventTarget | null) {
+  const element = target instanceof HTMLElement ? target : null;
+
+  if (!element) {
+    return false;
+  }
+
+  const tagName = element.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select" || element.isContentEditable;
+}
+
+function isModifierSelectAll(event: KeyboardEvent) {
+  return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
+}
+
+function isInteractiveChild(target: EventTarget | null) {
+  const element = target instanceof HTMLElement ? target : null;
+  return Boolean(element?.closest("a, button, input, select, textarea, form, [role='button']"));
+}
+
+function SelectionToggleButton({
+  pressed,
+  label,
+  onClick,
+  disabled = false,
+}: {
+  pressed: boolean;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <NativeButton
+      className={`compact ${pressed ? "primary" : "tertiary"}`.trim()}
+      type="button"
+      aria-pressed={pressed}
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {pressed ? <Check size={15} aria-hidden="true" /> : <Square size={15} aria-hidden="true" />}
+      {pressed ? "Dipilih" : "Pilih"}
+    </NativeButton>
+  );
+}
+
+function BulkArchiveSubmitButton({ disabled, iconOnly = false }: { disabled: boolean; iconOnly?: boolean }) {
+  return (
+    <NativeButton className={`compact danger${iconOnly ? " icon-only" : ""}`.trim()} type="submit" disabled={disabled} aria-label={iconOnly ? "Arsipkan" : undefined}>
+      <Archive size={15} aria-hidden="true" />
+      {iconOnly ? null : "Arsipkan"}
+    </NativeButton>
+  );
+}
+
+function createLongPressHandlers({
+  enabled,
+  onLongPress,
+}: {
+  enabled: boolean;
+  onLongPress: () => void;
+}) {
+  const state = {
+    timer: null as number | null,
+    startX: 0,
+    startY: 0,
+    triggered: false,
+  };
+
+  const clearTimer = () => {
+    if (state.timer) {
+      window.clearTimeout(state.timer);
+      state.timer = null;
+    }
+  };
+
+  return {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (!enabled || event.pointerType === "mouse" || isInteractiveChild(event.target)) {
+        return;
+      }
+
+      state.startX = event.clientX;
+      state.startY = event.clientY;
+      state.triggered = false;
+      clearTimer();
+      state.timer = window.setTimeout(() => {
+        state.triggered = true;
+        onLongPress();
+      }, LONG_PRESS_DELAY_MS);
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      if (!state.timer) {
+        return;
+      }
+
+      const deltaX = Math.abs(event.clientX - state.startX);
+      const deltaY = Math.abs(event.clientY - state.startY);
+
+      if (deltaX > LONG_PRESS_MOVE_TOLERANCE_PX || deltaY > LONG_PRESS_MOVE_TOLERANCE_PX) {
+        clearTimer();
+      }
+    },
+    onPointerUp: () => {
+      clearTimer();
+    },
+    onPointerCancel: () => {
+      clearTimer();
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => {
+      if (state.triggered) {
+        event.preventDefault();
+      }
+      state.triggered = false;
+    },
+    onClickCapture: (event: React.MouseEvent<HTMLElement>) => {
+      if (state.triggered) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.triggered = false;
+      }
+    },
+  };
+}
+
 
 type ProductListProps = {
   activeProductId?: string | null;
@@ -204,14 +332,116 @@ export function ProductList({
   const [mobilePagination, setMobilePagination] = useState<PaginationState>(() => deriveInitialMobilePagination(pagination.totalCount));
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const desktopColumnCount = isDetailMode ? 3 : 5;
+
+  const visibleRows = isMobileViewport ? mobileRows : products;
+  const archivableRowIds = useMemo(() => {
+    return new Set(visibleRows.map((row) => row.id));
+  }, [visibleRows]);
+  const selectedCount = selectedIds.size;
+  const archivableCount = archivableRowIds.size;
+  const allArchivableSelected = archivableCount > 0 && Array.from(archivableRowIds).every((id) => selectedIds.has(id));
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode((current) => {
+      const next = !current;
+      if (!next) {
+        setSelectedIds(new Set());
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectedId = useCallback((productId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  }, []);
+
+  const beginSelectionAt = useCallback((productId: string) => {
+    setSelectionMode(true);
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.add(productId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      const everyVisibleSelected = Array.from(archivableRowIds).every((id) => next.has(id));
+
+      if (everyVisibleSelected) {
+        for (const id of archivableRowIds) {
+          next.delete(id);
+        }
+      } else {
+        for (const id of archivableRowIds) {
+          next.add(id);
+        }
+      }
+
+      return next;
+    });
+  }, [archivableRowIds]);
+
 
   useEffect(() => {
     setMobileRows(products.slice(0, PRODUCT_LIST_MOBILE_PAGE_SIZE));
     setMobilePagination(deriveInitialMobilePagination(pagination.totalCount));
     setLoadMoreError(null);
-  }, [filter, pagination.totalCount, products, search, uploadFilter]);
+    exitSelectionMode();
+  }, [exitSelectionMode, filter, pagination.totalCount, products, search, uploadFilter]);
+
+  // Keyboard shortcuts — only active when selection mode is on, desktop only
+  useEffect(() => {
+    if (!selectionMode || isMobileViewport) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTextInputTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (selectedCount > 0) {
+          clearSelection();
+        } else {
+          exitSelectionMode();
+        }
+        return;
+      }
+
+      if (isModifierSelectAll(event)) {
+        event.preventDefault();
+        toggleSelectAllVisible();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [clearSelection, exitSelectionMode, isMobileViewport, selectedCount, selectionMode, toggleSelectAllVisible]);
 
   useEffect(() => {
     if (activeStatusProductId && !products.some((product) => product.id === activeStatusProductId)) {
@@ -415,8 +645,34 @@ export function ProductList({
         </div>
 
         <div className="table-wrap products-table-desktop">
-          <table className="data-table dense-table product-table" aria-label="Produk">
+          {selectionMode && selectedCount > 0 ? (
+            <div className="product-selection-summary desktop-action-set">
+              <div className="product-selection-summary__copy">
+                <StatusBadge status={`${selectedCount} dipilih`} tone="neutral" />
+              </div>
+              <div className="product-selection-summary__actions">
+                <NativeButton className="compact tertiary" type="button" onClick={clearSelection}>
+                  Bersihkan
+                </NativeButton>
+                <form
+                  action={bulkArchiveProductsAction}
+                  onSubmit={(event) => {
+                    if (!window.confirm(`Arsipkan ${selectedCount} produk terpilih?`)) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {Array.from(selectedIds).map((id) => (
+                    <input type="hidden" name="product_ids" value={id} key={id} />
+                  ))}
+                  <BulkArchiveSubmitButton disabled={selectedCount === 0} />
+                </form>
+              </div>
+            </div>
+          ) : null}
+          <table className={`data-table dense-table product-table${selectionMode ? " product-table--selection-mode" : ""}`} aria-label="Produk">
             <colgroup>
+              {selectionMode ? <col className="product-table__col-select" /> : null}
               <col className="product-table__col-product" />
               {isDetailMode ? null : <col className="product-table__col-keyword" />}
               <col className="product-table__col-status" />
@@ -425,16 +681,44 @@ export function ProductList({
             </colgroup>
             <thead>
               <tr>
+                {selectionMode ? (
+                  <th>
+                    <SelectionToggleButton
+                      pressed={allArchivableSelected}
+                      label={allArchivableSelected ? "Batal pilih semua" : "Pilih semua"}
+                      onClick={toggleSelectAllVisible}
+                    />
+                  </th>
+                ) : null}
                 <th>Produk</th>
                 {isDetailMode ? null : <th>Keyword</th>}
                 <th>Status</th>
                 {isDetailMode ? null : <th>Update</th>}
-                <th>Aksi</th>
+                <th>
+                  {selectionMode ? (
+                    <NativeButton className="compact tertiary" type="button" onClick={exitSelectionMode}>
+                      Batal
+                    </NativeButton>
+                  ) : (
+                    <NativeButton className="compact tertiary" type="button" onClick={toggleSelectionMode}>
+                      Pilih
+                    </NativeButton>
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody>
               {products.map((product) => (
-                <tr data-active={activeProductId === product.id ? "true" : undefined} key={product.id}>
+                <tr data-active={activeProductId === product.id ? "true" : undefined} data-selected={selectedIds.has(product.id) ? "true" : undefined} key={product.id}>
+                  {selectionMode ? (
+                    <td>
+                      <SelectionToggleButton
+                        pressed={selectedIds.has(product.id)}
+                        label={selectedIds.has(product.id) ? `Batal pilih ${product.product_name}` : `Pilih ${product.product_name}`}
+                        onClick={() => toggleSelectedId(product.id)}
+                      />
+                    </td>
+                  ) : null}
                   <td>
                     <div className="product-table-product-cell">
                       <ProductThumbnail
@@ -472,47 +756,49 @@ export function ProductList({
                     </td>
                   )}
                   <td>
-                    <div className="product-row-actions product-row-actions--desktop">
-                      <NativeLinkButton className={`compact ${product.continue_href ? "primary" : ""}`.trim()} href={product.continue_href ?? product.href}>
-                        <ArrowRight size={15} aria-hidden="true" />
-                        {product.continue_href ? "Lanjutkan" : "Detail"}
-                      </NativeLinkButton>
-                      <OverflowActionMenu label="Aksi produk">
-                        {product.prompt_href ? (
-                          <NativeLinkButton className="compact" href={product.prompt_href}>
-                            <FileText size={15} aria-hidden="true" />
-                            Prompt
-                          </NativeLinkButton>
-                        ) : null}
-                        {product.continue_href ? (
-                          <NativeLinkButton className="compact" href={product.href}>
-                            <ArrowRight size={15} aria-hidden="true" />
-                            Detail
-                          </NativeLinkButton>
-                        ) : null}
-                        <NativeButton
-                          className="compact"
-                          type="button"
-                          onClick={() => {
-                            setActiveStatusProductId(product.id);
-                          }}
-                        >
-                          <Edit3 size={15} aria-hidden="true" />
-                          Ubah status
-                        </NativeButton>
-                        <form action={saveProduct}>
-                          <input type="hidden" name="intent" value="archive" />
-                          <input type="hidden" name="id" value={product.id} />
-                          <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
-                        </form>
-                      </OverflowActionMenu>
-                    </div>
+                    {selectionMode ? null : (
+                      <div className="product-row-actions product-row-actions--desktop">
+                        <NativeLinkButton className={`compact ${product.continue_href ? "primary" : ""}`.trim()} href={product.continue_href ?? product.href}>
+                          <ArrowRight size={15} aria-hidden="true" />
+                          {product.continue_href ? "Lanjutkan" : "Detail"}
+                        </NativeLinkButton>
+                        <OverflowActionMenu label="Aksi produk">
+                          {product.prompt_href ? (
+                            <NativeLinkButton className="compact" href={product.prompt_href}>
+                              <FileText size={15} aria-hidden="true" />
+                              Prompt
+                            </NativeLinkButton>
+                          ) : null}
+                          {product.continue_href ? (
+                            <NativeLinkButton className="compact" href={product.href}>
+                              <ArrowRight size={15} aria-hidden="true" />
+                              Detail
+                            </NativeLinkButton>
+                          ) : null}
+                          <NativeButton
+                            className="compact"
+                            type="button"
+                            onClick={() => {
+                              setActiveStatusProductId(product.id);
+                            }}
+                          >
+                            <Edit3 size={15} aria-hidden="true" />
+                            Ubah status
+                          </NativeButton>
+                          <form action={saveProduct}>
+                            <input type="hidden" name="intent" value="archive" />
+                            <input type="hidden" name="id" value={product.id} />
+                            <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
+                          </form>
+                        </OverflowActionMenu>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
               {!products.length ? (
                 <tr>
-                  <td colSpan={desktopColumnCount}>
+                  <td colSpan={desktopColumnCount + (selectionMode ? 1 : 0)}>
                     <EmptyState icon={Package} title="Produk tidak ditemukan." description="Ubah filter atau cari produk lain." />
                   </td>
                 </tr>
@@ -520,7 +806,7 @@ export function ProductList({
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={desktopColumnCount}>
+                <td colSpan={desktopColumnCount + (selectionMode ? 1 : 0)}>
                   <ProductPaginationStepper
                     affiliateProfileId={affiliateProfileId}
                     filter={filter}
@@ -536,62 +822,117 @@ export function ProductList({
         </div>
 
         <div className="products-cards-mobile">
-          {mobileRows.map((product) => (
-            <article className="visual-list-card" data-active={activeProductId === product.id ? "true" : undefined} key={product.id}>
-              <ProductThumbnail alt={product.product_name} className="visual-list-card__thumb" fallbackSize={28} src={product.thumbnail_url} />
-              <div className="visual-list-card__body">
-                <div className="visual-list-card__header">
-                  <div className="visual-list-card__copy">
-                    <strong title={product.product_name}>{product.product_name}</strong>
-                    <span>{fieldValue(product.keyword)}</span>
-                  </div>
-                  <div className="visual-list-card__status" aria-label="Status produk">
-                    <StatusBadge status={product.primary_status_label} size="sm" />
-                  </div>
-                </div>
-                <div className="visual-list-card__footer">
-                  <span>{product.latest_activity_label}</span>
-                  {product.marketplace ? <span>{product.marketplace}</span> : null}
-                  {product.status_context_label ? <span>{product.status_context_label}</span> : null}
-                </div>
-                <div className="mobile-card-actions">
-                  <NativeLinkButton className="compact primary" href={product.continue_href ?? product.href}>
-                    <ArrowRight size={15} aria-hidden="true" />
-                    {product.continue_href ? "Lanjutkan" : "Detail"}
-                  </NativeLinkButton>
-                  <OverflowActionMenu label="Aksi produk">
-                    {product.prompt_href ? (
-                      <NativeLinkButton className="compact" href={product.prompt_href}>
-                        <FileText size={15} aria-hidden="true" />
-                        Prompt
-                      </NativeLinkButton>
-                    ) : null}
-                    {product.continue_href ? (
-                      <NativeLinkButton className="compact" href={product.href}>
-                        <ArrowRight size={15} aria-hidden="true" />
-                        Detail
-                      </NativeLinkButton>
-                    ) : null}
-                    <NativeButton
-                      className="compact"
-                      type="button"
-                      onClick={() => {
-                        setActiveStatusProductId(product.id);
-                      }}
-                    >
-                      <Edit3 size={15} aria-hidden="true" />
-                      Ubah status
-                    </NativeButton>
-                    <form action={saveProduct}>
-                      <input type="hidden" name="intent" value="archive" />
-                      <input type="hidden" name="id" value={product.id} />
-                      <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
-                    </form>
-                  </OverflowActionMenu>
-                </div>
+          {selectionMode ? (
+            <div className="product-selection-summary product-selection-summary--mobile">
+              <div className="product-selection-summary__copy">
+                <span>{selectedCount} dipilih</span>
               </div>
-            </article>
-          ))}
+              <div className="product-selection-summary__actions">
+                <NativeButton className="compact tertiary icon-only" type="button" onClick={selectedCount > 0 ? clearSelection : exitSelectionMode} aria-label={selectedCount > 0 ? "Bersihkan pilihan" : "Keluar mode seleksi"}>
+                  <Trash2 size={15} aria-hidden="true" />
+                </NativeButton>
+                <form
+                  action={bulkArchiveProductsAction}
+                  onSubmit={(event) => {
+                    if (!window.confirm(`Arsipkan ${selectedCount} produk terpilih?`)) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {Array.from(selectedIds).map((id) => (
+                    <input type="hidden" name="product_ids" value={id} key={id} />
+                  ))}
+                  <BulkArchiveSubmitButton disabled={selectedCount === 0} iconOnly />
+                </form>
+              </div>
+            </div>
+          ) : null}
+          {mobileRows.map((product) => {
+            const selected = selectedIds.has(product.id);
+            const longPressHandlers = createLongPressHandlers({
+              enabled: !selectionMode,
+              onLongPress: () => beginSelectionAt(product.id),
+            });
+
+            return (
+              <article
+                className="visual-list-card"
+                data-active={activeProductId === product.id ? "true" : undefined}
+                data-selected={selected ? "true" : undefined}
+                key={product.id}
+                {...longPressHandlers}
+                onClick={(event) => {
+                  longPressHandlers.onClickCapture(event);
+                  if (selectionMode && !isInteractiveChild(event.target)) {
+                    toggleSelectedId(product.id);
+                  }
+                }}
+              >
+                <ProductThumbnail alt={product.product_name} className="visual-list-card__thumb" fallbackSize={28} src={product.thumbnail_url} />
+                <div className="visual-list-card__body">
+                  <div className="visual-list-card__header">
+                    <div className="visual-list-card__copy">
+                      <strong title={product.product_name}>{product.product_name}</strong>
+                      <span>{fieldValue(product.keyword)}</span>
+                    </div>
+                    <div className="visual-list-card__status" aria-label="Status produk">
+                      <StatusBadge status={product.primary_status_label} size="sm" />
+                    </div>
+                  </div>
+                  <div className="visual-list-card__footer">
+                    <span>{product.latest_activity_label}</span>
+                    {product.marketplace ? <span>{product.marketplace}</span> : null}
+                    {product.status_context_label ? <span>{product.status_context_label}</span> : null}
+                  </div>
+                  <div className="mobile-card-actions">
+                    {selectionMode ? (
+                      <SelectionToggleButton
+                        pressed={selected}
+                        label={selected ? `Batal pilih ${product.product_name}` : `Pilih ${product.product_name}`}
+                        onClick={() => toggleSelectedId(product.id)}
+                      />
+                    ) : (
+                      <>
+                        <NativeLinkButton className="compact primary" href={product.continue_href ?? product.href}>
+                          <ArrowRight size={15} aria-hidden="true" />
+                          {product.continue_href ? "Lanjutkan" : "Detail"}
+                        </NativeLinkButton>
+                        <OverflowActionMenu label="Aksi produk">
+                          {product.prompt_href ? (
+                            <NativeLinkButton className="compact" href={product.prompt_href}>
+                              <FileText size={15} aria-hidden="true" />
+                              Prompt
+                            </NativeLinkButton>
+                          ) : null}
+                          {product.continue_href ? (
+                            <NativeLinkButton className="compact" href={product.href}>
+                              <ArrowRight size={15} aria-hidden="true" />
+                              Detail
+                            </NativeLinkButton>
+                          ) : null}
+                          <NativeButton
+                            className="compact"
+                            type="button"
+                            onClick={() => {
+                              setActiveStatusProductId(product.id);
+                            }}
+                          >
+                            <Edit3 size={15} aria-hidden="true" />
+                            Ubah status
+                          </NativeButton>
+                          <form action={saveProduct}>
+                            <input type="hidden" name="intent" value="archive" />
+                            <input type="hidden" name="id" value={product.id} />
+                            <DeleteActionButton confirmMessage={`Hapus produk "${product.product_name}"?`} />
+                          </form>
+                        </OverflowActionMenu>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
           {!mobileRows.length ? <EmptyState icon={Package} title="Produk tidak ditemukan." description="Ubah filter atau cari produk lain." /> : null}
           {loadMoreError ? <section className="muted-box">{loadMoreError}</section> : null}
           <div ref={loadMoreRef} aria-hidden="true" />

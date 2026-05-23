@@ -1,0 +1,97 @@
+/* Product selection mode */
+
+.product-selection-summary {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--color-surface-muted-soft);
+  border: 1px solid var(--color-border-standard);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: flex;
+}
+
+.product-selection-summary__copy {
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.product-selection-summary__copy > span {
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: var(--type-control-sm-size);
+  color: var(--color-text-primary);
+  font-weight: var(--type-label-weight);
+}
+
+.product-selection-summary__copy .status-badge {
+  min-height: 24px;
+  font-size: var(--type-control-sm-size);
+  padding: 0 8px;
+}
+
+.product-selection-summary .button {
+  background: var(--color-surface-base);
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.product-selection-summary .button:hover,
+.product-selection-summary .button:focus-visible {
+  background: var(--control-hover-bg);
+  color: var(--color-text-primary);
+}
+
+.product-selection-summary__actions {
+  align-items: center;
+  gap: 8px;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.product-table--selection-mode tbody tr[data-selected="true"] {
+  background: var(--ui-shell-surface-selected);
+}
+
+.product-table__col-select {
+  width: 80px;
+}
+
+.product-mobile-select-entry {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.product-selection-summary--mobile {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--shell-bottom-nav-min-height) + env(safe-area-inset-bottom));
+  z-index: 40;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: var(--color-surface-base);
+  box-shadow: 0 -1px 0 var(--color-border-standard);
+  flex-wrap: nowrap;
+}
+
+.product-selection-summary--mobile .product-selection-summary__copy {
+  flex-wrap: nowrap;
+}
+
+.visual-list-card[data-selected="true"] {
+  background: var(--ui-shell-surface-selected);
+  border-color: var(--control-active-border);
+}
+
