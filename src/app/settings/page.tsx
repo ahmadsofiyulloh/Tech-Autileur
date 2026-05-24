@@ -194,12 +194,49 @@ export default async function SettingsPage() {
   let accountStatus: ReactNode = <StatusBadge status="Ready" tone="success" />;
   let workspaceId: string | null = null;
 
-  try {
-    const workspaceState = await getWorkspaceSelectionState();
-    workspaceId = workspaceState.currentWorkspace?.id ?? null;
-  } catch {
+  const [workspaceResult, affiliateProfilesResult, driveScopeResult, driveConnectionResult, helperApiTokenResult] = await Promise.allSettled([
+    getWorkspaceSelectionState(),
+    listAffiliateProfiles({ limit: 200 }),
+    getActiveWorkspaceDriveScope({ limit: 200 }),
+    getGoogleDriveConnection(),
+    getHelperApiToken(),
+  ]);
+
+  if (workspaceResult.status === "fulfilled") {
+    workspaceId = workspaceResult.value.currentWorkspace?.id ?? null;
+  } else {
     workspaceId = null;
     currentAffiliateProfile = null;
+  }
+
+  if (affiliateProfilesResult.status === "fulfilled") {
+    affiliateProfiles = affiliateProfilesResult.value;
+  }
+
+  if (driveScopeResult.status === "fulfilled") {
+    driveItems = driveScopeResult.value.items.filter((item) => item.status !== "ARCHIVED");
+    const folders = driveItems.filter((item) => item.item_type === "FOLDER");
+    driveDetail = `${folders.length} folder, ${driveItems.length} item di workspace aktif.`;
+  } else {
+    driveDetail = errorMessage(driveScopeResult.reason);
+  }
+
+  if (driveConnectionResult.status === "fulfilled") {
+    driveIsConnected = driveConnectionResult.value?.status === "CONNECTED";
+    driveStatus =
+      driveIsConnected ? (
+        <StatusBadge status="Connected" tone="success" />
+      ) : (
+        <StatusBadge status={driveConnectionResult.value?.status ?? "Belum terhubung"} tone="warning" />
+      );
+  } else {
+    driveStatus = (
+      <StatusBadge status={isGoogleDriveConnectionSchemaMissingError(driveConnectionResult.reason) ? "Pending" : "Error"} tone="warning" />
+    );
+  }
+
+  if (helperApiTokenResult.status === "rejected") {
+    accountStatus = <StatusBadge status={isHelperApiTokenSchemaMissingError(helperApiTokenResult.reason) ? "Pending" : "Error"} tone="warning" />;
   }
 
   try {
@@ -211,21 +248,6 @@ export default async function SettingsPage() {
   }
 
   try {
-    affiliateProfiles = await listAffiliateProfiles({ limit: 200 });
-  } catch {
-    affiliateProfiles = [];
-  }
-
-  try {
-    const driveScope = await getActiveWorkspaceDriveScope({ limit: 200 });
-    driveItems = driveScope.items.filter((item) => item.status !== "ARCHIVED");
-    const folders = driveItems.filter((item) => item.item_type === "FOLDER");
-    driveDetail = `${folders.length} folder, ${driveItems.length} item di workspace aktif.`;
-  } catch (error) {
-    driveDetail = errorMessage(error);
-  }
-
-  try {
     const profileDriveItemRefs = affiliateProfiles.flatMap((profile) => [
       profile.seed_character_drive_item_ref_id,
       profile.environment_drive_item_ref_id,
@@ -234,27 +256,6 @@ export default async function SettingsPage() {
     driveItems = mergeDriveItemsById(driveItems, profileDriveItems);
   } catch {
     driveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
-  }
-
-  try {
-    const driveConnection = await getGoogleDriveConnection();
-    driveIsConnected = driveConnection?.status === "CONNECTED";
-    driveStatus =
-      driveIsConnected ? (
-        <StatusBadge status="Connected" tone="success" />
-      ) : (
-        <StatusBadge status={driveConnection?.status ?? "Belum terhubung"} tone="warning" />
-      );
-  } catch (error) {
-    driveStatus = (
-      <StatusBadge status={isGoogleDriveConnectionSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />
-    );
-  }
-
-  try {
-    await getHelperApiToken();
-  } catch (error) {
-    accountStatus = <StatusBadge status={isHelperApiTokenSchemaMissingError(error) ? "Pending" : "Error"} tone="warning" />;
   }
 
   const cards: SettingsCard[] = [
