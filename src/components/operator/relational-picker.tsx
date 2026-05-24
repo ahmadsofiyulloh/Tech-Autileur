@@ -27,6 +27,7 @@ type RelationalPickerProps = {
   submitOnSelect?: boolean;
   className?: string;
   compact?: boolean;
+  onChange?: (value: string) => void;
 };
 
 const MOBILE_PICKER_QUERY = "(max-width: 860px)";
@@ -49,6 +50,7 @@ export function RelationalPicker({
   submitOnSelect = false,
   className,
   compact = false,
+  onChange,
 }: RelationalPickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -216,6 +218,7 @@ export function RelationalPicker({
     syncHiddenInput(nextValue);
     setOpen(false);
     setQuery("");
+    onChange?.(nextValue);
     requestParentSubmit();
   }
 

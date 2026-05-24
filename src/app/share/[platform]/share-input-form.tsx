@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { RelationalPicker, type RelationalPickerOption } from "@/components/operator/relational-picker";
+import { ToggleField } from "@/components/operator/toggle-field";
 import { NativeAnchorButton } from "@/components/ui/native-button";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import {
@@ -117,6 +118,122 @@ export function ShareInputForm({ action, platform, prefillAngle, prefillVariantC
     [],
   );
   const initialAngle: ShareAngle = prefillAngle ?? "benefit_focused";
+
+  // Build options arrays for RelationalPicker
+  const fbPostModeOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "feed", label: "Feed" },
+      { value: "story", label: "Story" },
+      { value: "reel", label: "Reel" },
+    ],
+    [],
+  );
+  const fbCaptionLengthOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "short", label: "Pendek" },
+      { value: "medium", label: "Sedang" },
+      { value: "long", label: "Panjang" },
+    ],
+    [],
+  );
+  const fbImageRatioOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "1:1", label: "1:1" },
+      { value: "4:5", label: "4:5" },
+      { value: "16:9", label: "16:9" },
+      { value: "9:16", label: "9:16" },
+    ],
+    [],
+  );
+
+  const threadsModeOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "single", label: "Single" },
+      { value: "thread", label: "Thread" },
+    ],
+    [],
+  );
+  const threadsLinkPlacementOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "in_caption", label: "Di Caption" },
+      { value: "first_reply", label: "Reply Pertama" },
+      { value: "none", label: "Tanpa Link" },
+    ],
+    [],
+  );
+  const threadsImagePlacementOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "with_post", label: "Dengan Post" },
+      { value: "none", label: "Tanpa Gambar" },
+    ],
+    [],
+  );
+  const threadsImageRatioOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "1:1", label: "1:1" },
+      { value: "4:5", label: "4:5" },
+      { value: "9:16", label: "9:16" },
+    ],
+    [],
+  );
+
+  const xModeOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "single_tweet", label: "Single Tweet" },
+      { value: "thread", label: "Thread" },
+    ],
+    [],
+  );
+  const xLengthModeOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "punchy", label: "Punchy" },
+      { value: "standard", label: "Standard" },
+    ],
+    [],
+  );
+  const xLinkPlacementOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "reply", label: "Reply" },
+      { value: "none", label: "Tanpa Link" },
+    ],
+    [],
+  );
+  const xImageRatioOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "1:1", label: "1:1" },
+      { value: "16:9", label: "16:9" },
+    ],
+    [],
+  );
+
+  const pinterestPinTypeOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "standard", label: "Standard" },
+      { value: "idea", label: "Idea" },
+    ],
+    [],
+  );
+  const pinterestSeoKeywordModeOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "auto", label: "Auto" },
+      { value: "manual", label: "Manual" },
+    ],
+    [],
+  );
+  const pinterestCtaStyleOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "soft", label: "Soft" },
+      { value: "direct", label: "Direct" },
+    ],
+    [],
+  );
+  const pinterestImageRatioOptions = useMemo<RelationalPickerOption[]>(
+    () => [
+      { value: "2:3", label: "2:3" },
+      { value: "1:1", label: "1:1" },
+    ],
+    [],
+  );
 
   // Build the options payload for the active route platform.
   const optionsPayload = useMemo(() => {
@@ -275,130 +392,156 @@ export function ShareInputForm({ action, platform, prefillAngle, prefillVariantC
 
         {platform === "facebook" && (
           <div className="share-input-options__grid">
-            <label className="share-input-field">
-              <span>Mode Post</span>
-              <select value={fbPostMode} onChange={(e) => setFbPostMode(e.target.value as FacebookGenerateOptions["postMode"])}>
-                <option value="feed">Feed</option>
-                <option value="story">Story</option>
-                <option value="reel">Reel</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Panjang Caption</span>
-              <select value={fbCaptionLength} onChange={(e) => setFbCaptionLength(e.target.value as FacebookGenerateOptions["captionLength"])}>
-                <option value="short">Pendek</option>
-                <option value="medium">Sedang</option>
-                <option value="long">Panjang</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Image Ratio</span>
-              <select value={fbImageRatio} onChange={(e) => setFbImageRatio(e.target.value as FacebookGenerateOptions["imageRatio"])}>
-                <option value="1:1">1:1</option>
-                <option value="4:5">4:5</option>
-                <option value="16:9">16:9</option>
-                <option value="9:16">9:16</option>
-              </select>
-            </label>
-            <label className="share-input-field share-input-field--checkbox">
-              <input type="checkbox" checked={fbIncludeFirstComment} onChange={(e) => setFbIncludeFirstComment(e.target.checked)} />
-              <span>First Comment</span>
-            </label>
-            <label className="share-input-field share-input-field--checkbox">
-              <input type="checkbox" checked={fbIncludeImagePrompt} onChange={(e) => setFbIncludeImagePrompt(e.target.checked)} />
-              <span>Image Prompt</span>
-            </label>
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Mode Post"
+              name="fb_post_mode"
+              defaultValue={fbPostMode}
+              options={fbPostModeOptions}
+              onChange={(v) => setFbPostMode(v as FacebookGenerateOptions["postMode"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Panjang Caption"
+              name="fb_caption_length"
+              defaultValue={fbCaptionLength}
+              options={fbCaptionLengthOptions}
+              onChange={(v) => setFbCaptionLength(v as FacebookGenerateOptions["captionLength"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Image Ratio"
+              name="fb_image_ratio"
+              defaultValue={fbImageRatio}
+              options={fbImageRatioOptions}
+              onChange={(v) => setFbImageRatio(v as FacebookGenerateOptions["imageRatio"])}
+            />
+            <ToggleField
+              label="First Comment"
+              name="fb_include_first_comment"
+              defaultChecked={fbIncludeFirstComment}
+              onChange={setFbIncludeFirstComment}
+            />
+            <ToggleField
+              label="Image Prompt"
+              name="fb_include_image_prompt"
+              defaultChecked={fbIncludeImagePrompt}
+              onChange={setFbIncludeImagePrompt}
+            />
           </div>
         )}
 
         {platform === "threads" && (
           <div className="share-input-options__grid">
-            <label className="share-input-field">
-              <span>Mode</span>
-              <select value={threadsMode} onChange={(e) => setThreadsMode(e.target.value as ThreadsGenerateOptions["mode"])}>
-                <option value="single">Single</option>
-                <option value="thread">Thread</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Link Placement</span>
-              <select value={threadsLinkPlacement} onChange={(e) => setThreadsLinkPlacement(e.target.value as ThreadsGenerateOptions["linkPlacement"])}>
-                <option value="in_caption">Di Caption</option>
-                <option value="first_reply">Reply Pertama</option>
-                <option value="none">Tanpa Link</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Image Placement</span>
-              <select value={threadsImagePlacement} onChange={(e) => setThreadsImagePlacement(e.target.value as ThreadsGenerateOptions["imagePlacement"])}>
-                <option value="with_post">Dengan Post</option>
-                <option value="none">Tanpa Gambar</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Image Ratio</span>
-              <select value={threadsImageRatio} onChange={(e) => setThreadsImageRatio(e.target.value as ThreadsGenerateOptions["imageRatio"])}>
-                <option value="1:1">1:1</option>
-                <option value="4:5">4:5</option>
-                <option value="9:16">9:16</option>
-              </select>
-            </label>
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Mode"
+              name="threads_mode"
+              defaultValue={threadsMode}
+              options={threadsModeOptions}
+              onChange={(v) => setThreadsMode(v as ThreadsGenerateOptions["mode"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Link Placement"
+              name="threads_link_placement"
+              defaultValue={threadsLinkPlacement}
+              options={threadsLinkPlacementOptions}
+              onChange={(v) => setThreadsLinkPlacement(v as ThreadsGenerateOptions["linkPlacement"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Image Placement"
+              name="threads_image_placement"
+              defaultValue={threadsImagePlacement}
+              options={threadsImagePlacementOptions}
+              onChange={(v) => setThreadsImagePlacement(v as ThreadsGenerateOptions["imagePlacement"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Image Ratio"
+              name="threads_image_ratio"
+              defaultValue={threadsImageRatio}
+              options={threadsImageRatioOptions}
+              onChange={(v) => setThreadsImageRatio(v as ThreadsGenerateOptions["imageRatio"])}
+            />
           </div>
         )}
 
         {platform === "x" && (
           <div className="share-input-options__grid">
-            <label className="share-input-field">
-              <span>Mode</span>
-              <select value={xMode} onChange={(e) => setXMode(e.target.value as XGenerateOptions["mode"])}>
-                <option value="single_tweet">Single Tweet</option>
-                <option value="thread">Thread</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Length Mode</span>
-              <select value={xLengthMode} onChange={(e) => setXLengthMode(e.target.value as XGenerateOptions["lengthMode"])}>
-                <option value="punchy">Punchy</option>
-                <option value="standard">Standard</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Link Placement</span>
-              <select value={xLinkPlacement} onChange={(e) => setXLinkPlacement(e.target.value as XGenerateOptions["linkPlacement"])}>
-                <option value="reply">Reply</option>
-                <option value="none">Tanpa Link</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Image Ratio</span>
-              <select value={xImageRatio} onChange={(e) => setXImageRatio(e.target.value as XGenerateOptions["imageRatio"])}>
-                <option value="1:1">1:1</option>
-                <option value="16:9">16:9</option>
-              </select>
-            </label>
-            <label className="share-input-field share-input-field--checkbox">
-              <input type="checkbox" checked={xIncludeImagePrompt} onChange={(e) => setXIncludeImagePrompt(e.target.checked)} />
-              <span>Image Prompt</span>
-            </label>
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Mode"
+              name="x_mode"
+              defaultValue={xMode}
+              options={xModeOptions}
+              onChange={(v) => setXMode(v as XGenerateOptions["mode"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Length Mode"
+              name="x_length_mode"
+              defaultValue={xLengthMode}
+              options={xLengthModeOptions}
+              onChange={(v) => setXLengthMode(v as XGenerateOptions["lengthMode"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Link Placement"
+              name="x_link_placement"
+              defaultValue={xLinkPlacement}
+              options={xLinkPlacementOptions}
+              onChange={(v) => setXLinkPlacement(v as XGenerateOptions["linkPlacement"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Image Ratio"
+              name="x_image_ratio"
+              defaultValue={xImageRatio}
+              options={xImageRatioOptions}
+              onChange={(v) => setXImageRatio(v as XGenerateOptions["imageRatio"])}
+            />
+            <ToggleField
+              label="Image Prompt"
+              name="x_include_image_prompt"
+              defaultChecked={xIncludeImagePrompt}
+              onChange={setXIncludeImagePrompt}
+            />
           </div>
         )}
 
         {platform === "pinterest" && (
           <div className="share-input-options__grid">
-            <label className="share-input-field">
-              <span>Pin Type</span>
-              <select value={pinterestPinType} onChange={(e) => setPinterestPinType(e.target.value as PinterestGenerateOptions["pinType"])}>
-                <option value="standard">Standard</option>
-                <option value="idea">Idea</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>SEO Keyword Mode</span>
-              <select value={pinterestSeoKeywordMode} onChange={(e) => setPinterestSeoKeywordMode(e.target.value as PinterestGenerateOptions["seoKeywordMode"])}>
-                <option value="auto">Auto</option>
-                <option value="manual">Manual</option>
-              </select>
-            </label>
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Pin Type"
+              name="pinterest_pin_type"
+              defaultValue={pinterestPinType}
+              options={pinterestPinTypeOptions}
+              onChange={(v) => setPinterestPinType(v as PinterestGenerateOptions["pinType"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="SEO Keyword Mode"
+              name="pinterest_seo_keyword_mode"
+              defaultValue={pinterestSeoKeywordMode}
+              options={pinterestSeoKeywordModeOptions}
+              onChange={(v) => setPinterestSeoKeywordMode(v as PinterestGenerateOptions["seoKeywordMode"])}
+            />
             {pinterestSeoKeywordMode === "manual" && (
               <label className="share-input-field">
                 <span>SEO Keyword</span>
@@ -411,28 +554,36 @@ export function ShareInputForm({ action, platform, prefillAngle, prefillVariantC
                 />
               </label>
             )}
-            <label className="share-input-field">
-              <span>CTA Style</span>
-              <select value={pinterestCtaStyle} onChange={(e) => setPinterestCtaStyle(e.target.value as PinterestGenerateOptions["ctaStyle"])}>
-                <option value="soft">Soft</option>
-                <option value="direct">Direct</option>
-              </select>
-            </label>
-            <label className="share-input-field">
-              <span>Image Ratio</span>
-              <select value={pinterestImageRatio} onChange={(e) => setPinterestImageRatio(e.target.value as PinterestGenerateOptions["imageRatio"])}>
-                <option value="2:3">2:3</option>
-                <option value="1:1">1:1</option>
-              </select>
-            </label>
-            <label className="share-input-field share-input-field--checkbox">
-              <input type="checkbox" checked disabled aria-label="Image Prompt (wajib)" />
-              <span>Image Prompt <small>(wajib)</small></span>
-            </label>
-            <label className="share-input-field share-input-field--checkbox">
-              <input type="checkbox" checked={pinterestGenerateAltText} onChange={(e) => setPinterestGenerateAltText(e.target.checked)} />
-              <span>Alt Text</span>
-            </label>
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="CTA Style"
+              name="pinterest_cta_style"
+              defaultValue={pinterestCtaStyle}
+              options={pinterestCtaStyleOptions}
+              onChange={(v) => setPinterestCtaStyle(v as PinterestGenerateOptions["ctaStyle"])}
+            />
+            <RelationalPicker
+              compact
+              searchable={false}
+              label="Image Ratio"
+              name="pinterest_image_ratio"
+              defaultValue={pinterestImageRatio}
+              options={pinterestImageRatioOptions}
+              onChange={(v) => setPinterestImageRatio(v as PinterestGenerateOptions["imageRatio"])}
+            />
+            <ToggleField
+              label="Image Prompt (wajib)"
+              name="pinterest_include_image_prompt"
+              defaultChecked={true}
+              disabled
+            />
+            <ToggleField
+              label="Alt Text"
+              name="pinterest_generate_alt_text"
+              defaultChecked={pinterestGenerateAltText}
+              onChange={setPinterestGenerateAltText}
+            />
           </div>
         )}
       </fieldset>

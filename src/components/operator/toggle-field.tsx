@@ -8,6 +8,7 @@ type ToggleFieldProps = {
   defaultChecked?: boolean;
   helperText?: string;
   disabled?: boolean;
+  onChange?: (checked: boolean) => void;
 };
 
 export function ToggleField({
@@ -16,6 +17,7 @@ export function ToggleField({
   defaultChecked = true,
   helperText,
   disabled,
+  onChange,
 }: ToggleFieldProps) {
   const [checked, setChecked] = useState(defaultChecked);
 
@@ -29,7 +31,10 @@ export function ToggleField({
         className="settings-switch-row__toggle"
         type="checkbox"
         checked={checked}
-        onChange={(e) => setChecked(e.target.checked)}
+        onChange={(e) => {
+          setChecked(e.target.checked);
+          onChange?.(e.target.checked);
+        }}
         disabled={disabled}
         aria-label={label}
       />
