@@ -67,6 +67,8 @@ Range: `origin/main..HEAD`
 - `108505b` docs(perf): add page load performance plan
 - `1903c19` feat(formalization): add app release metadata
 - `b7ed263` feat(release): automate Banplex OS identity metadata
+- `c93df74` docs(release): enforce changelog and deploy runbook
+- `7afdfc4` fix(db): grant share workspace data api access
 <!-- changelog:generated:end -->
 
 ## 2026-05-24 - Formalisasi Banplex OS
