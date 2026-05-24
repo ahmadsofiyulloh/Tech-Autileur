@@ -1,9 +1,15 @@
-import { SharePlatformPicker } from "./share-platform-picker";
+import { SharePlatformGrid } from "./_components/share-platform-grid";
+import { ShareKpiSummary } from "./_components/share-kpi-summary";
 
 export const metadata = {
   title: "Share",
 };
 
 export default function SharePage() {
-  return <SharePlatformPicker />;
+  return (
+    <div className="stack">
+      <ShareKpiSummary />
+      <SharePlatformGrid />
+    </div>
+  );
 }

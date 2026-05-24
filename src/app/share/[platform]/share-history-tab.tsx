@@ -6,6 +6,7 @@ import { SHARE_ANGLE_LABELS, type SharePlatform } from "@/lib/share/share-platfo
 import { buildShareListHref } from "@/lib/share/share-list-contract";
 
 type ShareHistoryTabProps = {
+  activeGenerationId: string | null;
   generations: ShareGenerationRecord[];
   platform: SharePlatform;
   productId: string;
@@ -18,7 +19,7 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function buildRegenerateHref(input: {
+function buildViewHref(input: {
   platform: SharePlatform;
   productId: string;
   generationId: string;
@@ -26,12 +27,13 @@ function buildRegenerateHref(input: {
   const base = buildShareListHref({
     platform: input.platform,
     detailId: input.productId,
+    tab: "output",
   });
   const separator = base.includes("?") ? "&" : "?";
-  return `${base}${separator}mode=input&from=${encodeURIComponent(input.generationId)}`;
+  return `${base}${separator}version=${encodeURIComponent(input.generationId)}`;
 }
 
-export function ShareHistoryTab({ generations, platform, productId }: ShareHistoryTabProps) {
+export function ShareHistoryTab({ activeGenerationId, generations, platform, productId }: ShareHistoryTabProps) {
   if (!generations.length) {
     return (
       <div className="share-history-tab">
@@ -51,14 +53,18 @@ export function ShareHistoryTab({ generations, platform, productId }: ShareHisto
       <ul className="share-history-list">
         {generations.map((generation) => {
           const preview = generation.output_json?.[0]?.caption?.trim() ?? "Belum ada output.";
-          const regenerateHref = buildRegenerateHref({
+          const viewHref = buildViewHref({
             platform,
             productId,
             generationId: generation.id,
           });
 
           return (
-            <li key={generation.id} className="share-history-row">
+            <li
+              key={generation.id}
+              className="share-history-row"
+              data-active={activeGenerationId === generation.id ? "true" : undefined}
+            >
               <div className="share-history-row__body">
                 <div className="share-history-row__meta">{formatDate(generation.created_at)}</div>
                 <div className="share-history-row__settings">
@@ -67,8 +73,8 @@ export function ShareHistoryTab({ generations, platform, productId }: ShareHisto
                 </div>
                 <div className="share-history-row__preview">{preview}</div>
                 <div className="share-history-row__actions">
-                  <Link className="compact primary" href={regenerateHref}>
-                    Regenerate
+                  <Link className="compact" href={viewHref}>
+                    Lihat
                   </Link>
                 </div>
               </div>

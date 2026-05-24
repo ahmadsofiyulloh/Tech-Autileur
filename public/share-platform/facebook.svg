@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="fb-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1877F2"/>
+      <stop offset="60%" stop-color="#0F4DBF"/>
+      <stop offset="100%" stop-color="#0A2E73"/>
+    </linearGradient>
+    <radialGradient id="fb-glow" cx="78%" cy="22%" r="65%">
+      <stop offset="0%" stop-color="#4D8CFF" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#4D8CFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#fb-bg)"/>
+  <rect width="400" height="300" fill="url(#fb-glow)"/>
+  <g opacity="0.18" stroke="#FFFFFF" stroke-width="1" fill="none">
+    <circle cx="60" cy="240" r="36"/>
+    <circle cx="60" cy="240" r="68"/>
+    <circle cx="60" cy="240" r="100"/>
+    <circle cx="60" cy="240" r="132"/>
+  </g>
+  <g transform="translate(200 150)">
+    <circle r="60" fill="#FFFFFF" fill-opacity="0.10"/>
+    <path d="M14 -28 H 28 V -52 H 14 C -2 -52 -10 -42 -10 -26 V -14 H -22 V 6 H -10 V 56 H 12 V 6 H 26 L 30 -14 H 12 V -22 C 12 -26 12 -28 14 -28 Z" fill="#FFFFFF"/>
+  </g>
+</svg>

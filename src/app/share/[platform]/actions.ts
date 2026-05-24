@@ -4,7 +4,13 @@ import { redirect } from "next/navigation";
 import { upsertShareProductLink } from "@/lib/server/share-product-links";
 import { createShareGeneration } from "@/lib/server/share-generations";
 import { buildShareListHref } from "@/lib/share/share-list-contract";
-import { isSharePlatform, isShareAngle, normalizeShareVariantCount } from "@/lib/share/share-platform";
+import {
+  isSharePlatform,
+  isShareAngle,
+  normalizeShareVariantCount,
+  normalizeShareGenerateOptions,
+  type ShareGenerateOptions,
+} from "@/lib/share/share-platform";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -23,6 +29,7 @@ export async function generateShareCaption(formData: FormData) {
   const affiliateUrl = readText(formData, "affiliate_url");
   const angle = readText(formData, "angle");
   const variantCountRaw = readText(formData, "variant_count");
+  const optionsJsonRaw = readText(formData, "options_json");
 
   if (!productId) {
     redirect("/share");
@@ -42,6 +49,18 @@ export async function generateShareCaption(formData: FormData) {
 
   const variantCount = normalizeShareVariantCount(Number(variantCountRaw) || 2);
 
+  // Parse and normalize options if present; fall back to defaults if absent or invalid.
+  // Options are persisted to share_generations.input_params (see SHARE-V1-003a migration).
+  let options: ShareGenerateOptions | undefined;
+  if (optionsJsonRaw) {
+    try {
+      const parsed = JSON.parse(optionsJsonRaw);
+      options = normalizeShareGenerateOptions(platform, parsed);
+    } catch {
+      // Invalid JSON or parse error — proceed with defaults (options = undefined).
+    }
+  }
+
   try {
     await upsertShareProductLink({ productId, affiliateUrl });
   } catch (error) {
@@ -56,6 +75,7 @@ export async function generateShareCaption(formData: FormData) {
       platform,
       angle,
       variantCount,
+      inputParams: options,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Gagal membuat generation.";

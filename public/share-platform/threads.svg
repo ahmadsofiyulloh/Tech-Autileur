@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="th-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1A1A"/>
+      <stop offset="50%" stop-color="#111111"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </linearGradient>
+    <radialGradient id="th-glow" cx="25%" cy="75%" r="60%">
+      <stop offset="0%" stop-color="#444444" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#444444" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#th-bg)"/>
+  <rect width="400" height="300" fill="url(#th-glow)"/>
+  <g opacity="0.10" stroke="#FFFFFF" stroke-width="1" fill="none">
+    <circle cx="340" cy="60" r="40"/>
+    <circle cx="340" cy="60" r="80"/>
+    <circle cx="340" cy="60" r="120"/>
+  </g>
+  <g transform="translate(200 150)">
+    <circle r="60" fill="#FFFFFF" fill-opacity="0.06"/>
+    <path d="M 0 -36 C -20 -36 -36 -20 -36 0 C -36 20 -20 36 0 36 C 14 36 26 28 32 16 M 32 16 C 36 8 36 -4 30 -14 C 22 -28 6 -36 0 -36 M -4 -10 C 4 -10 14 -6 18 2 C 22 10 20 22 12 28 C 4 34 -8 32 -16 24 C -24 16 -24 2 -16 -6 C -10 -12 -4 -10 -4 -10 Z" stroke="#FFFFFF" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="32" y1="16" x2="32" y2="40" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+</svg>

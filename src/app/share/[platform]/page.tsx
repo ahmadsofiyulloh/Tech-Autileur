@@ -30,8 +30,8 @@ type SharePlatformPageProps = {
     page?: string | string[];
     q?: string | string[];
     tab?: string | string[];
-    mode?: string | string[];
     from?: string | string[];
+    version?: string | string[];
   }>;
 };
 
@@ -112,9 +112,8 @@ export default async function SharePlatformPage({ params, searchParams }: ShareP
     search: requestedSearch,
   });
 
-  const modeParam = firstParam(query.mode);
   const fromParam = firstParam(query.from);
-  const showInput = modeParam === "input";
+  const versionParam = firstParam(query.version);
 
   const latestGeneration = selectedRow
     ? await getLatestShareGeneration({
@@ -133,6 +132,31 @@ export default async function SharePlatformPage({ params, searchParams }: ShareP
   const prefillGeneration = fromParam
     ? generations.find((g) => g.id === fromParam) ?? null
     : null;
+
+  let selectedGeneration = null as Awaited<ReturnType<typeof getLatestShareGeneration>>;
+
+  if (selectedRow && versionParam) {
+    if (latestGeneration && versionParam === latestGeneration.id) {
+      selectedGeneration = latestGeneration;
+    } else {
+      const fromHistory = generations.find((g) => g.id === versionParam) ?? null;
+
+      if (fromHistory) {
+        selectedGeneration = fromHistory;
+      } else {
+        const { data: versionRow } = await supabase
+          .from("share_generations")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("product_id", selectedRow.id)
+          .eq("platform", platform)
+          .eq("id", versionParam)
+          .maybeSingle();
+
+        selectedGeneration = (versionRow ?? null) as typeof selectedGeneration;
+      }
+    }
+  }
 
   return (
     <div className="operator-detail-layout" data-has-detail={hasDetail ? "true" : undefined}>
@@ -162,8 +186,9 @@ export default async function SharePlatformPage({ params, searchParams }: ShareP
               prefillAngle={prefillGeneration?.angle}
               prefillVariantCount={prefillGeneration?.variant_count}
               product={selectedRow}
+              selectedGeneration={selectedGeneration}
               selectedTab={selectedTab}
-              showInput={showInput}
+              selectedVersionId={versionParam ?? null}
             />
           ) : (
             <div className="share-detail-panel">

@@ -112,9 +112,13 @@ export function normalizeShareDetailId(value: string | string[] | null | undefin
   return readText(value) || null;
 }
 
-export function normalizeShareTab(value: string | string[] | null | undefined): "output" | "history" {
+export type ShareTab = "output" | "history" | "generate";
+
+export function normalizeShareTab(value: string | string[] | null | undefined): ShareTab {
   const raw = readText(value).toLowerCase();
-  return raw === "history" ? "history" : "output";
+  if (raw === "history") return "history";
+  if (raw === "generate") return "generate";
+  return "output";
 }
 
 export function normalizeSharePlatformParam(value: string | null | undefined): SharePlatform | null {

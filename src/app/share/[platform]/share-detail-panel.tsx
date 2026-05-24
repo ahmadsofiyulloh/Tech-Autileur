@@ -6,7 +6,7 @@ import { ShareOutputTab } from "./share-output-tab";
 import { ShareHistoryTab } from "./share-history-tab";
 import type { SharePlatform } from "@/lib/share/share-platform";
 import type { ShareAngle } from "@/lib/share/share-platform";
-import type { ShareListRow } from "@/lib/share/share-list-contract";
+import type { ShareListRow, ShareTab } from "@/lib/share/share-list-contract";
 import { buildShareListHref } from "@/lib/share/share-list-contract";
 import type { ShareGenerationRecord } from "@/lib/server/share-generations";
 
@@ -18,12 +18,14 @@ type ShareDetailPanelProps = {
   prefillAngle?: ShareAngle | null;
   prefillVariantCount?: number | null;
   product: ShareListRow;
-  selectedTab: "output" | "history";
-  showInput?: boolean;
+  selectedGeneration: ShareGenerationRecord | null;
+  selectedTab: ShareTab;
+  selectedVersionId?: string | null;
 };
 
 const shareTabs = [
   { key: "output", label: "Output" },
+  { key: "generate", label: "Generate" },
   { key: "history", label: "History" },
 ] as const;
 
@@ -35,20 +37,12 @@ export function ShareDetailPanel({
   prefillAngle,
   prefillVariantCount,
   product,
+  selectedGeneration,
   selectedTab,
-  showInput,
+  selectedVersionId,
 }: ShareDetailPanelProps) {
-  if (!latestGeneration || showInput) {
-    return (
-      <ShareInputForm
-        action={action}
-        platform={platform}
-        prefillAngle={prefillAngle}
-        prefillVariantCount={prefillVariantCount}
-        product={product}
-      />
-    );
-  }
+  const effectiveTab: ShareTab =
+    !latestGeneration && selectedTab !== "generate" ? "generate" : selectedTab;
 
   return (
     <div className="share-detail-panel">
@@ -62,9 +56,9 @@ export function ShareDetailPanel({
 
           return (
             <Link
-              aria-current={selectedTab === tab.key ? "page" : undefined}
+              aria-current={effectiveTab === tab.key ? "page" : undefined}
               className="tab-link"
-              data-active={selectedTab === tab.key ? "true" : undefined}
+              data-active={effectiveTab === tab.key ? "true" : undefined}
               href={href}
               key={tab.key}
             >
@@ -74,10 +68,36 @@ export function ShareDetailPanel({
         })}
       </nav>
 
-      {selectedTab === "output" ? <ShareOutputTab generation={latestGeneration} /> : null}
+      {effectiveTab === "output" && latestGeneration ? (
+        <ShareOutputTab
+          generation={selectedGeneration ?? latestGeneration}
+          latestGenerationId={latestGeneration.id}
+          isViewingOldVersion={Boolean(
+            selectedVersionId && selectedVersionId !== latestGeneration.id,
+          )}
+          platform={platform}
+          productId={product.id}
+          affiliateUrl={product.affiliate_url}
+        />
+      ) : null}
 
-      {selectedTab === "history" ? (
-        <ShareHistoryTab generations={generations} platform={platform} productId={product.id} />
+      {effectiveTab === "generate" ? (
+        <ShareInputForm
+          action={action}
+          platform={platform}
+          prefillAngle={prefillAngle}
+          prefillVariantCount={prefillVariantCount}
+          product={product}
+        />
+      ) : null}
+
+      {effectiveTab === "history" ? (
+        <ShareHistoryTab
+          activeGenerationId={selectedGeneration?.id ?? latestGeneration?.id ?? null}
+          generations={generations}
+          platform={platform}
+          productId={product.id}
+        />
       ) : null}
     </div>
   );
