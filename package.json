@@ -1,7 +1,7 @@
 {
   "name": "affiliate-ai-content-os",
   "private": true,
-  "version": "0.1.0",
+  "version": "2026.5.24-1",
   "type": "module",
   "scripts": {
     "dev": "next dev",

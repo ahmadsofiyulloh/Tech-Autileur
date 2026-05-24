@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
+import { APP_RELEASE } from "@/lib/server/app-release";
 import { getOperatorShellContext } from "@/lib/server/operator-shell";
 import {
   DEFAULT_RESOLVED_THEME,
@@ -191,7 +192,12 @@ export default async function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: hydrationAttributeCleanerScript }}
         />
-        <AppShell shellContext={shellContext} themePreference={themePreference}>
+        <AppShell
+          appBuildNumber={APP_RELEASE.buildNumber}
+          appCopyrightLine={APP_RELEASE.copyrightLine}
+          shellContext={shellContext}
+          themePreference={themePreference}
+        >
           {children}
         </AppShell>
       </body>

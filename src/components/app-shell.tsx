@@ -15,10 +15,14 @@ import type { ThemePreference } from "@/lib/theme-preference";
 
 export function AppShell({
   children,
+  appBuildNumber,
+  appCopyrightLine,
   shellContext,
   themePreference,
 }: {
   children: ReactNode;
+  appBuildNumber: string;
+  appCopyrightLine: string;
   shellContext: OperatorShellContext;
   themePreference: ThemePreference;
 }) {
@@ -36,7 +40,12 @@ export function AppShell({
 
   return (
     <TopbarProvider>
-      <OperatorShellContent shellContext={shellContext} themePreference={themePreference}>
+      <OperatorShellContent
+        appBuildNumber={appBuildNumber}
+        appCopyrightLine={appCopyrightLine}
+        shellContext={shellContext}
+        themePreference={themePreference}
+      >
         {children}
       </OperatorShellContent>
     </TopbarProvider>
@@ -45,10 +54,14 @@ export function AppShell({
 
 function OperatorShellContent({
   children,
+  appBuildNumber,
+  appCopyrightLine,
   shellContext,
   themePreference,
 }: {
   children: ReactNode;
+  appBuildNumber: string;
+  appCopyrightLine: string;
   shellContext: OperatorShellContext;
   themePreference: ThemePreference;
 }) {
@@ -180,6 +193,10 @@ function OperatorShellContent({
           })}
         </nav>
         <div className="sidebar-footer">
+          <div className="sidebar-footer__meta" aria-label="Informasi aplikasi">
+            <span className="sidebar-footer__version">{`Build ${appBuildNumber}`}</span>
+            <span className="sidebar-footer__copyright">{appCopyrightLine}</span>
+          </div>
           <button
             aria-label={sidebarToggleLabel}
             aria-pressed={isSidebarCollapsed}

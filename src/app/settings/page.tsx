@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   ChevronRight,
+  Info,
   KeyRound,
   Settings,
   UserRound,
@@ -26,6 +27,7 @@ import { listDriveItemsByIds, type DriveItemRecord } from "@/lib/server/drive-it
 import { getActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope";
 import { getGoogleDriveConnection, isGoogleDriveConnectionSchemaMissingError } from "@/lib/server/google-drive-connections";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError } from "@/lib/server/helper-api-tokens";
+import { APP_RELEASE } from "@/lib/server/app-release";
 import { getWorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -297,6 +299,16 @@ export default async function SettingsPage() {
     },
     { key: "gemini", href: "/settings/gemini", title: "Gemini", icon: KeyRound, status: <StatusBadge status="Open" tone="info" />, detail: "Konfigurasi API Gemini." },
   ];
+  const supportCards: SettingsCard[] = [
+    {
+      key: "about",
+      href: "/settings/about",
+      title: "Tentang",
+      icon: Info,
+      status: <StatusBadge status="Rilis" tone="info" />,
+      detail: `Versi ${APP_RELEASE.buildNumber}.`,
+    },
+  ];
   const accountCards = cards.filter((card) => card.key === "account");
   const serviceCards = cards.filter((card) => card.key === "google-drive" || card.key === "gemini");
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
@@ -324,6 +336,7 @@ export default async function SettingsPage() {
         />
         <SettingsGroup title="Account" cards={accountCards} />
         <SettingsGroup title="Connected Services" cards={serviceCards} />
+        <SettingsGroup title="Sistem & Dukungan" cards={supportCards} />
       </section>
       {cards.length ? null : (
         <EmptyState icon={Settings} title="Pengaturan kosong." description="Belum ada section." />
