@@ -4,7 +4,7 @@ Copy this prompt into a new implementer session and fill the brackets before sen
 
 ---
 
-You are implementing a locked UI/UX polish micro-task for Affiliate AI Content OS.
+You are implementing a locked UI/UX polish micro-task for Banplex OS.
 
 Start by reading these docs in order:
 
@@ -71,7 +71,7 @@ Stop and report instead of coding if:
 Replace the bracketed values and send this as the session prompt:
 
 ```text
-You are implementing a locked UI/UX polish micro-task for Affiliate AI Content OS.
+You are implementing a locked UI/UX polish micro-task for Banplex OS.
 
 Read these docs first:
 1. docs/UI_UX_POLISH_SESSION_START.md

@@ -2,7 +2,7 @@
 
 ## Micro-task
 
-Page load performance refactor for the Affiliate AI Content OS Next.js App Router application using a Progressive Cached Read Architecture.
+Page load performance refactor for the Banplex OS Next.js App Router application using a Progressive Cached Read Architecture.
 
 ## Goal
 

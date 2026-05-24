@@ -1,5 +1,7 @@
 import "server-only";
 
+import fs from "node:fs";
+import path from "node:path";
 import packageJson from "../../../package.json";
 
 type AppReleaseFaqItem = {
@@ -11,6 +13,20 @@ type AppReleaseEntry = {
   summary: string;
   version: string;
 };
+
+type AppReleaseMeta = {
+  branch?: string;
+  buildNumber?: string;
+  commitSha?: string;
+  commitShortSha?: string;
+  generatedAt?: string;
+  releaseDate?: string;
+  source?: string;
+};
+
+const APP_NAME = "Banplex OS";
+const OWNER_NAME = "Dzul Qornain";
+const releaseMetaPath = path.join(process.cwd(), "public", "release-meta.json");
 
 function formatBuildNumber(version: string) {
   const [core, preRelease = "0"] = version.split("-");
@@ -26,13 +42,37 @@ function formatReleaseDate(version: string) {
   return `${year}-${month?.padStart(2, "0") ?? "00"}-${day?.padStart(2, "0") ?? "00"}`;
 }
 
+function readReleaseMeta(): AppReleaseMeta | null {
+  try {
+    if (!fs.existsSync(releaseMetaPath)) {
+      return null;
+    }
+
+    return JSON.parse(fs.readFileSync(releaseMetaPath, "utf8")) as AppReleaseMeta;
+  } catch {
+    return null;
+  }
+}
+
+function readText(value: string | undefined, fallback: string) {
+  const normalized = value?.trim();
+  return normalized ? normalized : fallback;
+}
+
+const releaseMeta = readReleaseMeta();
+
 export const APP_RELEASE = {
-  appName: "Affiliate AI Content OS",
-  buildNumber: formatBuildNumber(packageJson.version),
-  copyrightLine: "Copyright 2026 Tech Autiluer",
-  ownerName: "Tech Autiluer",
+  appName: APP_NAME,
+  branch: readText(releaseMeta?.branch, ""),
+  buildNumber: readText(releaseMeta?.buildNumber, formatBuildNumber(packageJson.version)),
+  buildSource: readText(releaseMeta?.source, releaseMeta ? "release-meta" : "package"),
+  commitSha: readText(releaseMeta?.commitSha, ""),
+  commitShortSha: readText(releaseMeta?.commitShortSha, ""),
+  copyrightLine: `Copyright 2026 ${OWNER_NAME}`,
+  generatedAt: readText(releaseMeta?.generatedAt, ""),
+  ownerName: OWNER_NAME,
   packageVersion: packageJson.version,
-  releaseDate: formatReleaseDate(packageJson.version),
+  releaseDate: readText(releaseMeta?.releaseDate, formatReleaseDate(packageJson.version)),
 } as const;
 
 export const APP_RELEASE_FAQ: AppReleaseFaqItem[] = [
@@ -42,7 +82,7 @@ export const APP_RELEASE_FAQ: AppReleaseFaqItem[] = [
   },
   {
     question: "Apa arti build number?",
-    answer: "Nomor rilis bertanggal dengan format YYYY.MM.DD.N.",
+    answer: "Nomor rilis otomatis bertanggal dengan format YYYY.MM.DD.N.",
   },
   {
     question: "Apakah ada sertifikat resmi?",
@@ -50,7 +90,7 @@ export const APP_RELEASE_FAQ: AppReleaseFaqItem[] = [
   },
   {
     question: "Kapan versi dinaikkan?",
-    answer: "Setiap rilis formal atau bundle perubahan yang siap dipakai operator.",
+    answer: "Setiap push atau deploy yang menjalankan build metadata.",
   },
   {
     question: "Apa bedanya dengan versi prompt?",
@@ -61,6 +101,6 @@ export const APP_RELEASE_FAQ: AppReleaseFaqItem[] = [
 export const APP_RELEASE_CHANGELOG: AppReleaseEntry[] = [
   {
     version: APP_RELEASE.buildNumber,
-    summary: "Footer shell, Settings > Tentang, FAQ, changelog, dan copyright diformalisasi.",
+    summary: "Brand Banplex OS, metadata rilis otomatis, changelog, dan copyright diformalisasi.",
   },
 ];

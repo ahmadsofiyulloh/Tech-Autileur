@@ -16,6 +16,7 @@ supabase/.temp
 playwright-report
 test-results
 screenshots/
+public/release-meta.json
 gemini_prototype_design
 excel prototype/
 *.log

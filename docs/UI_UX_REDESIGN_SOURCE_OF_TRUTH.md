@@ -2,7 +2,7 @@
 
 ## 1. Intent
 
-Affiliate AI Content OS is an operator dashboard, not a landing page.
+Banplex OS is an operator dashboard, not a landing page.
 
 The UI exists to help one owner/operator move through intake, metadata review, prompt production, Drive asset review, settings, and secondary monitoring with minimal friction. Redesign work must improve clarity, density, responsiveness, and action access without changing the locked product workflow.
 

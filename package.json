@@ -1,12 +1,16 @@
 {
-  "name": "affiliate-ai-content-os",
+  "name": "banplex-os",
   "private": true,
   "version": "2026.5.24-1",
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/write-release-meta.mjs",
     "build": "next build",
     "start": "next start",
+    "release:meta": "node scripts/write-release-meta.mjs",
+    "changelog:generate": "node scripts/generate-changelog.mjs",
+    "changelog:check": "node scripts/check-changelog.mjs",
     "audit:colors": "node scripts/audit-color-tokens.mjs",
     "audit:typography": "node scripts/audit-typography-tokens.mjs",
     "audit:neutral-ui": "node scripts/audit-neutral-ui-tokens.mjs",

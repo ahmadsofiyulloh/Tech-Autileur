@@ -1,7 +1,7 @@
 # UI/UX Polish Plan
 
 ## Summary
-Dokumen ini adalah rujukan tetap untuk semua UI/UX polish berikutnya di Affiliate AI Content OS. Isinya merangkum pola visual yang aman dari referensi gambar, lalu menerjemahkannya menjadi aturan implementasi yang konsisten untuk repo ini.
+Dokumen ini adalah rujukan tetap untuk semua UI/UX polish berikutnya di Banplex OS. Isinya merangkum pola visual yang aman dari referensi gambar, lalu menerjemahkannya menjadi aturan implementasi yang konsisten untuk repo ini.
 
 Tujuannya bukan redesign total. Tujuannya adalah membuat semua surface operasional terasa seperti satu sistem yang sama: rapi, padat, mobile-first, dan mudah dipolish bertahap tanpa mengubah flow MVP.
 

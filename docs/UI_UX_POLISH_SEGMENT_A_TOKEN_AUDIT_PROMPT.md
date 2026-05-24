@@ -3,7 +3,7 @@
 Copy this prompt into a new implementer session and send it as-is.
 
 ```text
-You are implementing a locked UI/UX polish micro-task for Affiliate AI Content OS.
+You are implementing a locked UI/UX polish micro-task for Banplex OS.
 
 Read these docs first:
 1. docs/UI_UX_POLISH_SESSION_START.md

@@ -1,7 +1,7 @@
 # Codex Prompt — Supabase MCP Database Task
 
 ```text
-You are working on Supabase database setup for Affiliate AI Content OS.
+You are working on Supabase database setup for Banplex OS.
 
 Read first:
 - AGENTS.md

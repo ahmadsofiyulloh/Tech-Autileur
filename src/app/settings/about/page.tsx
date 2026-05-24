@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CircleHelp, Clock3, Copyright, FileClock, Info, UserRound } from "lucide-react";
+import { CircleHelp, Clock3, Copyright, FileClock, GitCommit, Info, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/operator/empty-state";
@@ -72,6 +72,7 @@ export default async function SettingsAboutPage() {
         <AboutRow detail={APP_RELEASE.appName} icon={Info} title="Nama aplikasi" />
         <AboutRow detail={APP_RELEASE.buildNumber} icon={FileClock} title="Versi rilis" />
         <AboutRow detail={APP_RELEASE.releaseDate} icon={Clock3} title="Tanggal rilis" />
+        {APP_RELEASE.commitShortSha ? <AboutRow detail={APP_RELEASE.commitShortSha} icon={GitCommit} title="Commit" /> : null}
         <AboutRow detail={APP_RELEASE.ownerName} icon={UserRound} title="Pemilik" />
         <AboutRow detail={APP_RELEASE.copyrightLine} icon={Copyright} title="Hak cipta" />
       </AboutGroup>

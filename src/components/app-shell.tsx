@@ -127,7 +127,7 @@ function OperatorShellContent({
               <LockKeyhole size={16} />
             </span>
             <span className="sidebar-brand__copy">
-              Affiliate <strong>AI</strong>
+              Banplex <strong>OS</strong>
             </span>
           </Link>
         </div>

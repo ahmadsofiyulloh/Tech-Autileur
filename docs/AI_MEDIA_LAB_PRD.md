@@ -21,7 +21,7 @@
 
 ## 0. Decision Summary
 
-AI Media Lab is a private internal workspace inside Affiliate AI Content OS for testing visual/media AI provider workflows, initially focused on Magnific API.
+AI Media Lab is a private internal workspace inside Banplex OS for testing visual/media AI provider workflows, initially focused on Magnific API.
 
 This feature must not be built as a separate app and must not become a public playground. It extends the existing single-owner app as an operator tool.
 

@@ -1,4 +1,4 @@
-# PRD v1 Final - Affiliate AI Content OS MVP
+# PRD v1 Final - Banplex OS MVP
 
 **Status:** PHASE 1 PASS BASELINE; PHASE 2 MICRO-TASK IMPLEMENTATION LOCK
 **Version:** 1.3 Phase 1 Visual PWA Override Lock
@@ -20,7 +20,7 @@ This PRD remains the locked Phase 1 baseline. Phase 2 may extend the system only
 
 ## 0. Executive Summary
 
-Affiliate AI Content OS is a private operator tool for AI affiliate content production. Phase 1 prioritizes a mobile-first PWA loop for product screenshot intake, Gemini Vision metadata extraction, affiliate-profile prompt personalization, and visual Google Drive asset management.
+Banplex OS is a private operator tool for AI affiliate content production. Phase 1 prioritizes a mobile-first PWA loop for product screenshot intake, Gemini Vision metadata extraction, affiliate-profile prompt personalization, and visual Google Drive asset management.
 
 This MVP is an AI production control center. It is not a video editor, not an auto-uploader to TikTok/Shopee, and not a browser automation system.
 
@@ -647,7 +647,7 @@ The shell must support safe-area layout for bottom navigation and bottom sheets.
 ## 7. Final MVP Lock Statement
 
 ```text
-Affiliate AI Content OS MVP is a private AI production control center.
+Banplex OS MVP is a private AI production control center.
 
 It manages mobile product intake, Gemini metadata extraction, affiliate-profile prompt personalization, prompt pack versioning, Drive-based visual asset metadata, output packages, and secondary dashboard counts.
 

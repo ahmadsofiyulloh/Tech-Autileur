@@ -17,13 +17,13 @@ import {
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Affiliate AI Content OS",
-  title: "Affiliate AI Content OS",
-  description: "Mobile-first control center for AI affiliate content production.",
+  applicationName: "Banplex OS",
+  title: "Banplex OS",
+  description: "Private control center for AI affiliate content production.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "AICOS",
+    title: "Banplex",
     statusBarStyle: "default",
   },
   formatDetection: {

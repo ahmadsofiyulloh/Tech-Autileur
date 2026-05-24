@@ -4,7 +4,7 @@
 
 `LOCKED FOR DOCS-ONLY VISUAL SHELL POLISH PLANNING`.
 
-This lock defines the allowed visual rebrand direction for Tech-Autileur UI polish work. It does not approve runtime behavior changes, schema changes, route changes, new features, or new dependencies.
+This lock defines the allowed visual rebrand direction for Banplex OS UI polish work. It does not approve runtime behavior changes, schema changes, route changes, new features, or new dependencies.
 
 ## Reference Boundary
 
@@ -27,7 +27,7 @@ Forbidden use:
 
 ## Visual Direction
 
-Tech-Autileur must feel like a private production operating system for one operator managing AI affiliate content production.
+Banplex OS must feel like a private production operating system for one operator managing AI affiliate content production.
 
 Target feel:
 
@@ -185,4 +185,4 @@ Docs-only tasks may run `npm run typecheck` when explicitly scoped that way, but
 
 UI shell rebrand work is presentation-only unless a later micro-task explicitly expands scope.
 
-The goal is to make Tech-Autileur feel intentionally designed, professional, dense, calm, and production-grade while preserving all app flow, all data contracts, all route contracts, all form contracts, and all helper contracts.
+The goal is to make Banplex OS feel intentionally designed, professional, dense, calm, and production-grade while preserving all app flow, all data contracts, all route contracts, all form contracts, and all helper contracts.
