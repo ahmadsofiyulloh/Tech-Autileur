@@ -25,7 +25,7 @@
 .skeleton.medium{width:68%}
 .skeleton.long{width:92%}
 .loading-skeleton-static{pointer-events:none}
-.loading-skeleton-static .skeleton,.skeleton-icon,.skeleton-button,.skeleton-pill,.skeleton-chip,.skeleton-tab,.skeleton-avatar,.skeleton-media-thumb,.skeleton-preview-frame,.skeleton-donut{background:linear-gradient(90deg, var(--color-surface-muted-soft), color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-base)), var(--color-surface-muted-soft));background-size:200% 100%;animation:1.2s ease-in-out infinite shimmer}
+.loading-skeleton-static .skeleton,.loading-skeleton-static .skeleton-icon,.loading-skeleton-static .skeleton-button,.loading-skeleton-static .skeleton-pill,.loading-skeleton-static .skeleton-chip,.loading-skeleton-static .skeleton-tab,.loading-skeleton-static .skeleton-avatar,.loading-skeleton-static .skeleton-media-thumb,.loading-skeleton-static .skeleton-preview-frame,.loading-skeleton-static .skeleton-donut{background:linear-gradient(90deg, var(--color-surface-muted-soft), color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-base)), var(--color-surface-muted-soft));background-size:200% 100%;animation:1.2s ease-in-out infinite shimmer}
 .skeleton-icon{border-radius:var(--radius);flex:none;width:28px;height:28px;display:inline-grid}
 .skeleton-icon--small{border-radius:calc(var(--radius) - 2px);width:16px;height:16px}
 .skeleton-button{border-radius:var(--radius);width:96px;min-height:32px;display:inline-flex}

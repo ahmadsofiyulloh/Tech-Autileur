@@ -62,7 +62,8 @@
   border: 1px solid var(--ui-shell-border-muted);
   background: var(--ui-shell-surface-base);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
   width: 100%;
   max-width: 100%;

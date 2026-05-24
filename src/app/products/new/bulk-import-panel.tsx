@@ -532,7 +532,7 @@ function BulkImportProgressPanel({
 
       {canCancel ? (
         <div className="bulk-import-activity__footer">
-          <NativeButton className="compact danger" onClick={onCancel} type="button">
+          <NativeButton className="compact destructive" onClick={onCancel} type="button">
             <X size={14} aria-hidden="true" />
             Batal
           </NativeButton>

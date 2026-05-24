@@ -143,28 +143,11 @@ details,
   box-shadow: none;
 }
 
-.button.primary {
-  background: var(--btn-primary-bg);
-  border-color: var(--btn-primary-bg);
-  box-shadow: none;
-}
-
-.settings-inline-summary .button.primary {
-  color: var(--color-button-primary-text);
-}
-
 .button:hover,
 .button:focus-visible {
   border-color: var(--ui-shell-border-emphasis);
   background: var(--ui-shell-surface-selected);
   color: var(--control-active-text);
-}
-
-.button.primary:hover,
-.button.primary:focus-visible {
-  background: var(--btn-primary-hover-bg);
-  border-color: var(--btn-primary-hover-bg);
-  color: var(--btn-primary-text);
 }
 
 .button.destructive {

@@ -560,13 +560,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
           </NativeButton>
         </form>
 
-        <div className="settings-inline-summary prompt-inline-summary">
-          <span>
-            {displayCountLabel} - {resultCountLabel} - {pageLabel} - {activeReadinessFilterLabel}
-          </span>
-        </div>
-
-        <div className="content-filter-tabs desktop-action-set" role="tablist" aria-label="Filter kesiapan prompt">
+        <div className="content-filter-tabs" role="tablist" aria-label="Filter kesiapan prompt">
           {PROMPT_WORKBENCH_READINESS_FILTERS.map((filter) => {
             const count = filter.key === "ALL" ? promptReadinessCounts.total : promptReadinessCounts[filter.key];
             const isActive = requestedReadiness === filter.key;

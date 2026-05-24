@@ -77,7 +77,7 @@ function SelectionToggleButton({
 
 function BulkArchiveSubmitButton({ disabled, iconOnly = false }: { disabled: boolean; iconOnly?: boolean }) {
   return (
-    <NativeButton className={`compact danger${iconOnly ? " icon-only" : ""}`.trim()} type="submit" disabled={disabled} aria-label={iconOnly ? "Arsipkan" : undefined}>
+    <NativeButton className={`compact destructive${iconOnly ? " icon-only" : ""}`.trim()} type="submit" disabled={disabled} aria-label={iconOnly ? "Arsipkan" : undefined}>
       <Archive size={15} aria-hidden="true" />
       {iconOnly ? null : "Arsipkan"}
     </NativeButton>
@@ -589,13 +589,6 @@ export function ProductList({
                 Cari
               </NativeButton>
             </>
-          }
-          summary={`${pagination.totalCount} hasil`}
-          primaryAction={
-            <NativeLinkButton className="compact primary" href="/products/new">
-              <Plus size={15} aria-hidden="true" />
-              Intake baru
-            </NativeLinkButton>
           }
         >
           {showAllWorkspaces ? <input type="hidden" name="workspace" value="all" /> : null}

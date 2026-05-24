@@ -16,7 +16,6 @@ export default function LoadingProductsPage() {
           <SkeletonInlineSummary />
           <div className="product-filter-stack">
             <SkeletonFilterTabs count={6} />
-            <SkeletonFilterTabs count={3} className="content-filter-tabs--sub" />
           </div>
           <div className="table-wrap products-table-desktop loading-skeleton-static">
             <table className="data-table dense-table product-table product-table-skeleton" aria-hidden="true">
