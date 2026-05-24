@@ -1,4 +1,4 @@
-# AGENTS.md - Affiliate AI Content OS
+# AGENTS.md - Banplex OS
 
 ## Mission
 Build the MVP only: a single-owner Next.js PWA control center for AI affiliate content production using Supabase metadata, Google Drive assets, Gemini prompt generation, Google Flow batch bridge, and a mobile control layer.
@@ -44,6 +44,8 @@ If a task conflicts with these docs, stop and ask the user before coding.
 - Never expose Gemini keys, Supabase service role key, Google OAuth secrets, refresh tokens, or encryption secrets to client components.
 - Never commit `.env`, `.env.local`, or real secrets.
 - Database changes must be migration-first.
+- Every implementation that changes code, schema, docs, workflows, or UI must update `docs/CHANGELOG.md` with the actual dated change summary before handoff.
+- AI agents must use actual commits, diffs, and source-of-truth docs for changelog entries; do not invent shipped changes.
 - When using Supabase MCP, inspect first, then propose SQL, then apply only after approval.
 - Every UI must include loading, empty, and error states.
 - Every mutation must validate input.
@@ -114,6 +116,7 @@ If a task conflicts with these docs, stop and ask the user before coding.
 
 ## Agent Handoff
 - Every handoff must include the micro-task ID or task name, goal, files changed, source-of-truth docs read, validation commands with results, and known risks.
+- Every handoff must state whether `docs/CHANGELOG.md` was updated and which dated entry covers the change.
 - Implementation handoff from OpenClaude CLI must include `git diff --stat` and the focused diff for changed files.
 - Review handoff from Codex CLI must prioritize correctness, PRD compliance, regressions, missing states, token violations, and verification gaps.
 - If verification fails, record the exact command, failure summary, and whether the failure is related to the current task.

@@ -3,7 +3,7 @@
 Copy this into Kiro for each micro-task.
 
 ```text
-You are implementing one small MVP task for Affiliate AI Content OS.
+You are implementing one small MVP task for Banplex OS.
 
 Read first:
 - AGENTS.md
@@ -38,6 +38,7 @@ Constraints:
 - Do not apply Supabase SQL with MCP unless the repo workflow explicitly approves it.
 - Keep UI work on the locked semantic token system and preserve loading, empty, and error states.
 - If a required doc conflicts with the task, stop and ask the user before coding.
+- Update `docs/CHANGELOG.md` with an actual dated entry based on the diff/commit.
 
 Before coding, respond with:
 1. Goal restatement.
@@ -56,6 +57,7 @@ If the task is docs-only, skip runtime verification and show the diff instead.
 Then summarize:
 - Changed files.
 - What was implemented.
+- Changelog entry updated.
 - Verification results.
 - Risks/follow-up.
 ```

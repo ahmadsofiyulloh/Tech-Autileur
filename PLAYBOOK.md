@@ -22,6 +22,7 @@ Rules:
 - Do not widen scope, touch unrelated files, or override locked architecture.
 - Follow the repo's source-of-truth docs over any CLI default behavior.
 - Keep secrets server-only and database changes migration-first.
+- Update `docs/CHANGELOG.md` for every code, schema, docs, workflow, or UI implementation. Use actual diffs/commits and do not invent changes.
 - If the task is docs-only, skip runtime checks and say so explicitly.
 - If the task is UI, route, shell, component, or CSS work, run the locked repo checks before handoff.
-- Final handoff must include changed files, verification results, and residual risks.
+- Final handoff must include changed files, verification results, changelog entry, and residual risks.

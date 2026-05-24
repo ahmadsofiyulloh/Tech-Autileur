@@ -49,6 +49,8 @@ If any of those are not known, resolve them by inspecting the repo or asking a f
 ## Implementation Rules
 
 - Database work must be migration-first.
+- Every implementation must update `docs/CHANGELOG.md` with an actual dated summary before handoff.
+- Changelog entries must be based on real diffs, commits, or source-of-truth docs; do not write speculative release notes.
 - Do not apply Supabase SQL through MCP unless the repo workflow explicitly approves that step.
 - Owner-owned tables must include `user_id`, RLS, and owner-only policies.
 - Do not introduce raw secrets into client code, docs examples, seeds, or migrations.
@@ -75,6 +77,7 @@ If any of those are not known, resolve them by inspecting the repo or asking a f
 ## Handoff Rules
 
 - Final output must list changed files, what changed, verification results, and known risks.
+- Final output must mention the changelog entry that covers the work.
 - If there is an unresolved conflict with another agent's work, stop and say so clearly.
 - Do not claim completion until the task is actually implemented and verified as far as the task allows.
 

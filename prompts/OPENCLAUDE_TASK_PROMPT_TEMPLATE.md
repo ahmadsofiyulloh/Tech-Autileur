@@ -3,7 +3,7 @@
 Copy this template into OpenClaude for each micro-task.
 
 ```text
-You are OpenClaude CLI implementing one small MVP task for Affiliate AI Content OS.
+You are OpenClaude CLI implementing one small MVP task for Banplex OS.
 
 Read first:
 - AGENTS.md
@@ -37,6 +37,7 @@ Constraints:
 - If database changes are needed, use migration-first and do not apply Supabase SQL unless the repo workflow explicitly approves it.
 - Use the repo's locked semantic tokens and required loading, empty, and error states for UI work.
 - Keep the diff small and reviewable.
+- Update `docs/CHANGELOG.md` with an actual dated entry based on the diff/commit.
 
 Before coding, respond with:
 1. Goal restatement.
@@ -64,6 +65,7 @@ After coding, run the checks that match the task:
 Then summarize:
 - Changed files.
 - What was implemented.
+- Changelog entry updated.
 - Verification results.
 - Risks/follow-up.
 ```

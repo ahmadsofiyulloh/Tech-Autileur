@@ -3,7 +3,7 @@
 Copy this template into Codex for each micro-task.
 
 ```text
-You are implementing one small MVP task for Affiliate AI Content OS.
+You are implementing one small MVP task for Banplex OS.
 
 Read first:
 - AGENTS.md
@@ -33,6 +33,7 @@ Constraints:
 - Do not change locked architecture.
 - If database changes are needed, migration-first and ask before applying with Supabase MCP.
 - Add loading/error/empty states for UI work.
+- Update `docs/CHANGELOG.md` with an actual dated entry based on the diff/commit.
 
 Before coding, respond with:
 1. Goal restatement.
@@ -48,6 +49,7 @@ After coding, run:
 Then summarize:
 - Changed files.
 - What was implemented.
+- Changelog entry updated.
 - Verification results.
 - Risks/follow-up.
 ```

@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -38,6 +40,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate release metadata
+        run: npm run release:meta
+
+      - name: Check changelog
+        run: npm run changelog:check
 
       - name: Lint
         run: npm run lint
