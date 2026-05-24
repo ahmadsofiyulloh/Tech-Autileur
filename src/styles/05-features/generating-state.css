@@ -1,0 +1,114 @@
+/* Generating state component styles */
+
+.generating-state {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.generating-state__header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.generating-state__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  color: var(--text-flat-strong);
+}
+
+.generating-state__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-flat);
+  animation: generating-state-pulse 1.4s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+
+.generating-state__subtitle {
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-flat-muted);
+  margin: 0;
+  padding-left: calc(8px + var(--space-2));
+}
+
+.generating-state__body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.generating-state__variants {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.generating-state__variant {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-flat);
+}
+
+.generating-state__variant:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Shimmer animation bars */
+.generating-state-shimmer {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-flat-hover) 0%,
+    var(--border-flat) 50%,
+    var(--surface-flat-hover) 100%
+  );
+  background-size: 200% 100%;
+  animation: generating-state-shimmer 2s linear infinite;
+}
+
+.generating-state-shimmer--75 {
+  width: 75%;
+}
+
+.generating-state-shimmer--90 {
+  width: 90%;
+}
+
+.generating-state-shimmer--50 {
+  width: 50%;
+}
+
+.generating-state-shimmer--delay-1 {
+  animation-delay: 0.3s;
+}
+
+.generating-state-shimmer--delay-2 {
+  animation-delay: 0.6s;
+}
+
+@keyframes generating-state-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes generating-state-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
