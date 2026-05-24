@@ -1,0 +1,81 @@
+/* src/styles/05-features/inline-notif.css */
+
+.inline-notif {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--inline-notif-border);
+  background: var(--inline-notif-background);
+  color: var(--inline-notif-tone);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+  margin-block-start: var(--space-3);
+}
+
+.inline-notif__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  color: var(--inline-notif-icon-tone, var(--inline-notif-tone));
+}
+
+.inline-notif__message {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.inline-notif--success {
+  --inline-notif-tone: var(--color-status-success);
+  --inline-notif-background: var(--color-status-success-soft);
+  --inline-notif-border: var(--color-status-success-border);
+}
+
+.inline-notif--info {
+  --inline-notif-tone: var(--color-primary);
+  --inline-notif-background: var(--color-status-info-soft);
+  --inline-notif-border: color-mix(in srgb, var(--color-primary) 22%, var(--color-border-standard));
+  --inline-notif-icon-tone: var(--color-status-info);
+}
+
+.inline-notif--warning {
+  --inline-notif-tone: var(--color-text-on-warm);
+  --inline-notif-background: var(--color-status-warning-soft);
+  --inline-notif-border: color-mix(in srgb, var(--color-status-warning) 42%, var(--color-border-standard));
+  --inline-notif-icon-tone: var(--color-status-warning);
+}
+
+.inline-notif--error {
+  --inline-notif-tone: var(--color-status-error);
+  --inline-notif-background: var(--color-status-error-soft);
+  --inline-notif-border: var(--color-status-error-border);
+}
+
+.inline-notif {
+  animation: inline-notif-enter 200ms ease-out;
+}
+
+.inline-notif[data-dismissing="true"] {
+  animation: inline-notif-exit 300ms ease-in forwards;
+}
+
+@keyframes inline-notif-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes inline-notif-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inline-notif,
+  .inline-notif[data-dismissing="true"] {
+    animation: none;
+  }
+}
