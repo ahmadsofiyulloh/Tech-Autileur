@@ -2,12 +2,14 @@ import "server-only";
 
 import { revalidatePath } from "next/cache.js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAITask } from "@/lib/server/ai-task-queue";
 import {
   isSharePlatform,
   isShareAngle,
   normalizeShareVariantCount,
   type SharePlatform,
   type ShareAngle,
+  type ShareGenerateOptions,
 } from "@/lib/share/share-platform";
 
 type ShareGenerationStatus = "generating" | "generated" | "error";
@@ -57,22 +59,6 @@ function assertShareAngle(value: string): asserts value is ShareAngle {
   }
 }
 
-const platformCopyHints: Record<SharePlatform, string> = {
-  facebook: "Cocok untuk post komunitas dan feed.",
-  threads: "Cocok untuk percakapan singkat.",
-  x: "Cocok untuk update ringkas.",
-  pinterest: "Cocok untuk pin inspirasi produk.",
-};
-
-const angleHooks: Record<ShareAngle, string> = {
-  benefit_focused: "Fokus ke manfaat utama yang langsung terasa.",
-  problem_solution: "Mulai dari masalah harian lalu arahkan ke solusi.",
-  social_proof: "Tampilkan alasan produk ini layak dipercaya.",
-  urgency_scarcity: "Tekankan momentum tanpa klaim stok palsu.",
-  educational: "Beri konteks edukatif yang membantu pembeli memilih.",
-  storytelling: "Buka dengan cerita pendek seputar pemakaian produk.",
-};
-
 async function requireOwnedProduct(input: {
   productId: string;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -80,7 +66,7 @@ async function requireOwnedProduct(input: {
 }) {
   const { data, error } = await input.supabase
     .from("products")
-    .select("id, product_name")
+    .select("id, product_name, marketplace, niche")
     .eq("user_id", input.userId)
     .eq("id", input.productId)
     .maybeSingle();
@@ -93,36 +79,9 @@ async function requireOwnedProduct(input: {
     throw new Error("Produk tidak ditemukan.");
   }
 
-  return data as { id: string; product_name: string };
+  return data as { id: string; product_name: string; marketplace: string | null; niche: string | null };
 }
 
-function buildMockShareOutput(input: {
-  affiliateUrl: string;
-  angle: ShareAngle;
-  platform: SharePlatform;
-  productName: string;
-  variantCount: number;
-}): ShareGenerationOutputItem[] {
-  return Array.from({ length: input.variantCount }, (_, index) => {
-    const variantNumber = index + 1;
-
-    return {
-      caption: [
-        `${input.productName} - varian ${variantNumber}.`,
-        angleHooks[input.angle],
-        platformCopyHints[input.platform],
-        `Cek link affiliate: ${input.affiliateUrl}`,
-      ].join(" "),
-      angle: input.angle,
-      platform: input.platform,
-      platform_specific_fields: {
-        affiliate_url: input.affiliateUrl,
-        mode: "mock",
-        variant_index: variantNumber,
-      },
-    };
-  });
-}
 
 export async function getLatestShareGeneration(input: { productId: string; platform: SharePlatform }) {
   const { supabase, user } = await requireUser();
@@ -213,6 +172,7 @@ export async function createShareGeneration(input: {
   platform: string;
   angle: string;
   variantCount: number;
+  inputParams?: ShareGenerateOptions;
 }) {
   assertSharePlatform(input.platform);
   assertShareAngle(input.angle);
@@ -224,15 +184,20 @@ export async function createShareGeneration(input: {
     supabase,
     userId: user.id,
   });
-  const outputJson = buildMockShareOutput({
-    affiliateUrl: input.affiliateUrl,
-    angle: input.angle,
-    platform: input.platform,
-    productName: product.product_name,
-    variantCount,
-  });
 
-  const { data, error } = await supabase
+  // Fetch latest intake session metadata if available
+  const { data: intakeSession } = await supabase
+    .from("product_intake_sessions")
+    .select("reviewed_metadata_json, parsed_metadata_json")
+    .eq("user_id", user.id)
+    .eq("product_id", input.productId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const metadata = intakeSession?.reviewed_metadata_json ?? intakeSession?.parsed_metadata_json ?? null;
+
+  const { data: generation, error } = await supabase
     .from("share_generations")
     .insert({
       user_id: user.id,
@@ -240,8 +205,9 @@ export async function createShareGeneration(input: {
       platform: input.platform,
       angle: input.angle,
       variant_count: variantCount,
-      output_json: outputJson,
-      status: "generated",
+      input_params: input.inputParams ?? null,
+      output_json: null,
+      status: "generating",
     })
     .select("*")
     .single();
@@ -250,8 +216,31 @@ export async function createShareGeneration(input: {
     throw new Error(error.message);
   }
 
+  const taskInput = {
+    generationId: generation.id,
+    productId: input.productId,
+    productName: product.product_name,
+    affiliateUrl: input.affiliateUrl,
+    platform: input.platform as SharePlatform,
+    angle: input.angle as ShareAngle,
+    variantCount,
+    inputParams: input.inputParams ?? null,
+    productMarketplace: product.marketplace ?? null,
+    productNiche: product.niche ?? null,
+    productMetadata: metadata,
+  };
+
+  const task = await createAITask({
+    taskType: "SHARE_CAPTION",
+    inputJson: taskInput,
+  });
+
+  void import("@/lib/server/share-caption-task")
+    .then((mod) => mod.runRealShareCaptionTask(task.id, taskInput))
+    .catch(() => undefined);
+
   revalidatePath("/share");
-  return data as ShareGenerationRecord;
+  return generation as ShareGenerationRecord;
 }
 
 export async function updateShareGenerationOutput(input: {
