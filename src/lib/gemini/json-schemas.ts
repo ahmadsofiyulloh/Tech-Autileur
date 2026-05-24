@@ -648,3 +648,148 @@ const affiliateAssetAnalysisSchema = {
 } as const satisfies JsonSchema;
 
 export const GEMINI_AFFILIATE_PROFILE_ASSET_ANALYSIS_RESPONSE_SCHEMA = affiliateAssetAnalysisSchema;
+
+const shareCaptionBlockSchema = {
+  type: "object",
+  required: ["role", "label", "content", "char_count", "recommended_max_chars", "copy_ready"],
+  properties: {
+    role: {
+      type: "string",
+      enum: [
+        "main_caption",
+        "first_comment",
+        "thread_section",
+        "x_reply_with_link",
+        "pinterest_pin_title",
+        "pinterest_pin_description",
+        "pinterest_destination_link",
+        "pinterest_alt_text",
+        "hashtags",
+      ],
+      description: "Structural role of this copy block.",
+    },
+    label: {
+      type: "string",
+      description: "Human-readable label for this block (e.g. 'Caption', 'Reply dengan Link').",
+    },
+    content: {
+      type: "string",
+      description: "The actual copy content for this block.",
+    },
+    char_count: {
+      type: "number",
+      description: "Character count of content.",
+    },
+    recommended_max_chars: {
+      type: "number",
+      description: "Recommended maximum character count for this block role.",
+    },
+    copy_ready: {
+      type: "boolean",
+      description: "True if this block is ready to copy-paste without further editing.",
+    },
+    warning: {
+      type: "string",
+      description: "Optional warning if content exceeds recommended limit or has issues.",
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const shareImagePromptBlockSchema = {
+  type: "object",
+  required: ["source", "image_inputs", "prompt_text", "must_keep", "must_avoid", "aspect_ratio", "upload_note"],
+  properties: {
+    source: {
+      type: "string",
+      enum: ["i2i"],
+      description: "Always 'i2i' — image-to-image generation discipline.",
+    },
+    image_inputs: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of image input descriptions (e.g. product photo angles to use as reference).",
+    },
+    prompt_text: {
+      type: "string",
+      description: "The image generation prompt text. Must NOT request: text overlay, price label, discount badge, fake logo, fake UI, unsupported claims, or product shape changes.",
+    },
+    must_keep: {
+      type: "array",
+      items: { type: "string" },
+      description: "Visual elements that must be preserved from the source image (e.g. product color, brand mark).",
+    },
+    must_avoid: {
+      type: "array",
+      items: { type: "string" },
+      description: "Elements to explicitly avoid: text overlay, price label, discount badge, fake logo, fake UI, unsupported claims, product shape changes.",
+    },
+    aspect_ratio: {
+      type: "string",
+      description: "Target aspect ratio (e.g. '4:5', '1:1', '9:16', '2:3', '16:9').",
+    },
+    upload_note: {
+      type: "string",
+      description: "Brief operator note about which product image to upload as i2i reference.",
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const shareCaptionVariantSchema = {
+  type: "object",
+  required: ["caption", "angle", "platform"],
+  properties: {
+    caption: {
+      type: "string",
+      description: "Indonesian social media caption grounded in product facts and affiliate URL.",
+    },
+    angle: {
+      type: "string",
+      enum: ["benefit_focused", "problem_solution", "social_proof", "urgency_scarcity", "educational", "storytelling"],
+    },
+    platform: {
+      type: "string",
+      enum: ["facebook", "threads", "x", "pinterest"],
+    },
+    platform_specific_fields: {
+      type: "object",
+      properties: {
+        reply_with_link: {
+          type: "string",
+          description: "Untuk X: CTA pendek + link affiliate untuk di-post sebagai reply pertama (max ~100 chars + link). Wajib untuk platform x.",
+        },
+        pin_title: {
+          type: "string",
+          description: "Untuk Pinterest: judul pin yang keyword-first (max 100 chars). Wajib untuk platform pinterest.",
+        },
+        hashtags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Hashtag relevan tanpa simbol #. Facebook: 1-3. X: 0-2. Threads/Pinterest: kosong.",
+        },
+      },
+      additionalProperties: false,
+    },
+    blocks: {
+      type: "array",
+      items: shareCaptionBlockSchema,
+      description: "Structured copy blocks for this variant. Each block has a role, label, content, and char metadata. Replaces platform_specific_fields for new output.",
+    },
+    image_prompt: shareImagePromptBlockSchema,
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+export const GEMINI_SHARE_CAPTION_RESPONSE_SCHEMA = {
+  type: "object",
+  required: ["variants"],
+  properties: {
+    variants: {
+      type: "array",
+      items: shareCaptionVariantSchema,
+      description: "Array of caption variants matching requested variant_count.",
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JsonSchema;

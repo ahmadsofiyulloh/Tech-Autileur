@@ -23,7 +23,7 @@ export {
 
 type SupabaseServiceClient = ReturnType<typeof createSupabaseServiceRoleClient>;
 
-export type GeminiRoutingPurpose = "VISION_ANALYSIS" | "PROMPT_PACK_GENERATION" | "PROMPT_REPAIR";
+export type GeminiRoutingPurpose = "VISION_ANALYSIS" | "PROMPT_PACK_GENERATION" | "PROMPT_REPAIR" | "SHARE_CAPTION";
 
 export type GeminiRoutableKey = {
   id: string;
@@ -68,6 +68,10 @@ function rolesForPurpose(purpose: GeminiRoutingPurpose) {
 
   if (purpose === "PROMPT_REPAIR") {
     return ["PROMPT_REPAIR", "FALLBACK"] as const satisfies readonly GeminiKeyRole[];
+  }
+
+  if (purpose === "SHARE_CAPTION") {
+    return ["FALLBACK"] as const satisfies readonly GeminiKeyRole[];
   }
 
   return PROMPT_PACK_GEMINI_KEY_PRIORITY;
@@ -202,7 +206,7 @@ export async function listQuotaAwareGeminiKeys(input: {
       "id, user_id, key_code, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, requests_today, last_used_at, cooldown_until, status, notes, created_at, updated_at",
     )
     .eq("user_id", input.userId)
-    .eq("status", "ACTIVE")
+    .in("status", ["ACTIVE", "RATE_LIMITED", "COOLDOWN"])
     .in("role", [...allowedRoles]);
 
   if (error) {
@@ -210,8 +214,10 @@ export async function listQuotaAwareGeminiKeys(input: {
   }
 
   const rawKeys = ((data ?? []) as GeminiRoutableKey[]).filter((key) => {
-    if (isCoolingDown(key, now)) {
-      return false;
+    if (key.status === "RATE_LIMITED" || key.status === "COOLDOWN") {
+      if (isCoolingDown(key, now)) {
+        return false;
+      }
     }
 
     if (input.purpose === "VISION_ANALYSIS" && !isVisionCapableKey(key)) {
