@@ -33,6 +33,11 @@ export function InlineNotif({ type, message, notifKey, onDismissed }: InlineNoti
   const [dismissing, setDismissing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDismissedRef = useRef(onDismissed);
+
+  useEffect(() => {
+    onDismissedRef.current = onDismissed;
+  }, [onDismissed]);
 
   useEffect(() => {
     setDismissing(false);
@@ -47,7 +52,7 @@ export function InlineNotif({ type, message, notifKey, onDismissed }: InlineNoti
     timerRef.current = setTimeout(() => {
       setDismissing(true);
       exitTimerRef.current = setTimeout(() => {
-        onDismissed?.();
+        onDismissedRef.current?.();
       }, EXIT_ANIMATION_MS);
     }, duration);
 
@@ -55,7 +60,7 @@ export function InlineNotif({ type, message, notifKey, onDismissed }: InlineNoti
       if (timerRef.current) clearTimeout(timerRef.current);
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
-  }, [notifKey, type, onDismissed]);
+  }, [notifKey, type]);
 
   const Icon = ICONS[type];
   const isAssertive = type === "error" || type === "warning";
