@@ -10,9 +10,10 @@ import {
 import { saveIntake } from "@/app/intake/actions";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FormActions } from "@/components/operator/form-actions";
+import { GeneratingState } from "@/components/operator/generating-state";
+import { IntakeSkeleton } from "@/components/operator/generating-state-skeletons";
 import { IntakeStepper, type IntakeStepperStep } from "@/components/operator/intake-stepper";
 import { ImagePreviewUploadCard, type ImagePreviewSelectionState } from "@/components/operator/image-preview-upload-card";
-import { SkeletonIntakeMetadataPreview } from "@/components/operator/loading-skeleton";
 import { PostSaveDecisionSurface } from "@/components/operator/post-save-decision-surface";
 import { PromptLaunchReadinessSummary } from "@/components/operator/prompt-launch-readiness-summary";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
@@ -230,7 +231,17 @@ function IntakeMetadataPendingPanel({ status }: { status: string }) {
         </div>
         <StatusBadge status={status} tone="info" />
       </div>
-      {status === "SUBMITTED" ? <SkeletonIntakeMetadataPreview /> : null}
+      {status === "SUBMITTED" ? (
+        <GeneratingState
+          skeleton={<IntakeSkeleton />}
+          statusStages={[
+            "Memproses metadata...",
+            "Menganalisis produk...",
+            "Masih memproses...",
+          ]}
+          isPending={true}
+        />
+      ) : null}
     </section>
   );
 }
