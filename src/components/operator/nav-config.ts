@@ -47,7 +47,7 @@ export const mobileNavItems = [
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },
-  { href: "/drive", label: "Drive", icon: HardDrive },
+  { href: "/share", label: "Share", icon: Send },
 ] satisfies OperatorNavItem[];
 
 export const desktopNavItems: OperatorNavItem[] = [
@@ -55,6 +55,7 @@ export const desktopNavItems: OperatorNavItem[] = [
   { href: "/products/new", label: "Intake", icon: Inbox },
   { href: "/products", label: "Produk", icon: Package },
   { href: "/prompts", label: "Prompt", icon: FileText },
+  { href: "/share", label: "Share", icon: Send },
   { href: "/drive", label: "Drive", icon: HardDrive },
   {
     href: "/tools/ai-media",

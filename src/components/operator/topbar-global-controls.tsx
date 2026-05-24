@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CheckCircle2,
   CloudOff,
+  HardDrive,
   LogOut,
   Settings,
   X,
@@ -198,6 +199,11 @@ function ProfileMenuContent({
       </div>
 
       <div className="topbar-menu-list">
+        <Link className="topbar-menu-item" href="/drive" onClick={onClose}>
+          <HardDrive size={16} aria-hidden="true" />
+          <span>Drive</span>
+          <ChevronRight className="topbar-menu-item__chevron" size={15} aria-hidden="true" />
+        </Link>
         {hideSettingsAction ? null : (
           <Link className="topbar-menu-item" href="/settings" onClick={onClose}>
             <Settings size={16} aria-hidden="true" />

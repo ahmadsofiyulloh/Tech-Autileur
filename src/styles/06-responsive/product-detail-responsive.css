@@ -84,17 +84,19 @@
     border-radius: 0;
     box-shadow: var(--shadow);
     overscroll-behavior: contain;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .operator-detail-drawer__header {
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-2) var(--space-3);
+    padding: max(var(--space-3), env(safe-area-inset-top)) max(var(--space-2), env(safe-area-inset-right)) var(--space-3) max(var(--space-2), env(safe-area-inset-left));
   }
 
   .operator-detail-drawer__body {
-    padding: 0 0 calc(var(--shell-bottom-nav-content-offset) + env(safe-area-inset-bottom));
+    padding: 0 max(var(--space-2), env(safe-area-inset-right)) calc(var(--shell-bottom-nav-content-offset) + env(safe-area-inset-bottom)) max(var(--space-2), env(safe-area-inset-left));
   }
 }
 
