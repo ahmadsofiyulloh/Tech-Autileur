@@ -697,8 +697,7 @@ export async function savePromptPack(formData: FormData) {
       });
       nextPromptPackId = nextVersion.id;
 
-      // Enqueue only — PromptGenerationMonitor will POST to /api/prompts/[id]/generate
-      // which runs runRealPromptPackTask inside its own request context where cookies() works.
+      // Enqueue task only. PromptGenerationMonitor + API endpoint handle execution.
       await createPromptPackGenerationTask(nextVersion.id, {
         generationMode,
         maxRetries: generationMode === "mock" ? 0 : 3,

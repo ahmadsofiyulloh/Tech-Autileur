@@ -308,7 +308,7 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
       if (!availableKeys.length) {
         const errorMsg = sawSecretDecryptionFailure
           ? getGeminiSecretRotationErrorMessage()
-          : "Tidak ada Gemini key tersedia. Periksa pengaturan key atau tunggu cooldown selesai.";
+          : "Tidak ada Gemini key tersedia untuk share caption. Pastikan minimal 1 key aktif dengan semua limit quota (RPM, RPD, TPM) terisi.";
         await serviceClient
           .from("share_generations")
           .update({ status: "error", error_message: errorMsg })
@@ -316,7 +316,7 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
           .eq("user_id", userId);
         await serviceClient
           .from("ai_tasks")
-          .update({ status: "FAILED", error_message: errorMsg, finished_at: new Date().toISOString() })
+          .update({ status: "WAITING_FOR_KEY", error_message: errorMsg, finished_at: null })
           .eq("id", taskId)
           .eq("user_id", userId);
         return;

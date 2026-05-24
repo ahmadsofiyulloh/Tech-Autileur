@@ -3,6 +3,7 @@ import "server-only";
 import { runMockPromptPackTask, runRealPromptPackTask } from "@/lib/server/prompt-packs";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { recoverStaleTask } from "@/lib/server/ai-task-queue";
 import {
   EMPTY_PROMPT_QUEUE_SUMMARY,
   type PromptQueueItem,
@@ -493,12 +494,34 @@ export async function runNextPromptQueueTask(input?: { workspaceId?: string | nu
   const snapshot = await listPromptQueueSnapshot({ workspaceId: input?.workspaceId, limit: PROMPT_QUEUE_MAX_LIMIT });
 
   if (snapshot.runningPromptPackId) {
-    return {
-      started: false,
-      reason: "RUNNING",
-      promptPackId: snapshot.runningPromptPackId,
-      snapshot,
-    };
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const runningItem = snapshot.items.find(
+      (item) => item.promptPack.id === snapshot.runningPromptPackId,
+    );
+    const startedAtRaw = runningItem?.task?.started_at ?? null;
+    const startedAt = startedAtRaw ? new Date(startedAtRaw) : null;
+    const elapsedMs = startedAt ? Date.now() - startedAt.getTime() : 0;
+    const staleTaskId = runningItem?.task?.id ?? null;
+
+    if (staleTaskId && startedAt && elapsedMs > STALE_THRESHOLD_MS) {
+      await recoverStaleTask(
+        staleTaskId,
+        `Task stale: running for ${Math.round(elapsedMs / 60000)} minutes, auto-reset to RETRYING`,
+      );
+      // Re-snapshot and fall through to pick next runnable task.
+      const refreshed = await listPromptQueueSnapshot({
+        workspaceId: input?.workspaceId,
+        limit: PROMPT_QUEUE_MAX_LIMIT,
+      });
+      Object.assign(snapshot, refreshed);
+    } else {
+      return {
+        started: false,
+        reason: "RUNNING",
+        promptPackId: snapshot.runningPromptPackId,
+        snapshot,
+      };
+    }
   }
 
   const nextPromptPackId = snapshot.nextRunnablePromptPackId;

@@ -71,7 +71,7 @@ function rolesForPurpose(purpose: GeminiRoutingPurpose) {
   }
 
   if (purpose === "SHARE_CAPTION") {
-    return ["FALLBACK"] as const satisfies readonly GeminiKeyRole[];
+    return PROMPT_PACK_GEMINI_KEY_PRIORITY;
   }
 
   return PROMPT_PACK_GEMINI_KEY_PRIORITY;

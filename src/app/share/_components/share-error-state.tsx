@@ -13,26 +13,32 @@ type Props = {
 function classifyError(errorMessage: string | null): ErrorKind {
   if (!errorMessage) return "default";
   const msg = errorMessage.toLowerCase();
-  if (msg.includes("key") || msg.includes("quota") || msg.includes("no key")) {
+  if (
+    msg.includes("tidak ada gemini key") ||
+    msg.includes("no eligible gemini key") ||
+    msg.includes("kuota habis") ||
+    msg.includes("rate limit") ||
+    msg.includes("quota exceeded")
+  ) {
     return "key_quota";
   }
-  if (msg.includes("timeout")) return "timeout";
-  if (msg.includes("parse") || msg.includes("invalid") || msg.includes("json")) {
+  if (msg.includes("timeout") || msg.includes("timed out")) return "timeout";
+  if (msg.includes("parse") || msg.includes("invalid json") || msg.includes("schema")) {
     return "parse";
   }
   return "default";
 }
 
-const ERROR_COPY: Record<ErrorKind, string> = {
-  key_quota: "Tidak ada Gemini key tersedia atau kuota habis.",
-  timeout: "Proses timeout. Gemini tidak merespons dalam waktu yang ditentukan.",
-  parse: "Respons dari Gemini tidak valid. Coba lagi.",
-  default: "Terjadi error saat generate caption.",
+const ERROR_COPY: Record<ErrorKind, (raw: string | null) => string> = {
+  key_quota: (raw) => raw ?? "Tidak ada Gemini key tersedia atau kuota habis.",
+  timeout: () => "Proses timeout. Gemini tidak merespons dalam waktu yang ditentukan.",
+  parse: () => "Respons dari Gemini tidak valid. Coba lagi.",
+  default: (raw) => raw ?? "Terjadi error saat generate caption.",
 };
 
 export function ShareErrorState({ errorMessage, onRetry, onEditForm }: Props) {
   const kind = classifyError(errorMessage);
-  const message = ERROR_COPY[kind];
+  const message = ERROR_COPY[kind](errorMessage);
 
   return (
     <div

@@ -340,3 +340,16 @@ export async function pickAvailableGeminiKeyForPromptPackGeneration() {
 
   return null;
 }
+
+export async function recoverStaleTask(taskId: string, reason: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  await supabase
+    .from("ai_tasks")
+    .update({
+      status: "RETRYING",
+      error_message: reason,
+      finished_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+}
