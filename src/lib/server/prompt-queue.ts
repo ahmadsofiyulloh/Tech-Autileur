@@ -412,7 +412,10 @@ function buildPromptQueueItem(input: {
       model_name: input.geminiKey?.model_name ?? null,
     },
     canCancel: Boolean(input.task?.id && CANCELABLE_TASK_STATUSES.has(taskStatus)),
-    canRetry: taskStatus === "FAILED" || input.promptPack.status === "ERROR",
+    canRetry:
+      taskStatus === "FAILED" ||
+      taskStatus === "WAITING_FOR_KEY" ||
+      input.promptPack.status === "ERROR",
   };
 }
 

@@ -23,7 +23,7 @@ import {
 } from "@/lib/prompts/prompt-workbench";
 import { PROMPT_READINESS_STATUS_LABELS } from "@/lib/prompts/prompt-readiness-projection";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { PromptDetailPanel } from "./prompt-detail-panel";
+import { PromptDetailPanel, type PromptDetailTab } from "./prompt-detail-panel";
 import { PromptQueueDrawer } from "./prompt-queue-drawer";
 import { PromptWorkbenchList, type PromptWorkbenchRowData } from "./prompt-workbench-list";
 
@@ -60,6 +60,8 @@ type PromptsPageProps = {
     q?: string | string[];
     queue?: string | string[];
     readiness?: string | string[];
+    tab?: string | string[];
+    version?: string | string[];
   }>;
 };
 
@@ -301,6 +303,13 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const requestedIntakeId = firstParam(query.intake_id);
   const requestedSearch = normalizePromptWorkbenchSearch(firstParam(query.q));
   const requestedPage = normalizePromptWorkbenchPage(firstParam(query.page));
+  const requestedTab = ((): PromptDetailTab => {
+    const raw = firstParam(query.tab)?.trim().toLowerCase();
+    if (raw === "regenerate") return "regenerate";
+    if (raw === "history") return "history";
+    return "output";
+  })();
+  const requestedVersion = firstParam(query.version)?.trim() || null;
   const currentWorkspace = await getCurrentWorkspace();
   const workspaceId = currentWorkspace?.id ?? undefined;
 
@@ -643,7 +652,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
           subtitle={promptDetailSubtitle}
           title={displayedPromptProduct?.product_name ?? "Detail prompt"}
         >
-          <PromptDetailPanel detailHref={promptDetailHref} promptPackId={selectedPromptPack.id} />
+          <PromptDetailPanel detailHref={promptDetailHref} promptPackId={selectedPromptPack.id} selectedTab={requestedTab} selectedVersion={requestedVersion} />
         </OperatorDetailDrawer>
       ) : hasQueueDetail && promptQueueSnapshot ? (
         <OperatorDetailDrawer

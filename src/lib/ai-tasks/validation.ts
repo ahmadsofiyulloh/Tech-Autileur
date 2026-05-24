@@ -16,6 +16,7 @@ export const AI_TASK_TYPES = [
   "PROMPT_REPAIR",
   "FALLBACK",
   "PROMPT_PACK_GENERATION",
+  "SHARE_CAPTION",
 ] as const;
 
 export type AiTaskStatus = (typeof AI_TASK_STATUSES)[number];

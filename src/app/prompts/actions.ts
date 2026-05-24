@@ -11,8 +11,6 @@ import {
   getPromptPackById,
   listPromptPacks,
   markPromptPackReadyForFlow,
-  runMockPromptPackTask,
-  runRealPromptPackTask,
   updatePromptPack,
 } from "@/lib/server/prompt-packs";
 import { exportPromptPackTextFile } from "@/lib/server/prompt-pack-generated-files";
@@ -302,16 +300,6 @@ async function savePromptPackFields(formData: FormData, id: string) {
   });
 }
 
-async function generatePromptPack(promptPackId: string, generationMode: GenerationMode) {
-  const { task } = await createPromptPackGenerationTask(promptPackId, {
-    generationMode,
-    maxRetries: generationMode === "mock" ? 0 : 3,
-  });
-
-  return generationMode === "mock"
-    ? await runMockPromptPackTask(promptPackId, task.id)
-    : await runRealPromptPackTask(promptPackId, task.id);
-}
 
 async function queuePromptPackForProduct(input: {
   productId: string;
@@ -524,11 +512,15 @@ export async function retryPromptPackGeneration(formData: FormData) {
       generationMode = readStoredGenerationMode(task?.input_json);
     }
 
-    if (["QUEUED", "RUNNING", "RETRYING", "WAITING_FOR_KEY"].includes(taskStatus ?? "")) {
+    if (["QUEUED", "RUNNING", "RETRYING"].includes(taskStatus ?? "")) {
       throw new Error("Task prompt masih aktif.");
     }
 
-    if (promptPack.status !== "ERROR" && taskStatus !== "FAILED") {
+    if (
+      promptPack.status !== "ERROR" &&
+      taskStatus !== "FAILED" &&
+      taskStatus !== "WAITING_FOR_KEY"
+    ) {
       throw new Error("Prompt pack belum berstatus gagal.");
     }
 
@@ -679,10 +671,8 @@ export async function savePromptPack(formData: FormData) {
   }
 
   if (intent === "regenerate") {
-    let message = "Prompt pack regenerated.";
     let nextPromptPackId = id;
     let productId = readNullableText(formData, "product_id");
-    let generationRedirect: { key: "warning" | "error"; message: string } | null = null;
 
     try {
       const regenerationScope = readRegenerationScopeFromForm(formData);
@@ -706,34 +696,30 @@ export async function savePromptPack(formData: FormData) {
         sourceProductImageId: readNullableText(formData, "source_product_image_id"),
       });
       nextPromptPackId = nextVersion.id;
-      const result = await generatePromptPack(nextVersion.id, generationMode);
-      nextPromptPackId = result.promptPack.id;
-      if (result.task.status !== "SUCCESS") {
-        generationRedirect = buildPromptGenerationRedirect(result.message);
-      } else {
-        message = result.message;
-      }
+
+      // Enqueue only — PromptGenerationMonitor will POST to /api/prompts/[id]/generate
+      // which runs runRealPromptPackTask inside its own request context where cookies() works.
+      await createPromptPackGenerationTask(nextVersion.id, {
+        generationMode,
+        maxRetries: generationMode === "mock" ? 0 : 3,
+      });
     } catch (error) {
       if (nextPromptPackId !== id) {
         const messageText = errorMessage(error);
         const redirectInfo = buildPromptGenerationRedirect(messageText);
         revalidatePromptRoutes(id, productId ?? null);
         revalidatePromptRoutes(nextPromptPackId, productId ?? null);
-        redirect(promptDetailRedirect(nextPromptPackId, redirectInfo.key, redirectInfo.message));
+        const searchParams = new URLSearchParams({ detail: nextPromptPackId, tab: "output" });
+        redirect(appendRedirectMessage(`/prompts?${searchParams.toString()}`, redirectInfo.key, redirectInfo.message));
       }
 
       failFromForm(formData, errorMessage(error));
     }
 
-    if (generationRedirect) {
-      revalidatePromptRoutes(id, productId);
-      revalidatePromptRoutes(nextPromptPackId, productId);
-      redirect(promptDetailRedirect(nextPromptPackId, generationRedirect.key, generationRedirect.message));
-    }
-
     revalidatePromptRoutes(id, productId);
     revalidatePromptRoutes(nextPromptPackId, productId);
-    redirect(promptDetailRedirect(nextPromptPackId, "message", message));
+    const searchParams = new URLSearchParams({ detail: nextPromptPackId, tab: "output" });
+    redirect(appendRedirectMessage(`/prompts?${searchParams.toString()}`, "message", "Prompt pack sedang di-generate..."));
   }
 
   if (intent === "mark_ready") {
