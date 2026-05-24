@@ -78,6 +78,8 @@ Range: `origin/main..HEAD`
 - Menambahkan generator dan guard changelog agar perubahan AI tercatat dari commit/diff aktual.
 - Menambahkan runbook release/deploy dan tutorial Supabase CLI untuk push migrasi dev lalu production.
 - Menambahkan migration grant Data API untuk tabel Share Workspace.
+- Mengupdate devDependency Supabase CLI dari `2.98.1` ke `2.101.0`.
+- Menyelaraskan migration history dev Supabase untuk Share Workspace dan menerapkan migration grant Data API sampai local/remote migration list bersih.
 
 ## 2026.05.24.1
 

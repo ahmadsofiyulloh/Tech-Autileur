@@ -46,7 +46,7 @@
     "@typescript-eslint/parser": "^8.59.1",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
-    "supabase": "^2.98.1",
+    "supabase": "^2.101.0",
     "typescript": "^6.0.3"
   }
 }
