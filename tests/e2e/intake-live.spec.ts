@@ -189,8 +189,7 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
         await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
         const promptCard = page.locator("article").filter({ hasText: state.product.name }).first();
         await expect(promptCard).toBeVisible();
-        await expect(promptCard.getByRole("button", { name: "Buat Prompt" })).toBeVisible();
-        await expect(promptCard.getByRole("button", { name: "Buat Prompt" })).toBeEnabled();
+        await expect(promptCard.getByRole("link", { name: "Buat Prompt" })).toBeVisible();
       }
     }
   } catch (error) {

@@ -7,37 +7,42 @@ function useMockPromptGeneration() {
   return (process.env.SMOKE_PROMPT_GENERATION_MODE ?? "mock").toLowerCase() !== "gemini";
 }
 
-async function ensurePromptPackGenerationMode(page: import("@playwright/test").Page) {
+async function submitPromptCreateFromSetup(page: import("@playwright/test").Page) {
   const shouldMock = useMockPromptGeneration();
+  const createPromptLink = page.getByRole("link", { name: "Buat Prompt" });
 
-  if (!shouldMock) {
+  if ((await createPromptLink.count()) === 0) {
     return;
   }
 
-  const button = page.getByRole("button", { name: "Buat Prompt" });
-  if ((await button.count()) === 0) {
-    return;
+  await createPromptLink.first().click();
+  const generateDrawer = page.locator('aside[aria-label="Detail prompt"]');
+  await expect(generateDrawer).toBeVisible();
+  const generateForm = generateDrawer.locator("form.prompt-generate-form").first();
+  await expect(generateForm).toBeVisible();
+
+  if (shouldMock) {
+    await generateForm.evaluate((form) => {
+      if (!(form instanceof HTMLFormElement)) {
+        throw new Error("Prompt generate form was not found.");
+      }
+
+      const existing = form.querySelector('input[name="generation_mode"]');
+
+      if (existing instanceof HTMLInputElement) {
+        existing.value = "mock";
+        return;
+      }
+
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "generation_mode";
+      input.value = "mock";
+      form.appendChild(input);
+    });
   }
 
-  await button.evaluate((element) => {
-    const form = element.closest("form");
-
-    if (!form) {
-      throw new Error("Prompt form was not found.");
-    }
-
-    const existing = form.querySelector('input[name="generation_mode"]');
-
-    if (existing) {
-      return;
-    }
-
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = "generation_mode";
-    input.value = "mock";
-    form.appendChild(input);
-  });
+  await generateDrawer.getByRole("button", { name: /Generate Prompt/ }).click();
 }
 
 async function ensureSmokeWorkspaceDriveRoot(page: import("@playwright/test").Page, workspaceId: string, workspaceName: string) {
@@ -337,12 +342,7 @@ test("prompt generation, flow handoff, manifest export, and helper callback stay
     await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
     await expect(page.getByRole("main").getByText(state.product.name, { exact: true }).first()).toBeVisible();
 
-    await ensurePromptPackGenerationMode(page);
-    const createPromptButton = page.getByRole("button", { name: "Buat Prompt" });
-
-    if (await createPromptButton.count()) {
-      await createPromptButton.first().click();
-    }
+    await submitPromptCreateFromSetup(page);
 
     await expect
       .poll(

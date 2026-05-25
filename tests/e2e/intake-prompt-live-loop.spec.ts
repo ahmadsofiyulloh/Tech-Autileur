@@ -51,10 +51,14 @@ function isGeminiBlockerMessage(message: string) {
 }
 
 function promptPackIdFromUrl(url: URL) {
-  const detailId = url.searchParams.get("detail");
+  const versionId = url.searchParams.get("version");
 
-  if (url.pathname === "/prompts" && detailId) {
-    return detailId;
+  if (url.pathname === "/prompts" && versionId) {
+    return versionId;
+  }
+
+  if (url.pathname === "/prompts") {
+    return "";
   }
 
   const segments = url.pathname.split("/").filter(Boolean);
@@ -683,8 +687,14 @@ async function runLiveSmokeIteration(input: {
       .filter({ has: page.locator(`a[href^="/products?"][href*="detail=${productId}"][href*="tab=metadata"]`) })
       .first();
     await expect(promptCard).toBeVisible();
-    await expect(promptCard.getByRole("button", { name: "Buat Prompt" })).toBeEnabled();
-    await promptCard.getByRole("button", { name: "Buat Prompt" }).click();
+    const createPromptLink = promptCard.getByRole("link", { name: "Buat Prompt" });
+    await expect(createPromptLink).toBeVisible();
+    await createPromptLink.click();
+
+    const generateDrawer = page.locator('aside[aria-label="Detail prompt"]');
+    await expect(generateDrawer).toBeVisible();
+    await expect(generateDrawer.getByRole("link", { name: "Generate" })).toBeVisible();
+    await generateDrawer.getByRole("button", { name: /Generate Prompt/ }).click();
 
     await page.waitForURL((url) => {
       const promptPackId = promptPackIdFromUrl(url);
@@ -713,7 +723,7 @@ async function runLiveSmokeIteration(input: {
     expect(promptPackV1Id).toBeTruthy();
 
     await expect(page.getByRole("heading", { name: "Output Siap Copy" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Buat Ulang" })).toBeVisible({
+    await expect(page.getByRole("link", { name: "Generate" })).toBeVisible({
       timeout: PROMPT_GENERATION_TIMEOUT_MS,
     });
 
@@ -865,8 +875,13 @@ async function runLiveSmokeIteration(input: {
   const revisionInstruction = `Loop ${iteration} revisi hook, jaga seed lock, dan pertahankan bukti marketplace.`;
 
   await test.step(`Loop ${iteration}: regenerate prompt`, async () => {
+    await page.getByRole("link", { name: "Generate" }).click();
+    await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.get("tab") === "generate", {
+      timeout: PROMPT_GENERATION_TIMEOUT_MS,
+      waitUntil: "commit",
+    });
     await page.locator("#revision_instruction").fill(revisionInstruction);
-    await page.getByRole("button", { name: "Buat Ulang" }).click();
+    await page.getByRole("button", { name: /Regenerate Prompt/ }).click();
 
     await page.waitForURL((url) => {
       const promptPackId = promptPackIdFromUrl(url);

@@ -26,7 +26,6 @@ test("internal operator API POST routes require authenticated access", async ({ 
     "/api/products/bulk-import/jobs/00000000-0000-4000-8000-000000000001/run",
     "/api/products/bulk-import/jobs/00000000-0000-4000-8000-000000000001/cancel",
     "/api/prompts/00000000-0000-4000-8000-000000000001/generate",
-    "/api/prompts/queue/run-next",
   ];
 
   for (const route of protectedPostRoutes) {
