@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache.js";
 import { redirect } from "next/navigation";
 import {
   archivePromptPack,
-  cancelPromptPackGenerationTask,
   createPromptPack,
   createPromptPackGenerationTask,
   createPromptPackRegenerationVersion,
@@ -15,11 +14,9 @@ import {
 } from "@/lib/server/prompt-packs";
 import { exportPromptPackTextFile } from "@/lib/server/prompt-pack-generated-files";
 import { getProductById } from "@/lib/server/products";
-import { listPromptReadinessProjections } from "@/lib/server/prompt-readiness";
-import { getCurrentWorkspace } from "@/lib/server/workspaces";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   buildPromptPackEditorStoragePayload,
+  resolvePromptPackVideoMode,
   type JsonObject,
   type PromptPackGenerationOptionsJson,
 } from "@/lib/prompts/prompt-pack-contract";
@@ -28,15 +25,10 @@ import { resolveVoLengthPreset } from "@/lib/prompts/vo-length-presets";
 import {
   buildContentVariantPromptCode,
   getContentVariant,
-  isContentVariantKey,
   type ContentVariantKey,
 } from "@/lib/prompts/content-variants";
-import { getRegenerationScope, isRegenerationScopeKey } from "@/lib/prompts/prompt-regeneration";
+import { isShareAngle, normalizeShareVariantCount, type ShareAngle } from "@/lib/share/share-platform";
 import { PROMPT_CLIP_KEYS, isPromptPackStatus, type PromptClipKey } from "@/lib/prompts/validation";
-import {
-  getGeminiTemporaryUnavailableRetryMessage,
-  isGeminiTemporaryUnavailableMessage,
-} from "@/lib/gemini/error-message";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -52,26 +44,62 @@ function readGenerationOptions(formData: FormData): PromptPackGenerationOptionsJ
   const voEnabled = formData.get("vo_enabled") !== "false";
   const voLengthPreset = resolveVoLengthPreset(formData.get("vo_length_preset"));
   const videoModel = resolveVideoModel(formData.get("video_model"));
+  const videoMode = resolvePromptPackVideoMode(formData.get("video_mode"));
 
   return {
     vo_enabled: voEnabled,
     vo_length_preset: voLengthPreset,
     video_model: videoModel,
+    video_mode: videoMode,
+  };
+}
+
+function readPromptAngle(formData: FormData, fallback: ShareAngle = "benefit_focused"): ShareAngle {
+  const value = readText(formData, "angle") || fallback;
+
+  if (!isShareAngle(value)) {
+    throw new Error("Angle prompt tidak valid.");
+  }
+
+  return value;
+}
+
+function readPromptVariantCount(formData: FormData) {
+  return normalizeShareVariantCount(Number(readText(formData, "variant_count")) || 1);
+}
+
+function mapAngleToContentVariantKey(angle: ShareAngle): ContentVariantKey {
+  switch (angle) {
+    case "problem_solution":
+      return "problem_solution";
+    case "social_proof":
+      return "detail_proof";
+    case "urgency_scarcity":
+      return "price_value";
+    case "educational":
+    case "storytelling":
+      return "use_case";
+    case "benefit_focused":
+    default:
+      return "hero_hook";
+  }
+}
+
+function buildPromptInputParams(input: {
+  angle: ShareAngle;
+  generationOptions: PromptPackGenerationOptionsJson;
+  revisionInstruction?: string | null;
+  variantCount: number;
+}): JsonObject {
+  return {
+    angle: input.angle,
+    variant_count: input.variantCount,
+    generation_options: input.generationOptions as JsonObject,
+    ...(input.revisionInstruction ? { revision_instruction: input.revisionInstruction } : {}),
   };
 }
 
 type GenerationMode = "gemini" | "mock";
-
-const MAX_BULK_PROMPT_PRODUCTS = 50;
-const PROMPT_STATE_PROJECTION_STATUSES = new Set(["PROMPT_QUEUED", "PROMPT_GENERATED", "PROMPT_FAILED"]);
-const BULK_ENQUEUE_BLOCKING_PROMPT_STATUSES = new Set([
-  "QUEUED",
-  "GENERATING",
-  "GENERATED",
-  "NEEDS_REVIEW",
-  "APPROVED",
-  "ERROR",
-]);
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Prompt pack operation failed.";
@@ -95,8 +123,25 @@ function appendRedirectMessage(path: string, key: "message" | "error" | "warning
   return `${pathname}?${searchParams.toString()}`;
 }
 
-function promptDetailRedirect(promptPackId: string, key: "message" | "error" | "warning", message: string) {
-  const searchParams = new URLSearchParams({ detail: promptPackId });
+function promptProductDetailRedirect(
+  productId: string,
+  key: "message" | "error" | "warning",
+  message: string,
+  input?: {
+    tab?: "output" | "generate" | "history";
+    version?: string | null;
+  },
+) {
+  const searchParams = new URLSearchParams({ detail: productId });
+
+  if (input?.tab && input.tab !== "output") {
+    searchParams.set("tab", input.tab);
+  }
+
+  if (input?.version) {
+    searchParams.set("version", input.version);
+  }
+
   return appendRedirectMessage(`/prompts?${searchParams.toString()}`, key, message);
 }
 
@@ -136,27 +181,8 @@ function failFromForm(formData: FormData, message: string): never {
   redirect(buildPromptRedirectFromForm(formData, "error", message));
 }
 
-function buildPromptGenerationRedirect(message: string) {
-  const isRetryableGeminiError = isGeminiTemporaryUnavailableMessage(message);
-  return {
-    key: isRetryableGeminiError ? ("warning" as const) : ("error" as const),
-    message: isRetryableGeminiError ? getGeminiTemporaryUnavailableRetryMessage() : message,
-  };
-}
-
 function doneFromForm(formData: FormData, message: string, productId?: string | null): never {
   redirect(buildPromptRedirectFromForm(formData, "message", message, productId));
-}
-
-function readSelectedProductIds(formData: FormData) {
-  return Array.from(
-    new Set(
-      formData
-        .getAll("product_ids")
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter(Boolean),
-    ),
-  );
 }
 
 function revalidatePromptRoutes(promptPackId: string, productId?: string | null) {
@@ -178,40 +204,6 @@ function readGenerationMode(formData: FormData): GenerationMode {
   }
 
   throw new Error("Mode generasi tidak valid.");
-}
-
-function readStoredGenerationMode(input: unknown): GenerationMode {
-  if (input && typeof input === "object" && !Array.isArray(input) && "mode" in input) {
-    return (input as { mode?: unknown }).mode === "mock" ? "mock" : "gemini";
-  }
-
-  return "gemini";
-}
-
-function readContentVariant(formData: FormData) {
-  const value = readText(formData, "content_variant_key") || "hero_hook";
-
-  if (!isContentVariantKey(value)) {
-    throw new Error("Varian konten tidak valid.");
-  }
-
-  const contentVariant = getContentVariant(value);
-
-  if (!contentVariant) {
-    throw new Error("Varian konten tidak valid.");
-  }
-
-  return contentVariant;
-}
-
-function readRegenerationScopeFromForm(formData: FormData) {
-  const value = readText(formData, "regeneration_scope") || "full_pack";
-
-  if (!isRegenerationScopeKey(value)) {
-    throw new Error("Lingkup regenerasi tidak valid.");
-  }
-
-  return getRegenerationScope(value);
 }
 
 function withContentVariantPersonalization(
@@ -276,6 +268,41 @@ function readPromptEditorPayload(formData: FormData, existingPersonalization?: u
   );
 }
 
+function readJsonRecord(value: unknown): JsonObject {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
+}
+
+function getContentVariantForAngle(angle: ShareAngle) {
+  const contentVariant = getContentVariant(mapAngleToContentVariantKey(angle));
+
+  if (!contentVariant) {
+    throw new Error("Varian prompt tidak valid.");
+  }
+
+  return contentVariant;
+}
+
+function buildSinglePromptCode(productCode: string) {
+  return buildContentVariantPromptCode(productCode, "single");
+}
+
+async function startPromptPackGeneration(promptPackId: string, generationMode: GenerationMode) {
+  const task = await createPromptPackGenerationTask(promptPackId, {
+    generationMode,
+    maxRetries: generationMode === "mock" ? 0 : 3,
+  });
+
+  void import("@/lib/server/prompt-packs")
+    .then((mod) =>
+      generationMode === "mock"
+        ? mod.runMockPromptPackTask(promptPackId, task.task.id)
+        : mod.runRealPromptPackTask(promptPackId, task.task.id),
+    )
+    .catch(() => undefined);
+
+  return task.promptPack;
+}
+
 async function savePromptPackFields(formData: FormData, id: string) {
   const existing = await getPromptPackById(id);
   const productId = readText(formData, "product_id");
@@ -300,241 +327,6 @@ async function savePromptPackFields(formData: FormData, id: string) {
   });
 }
 
-
-async function queuePromptPackForProduct(input: {
-  productId: string;
-  generationMode: GenerationMode;
-  contentVariantKey: ContentVariantKey;
-}) {
-  const product = await getProductById(input.productId);
-
-  if (!product) {
-    throw new Error("Produk tidak ditemukan.");
-  }
-
-  const productPromptPacks = await listPromptPacks({ productId: input.productId, limit: 200 });
-  const contentVariant = getContentVariant(input.contentVariantKey);
-
-  if (!contentVariant) {
-    throw new Error("Varian konten tidak valid.");
-  }
-
-  const promptCode = buildContentVariantPromptCode(product.product_code, contentVariant.key);
-  const matchingPromptPacks = productPromptPacks.filter((promptPack) => promptPack.prompt_code === promptCode);
-  const latestMatchingPromptPack = matchingPromptPacks[0] ?? null;
-  const latestMatchingVersion = matchingPromptPacks.reduce((max, promptPack) => Math.max(max, promptPack.version), 0);
-
-  if (latestMatchingPromptPack && BULK_ENQUEUE_BLOCKING_PROMPT_STATUSES.has(latestMatchingPromptPack.status)) {
-    return {
-      promptPackId: latestMatchingPromptPack.id,
-      productName: product.product_name,
-      skipped: true,
-    };
-  }
-
-  const draftPromptPack = matchingPromptPacks.find((promptPack) => promptPack.status === "DRAFT" && !promptPack.ai_task_id) ?? null;
-  let promptPack = draftPromptPack
-    ? await updatePromptPack(draftPromptPack.id, {
-        status: "QUEUED",
-        error_message: null,
-        personalization_json: withContentVariantPersonalization(draftPromptPack.personalization_json, contentVariant),
-      })
-    : null;
-
-  if (!promptPack) {
-    try {
-      promptPack = await createPromptPack({
-        product_id: input.productId,
-        prompt_code: promptCode,
-        version: latestMatchingVersion + 1,
-        status: "QUEUED",
-        personalization_json: withContentVariantPersonalization(null, contentVariant),
-      });
-    } catch (error) {
-      const message = errorMessage(error);
-      if (message.includes("prompt_packs_user_prompt_code_version_key") || message.toLowerCase().includes("duplicate key value")) {
-        return {
-          promptPackId: latestMatchingPromptPack?.id ?? "",
-          productName: product.product_name,
-          skipped: true,
-        };
-      }
-
-      throw error;
-    }
-  }
-
-  if (!promptPack) {
-    throw new Error("Prompt pack tidak dapat diantrikan.");
-  }
-
-  try {
-    const task = await createPromptPackGenerationTask(promptPack.id, {
-      generationMode: input.generationMode,
-      maxRetries: input.generationMode === "mock" ? 0 : 3,
-    });
-
-    return {
-      promptPackId: task.promptPack.id,
-      productName: product.product_name,
-      skipped: false,
-    };
-  } catch (error) {
-    await updatePromptPack(promptPack.id, {
-      status: "ERROR",
-      error_message: errorMessage(error),
-    }).catch(() => undefined);
-    throw error;
-  }
-}
-
-export async function bulkEnqueuePromptPacks(formData: FormData) {
-  let generationMode: GenerationMode;
-  let contentVariant: NonNullable<ReturnType<typeof getContentVariant>>;
-
-  try {
-    generationMode = readGenerationMode(formData);
-    contentVariant = readContentVariant(formData);
-  } catch (error) {
-    failFromForm(formData, errorMessage(error));
-  }
-
-  const selectedProductIds = readSelectedProductIds(formData);
-  const returnTo = readSafeReturnTo(formData);
-
-  if (!selectedProductIds.length) {
-    failFromForm(formData, "Pilih minimal satu produk.");
-  }
-
-  if (selectedProductIds.length > MAX_BULK_PROMPT_PRODUCTS) {
-    failFromForm(formData, `Maksimal ${MAX_BULK_PROMPT_PRODUCTS} produk sekali antre.`);
-  }
-
-  const currentWorkspace = await getCurrentWorkspace();
-  const workspaceId = currentWorkspace?.id ?? null;
-  const projections = await listPromptReadinessProjections({
-    workspaceId,
-    productIds: selectedProductIds,
-    limit: selectedProductIds.length,
-  });
-  const projectionMap = new Map(projections.map((projection) => [projection.product.id, projection]));
-  let queuedCount = 0;
-  let skippedCount = 0;
-
-  for (const productId of selectedProductIds) {
-    const projection = projectionMap.get(productId);
-
-    if (!projection) {
-      failFromForm(formData, "Produk terpilih tidak ditemukan.");
-    }
-
-    if (projection.status !== "READY_FOR_PROMPT" && !PROMPT_STATE_PROJECTION_STATUSES.has(projection.status)) {
-      failFromForm(formData, "Produk terpilih belum siap untuk antre prompt.");
-    }
-
-    const queued = await queuePromptPackForProduct({
-      productId,
-      generationMode,
-      contentVariantKey: contentVariant.key,
-    });
-
-    if (queued.skipped) {
-      skippedCount += 1;
-      continue;
-    }
-
-    queuedCount += 1;
-  }
-
-  revalidatePath("/prompts");
-
-  const message =
-    queuedCount && skippedCount
-      ? `${queuedCount} produk diantrikan, ${skippedCount} sudah terproses.`
-      : queuedCount
-        ? `${queuedCount} produk diantrikan.`
-        : "Prompt sudah terantri.";
-
-  if (returnTo) {
-    redirect(appendRedirectMessage(returnTo, "message", message));
-  }
-
-  doneFromForm(formData, message);
-}
-
-export async function cancelPromptPackGeneration(formData: FormData) {
-  const id = readText(formData, "id");
-  const productId = readText(formData, "product_id");
-
-  if (!id) {
-    failFromForm(formData, "ID prompt pack tidak ditemukan.");
-  }
-
-  try {
-    await cancelPromptPackGenerationTask(id);
-  } catch (error) {
-    failFromForm(formData, errorMessage(error));
-  }
-
-  revalidatePromptRoutes(id, productId || null);
-  doneFromForm(formData, "Antrian prompt dibatalkan.", productId || null);
-}
-
-export async function retryPromptPackGeneration(formData: FormData) {
-  const id = readText(formData, "id");
-
-  if (!id) {
-    failFromForm(formData, "ID prompt pack tidak ditemukan.");
-  }
-
-  let productId: string | null = null;
-
-  try {
-    const promptPack = await getPromptPackById(id);
-    productId = promptPack.product_id;
-    const supabase = await createSupabaseServerClient();
-    let generationMode: GenerationMode = "gemini";
-    let taskStatus: string | null = null;
-
-    if (promptPack.ai_task_id) {
-      const { data: task, error: taskError } = await supabase
-        .from("ai_tasks")
-        .select("status, input_json")
-        .eq("id", promptPack.ai_task_id)
-        .eq("user_id", promptPack.user_id)
-        .maybeSingle();
-
-      if (taskError) {
-        throw new Error(taskError.message);
-      }
-
-      taskStatus = typeof task?.status === "string" ? task.status : null;
-      generationMode = readStoredGenerationMode(task?.input_json);
-    }
-
-    if (["QUEUED", "RUNNING", "RETRYING"].includes(taskStatus ?? "")) {
-      throw new Error("Task prompt masih aktif.");
-    }
-
-    if (
-      promptPack.status !== "ERROR" &&
-      taskStatus !== "FAILED" &&
-      taskStatus !== "WAITING_FOR_KEY"
-    ) {
-      throw new Error("Prompt pack belum berstatus gagal.");
-    }
-
-    await createPromptPackGenerationTask(promptPack.id, {
-      generationMode,
-      maxRetries: generationMode === "mock" ? 0 : 3,
-    });
-  } catch (error) {
-    failFromForm(formData, errorMessage(error));
-  }
-
-  revalidatePromptRoutes(id, productId);
-  doneFromForm(formData, "Prompt masuk antrian ulang.", productId);
-}
 
 export async function savePromptPack(formData: FormData) {
   const rawIntent = readText(formData, "intent");
@@ -566,7 +358,7 @@ export async function savePromptPack(formData: FormData) {
 
   if (intent === "create_generate" || intent === "create") {
     const productId = readText(formData, "product_id");
-    const status = readText(formData, "status") || "DRAFT";
+    const status = intent === "create_generate" ? "DRAFT" : readText(formData, "status") || "DRAFT";
     const returnTo = readSafeReturnTo(formData);
     let message = "Prompt pack disimpan";
     let createdPromptPackId = "";
@@ -586,8 +378,12 @@ export async function savePromptPack(formData: FormData) {
       }
 
       const storagePayload = intent === "create" ? readPromptEditorPayload(formData) : null;
-      const contentVariant = readContentVariant(formData);
-      const generationOptions = intent === "create_generate" ? readGenerationOptions(formData) : undefined;
+      const angle = readPromptAngle(formData);
+      const variantCount = readPromptVariantCount(formData);
+      const contentVariant = getContentVariantForAngle(angle);
+      const generationOptions = readGenerationOptions(formData);
+      const productPromptPacks = await listPromptPacks({ productId, limit: 200 });
+      const latestProductVersion = productPromptPacks.reduce((max, promptPack) => Math.max(max, promptPack.version), 0);
       const personalizationJson = withContentVariantPersonalization(
         storagePayload?.personalization_json,
         contentVariant,
@@ -598,8 +394,8 @@ export async function savePromptPack(formData: FormData) {
         intake_session_id: readNullableText(formData, "intake_session_id"),
         affiliate_profile_id: readNullableText(formData, "affiliate_profile_id"),
         source_product_image_id: readNullableText(formData, "source_product_image_id"),
-        prompt_code: buildContentVariantPromptCode(product.product_code, contentVariant.key),
-        version: readVersion(formData, "version"),
+        prompt_code: productPromptPacks[0]?.prompt_code ?? buildSinglePromptCode(product.product_code),
+        version: intent === "create_generate" ? latestProductVersion + 1 : readVersion(formData, "version"),
         status,
         ...(storagePayload
           ? {
@@ -608,15 +404,19 @@ export async function savePromptPack(formData: FormData) {
             }
           : {}),
         personalization_json: personalizationJson,
+        angle,
+        variant_count: variantCount,
+        input_params_json: buildPromptInputParams({
+          angle,
+          generationOptions,
+          variantCount,
+        }),
       });
       createdPromptPackId = promptPack.id;
 
       if (intent === "create_generate") {
-        await createPromptPackGenerationTask(promptPack.id, {
-          generationMode,
-          maxRetries: generationMode === "mock" ? 0 : 3,
-        });
-        message = "Prompt pack dibuat. Generasi dimulai di detail.";
+        await startPromptPackGeneration(promptPack.id, generationMode);
+        message = "Prompt sedang di-generate...";
       }
     } catch (error) {
       if (createdPromptPackId) {
@@ -624,7 +424,10 @@ export async function savePromptPack(formData: FormData) {
         if (returnTo) {
           redirect(appendRedirectMessage(returnTo, "error", errorMessage(error)));
         }
-        redirect(promptDetailRedirect(createdPromptPackId, "error", errorMessage(error)));
+        redirect(promptProductDetailRedirect(productId, "error", errorMessage(error), {
+          tab: "generate",
+          version: createdPromptPackId,
+        }));
       }
 
       failFromForm(formData, errorMessage(error));
@@ -632,10 +435,13 @@ export async function savePromptPack(formData: FormData) {
 
     if (createdPromptPackId) {
       revalidatePromptRoutes(createdPromptPackId, productId);
-      if (returnTo) {
+      if (intent !== "create_generate" && returnTo) {
         redirect(appendRedirectMessage(returnTo, "message", message));
       }
-      redirect(promptDetailRedirect(createdPromptPackId, "message", message));
+      redirect(promptProductDetailRedirect(productId, "message", message, {
+        tab: "output",
+        version: createdPromptPackId,
+      }));
     }
 
     doneFromForm(formData, message, productId);
@@ -667,7 +473,10 @@ export async function savePromptPack(formData: FormData) {
     }
 
     revalidatePromptRoutes(id, readText(formData, "product_id") || null);
-    redirect(promptDetailRedirect(id, "message", `TXT Drive disimpan: ${exportedFileName}`));
+    redirect(promptProductDetailRedirect(readText(formData, "product_id"), "message", `TXT Drive disimpan: ${exportedFileName}`, {
+      tab: "output",
+      version: id,
+    }));
   }
 
   if (intent === "regenerate") {
@@ -675,41 +484,48 @@ export async function savePromptPack(formData: FormData) {
     let productId = readNullableText(formData, "product_id");
 
     try {
-      const regenerationScope = readRegenerationScopeFromForm(formData);
       const generationOptions = readGenerationOptions(formData);
       const existing = await getPromptPackById(id);
       productId = productId ?? existing.product_id;
+      const angle = readPromptAngle(formData, existing.angle);
+      const variantCount = formData.has("variant_count")
+        ? readPromptVariantCount(formData)
+        : normalizeShareVariantCount(existing.variant_count);
+      const contentVariant = getContentVariantForAngle(angle);
+      const revisionInstruction = readNullableText(formData, "revision_instruction");
       const nextVersion = await createPromptPackRegenerationVersion(existing.id, {
         storagePayload: {
-          personalization_json: {
-            ...(existing.personalization_json && typeof existing.personalization_json === "object" && !Array.isArray(existing.personalization_json)
-              ? (existing.personalization_json as JsonObject)
-              : {}),
-            generation_options: generationOptions,
-          },
+          personalization_json: withContentVariantPersonalization(
+            readJsonRecord(existing.personalization_json),
+            contentVariant,
+            generationOptions,
+          ),
         },
-        revisionInstruction: readNullableText(formData, "revision_instruction"),
-        regenerationScope: regenerationScope.key,
+        revisionInstruction,
+        regenerationScope: "full_pack",
         productId,
         intakeSessionId: readNullableText(formData, "intake_session_id"),
         affiliateProfileId: readNullableText(formData, "affiliate_profile_id"),
         sourceProductImageId: readNullableText(formData, "source_product_image_id"),
+        angle,
+        variantCount,
+        inputParamsJson: buildPromptInputParams({
+          angle,
+          generationOptions,
+          revisionInstruction,
+          variantCount,
+        }),
       });
       nextPromptPackId = nextVersion.id;
-
-      // Enqueue task only. PromptGenerationMonitor + API endpoint handle execution.
-      await createPromptPackGenerationTask(nextVersion.id, {
-        generationMode,
-        maxRetries: generationMode === "mock" ? 0 : 3,
-      });
+      await startPromptPackGeneration(nextVersion.id, generationMode);
     } catch (error) {
       if (nextPromptPackId !== id) {
-        const messageText = errorMessage(error);
-        const redirectInfo = buildPromptGenerationRedirect(messageText);
         revalidatePromptRoutes(id, productId ?? null);
         revalidatePromptRoutes(nextPromptPackId, productId ?? null);
-        const searchParams = new URLSearchParams({ detail: nextPromptPackId, tab: "output" });
-        redirect(appendRedirectMessage(`/prompts?${searchParams.toString()}`, redirectInfo.key, redirectInfo.message));
+        redirect(promptProductDetailRedirect(productId ?? readText(formData, "product_id"), "error", errorMessage(error), {
+          tab: "generate",
+          version: nextPromptPackId,
+        }));
       }
 
       failFromForm(formData, errorMessage(error));
@@ -717,8 +533,10 @@ export async function savePromptPack(formData: FormData) {
 
     revalidatePromptRoutes(id, productId);
     revalidatePromptRoutes(nextPromptPackId, productId);
-    const searchParams = new URLSearchParams({ detail: nextPromptPackId, tab: "output" });
-    redirect(appendRedirectMessage(`/prompts?${searchParams.toString()}`, "message", "Prompt pack sedang di-generate..."));
+    redirect(promptProductDetailRedirect(productId ?? readText(formData, "product_id"), "message", "Prompt pack sedang di-generate...", {
+      tab: "output",
+      version: nextPromptPackId,
+    }));
   }
 
   if (intent === "mark_ready") {

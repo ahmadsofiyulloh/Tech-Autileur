@@ -261,8 +261,9 @@ export default async function PromptHistoryPage({ params, searchParams }: Prompt
           title={product.product_name}
         >
           <PromptDetailPanel
-            detailHref={buildPromptHistoryHref(selectedPromptPack.id, selectedDetailPack.id)}
-            promptPackId={selectedDetailPack.id}
+            detailHref={`/prompts?detail=${product.id}&version=${selectedDetailPack.id}`}
+            productId={product.id}
+            selectedVersion={selectedDetailPack.id}
           />
         </OperatorDetailDrawer>
       ) : null}

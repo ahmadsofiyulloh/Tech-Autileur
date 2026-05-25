@@ -1,25 +1,24 @@
 import Link from "next/link";
-import { Clock3, FileText, History as HistoryIcon, RefreshCcw } from "lucide-react";
+import { FileText, History as HistoryIcon, WandSparkles } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
-import { FormActions } from "@/components/operator/form-actions";
 import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
-import { PromptGenerationMonitor } from "@/components/operator/prompt-generation-monitor";
-import { RelationalPicker } from "@/components/operator/relational-picker";
-import { ToggleField } from "@/components/operator/toggle-field";
-import { GeneratingState } from "@/components/operator/generating-state";
-import { PromptSkeleton } from "@/components/operator/generating-state-skeletons";
+import { PromptGeneratingState } from "@/components/operator/prompt-generating-state";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
 import { getProductById, listProductImages } from "@/lib/server/products";
-import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
+import { listPromptPacks } from "@/lib/server/prompt-packs";
+import type { getPromptPackById } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { REGENERATION_SCOPES } from "@/lib/prompts/prompt-regeneration";
-import { VIDEO_MODEL_OPTIONS } from "@/lib/prompts/video-model-config";
-import { VO_LENGTH_PRESETS } from "@/lib/prompts/vo-length-presets";
+import {
+  resolvePromptPackVideoMode,
+  type PromptPackGenerationOptionsJson,
+} from "@/lib/prompts/prompt-pack-contract";
+import { SHARE_ANGLE_LABELS } from "@/lib/share/share-platform";
 import { formatAppDateTime } from "@/lib/app-time";
 import { savePromptPack } from "./actions";
+import { PromptGenerateForm } from "./prompt-generate-form";
 import { PromptOutputFields } from "./prompt-output-fields";
 
 type PromptPackRecord = Awaited<ReturnType<typeof getPromptPackById>>;
@@ -34,27 +33,24 @@ type PromptTaskRecord = {
   error_message: string | null;
 };
 
-export type PromptDetailTab = "output" | "regenerate" | "history";
+export type PromptDetailTab = "output" | "generate" | "history";
 
 type PromptDetailPanelProps = {
   detailHref: string;
-  promptPackId: string;
+  productId: string;
   selectedTab?: PromptDetailTab;
   selectedVersion?: string | null;
 };
 
-const PROMPT_STATUS_STAGES = [
-  "Memproses permintaan...",
-  "Menghubungi Gemini...",
-  "Generating prompt...",
-  "Masih memproses...",
-];
-
 const promptDetailTabs: { key: PromptDetailTab; label: string }[] = [
   { key: "output", label: "Output" },
-  { key: "regenerate", label: "Regenerate" },
+  { key: "generate", label: "Generate" },
   { key: "history", label: "History" },
 ];
+
+const promptGenerationPendingStatuses = new Set(["QUEUED", "RUNNING", "GENERATING", "WAITING_FOR_KEY", "RETRYING"]);
+const promptOutputReadyStatuses = new Set(["GENERATED", "NEEDS_REVIEW", "APPROVED"]);
+const promptOutputUnavailableStatuses = new Set(["DRAFT", "QUEUED", "RUNNING", "GENERATING", "WAITING_FOR_KEY", "RETRYING", "ERROR"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -62,6 +58,45 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isPromptGenerationStatusPending(status: string | null | undefined) {
+  return Boolean(status && promptGenerationPendingStatuses.has(status));
+}
+
+function readGenerationOptions(pack: SiblingPromptPackRecord | PromptPackRecord | null): PromptPackGenerationOptionsJson {
+  const personalization = isRecord(pack?.personalization_json) ? pack.personalization_json : {};
+  const inputParams = isRecord(pack?.input_params_json) ? pack.input_params_json : {};
+  const inputOptions = isRecord(inputParams.generation_options) ? inputParams.generation_options : null;
+  const personalizationOptions = isRecord(personalization.generation_options) ? personalization.generation_options : null;
+  const options = inputOptions ?? personalizationOptions ?? {};
+
+  return {
+    ...(typeof options.vo_enabled === "boolean" ? { vo_enabled: options.vo_enabled } : {}),
+    ...(typeof options.vo_length_preset === "string" ? { vo_length_preset: options.vo_length_preset as PromptPackGenerationOptionsJson["vo_length_preset"] } : {}),
+    ...(typeof options.video_model === "string" ? { video_model: options.video_model as PromptPackGenerationOptionsJson["video_model"] } : {}),
+    video_mode: resolvePromptPackVideoMode(options.video_mode),
+  };
+}
+
+function hasGeneratedPromptOutput(pack: SiblingPromptPackRecord | PromptPackRecord | null) {
+  if (!pack) {
+    return false;
+  }
+
+  if (promptOutputUnavailableStatuses.has(pack.status)) {
+    return false;
+  }
+
+  if (promptOutputReadyStatuses.has(pack.status)) {
+    return true;
+  }
+
+  if (Array.isArray(pack.output_variants_json) && pack.output_variants_json.length > 0) {
+    return true;
+  }
+
+  return Boolean(pack.i2i_prompts_json && pack.i2v_prompts_json);
 }
 
 function readRegenerationNote(pack: SiblingPromptPackRecord) {
@@ -104,8 +139,8 @@ function buildTabHref(detailHref: string, tab: PromptDetailTab, version?: string
   return search ? `${path}?${search}` : path;
 }
 
-async function readPromptTask(promptPack: PromptPackRecord, userId: string): Promise<PromptTaskRecord | null> {
-  if (!promptPack.ai_task_id) {
+async function readPromptTask(promptPack: PromptPackRecord | SiblingPromptPackRecord | null, userId: string): Promise<PromptTaskRecord | null> {
+  if (!promptPack?.ai_task_id) {
     return null;
   }
 
@@ -124,9 +159,30 @@ async function readPromptTask(promptPack: PromptPackRecord, userId: string): Pro
   return data ? (data as PromptTaskRecord) : null;
 }
 
+function findDefaultIntakeSession(promptPack: PromptPackRecord | SiblingPromptPackRecord | null, intakeSessions: IntakeSessionRecord[]) {
+  return promptPack?.intake_session_id
+    ? intakeSessions.find((session) => session.id === promptPack.intake_session_id) ?? null
+    : intakeSessions.find((session) => session.reviewed_metadata_json || session.status === "REVIEWED") ?? null;
+}
+
+function findDefaultSourceImage(promptPack: PromptPackRecord | SiblingPromptPackRecord | null, productImages: ProductImageRecord[]) {
+  return promptPack?.source_product_image_id
+    ? productImages.find((image) => image.id === promptPack.source_product_image_id) ?? null
+    : productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
+}
+
+function findDefaultAffiliateProfile(
+  promptPack: PromptPackRecord | SiblingPromptPackRecord | null,
+  affiliateProfiles: AffiliateProfileRecord[],
+) {
+  return promptPack?.affiliate_profile_id
+    ? affiliateProfiles.find((profile) => profile.id === promptPack.affiliate_profile_id) ?? null
+    : null;
+}
+
 export async function PromptDetailPanel({
   detailHref,
-  promptPackId,
+  productId,
   selectedTab = "output",
   selectedVersion = null,
 }: PromptDetailPanelProps) {
@@ -143,42 +199,23 @@ export async function PromptDetailPanel({
     );
   }
 
-  const id = promptPackId;
-  let promptPack: PromptPackRecord;
   let product: ProductRecord | null = null;
+  let promptPacks: SiblingPromptPackRecord[] = [];
   let intakeSessions: IntakeSessionRecord[] = [];
   let productImages: ProductImageRecord[] = [];
   let affiliateProfiles: AffiliateProfileRecord[] = [];
-  let promptTask: PromptTaskRecord | null = null;
 
   try {
-    promptPack = await getPromptPackById(id);
-  } catch (error) {
-    const description = error instanceof Error ? error.message : "Prompt tidak tersedia.";
+    product = await getProductById(productId);
 
-    return (
-      <SectionCard icon={FileText} title="Prompt tidak tersedia." description={description}>
-        <EmptyState icon={FileText} title="Prompt tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
-  }
-
-  if (promptPack.status === "ARCHIVED") {
-    return (
-      <SectionCard icon={FileText} title="Prompt sudah diarsipkan.">
-        <EmptyState icon={FileText} title="Prompt tidak tersedia." description="Paket prompt ini sudah dihapus dari daftar aktif." />
-      </SectionCard>
-    );
-  }
-
-  try {
-    [product, intakeSessions, productImages, affiliateProfiles, promptTask] = await Promise.all([
-      getProductById(promptPack.product_id),
-      listIntakeSessions({ productId: promptPack.product_id, limit: 200 }),
-      listProductImages({ productId: promptPack.product_id, limit: 200 }),
-      listAffiliateProfiles({ limit: 200 }),
-      readPromptTask(promptPack, user.id),
-    ]);
+    if (product) {
+      [promptPacks, intakeSessions, productImages, affiliateProfiles] = await Promise.all([
+        listPromptPacks({ productId: product.id, limit: 200 }),
+        listIntakeSessions({ productId: product.id, limit: 200 }),
+        listProductImages({ productId: product.id, limit: 200 }),
+        listAffiliateProfiles({ limit: 200 }),
+      ]);
+    }
   } catch (error) {
     const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
 
@@ -197,51 +234,30 @@ export async function PromptDetailPanel({
     );
   }
 
-  // Sibling prompt packs (same prompt_code) for History tab + version resolution.
-  let siblingPromptPacks: SiblingPromptPackRecord[] = [];
-
-  try {
-    const allPacks = await listPromptPacks({ workspaceId: product.workspace_id, limit: 200 });
-    siblingPromptPacks = allPacks
-      .filter((pack) => pack.prompt_code === promptPack.prompt_code && pack.status !== "ARCHIVED")
-      .sort((left, right) => {
-        if (left.version !== right.version) {
-          return right.version - left.version;
-        }
-        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
-      });
-  } catch {
-    siblingPromptPacks = [];
-  }
-
-  // Resolve which prompt pack to show on Output tab (selectedVersion may point to a sibling).
-  let displayedPack = promptPack;
-  let isViewingOldVersion = false;
-
-  if (selectedVersion && selectedVersion !== promptPack.id) {
-    const sibling = siblingPromptPacks.find((pack) => pack.id === selectedVersion);
-
-    if (sibling) {
-      displayedPack = sibling as PromptPackRecord;
-      isViewingOldVersion = true;
-    }
-  }
-
-  const intakeSession = promptPack.intake_session_id
-    ? intakeSessions.find((session) => session.id === promptPack.intake_session_id) ?? null
-    : intakeSessions.find((session) => session.reviewed_metadata_json || session.status === "REVIEWED") ?? null;
-  const affiliateProfile = promptPack.affiliate_profile_id
-    ? affiliateProfiles.find((profile) => profile.id === promptPack.affiliate_profile_id) ?? null
+  const activePromptPacks = promptPacks
+    .filter((pack) => pack.status !== "ARCHIVED")
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  const latestPromptPack = activePromptPacks[0] ?? null;
+  const selectedVersionPack = selectedVersion
+    ? activePromptPacks.find((pack) => pack.id === selectedVersion) ?? null
     : null;
-  const sourceImage = promptPack.source_product_image_id
-    ? productImages.find((image) => image.id === promptPack.source_product_image_id) ?? null
-    : productImages.find((image) => image.is_primary) ?? productImages[0] ?? null;
-  const promptErrorMessage = promptPack.error_message ?? promptTask?.error_message ?? null;
-  const promptTaskStatus = promptTask?.status ?? promptPack.status;
-  const isPromptGenerationPending = ["QUEUED", "GENERATING", "WAITING_FOR_KEY", "RETRYING"].includes(promptTaskStatus);
+  const pendingPromptPack = activePromptPacks.find((pack) => isPromptGenerationStatusPending(pack.status)) ?? null;
+  const displayedPack = selectedVersionPack ?? pendingPromptPack ?? latestPromptPack;
+  const sourcePackForGenerate = selectedVersionPack ?? latestPromptPack;
+  const isViewingOldVersion = Boolean(selectedVersionPack && latestPromptPack && selectedVersionPack.id !== latestPromptPack.id);
+  const effectiveTab: PromptDetailTab = !latestPromptPack && selectedTab !== "generate" ? "generate" : selectedTab;
+  const promptTask = await readPromptTask(displayedPack, user.id);
+  const promptErrorMessage = displayedPack?.error_message ?? promptTask?.error_message ?? null;
+  const promptTaskStatus = promptTask?.status ?? displayedPack?.status ?? null;
+  const isPromptOutputReady = hasGeneratedPromptOutput(displayedPack);
+  const isPromptGenerationPending =
+    !isPromptOutputReady && (isPromptGenerationStatusPending(promptTaskStatus) || isPromptGenerationStatusPending(displayedPack?.status));
+  const isPromptOutputUnavailable = Boolean(displayedPack) && !isPromptOutputReady && !isPromptGenerationPending;
   const isWaitingForKey = promptTaskStatus === "WAITING_FOR_KEY";
-
-  const effectiveTab: PromptDetailTab = selectedTab;
+  const generationOptions = readGenerationOptions(sourcePackForGenerate);
+  const intakeSession = findDefaultIntakeSession(sourcePackForGenerate, intakeSessions);
+  const affiliateProfile = findDefaultAffiliateProfile(sourcePackForGenerate, affiliateProfiles);
+  const sourceImage = findDefaultSourceImage(sourcePackForGenerate, productImages);
   const latestHrefForOutput = buildTabHref(detailHref, "output", null);
 
   return (
@@ -250,15 +266,13 @@ export async function PromptDetailPanel({
 
       {isWaitingForKey ? (
         <section className="helper-text" role="status">
-          Semua Gemini key sedang cooldown atau melebihi kuota. Sistem otomatis mencoba ulang setiap 15 detik untuk mencari key yang eligible.
+          Semua Gemini key sedang cooldown atau melebihi kuota. Sistem otomatis mencoba ulang saat generate berjalan.
         </section>
       ) : null}
 
-      {isPromptGenerationPending ? <PromptGenerationMonitor enabled promptPackId={promptPack.id} /> : null}
-
       <nav className="tab-nav tab-nav--flush" aria-label="Tab detail prompt">
         {promptDetailTabs.map((tab) => {
-          const href = buildTabHref(detailHref, tab.key, null);
+          const href = buildTabHref(detailHref, tab.key, tab.key === "generate" ? displayedPack?.id ?? null : null);
           return (
             <Link
               aria-current={effectiveTab === tab.key ? "page" : undefined}
@@ -275,155 +289,100 @@ export async function PromptDetailPanel({
 
       {effectiveTab === "output" ? (
         <SectionCard className="prompt-detail-section prompt-detail-section--output" icon={FileText} title="Output Siap Copy">
-          {isViewingOldVersion ? (
-            <div className="output-version-banner" role="status">
-              <span className="output-version-banner__label">
-                Versi v{displayedPack.version} - {formatAppDateTime(displayedPack.created_at, "-")}
-              </span>
-              <Link className="compact" href={latestHrefForOutput}>
-                Kembali ke Terbaru
-              </Link>
-            </div>
-          ) : null}
-
-          {isPromptGenerationPending && !isViewingOldVersion ? (
-            <GeneratingState
-              skeleton={<PromptSkeleton />}
-              statusStages={PROMPT_STATUS_STAGES}
-            />
+          {!displayedPack ? (
+            <EmptyState icon={FileText} title="Belum ada output." description="Generate prompt dari tab Generate." />
           ) : (
             <>
-              <PromptOutputFields pack={displayedPack} />
-              <form className="section-card__actions desktop-action-set" action={savePromptPack}>
-                <input type="hidden" name="id" value={displayedPack.id} />
-                <input type="hidden" name="return_to" value={detailHref} />
-                <input type="hidden" name="product_id" value={displayedPack.product_id} />
-                <PendingActionButton
-                  className="compact tertiary"
-                  pendingLabel="Menyimpan"
-                  name="intent"
-                  value="export_prompt_txt"
-                >
-                  Simpan TXT Drive
-                </PendingActionButton>
-              </form>
-              <div className="mobile-action-set">
-                <form action={savePromptPack}>
-                  <input type="hidden" name="id" value={displayedPack.id} />
-                  <input type="hidden" name="return_to" value={detailHref} />
-                  <input type="hidden" name="product_id" value={displayedPack.product_id} />
-                  <PendingActionButton
-                    className="compact tertiary"
-                    pendingLabel="Menyimpan"
-                    name="intent"
-                    value="export_prompt_txt"
-                  >
-                    Simpan TXT Drive
-                  </PendingActionButton>
-                </form>
-              </div>
+              {isViewingOldVersion ? (
+                <div className="output-version-banner" role="status">
+                  <span className="output-version-banner__label">
+                    Versi v{displayedPack.version} - {formatAppDateTime(displayedPack.created_at, "-")}
+                  </span>
+                  <Link className="compact" href={latestHrefForOutput}>
+                    Kembali ke Terbaru
+                  </Link>
+                </div>
+              ) : null}
+
+              {isPromptGenerationPending ? (
+                <PromptGeneratingState promptPackId={displayedPack.id} />
+              ) : isPromptOutputUnavailable ? (
+                <EmptyState icon={FileText} title="Output belum tersedia." description="Generate ulang dari tab Generate." />
+              ) : (
+                <>
+                  <PromptOutputFields pack={displayedPack} />
+                  <form className="section-card__actions desktop-action-set" action={savePromptPack}>
+                    <input type="hidden" name="id" value={displayedPack.id} />
+                    <input type="hidden" name="return_to" value={detailHref} />
+                    <input type="hidden" name="product_id" value={displayedPack.product_id} />
+                    <PendingActionButton
+                      className="compact tertiary"
+                      pendingLabel="Menyimpan"
+                      name="intent"
+                      value="export_prompt_txt"
+                    >
+                      Simpan TXT Drive
+                    </PendingActionButton>
+                  </form>
+                  <div className="mobile-action-set">
+                    <form action={savePromptPack}>
+                      <input type="hidden" name="id" value={displayedPack.id} />
+                      <input type="hidden" name="return_to" value={detailHref} />
+                      <input type="hidden" name="product_id" value={displayedPack.product_id} />
+                      <PendingActionButton
+                        className="compact tertiary"
+                        pendingLabel="Menyimpan"
+                        name="intent"
+                        value="export_prompt_txt"
+                      >
+                        Simpan TXT Drive
+                      </PendingActionButton>
+                    </form>
+                  </div>
+                </>
+              )}
             </>
           )}
         </SectionCard>
       ) : null}
 
-      {effectiveTab === "regenerate" ? (
-        <SectionCard className="prompt-detail-section prompt-detail-section--regenerate" icon={RefreshCcw} title="Regenerate Prompt">
-          {isPromptGenerationPending ? (
-            <GeneratingState
-              skeleton={<PromptSkeleton />}
-              statusStages={PROMPT_STATUS_STAGES}
-            />
+      {effectiveTab === "generate" ? (
+        <SectionCard className="prompt-detail-section prompt-detail-section--generate" icon={WandSparkles} title="Generate Prompt">
+          {displayedPack && isPromptGenerationPending ? (
+            <PromptGeneratingState promptPackId={displayedPack.id} />
           ) : (
-            <form className="stack" action={savePromptPack}>
-              <input type="hidden" name="id" value={promptPack.id} />
-              <input type="hidden" name="return_to" value={detailHref} />
-              <input type="hidden" name="product_id" value={promptPack.product_id} />
-              <input type="hidden" name="intake_session_id" value={promptPack.intake_session_id ?? intakeSession?.id ?? ""} />
-              <input type="hidden" name="affiliate_profile_id" value={promptPack.affiliate_profile_id ?? affiliateProfile?.id ?? ""} />
-              <input type="hidden" name="source_product_image_id" value={promptPack.source_product_image_id ?? sourceImage?.id ?? ""} />
-
-              <RelationalPicker
-                label="Lingkup Regenerasi"
-                name="regeneration_scope"
-                options={REGENERATION_SCOPES.map((scope) => ({
-                  value: scope.key,
-                  label: scope.label,
-                  description: scope.description,
-                }))}
-                defaultValue="full_pack"
-                searchable={false}
-              />
-
-              <RelationalPicker
-                label="Model Generator"
-                name="video_model"
-                options={VIDEO_MODEL_OPTIONS.map((m) => ({
-                  value: m.key,
-                  label: m.label,
-                  description: m.description,
-                }))}
-                defaultValue="veo-3.1"
-                searchable={false}
-              />
-
-              <ToggleField
-                label="Sertakan Voiceover"
-                name="vo_enabled"
-                defaultChecked={true}
-                helperText="Nonaktifkan untuk prompt tanpa dialog/narasi"
-              />
-
-              <RelationalPicker
-                label="Panjang Voiceover"
-                name="vo_length_preset"
-                options={VO_LENGTH_PRESETS.map((p) => ({
-                  value: p.key,
-                  label: p.label,
-                  description: p.description,
-                }))}
-                defaultValue="medium"
-                searchable={false}
-              />
-
-              <label className="stack auth-field" htmlFor="revision_instruction">
-                <span>Instruksi Revisi</span>
-                <textarea id="revision_instruction" name="revision_instruction" rows={3} />
-              </label>
-
-              <FormActions layout="pair">
-                <NativeLinkButton className="tertiary" href={`/prompts/${promptPack.id}/history`}>
-                  <Clock3 size={16} aria-hidden="true" />
-                  History
-                </NativeLinkButton>
-                <PendingActionButton
-                  className="primary"
-                  pendingLabel="Meregenerasi"
-                  name="intent"
-                  value="regenerate"
-                >
-                  Buat Ulang
-                </PendingActionButton>
-              </FormActions>
-            </form>
+            <PromptGenerateForm
+              action={savePromptPack}
+              affiliateProfileId={sourcePackForGenerate?.affiliate_profile_id ?? affiliateProfile?.id ?? null}
+              angle={sourcePackForGenerate?.angle ?? null}
+              intakeSessionId={sourcePackForGenerate?.intake_session_id ?? intakeSession?.id ?? null}
+              mode={sourcePackForGenerate ? "regenerate" : "create"}
+              productId={product.id}
+              promptPackId={sourcePackForGenerate?.id ?? null}
+              returnHref={buildTabHref(detailHref, "generate", sourcePackForGenerate?.id ?? null)}
+              sourceImageId={sourcePackForGenerate?.source_product_image_id ?? sourceImage?.id ?? null}
+              variantCount={sourcePackForGenerate?.variant_count ?? 1}
+              videoMode={generationOptions.video_mode}
+              voEnabled={generationOptions.vo_enabled}
+            />
           )}
         </SectionCard>
       ) : null}
 
       {effectiveTab === "history" ? (
         <SectionCard className="prompt-detail-section prompt-detail-section--history" icon={HistoryIcon} title="History Generate">
-          {siblingPromptPacks.length ? (
+          {activePromptPacks.length ? (
             <ul className="list prompt-history-list">
-              {siblingPromptPacks.map((pack) => {
+              {activePromptPacks.map((pack) => {
                 const regenerationNote = readRegenerationNote(pack);
-                const meta = [`v${pack.version}`, pack.status].filter(Boolean).join(" - ");
+                const meta = [`v${pack.version}`, pack.status, SHARE_ANGLE_LABELS[pack.angle]].filter(Boolean).join(" - ");
                 const viewHref = buildTabHref(detailHref, "output", pack.id);
 
                 return (
-                  <li className="prompt-history-row" key={pack.id}>
+                  <li className="prompt-history-row" data-active={displayedPack?.id === pack.id ? "true" : undefined} key={pack.id}>
                     <div className="prompt-history-row__body">
                       <span className="prompt-history-row__meta">{meta}</span>
-                      <strong className="prompt-history-row__note">{regenerationNote || "Generate awal"}</strong>
+                      <strong className="prompt-history-row__note">{regenerationNote || `${pack.variant_count} varian`}</strong>
                       <span className="prompt-history-row__date">{formatAppDateTime(pack.created_at, "-")}</span>
                     </div>
                     <div className="prompt-history-row__actions">
@@ -436,7 +395,7 @@ export async function PromptDetailPanel({
               })}
             </ul>
           ) : (
-            <EmptyState icon={HistoryIcon} title="Belum ada history." description="Versi prompt belum tersedia." />
+            <EmptyState icon={HistoryIcon} title="Belum ada history." description="Generate pertama akan muncul di sini." />
           )}
         </SectionCard>
       ) : null}

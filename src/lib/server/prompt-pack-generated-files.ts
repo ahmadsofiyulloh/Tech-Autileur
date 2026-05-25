@@ -2,7 +2,11 @@ import "server-only";
 
 import { revalidatePath } from "next/cache.js";
 import { PROMPT_CLIP_KEYS, PROMPT_CLIP_LABELS, PROMPT_TARGET_MARKETPLACE } from "@/lib/prompts/validation";
-import { readPromptPackEditorPromptSet } from "@/lib/prompts/prompt-pack-contract";
+import {
+  buildIngredientsVideoPromptForCopy,
+  readPromptPackEditorPromptSet,
+  resolvePromptPackVideoMode,
+} from "@/lib/prompts/prompt-pack-contract";
 import {
   createDriveItem,
   getDriveItemByDriveItemId,
@@ -63,6 +67,40 @@ function assertPromptSetReadyForExport(promptSet: ReturnType<typeof readPromptPa
       throw new Error("Generate prompt lengkap sebelum menyimpan TXT Drive.");
     }
   }
+}
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readPromptPackExportVariants(promptPack: Awaited<ReturnType<typeof getPromptPackById>>) {
+  if (!Array.isArray(promptPack.output_variants_json) || promptPack.output_variants_json.length === 0) {
+    return [promptPack];
+  }
+
+  const variants = promptPack.output_variants_json
+    .filter((variant) => Boolean(variant) && typeof variant === "object" && !Array.isArray(variant))
+    .map((variant) => {
+      const record = variant as Record<string, unknown>;
+
+      return {
+        ...promptPack,
+        i2i_prompts_json: record.i2i_prompts,
+        i2v_prompts_json: record.i2v_prompts,
+        personalization_json: {
+          ...readRecord(promptPack.personalization_json),
+          caption: readString(record.caption),
+          tags: readString(record.tags),
+          upload_copy: readRecord(record.upload_copy),
+        },
+      };
+    });
+
+  return variants.length ? variants : [promptPack];
 }
 
 async function ensureDriveFolderRecord(input: {
@@ -140,35 +178,65 @@ function buildPromptPackTextFile(input: {
   promptPack: Awaited<ReturnType<typeof getPromptPackById>>;
   product: NonNullable<Awaited<ReturnType<typeof getProductById>>>;
 }) {
-  const promptSet = readPromptPackEditorPromptSet(input.promptPack);
-  assertPromptSetReadyForExport(promptSet);
+  const personalization = input.promptPack.personalization_json;
+  const generationOptions =
+    personalization && typeof personalization === "object" && !Array.isArray(personalization)
+      ? (personalization as Record<string, unknown>).generation_options
+      : null;
+  const videoMode =
+    generationOptions && typeof generationOptions === "object" && !Array.isArray(generationOptions)
+      ? resolvePromptPackVideoMode((generationOptions as Record<string, unknown>).video_mode)
+      : resolvePromptPackVideoMode(null);
+  const isIngredientsMode = videoMode === "ingredients_to_video";
   const lines = [
     `Produk: ${input.product.product_name}`,
     `Kode Produk: ${input.product.product_code}`,
     `Prompt: ${input.promptPack.prompt_code}`,
     `Versi: v${input.promptPack.version}`,
     `Target Marketplace: ${PROMPT_TARGET_MARKETPLACE}`,
-    "",
-    "Caption",
-    promptSet.caption || "Belum ada.",
-    "",
-    "Tags",
-    promptSet.tags || "Belum ada.",
   ];
 
-  for (const clipKey of PROMPT_CLIP_KEYS) {
-    const clip = promptSet.clips[clipKey];
+  const variants = readPromptPackExportVariants(input.promptPack);
+
+  variants.forEach((variant, index) => {
+    const promptSet = readPromptPackEditorPromptSet(variant);
+    assertPromptSetReadyForExport(promptSet);
 
     lines.push(
       "",
-      PROMPT_CLIP_LABELS[clipKey],
-      "First Frame Image",
-      clip.i2i_first_frame || "Belum ada.",
+      `Varian ${index + 1}`,
       "",
-      "I2V Prompt",
-      clip.i2v_prompt || "Belum ada.",
+      "Caption",
+      promptSet.caption || "Belum ada.",
+      "",
+      "Tags",
+      promptSet.tags || "Belum ada.",
     );
-  }
+
+    for (const clipKey of PROMPT_CLIP_KEYS) {
+      const clip = promptSet.clips[clipKey];
+
+      if (isIngredientsMode) {
+        lines.push(
+          "",
+          PROMPT_CLIP_LABELS[clipKey],
+          "Ingredients Video Prompt",
+          JSON.stringify(buildIngredientsVideoPromptForCopy(clip.i2v_prompt_json), null, 2),
+        );
+        continue;
+      }
+
+      lines.push(
+        "",
+        PROMPT_CLIP_LABELS[clipKey],
+        "First Frame Image",
+        clip.i2i_first_frame || "Belum ada.",
+        "",
+        "I2V Prompt",
+        clip.i2v_prompt || "Belum ada.",
+      );
+    }
+  });
 
   return `${lines.join("\n")}\n`;
 }

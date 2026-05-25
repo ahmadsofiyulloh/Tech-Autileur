@@ -3,6 +3,7 @@ import {
   PROMPT_PACK_I2V_TIMELINE_WINDOWS,
   PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
   PROMPT_PACK_VO_MAX_CHARS,
+  type PromptPackVideoMode,
 } from "@/lib/prompts/prompt-pack-contract";
 
 type JsonSchema = {
@@ -386,7 +387,9 @@ function buildCompactI2VAudioSchema(maxVoChars: number = PROMPT_PACK_VO_MAX_CHAR
   } as const satisfies JsonSchema;
 }
 
-function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2", maxVoChars?: number) {
+function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2", maxVoChars?: number, videoMode?: PromptPackVideoMode) {
+  const isIngredientsMode = videoMode === "ingredients_to_video";
+
   return {
     type: "object",
     required: [
@@ -404,8 +407,9 @@ function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2", maxVoChars?: num
       slot: { type: "string", enum: [slot] },
       prompt_text: {
         ...stringSchema,
-        description:
-          'Veo image-to-video prompt text. Use only @firstframe as the video reference and include dialogue/audio guidance formatted as VO: "{audio.voiceover_text}".',
+        description: isIngredientsMode
+          ? 'Direct Ingredients Video Prompt for Flow. Use @character, @environment, and @product as source ingredients and include dialogue/audio guidance formatted as VO: "{audio.voiceover_text}".'
+          : 'Veo image-to-video prompt text. Use only @firstframe as the video reference and include dialogue/audio guidance formatted as VO: "{audio.voiceover_text}".',
       },
       duration_seconds: { type: "number" },
       timeline: {
@@ -414,11 +418,15 @@ function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2", maxVoChars?: num
       },
       motion_prompt: {
         ...stringSchema,
-        description: "Motion guidance that compiles cleanly into structured Veo JSON using only @firstframe.",
+        description: isIngredientsMode
+          ? "Motion guidance for a direct ingredients-to-video prompt using source ingredients."
+          : "Motion guidance that compiles cleanly into structured Veo JSON using only @firstframe.",
       },
       camera_motion: {
         ...stringSchema,
-        description: "Camera guidance for one continuous 8-second clip using only @firstframe.",
+        description: isIngredientsMode
+          ? "Camera guidance for one continuous product video from source ingredients."
+          : "Camera guidance for one continuous 8-second clip using only @firstframe.",
       },
       continuity: {
         type: "object",
@@ -426,7 +434,9 @@ function buildCompactI2VPromptSchema(slot: "clip_1" | "clip_2", maxVoChars?: num
         properties: {
           first_frame_hint: {
             ...stringSchema,
-            description: "Continuity guidance anchored to @firstframe.",
+            description: isIngredientsMode
+              ? "Compatibility continuity hint. Do not require a generated first frame before Flow."
+              : "Continuity guidance anchored to @firstframe.",
           },
           last_frame_hint: {
             ...stringSchema,
@@ -463,7 +473,7 @@ const uploadCopySchema = {
 
 export const GEMINI_PROMPT_PACK_RESPONSE_SCHEMA = buildGeminiPromptPackResponseSchema();
 
-export function buildGeminiPromptPackResponseSchema(maxVoChars?: number) {
+export function buildGeminiPromptPackResponseSchema(maxVoChars?: number, videoMode?: PromptPackVideoMode) {
   return {
   type: "object",
   required: [
@@ -554,8 +564,8 @@ export function buildGeminiPromptPackResponseSchema(maxVoChars?: number) {
       type: "object",
       required: ["clip_1", "clip_2"],
       properties: {
-        clip_1: buildCompactI2VPromptSchema("clip_1", maxVoChars),
-        clip_2: buildCompactI2VPromptSchema("clip_2", maxVoChars),
+        clip_1: buildCompactI2VPromptSchema("clip_1", maxVoChars, videoMode),
+        clip_2: buildCompactI2VPromptSchema("clip_2", maxVoChars, videoMode),
       },
       additionalProperties: false,
     },
@@ -567,6 +577,21 @@ export function buildGeminiPromptPackResponseSchema(maxVoChars?: number) {
   },
   additionalProperties: false,
 } as const satisfies JsonSchema;
+}
+
+export function buildGeminiPromptPackVariantsResponseSchema(maxVoChars?: number, videoMode?: PromptPackVideoMode) {
+  return {
+    type: "object",
+    required: ["variants"],
+    properties: {
+      variants: {
+        type: "array",
+        items: buildGeminiPromptPackResponseSchema(maxVoChars, videoMode),
+        description: "Array of complete prompt-pack variants matching requested variant_count.",
+      },
+    },
+    additionalProperties: false,
+  } as const satisfies JsonSchema;
 }
 
 const affiliateAssetVisualAnalysisSchema = {

@@ -6,8 +6,7 @@
 }
 
 .prompt-detail-panel,
-.prompt-output-fields--prompt-pack,
-.prompt-queue-drawer {
+.prompt-output-fields--prompt-pack {
   gap: var(--space-2);
 }
 
@@ -36,19 +35,6 @@
 
 .operator-detail-drawer .prompt-field-stepper__field .prompt-readonly-field__body {
   max-height: min(42dvh, calc(var(--space-6) * 12));
-}
-
-.prompt-queue-summary-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.prompt-queue-metric,
-.prompt-queue-row {
-  box-shadow: none;
-}
-
-.prompt-queue-controls .button {
-  flex: 1 1 calc(var(--space-6) * 6);
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
@@ -250,8 +236,4 @@
     display: none !important;
   }
 
-  .prompt-queue-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
-

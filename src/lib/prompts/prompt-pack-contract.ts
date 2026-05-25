@@ -17,10 +17,25 @@ type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 export type JsonObject = Record<string, JsonValue>;
 
+export const PROMPT_PACK_VIDEO_MODES = ["frame_to_video", "ingredients_to_video"] as const;
+
+export type PromptPackVideoMode = (typeof PROMPT_PACK_VIDEO_MODES)[number];
+
+export const DEFAULT_PROMPT_PACK_VIDEO_MODE: PromptPackVideoMode = "frame_to_video";
+
+export function isPromptPackVideoMode(value: unknown): value is PromptPackVideoMode {
+  return typeof value === "string" && (PROMPT_PACK_VIDEO_MODES as readonly string[]).includes(value);
+}
+
+export function resolvePromptPackVideoMode(value: unknown): PromptPackVideoMode {
+  return isPromptPackVideoMode(value) ? value : DEFAULT_PROMPT_PACK_VIDEO_MODE;
+}
+
 export type PromptPackGenerationOptionsJson = {
   vo_enabled?: boolean;
   vo_length_preset?: VoLengthPresetKey;
   video_model?: VideoModelKey;
+  video_mode?: PromptPackVideoMode;
 };
 
 export type PromptPackPersonalizationJson = JsonObject & {
@@ -41,6 +56,7 @@ function readGenerationOptions(value: unknown): PromptPackGenerationOptionsJson 
     ...(typeof value.vo_enabled === "boolean" ? { vo_enabled: value.vo_enabled } : {}),
     ...(typeof value.vo_length_preset === "string" ? { vo_length_preset: value.vo_length_preset as VoLengthPresetKey } : {}),
     ...(typeof value.video_model === "string" ? { video_model: value.video_model as VideoModelKey } : {}),
+    video_mode: resolvePromptPackVideoMode(value.video_mode),
   };
 }
 
@@ -219,6 +235,22 @@ export type PromptPackStructuredI2VCopyJson = {
   negative_prompt: string;
 };
 
+export type PromptPackIngredientsVideoCopyJson = {
+  schema_version: typeof PROMPT_PACK_COPY_SCHEMA_VERSION;
+  slot: PromptClipKey;
+  stage: "ingredients_to_video";
+  source_inputs: ["@character", "@environment", "@product"];
+  prompt: {
+    video_prompt: string;
+    motion: string;
+    camera: string;
+    timeline: PromptPackI2VTimelineSegmentJson[];
+    continuity: string;
+    audio: PromptPackStructuredI2VCopyAudioJson;
+  };
+  negative_prompt: string;
+};
+
 export type PromptPackGenerationOutput = {
   product_analysis: JsonObject;
   prompt_context: JsonObject;
@@ -232,6 +264,10 @@ export type PromptPackGenerationOutput = {
   consistency_rules: string[];
   seed_character: PromptPackLockStateJson;
   environment: PromptPackLockStateJson;
+};
+
+export type PromptPackGenerationVariantsOutput = {
+  variants: PromptPackGenerationOutput[];
 };
 
 export type PromptPackShopeeUploadCopyJson = {
@@ -1431,6 +1467,35 @@ export function buildStructuredI2VPromptForCopy(
       camera: sanitizeStructuredI2VCopyText(clip.camera_motion) || "Natural camera movement from @firstframe with no scene jump.",
       timeline: buildStructuredI2VCopyTimeline(clip, hasVoiceover),
       continuity: STRUCTURED_I2V_CONTINUITY,
+      audio: buildStructuredI2VCopyAudio(audio, hasVoiceover),
+    },
+    negative_prompt:
+      sanitizeStructuredI2VCopyText(clip.negative_prompt) ||
+      "Avoid distorted product details, identity drift, scene changes, text artifacts, and unsupported claims.",
+  };
+}
+
+export function buildIngredientsVideoPromptForCopy(
+  clip: PromptPackI2VPromptJson,
+): PromptPackIngredientsVideoCopyJson {
+  const audio = clip.audio ?? {};
+  const hasVoiceover = Boolean(readString(audio.voiceover_text));
+
+  return {
+    schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
+    slot: clip.slot,
+    stage: "ingredients_to_video",
+    source_inputs: ["@character", "@environment", "@product"],
+    prompt: {
+      video_prompt:
+        sanitizeStructuredI2VCopyText(clip.prompt_text) ||
+        "Create one grounded product video from @character, @environment, and @product.",
+      motion: buildStructuredI2VCopyMotion(clip),
+      camera: sanitizeStructuredI2VCopyText(clip.camera_motion) || "Natural camera movement with stable product visibility.",
+      timeline: buildStructuredI2VCopyTimeline(clip, hasVoiceover),
+      continuity:
+        sanitizeStructuredI2VCopyText(clip.continuity) ||
+        "Preserve product identity, character identity, outfit, lighting, and environment across the video.",
       audio: buildStructuredI2VCopyAudio(audio, hasVoiceover),
     },
     negative_prompt:
@@ -2893,6 +2958,35 @@ export function parsePromptPackGenerationOutput(
   }
 
   throw new Error("Gemini output must use the compact prompt-pack JSON contract.");
+}
+
+export function parsePromptPackGenerationVariantsOutput(
+  rawText: string,
+  options?: {
+    fallbackProductStatus?: string | null;
+    fallbackSourceImage?: PromptPackSourceImageRecord | null;
+    serverPromptContext?: JsonObject | null;
+  },
+): PromptPackGenerationVariantsOutput {
+  const jsonText = recoverJsonText(rawText);
+  const parsed: unknown = JSON.parse(jsonText);
+  const record = requireRecord(parsed, "Gemini output");
+
+  if (Array.isArray(record.variants)) {
+    const variants = record.variants.map((variant, index) =>
+      parsePromptPackGenerationOutput(JSON.stringify(variant), options),
+    );
+
+    if (!variants.length) {
+      throw new Error("Gemini output variants must contain at least one prompt pack.");
+    }
+
+    return { variants };
+  }
+
+  return {
+    variants: [parsePromptPackGenerationOutput(rawText, options)],
+  };
 }
 
 export function readPromptPackEditorPromptSet(input: {

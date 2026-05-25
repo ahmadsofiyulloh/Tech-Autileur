@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache.js";
+import { logDiagnostic } from "@/lib/server/diagnostic-logging";
 import {
   createAITask,
   markTaskFailed,
@@ -25,12 +26,14 @@ import { GeminiClientError, type GeminiGroundingSummary } from "@/lib/server/gem
 import { getGeminiSecretRotationErrorMessage, readGeminiSecretForKey } from "@/lib/server/gemini-secret";
 import { generateTrackedGeminiJsonText } from "@/lib/server/gemini-usage-events";
 import {
+  diagnoseGeminiKeyEligibility,
   getGeminiQuotaGroupKey,
   listQuotaAwareGeminiKeys,
   markGeminiKeyError,
   markGeminiKeySuccess,
   markGeminiQuotaGroupError,
   markGeminiQuotaGroupCooldown,
+  type GeminiKeyEligibilityDiagnostic,
   type GeminiRoutableKey,
 } from "@/lib/server/gemini-key-routing";
 import {
@@ -44,10 +47,12 @@ import {
   PROMPT_PACK_SHOPEE_COPY_MAX_CHARS,
   buildPromptPackUploadCopy,
   buildPromptPackStoragePayload,
-  parsePromptPackGenerationOutput,
+  parsePromptPackGenerationVariantsOutput,
   readPromptPackEditorPromptSet,
   buildPromptReferenceCardsFromContext,
+  resolvePromptPackVideoMode,
   type JsonObject,
+  type JsonValue,
   type PromptPackPromptRulesJson,
   type PromptPackStoragePayload,
   type PromptPackGenerationOutput,
@@ -55,8 +60,9 @@ import {
   type PromptPackGenerationOptionsJson,
 } from "@/lib/prompts/prompt-pack-contract";
 import { resolveVoMaxChars, DEFAULT_VO_MAX_CHARS } from "@/lib/prompts/vo-length-presets";
-import { buildGeminiPromptPackResponseSchema } from "@/lib/gemini/json-schemas";
+import { buildGeminiPromptPackVariantsResponseSchema } from "@/lib/gemini/json-schemas";
 import { CONTENT_VARIANTS, getContentVariant } from "@/lib/prompts/content-variants";
+import { isShareAngle, normalizeShareVariantCount, type ShareAngle } from "@/lib/share/share-platform";
 import { assertPromptMetadataComplete } from "@/lib/intake/metadata-essentials";
 import {
   getRegenerationScope,
@@ -129,6 +135,10 @@ type PromptPackRecord = {
   consistency_rules_json: JsonObject | null;
   negative_rules_json: JsonObject | null;
   personalization_json: JsonObject | null;
+  angle: ShareAngle;
+  variant_count: number;
+  input_params_json: JsonObject | null;
+  output_variants_json: JsonObject[] | null;
   ai_task_id: string | null;
   error_message: string | null;
   notes: string | null;
@@ -167,6 +177,10 @@ type PromptPackInput = {
   consistency_rules_json?: JsonObject | null;
   negative_rules_json?: JsonObject | null;
   personalization_json?: JsonObject | null;
+  angle?: ShareAngle | string | null;
+  variant_count?: number | null;
+  input_params_json?: JsonObject | null;
+  output_variants_json?: JsonObject[] | null;
   error_message?: string | null;
   notes?: string | null;
 };
@@ -200,8 +214,6 @@ type MockPromptContext = {
 
 type PromptPackGenerationMode = "mock" | "gemini";
 
-const CANCELABLE_PROMPT_TASK_STATUSES = new Set(["QUEUED", "RETRYING", "WAITING_FOR_KEY"]);
-
 type PromptPackGenerationContext = {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   serviceClient: ReturnType<typeof createSupabaseServiceRoleClient>;
@@ -232,6 +244,18 @@ function readText(value: string | null | undefined) {
 function normalizeNullableText(value: string | null | undefined) {
   const trimmed = readText(value);
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizePromptAngle(value: unknown): ShareAngle {
+  return isShareAngle(value) ? value : "benefit_focused";
+}
+
+function normalizePromptVariantCount(value: unknown): number {
+  return normalizeShareVariantCount(value);
+}
+
+function jsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function buildPromptCode(productCode: string | null | undefined) {
@@ -504,6 +528,7 @@ function buildPromptContextSnapshot(context: {
   generationOptions?: PromptPackGenerationOptionsJson;
 }) {
   const visualParsingMode = "CACHED_JSON_METADATA";
+  const videoMode = resolvePromptPackVideoMode(context.generationOptions?.video_mode);
   const promptContext = {
     workspace: buildWorkspaceSnapshot(context.currentWorkspace),
     product: buildProductSnapshot(context.product),
@@ -523,11 +548,15 @@ function buildPromptContextSnapshot(context: {
     ...promptContext,
     reference_cards: buildPromptReferenceCardsFromContext(promptContext),
     prompt_writing_contract: {
-      mode: "FLOW_I2I_SINGLE_FRAME_I2V_PROMPT_PACK_V2",
+      mode: videoMode === "ingredients_to_video"
+        ? "FLOW_INGREDIENTS_TO_VIDEO_PROMPT_PACK_V2"
+        : "FLOW_I2I_SINGLE_FRAME_I2V_PROMPT_PACK_V2",
+      video_mode: videoMode,
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       first_frame_image_inputs: ["@character", "@environment", "@product"],
       last_frame_image_inputs: ["@firstframe"],
       i2v_frame_inputs: ["@firstframe", "@lastframe"],
+      ingredients_video_inputs: ["@character", "@environment", "@product"],
       i2v_duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
       i2v_timeline_windows: [...PROMPT_PACK_I2V_TIMELINE_WINDOWS],
       clip_roles: {
@@ -1082,9 +1111,17 @@ function buildI2IPrompts(context: MockPromptContext): PromptPackGenerationOutput
 function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput["i2v_prompts"] {
   const { promptPack, product, latestAnchor, affiliateProfile } = context;
   const promptRules = normalizePromptRulePack(buildAffiliateRulePack(affiliateProfile));
+  const videoMode = resolvePromptPackVideoMode(readPromptPackGenerationOptions(promptPack).video_mode);
+  const isIngredientsVideoMode = videoMode === "ingredients_to_video";
   const continuityHint = latestAnchor
     ? `Keep continuity with anchor ${latestAnchor.anchor_code} v${latestAnchor.version}.`
     : "Keep continuity with the latest product reference.";
+  const clip1PromptText = isIngredientsVideoMode
+    ? `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Direct Ingredients Video Prompt: use @character, @environment, and @product as source ingredients; keep product primary, grounded, and copy-ready for Google Flow.`
+    : `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} @lastframe remains a legacy compatibility input and must not override single-frame continuity for ${buildMockClipObjective("clip_1")}.`;
+  const clip2PromptText = isIngredientsVideoMode
+    ? `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. Direct Ingredients Video Prompt: create a product-detail video from @character, @environment, and @product; keep claims grounded and product details readable.`
+    : `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} @lastframe remains a legacy compatibility input and must not override single-frame continuity for ${buildMockClipObjective("clip_2")}.`;
 
   return {
     clip_1: {
@@ -1095,15 +1132,16 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
       frame_inputs: ["@firstframe", "@lastframe"],
       timeline: buildMockTimeline("clip_1"),
       motion_prompt: compactText(
-        `${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} Animate the ${buildMockClipObjective("clip_1")} with a subtle confident posture shift. ${continuityHint}`,
+        isIngredientsVideoMode
+          ? `Animate a direct ingredients-to-video ${buildMockClipObjective("clip_1")} from @character, @environment, and @product. ${continuityHint}`
+          : `${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} Animate the ${buildMockClipObjective("clip_1")} with a subtle confident posture shift. ${continuityHint}`,
         420,
       ),
       camera_motion: "Natural slow push-in with subtle handheld parallax; no hard cuts, no fast zoom, no scene jump.",
-      prompt_text: compactText(
-        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} @lastframe remains a legacy compatibility input and must not override single-frame continuity for ${buildMockClipObjective("clip_1")}.`,
-        420,
-      ),
-      continuity: "Use @firstframe as one single starting image with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only.",
+      prompt_text: compactText(clip1PromptText, 420),
+      continuity: isIngredientsVideoMode
+        ? "Use @character, @environment, and @product as source ingredients; preserve product identity, character identity, lighting, and environment."
+        : "Use @firstframe as one single starting image with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only.",
       negative_prompt: buildMockNegativePrompt(promptRules),
       audio: {
         voiceover_text: "Lihat detail produknya, simpel dan tetap jadi fokus utama.",
@@ -1121,15 +1159,16 @@ function buildI2VPrompts(context: MockPromptContext): PromptPackGenerationOutput
       frame_inputs: ["@firstframe", "@lastframe"],
       timeline: buildMockTimeline("clip_2"),
       motion_prompt: compactText(
-        `${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} Animate the ${buildMockClipObjective("clip_2")} with restrained movement that keeps product details readable. ${continuityHint}`,
+        isIngredientsVideoMode
+          ? `Animate a direct ingredients-to-video ${buildMockClipObjective("clip_2")} from @character, @environment, and @product. ${continuityHint}`
+          : `${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} Animate the ${buildMockClipObjective("clip_2")} with restrained movement that keeps product details readable. ${continuityHint}`,
         420,
       ),
       camera_motion: "Controlled slow push-in or slight lateral parallax; keep the shirt graphic readable throughout.",
-      prompt_text: compactText(
-        `${product.product_name} ${promptPack.prompt_code} v${promptPack.version}. ${MOCK_SINGLE_FRAME_I2V_INSTRUCTION} @lastframe remains a legacy compatibility input and must not override single-frame continuity for ${buildMockClipObjective("clip_2")}.`,
-        420,
-      ),
-      continuity: "Use @firstframe as one single starting image with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only.",
+      prompt_text: compactText(clip2PromptText, 420),
+      continuity: isIngredientsVideoMode
+        ? "Use @character, @environment, and @product as source ingredients; preserve product identity, character identity, lighting, and environment."
+        : "Use @firstframe as one single starting image with no identity, outfit, product, lighting, or background drift. @lastframe is legacy-compatible only.",
       negative_prompt: buildMockNegativePrompt(promptRules),
       audio: {
         voiceover_text: "Detailnya dibuat jelas supaya mudah dilihat sebelum check out.",
@@ -1186,6 +1225,7 @@ function readPromptPackGenerationOptions(promptPack: PromptPackRecord): PromptPa
     vo_enabled: typeof options.vo_enabled === "boolean" ? options.vo_enabled : true,
     vo_length_preset: typeof options.vo_length_preset === "string" ? options.vo_length_preset as PromptPackGenerationOptionsJson["vo_length_preset"] : "medium",
     video_model: typeof options.video_model === "string" ? options.video_model as PromptPackGenerationOptionsJson["video_model"] : "veo-3.1",
+    video_mode: resolvePromptPackVideoMode(options.video_mode),
   };
 }
 
@@ -1729,6 +1769,8 @@ function buildPromptContextForModel(
   googleSearchGrounding: GoogleSearchGroundingDecision = buildGoogleSearchGroundingDecision(context),
 ) {
   const profile = context.affiliateProfile;
+  const generationOptions = readPromptPackGenerationOptions(context.promptPack);
+  const videoMode = resolvePromptPackVideoMode(generationOptions.video_mode);
   const promptRules = buildAffiliateRulePack(profile);
   const negativePromptRules = buildNegativePromptRules(context);
   const consistencyRules = buildConsistencyRules(context);
@@ -1763,20 +1805,27 @@ function buildPromptContextForModel(
         }
       : null,
     content_variant: buildPromptPackContentVariantForModel(context.promptPack),
+    prompt_angle: context.promptPack.angle,
+    variant_count: normalizePromptVariantCount(context.promptPack.variant_count),
     reviewed_prompt_essentials: buildReviewedPromptEssentials(context),
     grounding_facts: buildGroundingFacts(context),
     grounding_policy: buildGroundingPolicy(),
     google_search_grounding: googleSearchGrounding,
+    generation_options: generationOptions,
     prompt_rules: promptRules,
     negative_prompt_rules: negativePromptRules,
     consistency_rules: consistencyRules,
     reference_cards: referenceCards,
     prompt_writing_contract: {
-      mode: "FLOW_I2I_SINGLE_FRAME_I2V_PROMPT_PACK_V2",
+      mode: videoMode === "ingredients_to_video"
+        ? "FLOW_INGREDIENTS_TO_VIDEO_PROMPT_PACK_V2"
+        : "FLOW_I2I_SINGLE_FRAME_I2V_PROMPT_PACK_V2",
+      video_mode: videoMode,
       schema_version: PROMPT_PACK_COPY_SCHEMA_VERSION,
       first_frame_image_inputs: ["@character", "@environment", "@product"],
       last_frame_image_inputs: ["@firstframe"],
       i2v_frame_inputs: ["@firstframe", "@lastframe"],
+      ingredients_video_inputs: ["@character", "@environment", "@product"],
       i2v_duration_seconds: PROMPT_PACK_I2V_DURATION_SECONDS,
       i2v_timeline_windows: [...PROMPT_PACK_I2V_TIMELINE_WINDOWS],
       clip_roles: {
@@ -1874,8 +1923,11 @@ function buildPromptPackGenerationPrompt(
   const { promptPack } = context;
   const promptSet = readPromptPackEditorPromptSet(promptPack);
   const generationOptions = readPromptPackGenerationOptions(promptPack);
+  const videoMode = resolvePromptPackVideoMode(generationOptions.video_mode);
+  const isIngredientsVideoMode = videoMode === "ingredients_to_video";
   const voEnabled = generationOptions.vo_enabled !== false;
   const maxVoChars = resolveVoMaxChars(generationOptions.vo_length_preset);
+  const variantCount = normalizePromptVariantCount(promptPack.variant_count);
   const regenerationRequest = readRegenerationRequest(promptPack);
   const regenerationScope = regenerationRequest ? getRegenerationScope(regenerationRequest.regeneration_scope) : null;
   const revisionInstruction = readRegenerationInstruction(promptPack);
@@ -1884,12 +1936,27 @@ function buildPromptPackGenerationPrompt(
   return [
     "You are generating a structured prompt pack for a single-owner affiliate content workflow.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
-    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, upload_copy, negative_prompt_rules, consistency_rules.",
+    `The JSON object must contain exactly one top-level key: variants. variants must contain exactly ${variantCount} complete prompt-pack objects.`,
+    "Each item inside variants must contain exactly these keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, upload_copy, negative_prompt_rules, consistency_rules.",
     "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, visual_references, image_inputs, frame_inputs, schema_version, or stage. The server compiles clean prompt-pack v2 copy JSON after validation.",
-    "One prompt pack equals one full content variant for one product.",
+    "One prompt pack version may contain multiple variants for one product.",
+    `Use prompt_angle=${promptPack.angle} for every variant and make each variant meaningfully different in hook, visual setup, caption, and VO while staying inside the same product facts.`,
     "Do not create, imply, or describe extra clips. Use only the existing clip_1 and clip_2 slots.",
     "clip_1 and clip_2 must belong to the same content variant with one consistent angle and product claim boundary.",
     "i2v_prompts are Veo image-to-video prompts, not a separate prompt type.",
+    `video_mode is ${videoMode}.`,
+    ...(isIngredientsVideoMode
+      ? [
+          "For ingredients_to_video, i2v_prompts.clip_n.prompt_text is the direct Ingredients Video Prompt operators will copy into Google Flow.",
+          "For ingredients_to_video, write i2v prompt_text for a Flow ingredients/source-input workflow using @character, @environment, and the product mention as the visual ingredients.",
+          "For ingredients_to_video, do not make i2v prompt_text depend on a generated @firstframe or any second frame reference.",
+          "For ingredients_to_video, do not include model, aspect ratio, or duration choice text inside prompt_text; those choices are made manually in Google Flow.",
+          "For ingredients_to_video, i2i_prompts must still be valid non-empty compatibility payloads, but they are not the operator-facing output.",
+        ]
+      : [
+          "For frame_to_video, i2v prompt_text must use @firstframe as the single starting image for one continuous video.",
+          "For frame_to_video, @lastframe remains legacy compatibility only and must not control visible video instructions.",
+        ]),
     "Do not add persona, narrator biography, or extra speaker profile fields.",
     "If image_bytes_available is false, use cached JSON metadata only and do not claim live visual parsing from links.",
     "Use prompt_context_for_model.reference_cards as the canonical visual guide.",
@@ -1923,9 +1990,16 @@ function buildPromptPackGenerationPrompt(
     "Do not use English marketing boilerplate in VO, caption, tags, or upload_copy.",
     "Each reference card already contains mention, role, summary, must_keep, must_avoid, and instruction. Use it as writing guidance, but do not copy raw reference_cards or prompt_rules into output objects.",
     "reference_cards are ordered CHARACTER, ENVIRONMENT, PRODUCT. PRODUCT is the primary subject. CHARACTER is support only. ENVIRONMENT is the background anchor.",
-    "Output compact Gemini fields only; the server will map them into final v2 JSON with I2I First Frame = @character + @environment + product mention, I2I Last Frame = @firstframe only, and copied I2V Prompt = @firstframe only.",
-    "I2I first_frame.prompt_text must generate exactly one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Do not ask for multi-image layouts, numbered sequences, separate image files, or video.",
-    "I2I last_frame.prompt_text must remain non-empty for legacy compatibility, but it is hidden from the operator UI. Treat it as a compatibility payload from @firstframe, not as a separate visible output.",
+    ...(isIngredientsVideoMode
+      ? [
+          "Output compact Gemini fields only; the server will map i2v_prompts into direct Ingredients Video Prompt copy while preserving i2i first/last frame fields for legacy compatibility.",
+          "I2I first_frame.prompt_text and I2I last_frame.prompt_text must remain valid compatibility fields, but keep them concise and do not treat them as the primary creative output.",
+        ]
+      : [
+          "Output compact Gemini fields only; the server will map them into final v2 JSON with I2I First Frame = @character + @environment + product mention, I2I Last Frame = @firstframe only, and copied I2V Prompt = @firstframe only.",
+          "I2I first_frame.prompt_text must generate exactly one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Do not ask for multi-image layouts, numbered sequences, separate image files, or video.",
+          "I2I last_frame.prompt_text must remain non-empty for legacy compatibility, but it is hidden from the operator UI. Treat it as a compatibility payload from @firstframe, not as a separate visible output.",
+        ]),
     "Clip roles are locked: clip_1 is a hook/hero look; clip_2 is a detail/benefit/use-case look. Make prompt_text meaningfully different between clips.",
     "Apply affiliate rules internally as policy, not as raw copied prompt_rules:",
     "- i2i_prompt_rules must shape every i2i_prompts.clip_n.first_frame.prompt_text and i2i_prompts.clip_n.last_frame.prompt_text.",
@@ -1946,9 +2020,17 @@ function buildPromptPackGenerationPrompt(
     "Each i2v clip should produce concise fields that compile cleanly into structured JSON for Veo.",
     "For every i2v clip, duration_seconds must be 8 and timeline must contain exactly four segments with these time values in order: 00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08.",
     "For every i2v clip, audio.sfx_cues must be subtle and product-relevant, and audio.ambient_cues must stay below VO so they do not overpower speech.",
-    "I2V prompt fields must use only @firstframe as the video reference for one continuous 8-second Veo I2V clip.",
-    "Do not write I2V instructions that depend on a second frame reference or any separate closing reference image.",
-    "Keep legacy last-frame schema compatibility internal; it should not appear in the I2V prompt copy text or any i2v instruction fields.",
+    ...(isIngredientsVideoMode
+      ? [
+          "Ingredients Video Prompt fields must use @character, @environment, and the product mention as source ingredients, with product as the primary subject.",
+          "Do not write ingredients mode instructions that ask the operator to generate a separate first frame first.",
+          "Keep legacy first/last-frame schema compatibility internal; it should not appear as an operator step in Ingredients Video Prompt text.",
+        ]
+      : [
+          "I2V prompt fields must use only @firstframe as the video reference for one continuous 8-second Veo I2V clip.",
+          "Do not write I2V instructions that depend on a second frame reference or any separate closing reference image.",
+          "Keep legacy last-frame schema compatibility internal; it should not appear in the I2V prompt copy text or any i2v instruction fields.",
+        ]),
     "product_analysis must include mode, prompt_code, version, product, source_image, coverage, and vision_analysis.",
     "product_analysis.product must echo the source product fields from prompt_context_for_model.product and must copy product.status exactly from the source product record.",
     "product_analysis.source_image must echo the compact source image fields from prompt_context_for_model.source_image when a source image exists and must copy source_image.status, source_image.source_type, and source_image.drive_item_ref_id exactly. Do not expand source_image.analysis_json; the server restores cached analysis JSON.",
@@ -2016,8 +2098,11 @@ function buildPromptPackRepairPrompt(
   );
 
   const generationOptions = readPromptPackGenerationOptions(context.promptPack);
+  const videoMode = resolvePromptPackVideoMode(generationOptions.video_mode);
+  const isIngredientsVideoMode = videoMode === "ingredients_to_video";
   const voEnabled = generationOptions.vo_enabled !== false;
   const maxVoChars = resolveVoMaxChars(generationOptions.vo_length_preset);
+  const variantCount = normalizePromptVariantCount(context.promptPack.variant_count);
 
   const voRepairLine = voEnabled
     ? `Each i2v clip must include slot, prompt_text, duration_seconds=8, four timeline segments (00:00-00:02, 00:02-00:04, 00:04-00:06, 00:06-00:08), motion_prompt, camera_motion, continuity, negative_prompt, and audio. audio.voiceover_text must be <= ${maxVoChars} chars and audio.voiceover_timing exactly 00:00-00:02.`
@@ -2026,16 +2111,34 @@ function buildPromptPackRepairPrompt(
   return [
     "You are repairing a Gemini prompt-pack response into the compact JSON contract.",
     "Return JSON only. Do not use markdown, code fences, or commentary.",
-    "The JSON object must contain exactly these top-level keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, upload_copy, negative_prompt_rules, consistency_rules.",
+    `The JSON object must contain exactly one top-level key: variants. variants must contain exactly ${variantCount} complete prompt-pack objects.`,
+    "Each item inside variants must contain exactly these keys: product_analysis, i2i_prompts, i2v_prompts, caption, tags, upload_copy, negative_prompt_rules, consistency_rules.",
     "Do not emit prompt_context, reference_cards, prompt_writing_contract, target_marketplace, seed_character, environment, prompt_rules, visual_references, image_inputs, frame_inputs, schema_version, or stage.",
     "Keep the repaired output compact. The server compiles final v2 copy JSON after validation, so do not copy raw rules into any output object.",
     "Use prompt_context_for_model.reference_cards as the visual reference source when repairing prompt text.",
+    `video_mode is ${videoMode}.`,
+    ...(isIngredientsVideoMode
+      ? [
+          "For ingredients_to_video, i2v_prompts.clip_n.prompt_text is the direct Ingredients Video Prompt using @character, @environment, and the product mention as source ingredients.",
+          "For ingredients_to_video, keep i2i first/last frame fields valid only as compatibility payloads and do not make prompt_text depend on a generated @firstframe.",
+          "For ingredients_to_video, do not add model, aspect ratio, or duration choice text inside prompt_text.",
+        ]
+      : [
+          "For frame_to_video, each i2v prompt must use @firstframe as the single starting image and keep @lastframe as legacy compatibility only.",
+        ]),
     "Use prompt_context_for_model.grounding_facts and prompt_context_for_model.grounding_policy as the claim boundary for repaired prompt text, caption, tags, VO, dialogue, and copy.",
     "Do not repair by adding invented material, certification, discount, guarantee, bestseller, medical, ranking, popularity, or performance/result claims.",
     "Do not use viral, terlaris, dijamin, nomor satu, paling bagus, solusi terbaik, produk berkualitas tinggi, rekomendasi banget, or cocok untuk semua orang unless grounded in the provided facts.",
     "Keep clip_1 as a hook/hero look and clip_2 as a detail/benefit/use-case look.",
-    "Each i2i first_frame.prompt_text must describe one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Each last_frame.prompt_text must remain non-empty as hidden legacy compatibility from @firstframe.",
-    "Each i2v prompt must use @firstframe as the single starting image for one continuous 8-second video while keeping @lastframe only as a legacy compatibility input.",
+    ...(isIngredientsVideoMode
+      ? [
+          "Each i2i first_frame.prompt_text and last_frame.prompt_text must remain non-empty compatibility copy.",
+          "Each i2v prompt must be a direct ingredients-to-video prompt and must not require a first-frame generation step.",
+        ]
+      : [
+          "Each i2i first_frame.prompt_text must describe one single-frame image for one clip: one natural UGC iPhone-style composition, one moment, one image file. Each last_frame.prompt_text must remain non-empty as hidden legacy compatibility from @firstframe.",
+          "Each i2v prompt must use @firstframe as the single starting image for one continuous 8-second video while keeping @lastframe only as a legacy compatibility input.",
+        ]),
     voRepairLine,
     `upload_copy must include shopee_caption, shopee_tags, and shopee_caption_tags with shopee_caption_tags <= ${PROMPT_PACK_SHOPEE_COPY_MAX_CHARS} chars total.`,
     "Preserve the original meaning and keep the product-analysis facts aligned with the source product record.",
@@ -2140,6 +2243,7 @@ function buildGoogleSearchGroundingOutputMetadata(input: {
 
 function buildPromptPackTaskSuccessOutput(
   outputJson: PromptPackGenerationOutput,
+  outputVariants: PromptPackGenerationOutput[] = [outputJson],
   googleSearchGrounding: {
     decision: GoogleSearchGroundingDecision;
     fallbackReason: string | null;
@@ -2147,23 +2251,33 @@ function buildPromptPackTaskSuccessOutput(
   },
 ) {
   const googleSearchGroundingMetadata = buildGoogleSearchGroundingOutputMetadata(googleSearchGrounding);
+  const variants = jsonClone(outputVariants) as unknown as JsonValue;
+  const output: JsonObject = { variants };
 
-  if (!googleSearchGroundingMetadata) {
-    return outputJson;
+  if (googleSearchGroundingMetadata) {
+    output.generation_metadata = {
+      google_search_grounding: googleSearchGroundingMetadata,
+    };
   }
 
-  return {
-    ...outputJson,
-    generation_metadata: {
-      google_search_grounding: googleSearchGroundingMetadata,
-    },
-  } satisfies JsonObject;
+  return output;
+}
+
+function revalidatePromptGenerationViews(productId: string) {
+  for (const path of ["/prompts", `/products/${productId}`]) {
+    try {
+      revalidatePath(path);
+    } catch {
+      // The polling API refreshes the client after generation; revalidation must not fail the task.
+    }
+  }
 }
 
 async function updatePromptPackGenerationResult(
   context: PromptPackGenerationContext,
-  taskId: string,
+  taskId: string | null,
   outputJson: PromptPackGenerationOutput,
+  outputVariants: PromptPackGenerationOutput[] = [outputJson],
 ) {
   const existingPersonalization = (context.promptPack.personalization_json ?? {}) as JsonObject;
   const storagePayload = buildPromptPackStoragePayload(outputJson, context.promptContext);
@@ -2175,9 +2289,10 @@ async function updatePromptPackGenerationResult(
   const { data, error } = await context.supabase
     .from("prompt_packs")
     .update({
-      ai_task_id: taskId,
+      ...(taskId ? { ai_task_id: taskId } : {}),
       status: "GENERATED",
       error_message: null,
+      output_variants_json: jsonClone(outputVariants) as JsonObject[],
       ...storagePayload,
     })
     .eq("id", context.promptPack.id)
@@ -2189,16 +2304,15 @@ async function updatePromptPackGenerationResult(
     throw new Error(error.message);
   }
 
-  revalidatePath("/prompts");
-  revalidatePath(`/products/${context.product.id}`);
+  revalidatePromptGenerationViews(context.product.id);
   return data as PromptPackRecord;
 }
 
-async function updatePromptPackGenerationFailure(context: PromptPackGenerationContext, taskId: string, message: string) {
+async function updatePromptPackGenerationFailure(context: PromptPackGenerationContext, taskId: string | null, message: string) {
   const { error } = await context.supabase
     .from("prompt_packs")
     .update({
-      ai_task_id: taskId,
+      ...(taskId ? { ai_task_id: taskId } : {}),
       status: "ERROR",
       error_message: message,
     })
@@ -2209,8 +2323,7 @@ async function updatePromptPackGenerationFailure(context: PromptPackGenerationCo
     throw new Error(error.message);
   }
 
-  revalidatePath("/prompts");
-  revalidatePath(`/products/${context.product.id}`);
+  revalidatePromptGenerationViews(context.product.id);
 }
 
 export async function createPromptPackGenerationTask(
@@ -2258,99 +2371,7 @@ export async function createPromptPackGenerationTask(
   };
 }
 
-export async function cancelPromptPackGenerationTask(promptPackId: string) {
-  const { supabase, user, promptPack } = await requireOwnedPromptPack(promptPackId);
-
-  if (!promptPack.ai_task_id) {
-    throw new Error("Prompt generation task not found.");
-  }
-
-  const { data: task, error: taskError } = await supabase
-    .from("ai_tasks")
-    .select("id, status, output_json, error_message, started_at, finished_at")
-    .eq("id", promptPack.ai_task_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (taskError) {
-    throw new Error(taskError.message);
-  }
-
-  if (!task) {
-    throw new Error("Prompt generation task not found.");
-  }
-
-  if (!CANCELABLE_PROMPT_TASK_STATUSES.has(task.status)) {
-    throw new Error("Prompt generation task sudah berjalan.");
-  }
-
-  const nowIso = new Date().toISOString();
-  const cancellationMessage = "Antrian prompt dibatalkan.";
-
-  const { error: cancelTaskError } = await supabase
-    .from("ai_tasks")
-    .update({
-      status: "CANCELLED",
-      output_json: null,
-      error_message: cancellationMessage,
-      finished_at: nowIso,
-    })
-    .eq("id", task.id)
-    .eq("user_id", user.id);
-
-  if (cancelTaskError) {
-    throw new Error(cancelTaskError.message);
-  }
-
-  const { data: updatedPromptPack, error: promptPackError } = await supabase
-    .from("prompt_packs")
-    .update({
-      ai_task_id: null,
-      status: "DRAFT",
-      error_message: cancellationMessage,
-    })
-    .eq("id", promptPack.id)
-    .eq("user_id", user.id)
-    .select("*")
-    .single();
-
-  if (promptPackError) {
-    const { error: revertTaskError } = await supabase
-      .from("ai_tasks")
-      .update({
-        status: task.status,
-        output_json: task.output_json,
-        error_message: task.error_message,
-        started_at: task.started_at,
-        finished_at: task.finished_at,
-      })
-      .eq("id", task.id)
-      .eq("user_id", user.id);
-
-    if (revertTaskError) {
-      throw new Error(`${promptPackError.message} / ${revertTaskError.message}`);
-    }
-
-    throw new Error(promptPackError.message);
-  }
-
-  revalidatePath("/prompts");
-  revalidatePath(`/products/${promptPack.product_id}`);
-
-  return {
-    task: {
-      ...task,
-      status: "CANCELLED" as const,
-      output_json: null,
-      error_message: cancellationMessage,
-      finished_at: nowIso,
-    },
-    promptPack: updatedPromptPack as PromptPackRecord,
-    message: cancellationMessage,
-  };
-}
-
-export async function completePromptPackFromMockTask(promptPackId: string, taskId: string) {
+export async function completePromptPackFromMockTask(promptPackId: string, taskId: string | null) {
   const context = await loadPromptPackGenerationContext(promptPackId);
   const mockContext: MockPromptContext = {
     promptPack: context.promptPack,
@@ -2381,12 +2402,25 @@ export async function completePromptPackFromMockTask(promptPackId: string, taskI
     seed_character: buildSeedCharacterState(mockContext),
     environment: buildEnvironmentState(mockContext),
   } as PromptPackGenerationOutput;
+  const variantCount = normalizePromptVariantCount(context.promptPack.variant_count);
+  const outputVariants = Array.from({ length: variantCount }, (_, index) => {
+    if (index === 0) {
+      return outputJson;
+    }
 
-  const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
+    const variant = jsonClone(outputJson);
+    variant.caption = `${caption} Varian ${index + 1}`;
+    variant.tags = tags;
+    variant.upload_copy = buildPromptPackUploadCopy(variant.caption, tags);
+    return variant;
+  });
+
+  const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson, outputVariants);
 
   return {
     promptPack,
     outputJson,
+    outputVariants,
   };
 }
 
@@ -2395,7 +2429,7 @@ export async function runMockPromptPackTask(promptPackId: string, taskId: string
 
   try {
     const completed = await completePromptPackFromMockTask(promptPackId, taskId);
-    const task = await markTaskSuccess(taskId, completed.outputJson);
+    const task = await markTaskSuccess(taskId, { variants: completed.outputVariants });
 
     return {
       task,
@@ -2462,6 +2496,24 @@ async function selectPromptPackGeminiKey(
   return null;
 }
 
+function buildPromptPackGeminiKeyDiagnosticMessage(diagnostic: GeminiKeyEligibilityDiagnostic) {
+  const details = [
+    `total=${diagnostic.totalKeys}`,
+    `role=${diagnostic.roleEligibleKeys}`,
+    `active=${diagnostic.activeOrRecoverableKeys}`,
+    `model=${diagnostic.modelEligibleKeys}`,
+    `quota=${diagnostic.quotaConfiguredKeys}`,
+    `within_limit=${diagnostic.quotaWithinLimitKeys}`,
+    `with_secret=${diagnostic.eligibleKeysWithSecret}`,
+  ];
+
+  if (diagnostic.excludedKeyIds || diagnostic.excludedQuotaGroups) {
+    details.push(`excluded_keys=${diagnostic.excludedKeyIds}`, `excluded_groups=${diagnostic.excludedQuotaGroups}`);
+  }
+
+  return `No eligible Gemini key is available for prompt-pack generation. Diagnostic: ${details.join(", ")}.`;
+}
+
 async function listPromptPackRepairKeySelections(
   context: PromptPackGenerationContext,
   fallbackSelection: GeminiSelectedKey,
@@ -2518,7 +2570,7 @@ async function listPromptPackRepairKeySelections(
 
 async function repairPromptPackGenerationOutput(input: {
   context: PromptPackGenerationContext;
-  taskId: string;
+  taskId: string | null;
   rawText: string;
   repairReason: string;
   fallbackSelection: GeminiSelectedKey;
@@ -2535,6 +2587,8 @@ async function repairPromptPackGenerationOutput(input: {
 
   for (const selection of repairSelections) {
     try {
+      const repairGenerationOptions = readPromptPackGenerationOptions(input.context.promptPack);
+      const repairVariantCount = normalizePromptVariantCount(input.context.promptPack.variant_count);
       const response = await generateTrackedGeminiJsonText({
         aiTaskId: input.taskId,
         geminiApiKey: selection.key,
@@ -2545,21 +2599,24 @@ async function repairPromptPackGenerationOutput(input: {
           apiKey: selection.secret,
           prompt: buildPromptPackRepairPrompt(input.context, selection.key, input.rawText, input.repairReason),
           temperature: 0,
-          maxOutputTokens: 4096,
+          maxOutputTokens: Math.min(12000, 4096 * repairVariantCount),
           timeoutMs: 120_000,
-          responseJsonSchema: buildGeminiPromptPackResponseSchema(resolveVoMaxChars(readPromptPackGenerationOptions(input.context.promptPack).vo_length_preset)),
+          responseJsonSchema: buildGeminiPromptPackVariantsResponseSchema(
+            resolveVoMaxChars(repairGenerationOptions.vo_length_preset),
+            resolvePromptPackVideoMode(repairGenerationOptions.video_mode),
+          ),
         },
       });
 
       return {
-        outputJson: parsePromptPackGenerationOutput(response.text, {
+        outputVariants: parsePromptPackGenerationVariantsOutput(response.text, {
           fallbackProductStatus: input.context.product.status,
           fallbackSourceImage: buildPromptSourceImageSnapshot(
             input.context.sourceProductImage,
             input.context.sourceProductImageDriveItemName,
           ),
           serverPromptContext: input.context.promptContext,
-        }),
+        }).variants,
         selectedKeySelection: selection,
       };
     } catch (error) {
@@ -2641,6 +2698,15 @@ async function markPromptPackWaitingForGeminiKey(
 export async function runRealPromptPackTask(promptPackId: string, taskId: string) {
   const context = await loadPromptPackGenerationContext(promptPackId);
   await markTaskRunning(taskId);
+
+  void logDiagnostic({
+    userId: context.user.id,
+    context: "prompt_generation",
+    level: "info",
+    message: "Generation started",
+    metadata: { task_id: taskId, prompt_pack_id: promptPackId },
+  });
+
   const excludedQuotaGroups = new Set<string>();
   const excludedKeyIds = new Set<string>();
   let lastFailureDisposition: ReturnType<typeof getGeminiFailureDisposition> | null = null;
@@ -2650,15 +2716,32 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
     const selected = await selectPromptPackGeminiKey(context, excludedQuotaGroups, excludedKeyIds);
 
     if (!selected) {
+      const diagnostic = await diagnoseGeminiKeyEligibility({
+        userId: context.user.id,
+        purpose: "PROMPT_PACK_GENERATION",
+        excludedQuotaGroups,
+        excludedKeyIds,
+        serviceClient: context.serviceClient,
+      });
+
       return markPromptPackWaitingForGeminiKey(
         context,
         promptPackId,
         taskId,
-        "No eligible Gemini key is available for prompt-pack generation.",
+        buildPromptPackGeminiKeyDiagnosticMessage(diagnostic),
       );
     }
 
     const selectedKey = selected.key;
+
+    void logDiagnostic({
+      userId: context.user.id,
+      context: "key_routing",
+      level: "debug",
+      message: "Key selected",
+      metadata: { task_id: taskId, key_id: selectedKey.id, role: selectedKey.role, model: selectedKey.model_name },
+    });
+
     const { decision: googleSearchGrounding, disabledReason: googleSearchGroundingDisabledReason } =
       buildPromptPackJsonGroundingDecision(context, selectedKey.model_name);
     const { error: taskKeyUpdateError } = await context.serviceClient
@@ -2669,11 +2752,11 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
       .eq("id", taskId)
       .eq("user_id", context.user.id);
 
-      if (taskKeyUpdateError) {
-        const message = sanitizeGeminiFailureMessage(new Error(taskKeyUpdateError.message));
-        await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
-        throw new Error(message);
-      }
+    if (taskKeyUpdateError) {
+      const message = sanitizeGeminiFailureMessage(new Error(taskKeyUpdateError.message));
+      await markTaskFailed(taskId, message, { retryable: false }).catch(() => undefined);
+      throw new Error(message);
+    }
 
     const { error: generatingUpdateError } = await context.supabase
       .from("prompt_packs")
@@ -2692,8 +2775,14 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
     }
 
     const generationOptions = readPromptPackGenerationOptions(context.promptPack);
-    const promptPackResponseSchema = buildGeminiPromptPackResponseSchema(resolveVoMaxChars(generationOptions.vo_length_preset));
+    const variantCount = normalizePromptVariantCount(context.promptPack.variant_count);
+    const maxOutputTokens = Math.min(12000, 4096 * variantCount);
+    const promptPackResponseSchema = buildGeminiPromptPackVariantsResponseSchema(
+      resolveVoMaxChars(generationOptions.vo_length_preset),
+      resolvePromptPackVideoMode(generationOptions.video_mode),
+    );
     let outputJson: PromptPackGenerationOutput | null = null;
+    let outputVariants: PromptPackGenerationOutput[] = [];
     let selectedKeySelectionForSuccess: GeminiSelectedKey = selected.key;
     let googleSearchGroundingSummary: GeminiGroundingSummary | null = null;
     let googleSearchGroundingFallbackReason: string | null = googleSearchGroundingDisabledReason;
@@ -2712,7 +2801,7 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
             apiKey: selected.secret,
             prompt: buildPromptPackGenerationPrompt(context, selectedKey, googleSearchGrounding),
             temperature: 0.2,
-            maxOutputTokens: 4096,
+            maxOutputTokens,
             timeoutMs: 120_000,
             responseJsonSchema: promptPackResponseSchema,
             enableGoogleSearchGrounding: googleSearchGrounding.enabled,
@@ -2739,7 +2828,7 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
               buildDisabledGoogleSearchGroundingDecision(googleSearchGrounding, googleSearchGroundingFallbackReason),
             ),
             temperature: 0.2,
-            maxOutputTokens: 4096,
+            maxOutputTokens,
             timeoutMs: 120_000,
             responseJsonSchema: promptPackResponseSchema,
             enableGoogleSearchGrounding: false,
@@ -2750,14 +2839,15 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
       googleSearchGroundingSummary = response.groundingSummary ?? null;
 
       try {
-        outputJson = parsePromptPackGenerationOutput(response.text, {
+        outputVariants = parsePromptPackGenerationVariantsOutput(response.text, {
           fallbackProductStatus: context.product.status,
           fallbackSourceImage: buildPromptSourceImageSnapshot(
             context.sourceProductImage,
             context.sourceProductImageDriveItemName,
           ),
           serverPromptContext: context.promptContext,
-        });
+        }).variants;
+        outputJson = outputVariants[0] ?? null;
       } catch (parseError) {
         const repaired = await repairPromptPackGenerationOutput({
           context,
@@ -2768,19 +2858,61 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
           excludedQuotaGroups,
           excludedKeyIds,
         });
-        outputJson = repaired.outputJson;
+        outputVariants = repaired.outputVariants;
+        outputJson = outputVariants[0] ?? null;
         selectedKeySelectionForSuccess = repaired.selectedKeySelection.key;
       }
     } catch (error) {
       lastError = error;
+      lastFailureDisposition = getGeminiFailureDisposition(error);
 
       if (!(error instanceof GeminiClientError)) {
-        lastFailureDisposition = null;
-        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
-        continue;
-      }
+        if (lastFailureDisposition.markKeyError) {
+          excludedKeyIds.add(selectedKey.id);
+          await markGeminiKeyError({
+            serviceClient: context.serviceClient,
+            userId: context.user.id,
+            keyId: selectedKey.id,
+          }).catch(() => undefined);
+          continue;
+        }
 
-      lastFailureDisposition = getGeminiFailureDisposition(error);
+        if (lastFailureDisposition.markGroupError) {
+          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+          await markGeminiQuotaGroupError({
+            serviceClient: context.serviceClient,
+            userId: context.user.id,
+            key: selectedKey,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        if (lastFailureDisposition.markGroupCooldown) {
+          const quotaGroup = getGeminiQuotaGroupKey(selectedKey);
+          excludedQuotaGroups.add(quotaGroup);
+
+          await markGeminiQuotaGroupCooldown({
+            serviceClient: context.serviceClient,
+            userId: context.user.id,
+            key: selectedKey,
+            nextStatus: lastFailureDisposition.nextStatus ?? "RATE_LIMITED",
+            cooldownUntil: lastFailureDisposition.cooldownUntil,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        if (lastFailureDisposition.excludeQuotaGroup) {
+          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+          continue;
+        }
+
+        if (lastFailureDisposition.excludeKeyId) {
+          excludedKeyIds.add(selectedKey.id);
+          continue;
+        }
+
+        break;
+      }
 
       if (lastFailureDisposition.markKeyError) {
         excludedKeyIds.add(selectedKey.id);
@@ -2836,10 +2968,10 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
     }
 
     try {
-      const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson);
+      const promptPack = await updatePromptPackGenerationResult(context, taskId, outputJson, outputVariants);
       const task = await markTaskSuccess(
         taskId,
-        buildPromptPackTaskSuccessOutput(outputJson, {
+        buildPromptPackTaskSuccessOutput(outputJson, outputVariants, {
           decision: googleSearchGrounding,
           fallbackReason: googleSearchGroundingFallbackReason,
           summary: googleSearchGroundingSummary,
@@ -2851,6 +2983,14 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
         userId: context.user.id,
         key: selectedKeySelectionForSuccess,
       }).catch(() => undefined);
+
+      void logDiagnostic({
+        userId: context.user.id,
+        context: "prompt_generation",
+        level: "info",
+        message: "Generation succeeded",
+        metadata: { task_id: taskId, prompt_pack_id: promptPackId, output_variant_count: outputVariants.length },
+      });
 
       return {
         task,
@@ -2869,6 +3009,14 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
     retryable: lastFailureDisposition?.retryableTask ?? false,
   });
 
+  void logDiagnostic({
+    userId: context.user.id,
+    context: "prompt_generation",
+    level: "error",
+    message: "Generation failed",
+    metadata: { task_id: taskId, prompt_pack_id: promptPackId, error_message: message },
+  });
+
   try {
     await updatePromptPackGenerationFailure(context, taskId, message);
   } catch {
@@ -2877,6 +3025,295 @@ export async function runRealPromptPackTask(promptPackId: string, taskId: string
 
   return {
     task: failedTask,
+    promptPack: context.promptPack,
+    message,
+  };
+}
+
+export async function runInlineMockPromptPackGeneration(promptPackId: string) {
+  const context = await loadPromptPackGenerationContext(promptPackId);
+
+  await context.supabase
+    .from("prompt_packs")
+    .update({ ai_task_id: null, status: "GENERATING", error_message: null })
+    .eq("id", promptPackId)
+    .eq("user_id", context.user.id);
+
+  try {
+    const completed = await completePromptPackFromMockTask(promptPackId, null);
+    return { promptPack: completed.promptPack, message: "Mock prompt pack output generated." };
+  } catch (error) {
+    const message = sanitizeGeminiFailureMessage(error);
+    try {
+      await updatePromptPackGenerationFailure(context, null, message);
+    } catch {
+      // Preserve the original error.
+    }
+    throw new Error(message);
+  }
+}
+
+export async function runInlinePromptPackGeneration(promptPackId: string) {
+  const context = await loadPromptPackGenerationContext(promptPackId);
+
+  await context.supabase
+    .from("prompt_packs")
+    .update({ ai_task_id: null, status: "GENERATING", error_message: null })
+    .eq("id", promptPackId)
+    .eq("user_id", context.user.id);
+
+  const excludedQuotaGroups = new Set<string>();
+  const excludedKeyIds = new Set<string>();
+  let lastFailureDisposition: ReturnType<typeof getGeminiFailureDisposition> | null = null;
+  let lastError: unknown = null;
+
+  while (true) {
+    const selected = await selectPromptPackGeminiKey(context, excludedQuotaGroups, excludedKeyIds);
+
+    if (!selected) {
+      const diagnostic = await diagnoseGeminiKeyEligibility({
+        userId: context.user.id,
+        purpose: "PROMPT_PACK_GENERATION",
+        excludedQuotaGroups,
+        excludedKeyIds,
+        serviceClient: context.serviceClient,
+      });
+
+      const message = buildPromptPackGeminiKeyDiagnosticMessage(diagnostic);
+      try {
+        await updatePromptPackGenerationFailure(context, null, message);
+      } catch {
+        // Preserve the original error.
+      }
+      return { promptPack: context.promptPack, message };
+    }
+
+    const selectedKey = selected.key;
+    const { decision: googleSearchGrounding, disabledReason: googleSearchGroundingDisabledReason } =
+      buildPromptPackJsonGroundingDecision(context, selectedKey.model_name);
+
+    const generationOptions = readPromptPackGenerationOptions(context.promptPack);
+    const variantCount = normalizePromptVariantCount(context.promptPack.variant_count);
+    const maxOutputTokens = Math.min(12000, 4096 * variantCount);
+    const promptPackResponseSchema = buildGeminiPromptPackVariantsResponseSchema(
+      resolveVoMaxChars(generationOptions.vo_length_preset),
+      resolvePromptPackVideoMode(generationOptions.video_mode),
+    );
+    let outputJson: PromptPackGenerationOutput | null = null;
+    let outputVariants: PromptPackGenerationOutput[] = [];
+    let selectedKeySelectionForSuccess: GeminiSelectedKey = selected.key;
+    let googleSearchGroundingSummary: GeminiGroundingSummary | null = null;
+    let googleSearchGroundingFallbackReason: string | null = googleSearchGroundingDisabledReason;
+
+    try {
+      let response: Awaited<ReturnType<typeof generateTrackedGeminiJsonText>>;
+
+      try {
+        response = await generateTrackedGeminiJsonText({
+          aiTaskId: null,
+          geminiApiKey: selectedKey,
+          taskType: "PROMPT_PACK_GENERATION",
+          userId: context.user.id,
+          request: {
+            modelName: selectedKey.model_name as GeminiModelName,
+            apiKey: selected.secret,
+            prompt: buildPromptPackGenerationPrompt(context, selectedKey, googleSearchGrounding),
+            temperature: 0.2,
+            maxOutputTokens,
+            timeoutMs: 120_000,
+            responseJsonSchema: promptPackResponseSchema,
+            enableGoogleSearchGrounding: googleSearchGrounding.enabled,
+          },
+        });
+      } catch (error) {
+        if (!googleSearchGrounding.enabled || !isGoogleSearchGroundingUnavailableError(error)) {
+          throw error;
+        }
+
+        googleSearchGroundingFallbackReason =
+          "Google Search grounding was unavailable for this Gemini request; generated from stored product facts only.";
+        response = await generateTrackedGeminiJsonText({
+          aiTaskId: null,
+          geminiApiKey: selectedKey,
+          taskType: "PROMPT_PACK_GENERATION",
+          userId: context.user.id,
+          request: {
+            modelName: selectedKey.model_name as GeminiModelName,
+            apiKey: selected.secret,
+            prompt: buildPromptPackGenerationPrompt(
+              context,
+              selectedKey,
+              buildDisabledGoogleSearchGroundingDecision(googleSearchGrounding, googleSearchGroundingFallbackReason),
+            ),
+            temperature: 0.2,
+            maxOutputTokens,
+            timeoutMs: 120_000,
+            responseJsonSchema: promptPackResponseSchema,
+            enableGoogleSearchGrounding: false,
+          },
+        });
+      }
+
+      googleSearchGroundingSummary = response.groundingSummary ?? null;
+
+      try {
+        outputVariants = parsePromptPackGenerationVariantsOutput(response.text, {
+          fallbackProductStatus: context.product.status,
+          fallbackSourceImage: buildPromptSourceImageSnapshot(
+            context.sourceProductImage,
+            context.sourceProductImageDriveItemName,
+          ),
+          serverPromptContext: context.promptContext,
+        }).variants;
+        outputJson = outputVariants[0] ?? null;
+      } catch (parseError) {
+        const repaired = await repairPromptPackGenerationOutput({
+          context,
+          taskId: null,
+          rawText: response.text,
+          repairReason: parseError instanceof Error ? parseError.message : "Prompt-pack schema mismatch.",
+          fallbackSelection: selectedKey,
+          excludedQuotaGroups,
+          excludedKeyIds,
+        });
+        outputVariants = repaired.outputVariants;
+        outputJson = outputVariants[0] ?? null;
+        selectedKeySelectionForSuccess = repaired.selectedKeySelection.key;
+      }
+    } catch (error) {
+      lastError = error;
+      lastFailureDisposition = getGeminiFailureDisposition(error);
+
+      if (!(error instanceof GeminiClientError)) {
+        if (lastFailureDisposition.markKeyError) {
+          excludedKeyIds.add(selectedKey.id);
+          await markGeminiKeyError({
+            serviceClient: context.serviceClient,
+            userId: context.user.id,
+            keyId: selectedKey.id,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        if (lastFailureDisposition.markGroupError) {
+          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+          await markGeminiQuotaGroupError({
+            serviceClient: context.serviceClient,
+            userId: context.user.id,
+            key: selectedKey,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        if (lastFailureDisposition.markGroupCooldown) {
+          const quotaGroup = getGeminiQuotaGroupKey(selectedKey);
+          excludedQuotaGroups.add(quotaGroup);
+
+          await markGeminiQuotaGroupCooldown({
+            serviceClient: context.serviceClient,
+            userId: context.user.id,
+            key: selectedKey,
+            nextStatus: lastFailureDisposition.nextStatus ?? "RATE_LIMITED",
+            cooldownUntil: lastFailureDisposition.cooldownUntil,
+          }).catch(() => undefined);
+          continue;
+        }
+
+        if (lastFailureDisposition.excludeQuotaGroup) {
+          excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+          continue;
+        }
+
+        if (lastFailureDisposition.excludeKeyId) {
+          excludedKeyIds.add(selectedKey.id);
+          continue;
+        }
+
+        break;
+      }
+
+      if (lastFailureDisposition.markKeyError) {
+        excludedKeyIds.add(selectedKey.id);
+        await markGeminiKeyError({
+          serviceClient: context.serviceClient,
+          userId: context.user.id,
+          keyId: selectedKey.id,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (lastFailureDisposition.markGroupError) {
+        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+        await markGeminiQuotaGroupError({
+          serviceClient: context.serviceClient,
+          userId: context.user.id,
+          key: selectedKey,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (lastFailureDisposition.markGroupCooldown) {
+        const quotaGroup = getGeminiQuotaGroupKey(selectedKey);
+        excludedQuotaGroups.add(quotaGroup);
+
+        await markGeminiQuotaGroupCooldown({
+          serviceClient: context.serviceClient,
+          userId: context.user.id,
+          key: selectedKey,
+          nextStatus: lastFailureDisposition.nextStatus ?? "RATE_LIMITED",
+          cooldownUntil: lastFailureDisposition.cooldownUntil,
+        }).catch(() => undefined);
+        continue;
+      }
+
+      if (lastFailureDisposition.excludeQuotaGroup) {
+        excludedQuotaGroups.add(getGeminiQuotaGroupKey(selectedKey));
+        continue;
+      }
+
+      if (lastFailureDisposition.excludeKeyId) {
+        excludedKeyIds.add(selectedKey.id);
+        continue;
+      }
+
+      break;
+    }
+
+    if (!outputJson) {
+      lastError = new Error("Prompt pack output was not generated.");
+      lastFailureDisposition = null;
+      break;
+    }
+
+    try {
+      const promptPack = await updatePromptPackGenerationResult(context, null, outputJson, outputVariants);
+
+      await markGeminiKeySuccess({
+        serviceClient: context.serviceClient,
+        userId: context.user.id,
+        key: selectedKeySelectionForSuccess,
+      }).catch(() => undefined);
+
+      return {
+        promptPack,
+        message: `Prompt pack generated with Gemini using ${buildGeminiKeySelectionLabel(selectedKeySelectionForSuccess)}.`,
+      };
+    } catch (error) {
+      lastError = error;
+      lastFailureDisposition = null;
+      break;
+    }
+  }
+
+  const message = sanitizeGeminiFailureMessage(lastError);
+
+  try {
+    await updatePromptPackGenerationFailure(context, null, message);
+  } catch {
+    // Preserve the original failure if prompt pack update also fails.
+  }
+
+  return {
     promptPack: context.promptPack,
     message,
   };
@@ -3032,6 +3469,10 @@ export async function createPromptPack(input: PromptPackInput) {
       consistency_rules_json: input.consistency_rules_json ?? null,
       negative_rules_json: input.negative_rules_json ?? null,
       personalization_json: input.personalization_json ?? null,
+      angle: normalizePromptAngle(input.angle),
+      variant_count: normalizePromptVariantCount(input.variant_count),
+      input_params_json: input.input_params_json ?? {},
+      output_variants_json: input.output_variants_json ?? null,
       ai_task_id: null,
       error_message: normalizeNullableText(input.error_message),
       notes: normalizeNullableText(input.notes),
@@ -3129,6 +3570,10 @@ export async function updatePromptPack(id: string, input: PromptPackUpdateInput)
       ...(input.consistency_rules_json !== undefined ? { consistency_rules_json: input.consistency_rules_json } : {}),
       ...(input.negative_rules_json !== undefined ? { negative_rules_json: input.negative_rules_json } : {}),
       ...(input.personalization_json !== undefined ? { personalization_json: input.personalization_json } : {}),
+      ...(input.angle !== undefined ? { angle: normalizePromptAngle(input.angle) } : {}),
+      ...(input.variant_count !== undefined ? { variant_count: normalizePromptVariantCount(input.variant_count) } : {}),
+      ...(input.input_params_json !== undefined ? { input_params_json: input.input_params_json ?? {} } : {}),
+      ...(input.output_variants_json !== undefined ? { output_variants_json: input.output_variants_json } : {}),
       ...(input.error_message !== undefined ? { error_message: normalizeNullableText(input.error_message) } : {}),
       ...(input.notes !== undefined ? { notes: normalizeNullableText(input.notes) } : {}),
     })
@@ -3193,6 +3638,9 @@ export async function createPromptPackRegenerationVersion(
     intakeSessionId?: string | null;
     affiliateProfileId?: string | null;
     sourceProductImageId?: string | null;
+    angle?: ShareAngle | string | null;
+    variantCount?: number | null;
+    inputParamsJson?: JsonObject | null;
     notes?: string | null;
   },
 ) {
@@ -3242,6 +3690,10 @@ export async function createPromptPackRegenerationVersion(
     consistency_rules_json: storagePayload?.consistency_rules_json ?? promptPack.consistency_rules_json,
     negative_rules_json: storagePayload?.negative_rules_json ?? promptPack.negative_rules_json,
     personalization_json: personalization,
+    angle: input?.angle === undefined ? promptPack.angle : normalizePromptAngle(input.angle),
+    variant_count: input?.variantCount === undefined ? promptPack.variant_count : normalizePromptVariantCount(input.variantCount),
+    input_params_json: input?.inputParamsJson === undefined ? promptPack.input_params_json ?? {} : input.inputParamsJson ?? {},
+    output_variants_json: null,
     notes: input?.notes === undefined ? promptPack.notes : normalizeNullableText(input.notes),
   });
 }

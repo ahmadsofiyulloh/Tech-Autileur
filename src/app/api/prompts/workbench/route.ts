@@ -34,6 +34,7 @@ function buildPromptsHref(params: {
   productId?: string | null;
   readiness?: string | null;
   search?: string | null;
+  tab?: "output" | "generate" | "history" | null;
 }) {
   const searchParams = new URLSearchParams();
 
@@ -51,6 +52,10 @@ function buildPromptsHref(params: {
 
   if (params.detailId) {
     searchParams.set("detail", params.detailId);
+  }
+
+  if (params.tab && params.tab !== "output") {
+    searchParams.set("tab", params.tab);
   }
 
   if (params.readiness && params.readiness !== "ALL") {
@@ -195,14 +200,42 @@ export async function GET(request: Request) {
       const rowPromptDetailHref = promptPack
         ? buildPromptsHref({
             affiliateProfileId: requestedAffiliateProfileId,
-            detailId: promptPack.id,
+            detailId: row.product.id,
             intakeId: requestedIntakeId,
             page: promptPage.page,
             productId: requestedProductId,
             readiness: requestedReadiness,
             search: requestedSearch,
           })
-        : null;
+        : buildPromptsHref({
+            affiliateProfileId: requestedAffiliateProfileId,
+            detailId: row.product.id,
+            intakeId: requestedIntakeId,
+            page: promptPage.page,
+            productId: requestedProductId,
+            readiness: requestedReadiness,
+            search: requestedSearch,
+          });
+      const rowPromptGenerateHref = buildPromptsHref({
+        affiliateProfileId: requestedAffiliateProfileId,
+        detailId: row.product.id,
+        intakeId: requestedIntakeId,
+        page: promptPage.page,
+        productId: requestedProductId,
+        readiness: requestedReadiness,
+        search: requestedSearch,
+        tab: "generate",
+      });
+      const rowPromptHistoryHref = buildPromptsHref({
+        affiliateProfileId: requestedAffiliateProfileId,
+        detailId: row.product.id,
+        intakeId: requestedIntakeId,
+        page: promptPage.page,
+        productId: requestedProductId,
+        readiness: requestedReadiness,
+        search: requestedSearch,
+        tab: "history",
+      });
       const productDetailSearchParams = new URLSearchParams({ detail: row.product.id, tab: "metadata" });
       productDetailSearchParams.set("q", row.product.product_name);
 
@@ -229,6 +262,8 @@ export async function GET(request: Request) {
         }),
         productDetailHref: `/products?${productDetailSearchParams.toString()}`,
         promptDetailHref: rowPromptDetailHref,
+        promptGenerateHref: rowPromptGenerateHref,
+        promptHistoryHref: rowPromptHistoryHref,
         returnHref,
         isOpen: false,
       };

@@ -8,11 +8,9 @@ import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeButton, NativeLinkButton } from "@/components/ui/native-button";
 import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listDriveItemsByIds } from "@/lib/server/drive-items";
-import { listPromptQueueSnapshot } from "@/lib/server/prompt-queue";
 import { listPromptWorkbenchPage, withPromptWorkbenchActivity } from "@/lib/server/prompt-workbench";
 import { listPromptReadinessProjections } from "@/lib/server/prompt-readiness";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
-import { EMPTY_PROMPT_QUEUE_SUMMARY, type PromptQueueSummary, type PromptQueueSnapshot } from "@/lib/prompts/prompt-queue-contract";
 import {
   normalizePromptWorkbenchPage,
   normalizePromptWorkbenchReadinessFilter,
@@ -21,10 +19,8 @@ import {
   PROMPT_WORKBENCH_READINESS_FILTERS,
   type PromptWorkbenchReadinessFilter,
 } from "@/lib/prompts/prompt-workbench";
-import { PROMPT_READINESS_STATUS_LABELS } from "@/lib/prompts/prompt-readiness-projection";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PromptDetailPanel, type PromptDetailTab } from "./prompt-detail-panel";
-import { PromptQueueDrawer } from "./prompt-queue-drawer";
 import { PromptWorkbenchList, type PromptWorkbenchRowData } from "./prompt-workbench-list";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +54,6 @@ type PromptsPageProps = {
     page?: string | string[];
     product_id?: string | string[];
     q?: string | string[];
-    queue?: string | string[];
     readiness?: string | string[];
     tab?: string | string[];
     version?: string | string[];
@@ -75,9 +70,10 @@ function buildPromptsHref(params: {
   intakeId?: string | null;
   page?: number | null;
   productId?: string | null;
-  queueOpen?: boolean;
   readiness?: PromptWorkbenchReadinessFilter | null;
   search?: string | null;
+  tab?: PromptDetailTab | null;
+  version?: string | null;
 }) {
   const searchParams = new URLSearchParams();
 
@@ -97,8 +93,12 @@ function buildPromptsHref(params: {
     searchParams.set("detail", params.detailId);
   }
 
-  if (params.queueOpen) {
-    searchParams.set("queue", "1");
+  if (params.tab && params.tab !== "output") {
+    searchParams.set("tab", params.tab);
+  }
+
+  if (params.version) {
+    searchParams.set("version", params.version);
   }
 
   if (params.readiness && params.readiness !== "ALL") {
@@ -297,7 +297,6 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const query = await searchParams;
   const requestedAffiliateProfileId = firstParam(query.affiliate_profile_id);
   const requestedDetailId = firstParam(query.detail) ?? "";
-  const requestedQueueOpen = firstParam(query.queue) === "1";
   const requestedReadiness = normalizePromptWorkbenchReadinessFilter(firstParam(query.readiness));
   const requestedProductId = firstParam(query.product_id);
   const requestedIntakeId = firstParam(query.intake_id);
@@ -305,7 +304,7 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   const requestedPage = normalizePromptWorkbenchPage(firstParam(query.page));
   const requestedTab = ((): PromptDetailTab => {
     const raw = firstParam(query.tab)?.trim().toLowerCase();
-    if (raw === "regenerate") return "regenerate";
+    if (raw === "generate" || raw === "regenerate") return "generate";
     if (raw === "history") return "history";
     return "output";
   })();
@@ -316,12 +315,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
   let promptPage: PromptWorkbenchPageResult | null = null;
   let affiliateProfiles: Awaited<ReturnType<typeof listAffiliateProfiles>> = [];
   let currentAffiliateProfile: Awaited<ReturnType<typeof getDefaultAffiliateProfileForWorkspace>> | null = null;
-  let selectedPromptPack: SelectedPromptPackRecord | null = null;
+  let legacySelectedPromptPack: SelectedPromptPackRecord | null = null;
   let requestedIntakeProductId: string | null = null;
-  let promptQueueSnapshot: PromptQueueSnapshot | null = null;
 
   try {
-    [promptPage, affiliateProfiles, currentAffiliateProfile, selectedPromptPack, requestedIntakeProductId, promptQueueSnapshot] = await Promise.all([
+    [promptPage, affiliateProfiles, currentAffiliateProfile, legacySelectedPromptPack, requestedIntakeProductId] = await Promise.all([
       listPromptWorkbenchPage({
         workspaceId,
         readiness: requestedReadiness,
@@ -333,7 +331,6 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       getDefaultAffiliateProfileForWorkspace(workspaceId ?? null),
       requestedDetailId ? loadSelectedPromptPack(supabase, user.id, requestedDetailId) : Promise.resolve(null),
       requestedIntakeId ? loadSelectedIntakeProductId(supabase, user.id, requestedIntakeId) : Promise.resolve(null),
-      listPromptQueueSnapshot({ workspaceId }),
     ]);
   } catch {
     return <ErrorState icon={FileText} title="Paket Prompt tidak tersedia." />;
@@ -351,25 +348,31 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       ? affiliateProfileMap.get(requestedAffiliateProfileId) ?? null
       : null;
 
-  const selectedProductId = requestedProductId ?? requestedIntakeProductId ?? selectedPromptPack?.product_id ?? null;
+  const requestedDetailProductId = legacySelectedPromptPack?.product_id ?? (requestedDetailId.trim() || null);
+  const selectedProductId = requestedDetailProductId ?? requestedProductId ?? requestedIntakeProductId ?? null;
   let visiblePromptReadinessRows: PromptReadinessRow[] = [...promptPageData.rows];
-  let selectedSpotlightRow: PromptReadinessRow | null = null;
+  let selectedSpotlightRows: PromptReadinessRow[] = [];
 
-  if (selectedProductId && !visiblePromptReadinessRows.some((row) => row.product.id === selectedProductId)) {
+  const setupProductIds = selectedProductId ? [selectedProductId] : [];
+  const missingSetupProductIds = setupProductIds.filter(
+    (productId) => !visiblePromptReadinessRows.some((row) => row.product.id === productId),
+  );
+
+  if (missingSetupProductIds.length) {
     const selectedRows = await listPromptReadinessProjections({
       affiliateProfileContext: {
         defaultAffiliateProfile: currentAffiliateProfile,
         affiliateProfiles,
       },
       workspaceId,
-      productIds: [selectedProductId],
-      limit: 1,
+      productIds: missingSetupProductIds,
+      limit: missingSetupProductIds.length,
     });
 
-    selectedSpotlightRow = selectedRows[0] ? withPromptWorkbenchActivity(selectedRows[0]) : null;
+    selectedSpotlightRows = selectedRows.map(withPromptWorkbenchActivity);
 
-    if (selectedSpotlightRow) {
-      visiblePromptReadinessRows = [selectedSpotlightRow, ...visiblePromptReadinessRows];
+    if (selectedSpotlightRows.length) {
+      visiblePromptReadinessRows = [...selectedSpotlightRows, ...visiblePromptReadinessRows];
     }
   }
 
@@ -378,16 +381,11 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
   const currentAffiliateProfileLabel = currentAffiliateProfile?.profile_name ?? "Belum ada profile aktif";
   const currentWorkspaceLabel = currentWorkspace?.workspace_name ?? "Workspace aktif";
-  const activeReadinessFilterLabel =
-    requestedReadiness === "ALL" ? "Semua" : PROMPT_READINESS_STATUS_LABELS[requestedReadiness];
-  const hasPromptDetail = Boolean(selectedPromptPack);
-  const hasQueueDetail = requestedQueueOpen && !hasPromptDetail;
-  const hasDetailPanel = hasPromptDetail || hasQueueDetail;
+  const hasDetailPanel = Boolean(requestedDetailProductId);
 
   const promptTaskIds = Array.from(
     new Set([
       ...visiblePromptReadinessRows.map((row) => row.promptPack?.ai_task_id).filter((value): value is string => Boolean(value)),
-      ...(selectedPromptPack?.ai_task_id ? [selectedPromptPack.ai_task_id] : []),
     ]),
   );
 
@@ -437,12 +435,8 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
 
   const displayedPromptProduct = selectedProductId
     ? visiblePromptReadinessRows.find((row) => row.product.id === selectedProductId)?.product ??
-      selectedSpotlightRow?.product ??
+      selectedSpotlightRows.find((row) => row.product.id === selectedProductId)?.product ??
       null
-    : null;
-  const selectedPromptTask = selectedPromptPack?.ai_task_id ? promptTaskMap.get(selectedPromptPack.ai_task_id) ?? null : null;
-  const promptDetailSubtitle = selectedPromptPack
-    ? [`v${selectedPromptPack.version}`, selectedPromptPack.status, selectedPromptTask?.status ?? "Task belum ada"].join(" - ")
     : null;
   const promptsCloseHref = buildPromptsHref({
     affiliateProfileId: requestedAffiliateProfileId,
@@ -452,19 +446,10 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     readiness: requestedReadiness,
     search: requestedSearch,
   });
-  const promptQueueHref = buildPromptsHref({
-    affiliateProfileId: requestedAffiliateProfileId,
-    intakeId: requestedIntakeId,
-    page: promptPageData.page,
-    productId: requestedProductId,
-    queueOpen: true,
-    readiness: requestedReadiness,
-    search: requestedSearch,
-  });
-  const promptDetailHref = selectedPromptPack
+  const promptDetailHref = requestedDetailProductId
     ? buildPromptsHref({
         affiliateProfileId: requestedAffiliateProfileId,
-        detailId: selectedPromptPack.id,
+        detailId: requestedDetailProductId,
         intakeId: requestedIntakeId,
         page: promptPageData.page,
         productId: requestedProductId,
@@ -472,7 +457,6 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
         search: requestedSearch,
       })
     : promptsCloseHref;
-  const promptQueueSummary: PromptQueueSummary = promptQueueSnapshot?.summary ?? { ...EMPTY_PROMPT_QUEUE_SUMMARY };
 
   const workbenchRows: PromptWorkbenchRowData[] = visiblePromptReadinessRows.map((row) => {
     const promptPack = row.promptPack ?? null;
@@ -483,17 +467,35 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
     const sourceImage = row.sourceImage ?? null;
     const sourceImageDriveItem = sourceImage?.drive_item_ref_id ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
     const generationTask = promptPack?.ai_task_id ? promptTaskMap.get(promptPack.ai_task_id) ?? null : null;
-    const rowPromptDetailHref = promptPack
-      ? buildPromptsHref({
-          affiliateProfileId: requestedAffiliateProfileId,
-          detailId: promptPack.id,
-          intakeId: requestedIntakeId,
-          page: promptPageData.page,
-          productId: requestedProductId,
-          readiness: requestedReadiness,
-          search: requestedSearch,
-        })
-      : null;
+    const rowPromptDetailHref = buildPromptsHref({
+      affiliateProfileId: requestedAffiliateProfileId,
+      detailId: row.product.id,
+      intakeId: requestedIntakeId,
+      page: promptPageData.page,
+      productId: requestedProductId,
+      readiness: requestedReadiness,
+      search: requestedSearch,
+    });
+    const rowPromptGenerateHref = buildPromptsHref({
+      affiliateProfileId: requestedAffiliateProfileId,
+      detailId: row.product.id,
+      intakeId: requestedIntakeId,
+      page: promptPageData.page,
+      productId: requestedProductId,
+      readiness: requestedReadiness,
+      search: requestedSearch,
+      tab: "generate",
+    });
+    const rowPromptHistoryHref = buildPromptsHref({
+      affiliateProfileId: requestedAffiliateProfileId,
+      detailId: row.product.id,
+      intakeId: requestedIntakeId,
+      page: promptPageData.page,
+      productId: requestedProductId,
+      readiness: requestedReadiness,
+      search: requestedSearch,
+      tab: "history",
+    });
     const productDetailSearchParams = new URLSearchParams({ detail: row.product.id, tab: "metadata" });
     productDetailSearchParams.set("q", row.product.product_name);
 
@@ -520,14 +522,19 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
       }),
       productDetailHref: `/products?${productDetailSearchParams.toString()}`,
       promptDetailHref: rowPromptDetailHref,
+      promptGenerateHref: rowPromptGenerateHref,
+      promptHistoryHref: rowPromptHistoryHref,
       returnHref: promptsCloseHref,
-      isOpen: selectedProductId === row.product.id || requestedDetailId === promptPack?.id,
+      isOpen: requestedDetailProductId === row.product.id,
     };
   });
-
-  const displayCountLabel = `${visiblePromptRows.length} kartu tampil`;
-  const resultCountLabel = `${promptPageData.totalCount} hasil`;
-  const pageLabel = `Halaman ${promptPageData.page}/${promptPageData.totalPages}`;
+  const selectedPromptRow = requestedDetailProductId
+    ? workbenchRows.find((row) => row.product.id === requestedDetailProductId) ?? null
+    : null;
+  const selectedPromptTask = selectedPromptRow?.generationTask ?? null;
+  const promptDetailSubtitle = selectedPromptRow?.promptPack
+    ? [`v${selectedPromptRow.promptPack.version}`, selectedPromptRow.promptPack.status, selectedPromptTask?.status ?? "Task belum ada"].join(" - ")
+    : "Generate prompt";
 
   const clearSearchHref = buildPromptsHref({
     affiliateProfileId: requestedAffiliateProfileId,
@@ -602,8 +609,6 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
                   hasNextPage: promptPageData.hasNextPage,
                 }}
                 productId={requestedProductId}
-                queueHref={promptQueueHref}
-                queueSummary={promptQueueSummary}
                 readiness={requestedReadiness}
                 rows={workbenchRows}
                 search={requestedSearch}
@@ -639,23 +644,19 @@ export default async function PromptsPage({ searchParams }: PromptsPageProps) {
         </section>
       </div>
 
-      {selectedPromptPack ? (
+      {requestedDetailProductId ? (
         <OperatorDetailDrawer
           ariaLabel="Detail prompt"
           closeHref={promptsCloseHref}
           subtitle={promptDetailSubtitle}
           title={displayedPromptProduct?.product_name ?? "Detail prompt"}
         >
-          <PromptDetailPanel detailHref={promptDetailHref} promptPackId={selectedPromptPack.id} selectedTab={requestedTab} selectedVersion={requestedVersion} />
-        </OperatorDetailDrawer>
-      ) : hasQueueDetail && promptQueueSnapshot ? (
-        <OperatorDetailDrawer
-          ariaLabel="Antrian prompt"
-          closeHref={promptsCloseHref}
-          subtitle={`${promptQueueSummary.queued + promptQueueSummary.retrying + promptQueueSummary.waitingForKey} antre - ${promptQueueSummary.running} berjalan - ${promptQueueSummary.failed} gagal`}
-          title="Antrian Prompt"
-        >
-          <PromptQueueDrawer initialSnapshot={promptQueueSnapshot} queueHref={promptQueueHref} />
+          <PromptDetailPanel
+            detailHref={promptDetailHref}
+            productId={requestedDetailProductId}
+            selectedTab={requestedTab}
+            selectedVersion={requestedVersion}
+          />
         </OperatorDetailDrawer>
       ) : null}
     </div>
