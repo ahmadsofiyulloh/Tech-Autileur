@@ -2,6 +2,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache.js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { createAITask } from "@/lib/server/ai-task-queue";
 import {
   isSharePlatform,
@@ -25,13 +26,16 @@ type ShareGenerationRecord = {
   id: string;
   user_id: string;
   product_id: string;
+  ai_task_id: string | null;
   platform: SharePlatform;
   angle: ShareAngle;
   variant_count: number;
+  input_params: ShareGenerateOptions | null;
   output_json: ShareGenerationOutputItem[] | null;
   status: ShareGenerationStatus;
   error_message: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 async function requireUser() {
@@ -230,17 +234,85 @@ export async function createShareGeneration(input: {
     productMetadata: metadata,
   };
 
-  const task = await createAITask({
-    taskType: "SHARE_CAPTION",
-    inputJson: taskInput,
-  });
+  let task: Awaited<ReturnType<typeof createAITask>>;
+  try {
+    task = await createAITask({
+      taskType: "SHARE_CAPTION",
+      inputJson: taskInput,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Gagal membuat task share caption.";
+    await supabase
+      .from("share_generations")
+      .update({
+        status: "error",
+        error_message: errorMessage,
+      })
+      .eq("id", generation.id)
+      .eq("user_id", user.id);
+    throw new Error(errorMessage);
+  }
+
+  const { error: taskLinkError } = await supabase
+    .from("share_generations")
+    .update({
+      ai_task_id: task.id,
+      error_message: null,
+    })
+    .eq("id", generation.id)
+    .eq("user_id", user.id);
+
+  if (taskLinkError) {
+    const errorMessage = taskLinkError.message;
+    const serviceClient = createSupabaseServiceRoleClient();
+    await serviceClient
+      .from("share_generations")
+      .update({
+        status: "error",
+        error_message: errorMessage,
+      })
+      .eq("id", generation.id)
+      .eq("user_id", user.id);
+    await serviceClient
+      .from("ai_tasks")
+      .update({
+        status: "FAILED",
+        error_message: errorMessage,
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", task.id)
+      .eq("user_id", user.id);
+    throw new Error(errorMessage);
+  }
 
   void import("@/lib/server/share-caption-task")
     .then((mod) => mod.runRealShareCaptionTask(task.id, taskInput))
-    .catch(() => undefined);
+    .catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : "Worker share caption gagal dimulai.";
+      void (async () => {
+        const serviceClient = createSupabaseServiceRoleClient();
+        await serviceClient
+          .from("share_generations")
+          .update({
+            status: "error",
+            error_message: errorMessage,
+          })
+          .eq("id", generation.id)
+          .eq("user_id", user.id);
+        await serviceClient
+          .from("ai_tasks")
+          .update({
+            status: "FAILED",
+            error_message: errorMessage,
+            finished_at: new Date().toISOString(),
+          })
+          .eq("id", task.id)
+          .eq("user_id", user.id);
+      })().catch(() => undefined);
+    });
 
   revalidatePath("/share");
-  return generation as ShareGenerationRecord;
+  return { ...(generation as ShareGenerationRecord), ai_task_id: task.id };
 }
 
 export async function updateShareGenerationOutput(input: {

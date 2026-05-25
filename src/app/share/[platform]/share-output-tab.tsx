@@ -97,6 +97,9 @@ export function ShareOutputTab({
     formData.set("affiliate_url", affiliateUrl);
     formData.set("angle", generation.angle);
     formData.set("variant_count", String(generation.variant_count));
+    if (generation.input_params) {
+      formData.set("options_json", JSON.stringify(generation.input_params));
+    }
 
     await generateShareCaption(formData);
   }
