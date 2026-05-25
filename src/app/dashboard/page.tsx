@@ -95,12 +95,18 @@ function GeminiOperations({ viewModel }: { viewModel: DashboardViewModel["gemini
               <strong>{viewModel.recentIssue.title}</strong>
               <p>{viewModel.recentIssue.message}</p>
             </div>
-            {issueHref && issueActionLabel ? (
-              <Link className="dashboard-inline-link" href={issueHref}>
-                {issueActionLabel}
+            <div className="dashboard-issue-card__actions">
+              {issueHref && issueActionLabel ? (
+                <Link className="dashboard-inline-link" href={issueHref}>
+                  {issueActionLabel}
+                  <ChevronRight size={15} aria-hidden="true" />
+                </Link>
+              ) : null}
+              <Link className="dashboard-inline-link" href="/admin/diagnostics">
+                Diagnostics
                 <ChevronRight size={15} aria-hidden="true" />
               </Link>
-            ) : null}
+            </div>
           </article>
         </div>
 
