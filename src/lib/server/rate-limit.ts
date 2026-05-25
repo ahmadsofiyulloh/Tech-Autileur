@@ -37,11 +37,6 @@ export const API_RATE_LIMITS = {
     limit: 10,
     windowMs: 60_000,
   },
-  promptQueueRunNext: {
-    route: "/api/prompts/queue/run-next",
-    limit: 30,
-    windowMs: 60_000,
-  },
   bulkImportJobRun: {
     route: "/api/products/bulk-import/jobs/[jobId]/run",
     limit: 30,

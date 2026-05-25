@@ -47,6 +47,21 @@ export type GeminiRoutableKey = {
   updated_at: string;
 };
 
+export type GeminiKeyEligibilityDiagnostic = {
+  allowedRoles: readonly GeminiKeyRole[];
+  activeOrRecoverableKeys: number;
+  eligibleMetadataKeys: number;
+  eligibleKeysWithSecret: number;
+  excludedKeyIds: number;
+  excludedQuotaGroups: number;
+  modelEligibleKeys: number;
+  purpose: GeminiRoutingPurpose;
+  quotaConfiguredKeys: number;
+  quotaWithinLimitKeys: number;
+  roleEligibleKeys: number;
+  totalKeys: number;
+};
+
 type GeminiUsageEventRecord = {
   gemini_api_key_id: string;
   project_label: string | null;
@@ -275,6 +290,102 @@ export async function listQuotaAwareGeminiKeys(input: {
 
       return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
     });
+}
+
+export async function diagnoseGeminiKeyEligibility(input: {
+  userId: string;
+  purpose: GeminiRoutingPurpose;
+  excludedQuotaGroups?: ReadonlySet<string>;
+  excludedKeyIds?: ReadonlySet<string>;
+  serviceClient?: SupabaseServiceClient;
+  now?: Date;
+}): Promise<GeminiKeyEligibilityDiagnostic> {
+  const serviceClient = input.serviceClient ?? createSupabaseServiceRoleClient();
+  const now = input.now ?? new Date();
+  const allowedRoles = rolesForPurpose(input.purpose);
+  const { data, error } = await serviceClient
+    .from("gemini_api_keys")
+    .select(
+      "id, user_id, key_code, label, provider, google_account_label, project_label, model_name, role, rpm_limit, rpd_limit, tpm_limit, requests_today, last_used_at, cooldown_until, status, notes, created_at, updated_at",
+    )
+    .eq("user_id", input.userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const allKeys = (data ?? []) as GeminiRoutableKey[];
+  const roleEligibleKeys = allKeys.filter((key) => (allowedRoles as readonly string[]).includes(key.role));
+  const activeOrRecoverableKeys = roleEligibleKeys.filter((key) => {
+    if (key.status === "ACTIVE") {
+      return true;
+    }
+
+    if (key.status !== "RATE_LIMITED" && key.status !== "COOLDOWN") {
+      return false;
+    }
+
+    return !isCoolingDown(key, now);
+  });
+  const modelEligibleKeys = activeOrRecoverableKeys.filter((key) => {
+    if (input.purpose === "VISION_ANALYSIS" && !isVisionCapableKey(key)) {
+      return false;
+    }
+
+    return isGeminiModelName(key.model_name);
+  });
+  const quotaConfiguredKeys = modelEligibleKeys.filter(hasConfiguredGeminiQuotaLimits);
+  const groupedKeys = groupKeys(quotaConfiguredKeys);
+  const dayStart = startOfCurrentDayInTimeZone(now);
+  const minuteStart = new Date(now.getTime() - 60_000);
+  const groupedUsage = groupUsage({
+    events: await listUsageEvents(serviceClient, input.userId, dayStart),
+    keys: quotaConfiguredKeys,
+    minuteStart,
+  });
+  const excludedKeyIds = input.excludedKeyIds ?? new Set();
+  const excludedQuotaGroups = input.excludedQuotaGroups ?? new Set();
+  const notExcludedKeys = quotaConfiguredKeys.filter((key) => {
+    if (excludedKeyIds.has(key.id)) {
+      return false;
+    }
+
+    return !excludedQuotaGroups.has(getGeminiQuotaGroupKey(key));
+  });
+  const quotaWithinLimitKeys = notExcludedKeys.filter((key) => {
+    const groupKey = getGeminiQuotaGroupKey(key);
+    return isBucketWithinLimit(groupedUsage.get(groupKey) ?? emptyUsageBucket(), groupedKeys.get(groupKey) ?? [key]);
+  });
+  const eligibleKeyIds = quotaWithinLimitKeys.map((key) => key.id);
+  let eligibleKeysWithSecret = 0;
+
+  if (eligibleKeyIds.length) {
+    const { data: secrets, error: secretError } = await serviceClient
+      .from("gemini_api_key_secrets")
+      .select("gemini_api_key_id")
+      .eq("user_id", input.userId)
+      .in("gemini_api_key_id", eligibleKeyIds);
+
+    if (!secretError) {
+      const secretIds = new Set((secrets ?? []).map((secret) => secret.gemini_api_key_id));
+      eligibleKeysWithSecret = quotaWithinLimitKeys.filter((key) => secretIds.has(key.id)).length;
+    }
+  }
+
+  return {
+    allowedRoles,
+    activeOrRecoverableKeys: activeOrRecoverableKeys.length,
+    eligibleMetadataKeys: quotaWithinLimitKeys.length,
+    eligibleKeysWithSecret,
+    excludedKeyIds: excludedKeyIds.size,
+    excludedQuotaGroups: excludedQuotaGroups.size,
+    modelEligibleKeys: modelEligibleKeys.length,
+    purpose: input.purpose,
+    quotaConfiguredKeys: quotaConfiguredKeys.length,
+    quotaWithinLimitKeys: quotaWithinLimitKeys.length,
+    roleEligibleKeys: roleEligibleKeys.length,
+    totalKeys: allKeys.length,
+  };
 }
 
 export async function markGeminiKeySuccess(input: {

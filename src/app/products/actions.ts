@@ -10,12 +10,10 @@ import {
   updateProduct,
 } from "@/lib/server/products";
 import {
-  createPromptPackGenerationTask,
   createPromptPackRegenerationVersion,
   listPromptPacks,
-  runMockPromptPackTask,
-  runRealPromptPackTask,
 } from "@/lib/server/prompt-packs";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function readText(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -135,23 +133,9 @@ export async function saveProductImage(formData: FormData) {
   redirect("/products?message=Source image attached");
 }
 
-type GenerationMode = "gemini" | "mock";
-
-async function generatePromptPack(promptPackId: string, generationMode: GenerationMode) {
-  const { task } = await createPromptPackGenerationTask(promptPackId, {
-    generationMode,
-    maxRetries: generationMode === "mock" ? 0 : 3,
-  });
-
-  return generationMode === "mock"
-    ? await runMockPromptPackTask(promptPackId, task.id)
-    : await runRealPromptPackTask(promptPackId, task.id);
-}
-
 export async function regenerateProductPrompt(formData: FormData) {
   const productId = readText(formData, "product_id");
   const revisionInstruction = readText(formData, "revision_instruction");
-  const generationMode: GenerationMode = "gemini";
 
   if (!productId) {
     fail("Product ID tidak ditemukan.");
@@ -187,19 +171,23 @@ export async function regenerateProductPrompt(formData: FormData) {
     });
 
     nextVersionId = nextVersion.id;
-    const result = await generatePromptPack(nextVersion.id, generationMode);
-    nextVersionId = result.promptPack.id;
 
-    if (result.task.status !== "SUCCESS") {
-      generationMessage = result.message;
-    }
+    // Mark generating synchronously before fire-and-forget.
+    const supabase = await createSupabaseServerClient();
+    await supabase.from("prompt_packs").update({ status: "GENERATING", ai_task_id: null, error_message: null }).eq("id", nextVersion.id);
+
+    // Fire-and-forget inline execution (no task/queue).
+    void import("@/lib/server/prompt-packs")
+      .then((mod) => mod.runInlinePromptPackGeneration(nextVersion.id))
+      .catch(() => undefined);
+    generationMessage = "Prompt pack sedang di-generate...";
   } catch (error) {
     const message = error instanceof Error ? error.message : "Gagal generate ulang prompt. Coba lagi.";
     if (nextVersionId) {
       revalidatePath("/products");
       revalidatePath(`/products/${productId}`);
       revalidatePath("/prompts");
-      redirect(`/prompts?detail=${nextVersionId}&error=${encodeURIComponent(message)}`);
+      redirect(`/prompts?detail=${nextVersionId}&tab=output&error=${encodeURIComponent(message)}`);
     }
     fail(message);
   }
@@ -209,7 +197,7 @@ export async function regenerateProductPrompt(formData: FormData) {
   revalidatePath("/prompts");
   revalidatePath(`/prompts/${nextVersionId}`);
   revalidatePath(`/prompts/${nextVersionId}/history`);
-  redirect(`/prompts?detail=${nextVersionId}&message=${encodeURIComponent(generationMessage)}`);
+  redirect(`/prompts?detail=${nextVersionId}&tab=output&message=${encodeURIComponent(generationMessage)}`);
 }
 
 export async function bulkArchiveProductsAction(formData: FormData) {

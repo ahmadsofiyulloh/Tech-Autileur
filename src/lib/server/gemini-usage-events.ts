@@ -16,7 +16,7 @@ type GeminiUsageKey = {
 };
 
 type GeminiUsageEventInput = {
-  aiTaskId: string;
+  aiTaskId: string | null;
   geminiApiKey: GeminiUsageKey;
   request: GeminiRequestOptions;
   taskType: AiTaskType;
