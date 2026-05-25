@@ -4,6 +4,7 @@ import type { GeminiModelName } from "@/lib/gemini/validation";
 import { GEMINI_SHARE_CAPTION_RESPONSE_SCHEMA } from "@/lib/gemini/json-schemas";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { GeminiClientError } from "@/lib/server/gemini-client";
+import { logDiagnostic } from "@/lib/server/diagnostic-logging";
 import {
   listQuotaAwareGeminiKeys,
   markGeminiKeySuccess,
@@ -20,6 +21,7 @@ import {
   platformPromptBlocks,
   angleHookPatterns,
   PLATFORM_CHAR_LIMITS,
+  RECOMMENDED_BLOCK_LIMITS,
 } from "@/lib/share/share-platform";
 
 type ShareCaptionTaskInput = {
@@ -37,6 +39,8 @@ type ShareCaptionTaskInput = {
   productNiche?: string | null;
   productMetadata?: Record<string, unknown> | null;
 };
+
+type SupabaseServiceClient = ReturnType<typeof createSupabaseServiceRoleClient>;
 
 type ShareCaptionBlock = {
   role: string;
@@ -255,6 +259,289 @@ Setiap varian harus memiliki hook/pembuka yang berbeda — jangan variasi minor 
 Return JSON sesuai schema yang diminta. Field "caption" tetap diisi (untuk backward compat); field "blocks" adalah representasi structural baru.`;
 }
 
+function isShareImagePromptRequired(input: ShareCaptionTaskInput) {
+  if (input.platform === "facebook" && input.inputParams?.platform === "facebook") {
+    return input.inputParams.includeImagePrompt;
+  }
+
+  if (input.platform === "x" && input.inputParams?.platform === "x") {
+    return input.inputParams.includeImagePrompt;
+  }
+
+  return input.platform === "pinterest";
+}
+
+function isFacebookFirstCommentRequired(input: ShareCaptionTaskInput) {
+  return input.platform === "facebook" && input.inputParams?.platform === "facebook" && input.inputParams.includeFirstComment;
+}
+
+function readTrimmedText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readStringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => readTrimmedText(item)).filter((item) => item.length > 0)
+    : [];
+}
+
+function isRecommendedBlockRole(role: string): role is keyof typeof RECOMMENDED_BLOCK_LIMITS {
+  return role in RECOMMENDED_BLOCK_LIMITS;
+}
+
+function recommendedMaxCharsForRole(role: string) {
+  return isRecommendedBlockRole(role) ? RECOMMENDED_BLOCK_LIMITS[role] : 500;
+}
+
+function labelForBlockRole(role: string) {
+  switch (role) {
+    case "first_comment":
+      return "First Comment";
+    case "thread_section":
+      return "Thread";
+    case "x_reply_with_link":
+      return "Reply dengan Link";
+    case "pinterest_pin_title":
+      return "Pin Title";
+    case "pinterest_pin_description":
+      return "Pin Description";
+    case "pinterest_destination_link":
+      return "Destination Link";
+    case "pinterest_alt_text":
+      return "Alt Text";
+    case "hashtags":
+      return "Hashtags";
+    case "main_caption":
+    default:
+      return "Caption";
+  }
+}
+
+function buildShareCaptionBlock(role: string, label: string, content: string): ShareCaptionBlock {
+  const normalizedContent = content.trim();
+
+  return {
+    role,
+    label,
+    content: normalizedContent,
+    char_count: normalizedContent.length,
+    recommended_max_chars: recommendedMaxCharsForRole(role),
+    copy_ready: true,
+  };
+}
+
+function normalizeCaptionBlock(value: unknown): ShareCaptionBlock | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const block = value as Partial<ShareCaptionBlock>;
+  const role = readTrimmedText(block.role);
+  const content = readTrimmedText(block.content);
+
+  if (!role || !content) {
+    return null;
+  }
+
+  const label = readTrimmedText(block.label) || labelForBlockRole(role);
+  const recommendedMaxChars =
+    typeof block.recommended_max_chars === "number" && Number.isFinite(block.recommended_max_chars) && block.recommended_max_chars > 0
+      ? Math.round(block.recommended_max_chars)
+      : recommendedMaxCharsForRole(role);
+  const warning = readTrimmedText(block.warning);
+
+  return {
+    role,
+    label,
+    content,
+    char_count: content.length,
+    recommended_max_chars: recommendedMaxChars,
+    copy_ready: block.copy_ready !== false,
+    ...(warning ? { warning } : {}),
+  };
+}
+
+function getRequestedImageRatio(input: ShareCaptionTaskInput) {
+  if (input.platform === "facebook" && input.inputParams?.platform === "facebook") {
+    return input.inputParams.imageRatio;
+  }
+
+  if (input.platform === "x" && input.inputParams?.platform === "x") {
+    return input.inputParams.imageRatio;
+  }
+
+  if (input.platform === "pinterest" && input.inputParams?.platform === "pinterest") {
+    return input.inputParams.imageRatio;
+  }
+
+  return "1:1";
+}
+
+function readProductMetadataText(input: ShareCaptionTaskInput, key: string) {
+  return readTrimmedText(input.productMetadata?.[key]);
+}
+
+function buildFallbackShareImagePrompt(input: ShareCaptionTaskInput): ShareImagePromptBlock {
+  const visualDescription = readProductMetadataText(input, "deskripsi_visual") || input.productName;
+
+  return {
+    source: "i2i",
+    image_inputs: ["foto utama produk"],
+    prompt_text: `Gunakan foto produk "${input.productName}" sebagai referensi utama. Buat visual affiliate yang natural, bersih, dan relevan untuk ${input.platform}. Pertahankan detail produk yang terlihat: ${visualDescription}. Jangan menambah teks, badge harga, logo palsu, atau klaim visual yang tidak ada di foto sumber.`,
+    must_keep: ["bentuk produk asli", "warna produk asli", "detail kemasan atau label yang terlihat"],
+    must_avoid: ["text overlay", "price label", "discount badge", "fake logo", "fake UI", "unsupported claims", "perubahan bentuk produk"],
+    aspect_ratio: getRequestedImageRatio(input),
+    upload_note: "Upload foto produk utama sebagai referensi i2i.",
+  };
+}
+
+function normalizeShareImagePrompt(input: ShareCaptionTaskInput, value: unknown): ShareImagePromptBlock {
+  const fallback = buildFallbackShareImagePrompt(input);
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback;
+  }
+
+  const imagePrompt = value as Partial<ShareImagePromptBlock>;
+  const promptText = readTrimmedText(imagePrompt.prompt_text) || fallback.prompt_text;
+  const aspectRatio = readTrimmedText(imagePrompt.aspect_ratio) || fallback.aspect_ratio;
+  const uploadNote = readTrimmedText(imagePrompt.upload_note) || fallback.upload_note;
+  const imageInputs = readStringList(imagePrompt.image_inputs);
+  const mustKeep = readStringList(imagePrompt.must_keep);
+  const mustAvoid = readStringList(imagePrompt.must_avoid);
+
+  return {
+    source: "i2i",
+    image_inputs: imageInputs.length ? imageInputs : fallback.image_inputs,
+    prompt_text: promptText,
+    must_keep: mustKeep.length ? mustKeep : fallback.must_keep,
+    must_avoid: mustAvoid.length ? mustAvoid : fallback.must_avoid,
+    aspect_ratio: aspectRatio,
+    upload_note: uploadNote,
+  };
+}
+
+function normalizeAndValidateShareCaptionResponse(input: ShareCaptionTaskInput, parsed: ShareCaptionResponse) {
+  parsed.variants.forEach((variant, index) => {
+    const variantLabel = `Variant ${index + 1}`;
+    const caption = readTrimmedText(variant.caption);
+
+    if (!caption) {
+      throw new Error(`${variantLabel} caption is required.`);
+    }
+
+    variant.caption = caption;
+    variant.angle = input.angle;
+    variant.platform = input.platform;
+
+    const blocks = Array.isArray(variant.blocks)
+      ? variant.blocks.map(normalizeCaptionBlock).filter((block): block is ShareCaptionBlock => Boolean(block))
+      : [];
+
+    if (!blocks.some((block) => block.role === "main_caption" && block.content.trim().length > 0)) {
+      blocks.unshift(buildShareCaptionBlock("main_caption", "Caption", caption));
+    }
+
+    if (isFacebookFirstCommentRequired(input) && !blocks.some((block) => block.role === "first_comment" && block.content.trim().length > 0)) {
+      blocks.push(
+        buildShareCaptionBlock(
+          "first_comment",
+          "First Comment",
+          `Buat yang mau cek detail produk, link affiliate ada di sini:\n${input.affiliateUrl}`,
+        ),
+      );
+    }
+
+    variant.blocks = blocks;
+
+    if (isShareImagePromptRequired(input) || variant.image_prompt) {
+      variant.image_prompt = normalizeShareImagePrompt(input, variant.image_prompt);
+    }
+  });
+}
+
+async function failShareCaptionTask(input: {
+  errorMessage: string;
+  generationId: string;
+  serviceClient: SupabaseServiceClient;
+  taskId: string;
+  userId: string;
+}) {
+  await input.serviceClient
+    .from("share_generations")
+    .update({ status: "error", error_message: input.errorMessage })
+    .eq("id", input.generationId)
+    .eq("user_id", input.userId);
+
+  await input.serviceClient
+    .from("ai_tasks")
+    .update({ status: "FAILED", error_message: input.errorMessage, finished_at: new Date().toISOString() })
+    .eq("id", input.taskId)
+    .eq("user_id", input.userId);
+
+  void logDiagnostic({
+    userId: input.userId,
+    context: "share_generation",
+    level: "error",
+    message: "Generation failed",
+    metadata: { task_id: input.taskId, share_generation_id: input.generationId, error_message: input.errorMessage },
+  });
+}
+
+function computeShareCaptionMaxTokens(input: ShareCaptionTaskInput): number {
+  // Each variant baseline (caption + angle + platform + main_caption block + JSON overhead) ≈ 350 tokens.
+  let perVariantTokens = 350;
+
+  const opts = input.inputParams;
+
+  // Image prompt block adds ~250 tokens per variant (i2i schema with arrays).
+  if (isShareImagePromptRequired(input)) {
+    perVariantTokens += 250;
+  }
+
+  if (input.platform === "facebook" && opts?.platform === "facebook") {
+    if (opts.includeFirstComment) {
+      perVariantTokens += 200;
+    }
+    // Long captions push main_caption content size further.
+    if (opts.captionLength === "long") {
+      perVariantTokens += 250;
+    } else if (opts.captionLength === "medium") {
+      perVariantTokens += 100;
+    }
+  }
+
+  if (input.platform === "threads" && opts?.platform === "threads" && opts.mode === "thread") {
+    // Up to 5 thread_section blocks @ ~120 tokens each.
+    perVariantTokens += 600;
+  }
+
+  if (input.platform === "x" && opts?.platform === "x") {
+    if (opts.mode === "thread") {
+      // Up to 7 thread_section blocks @ ~80 tokens each.
+      perVariantTokens += 560;
+    }
+    if (opts.linkPlacement === "reply") {
+      perVariantTokens += 80;
+    }
+  }
+
+  if (input.platform === "pinterest") {
+    // pin_title + pin_description + destination_link + (optional alt_text)
+    perVariantTokens += 200;
+    const pinOpts = opts?.platform === "pinterest" ? opts : null;
+    if (pinOpts?.generateAltText) {
+      perVariantTokens += 150;
+    }
+  }
+
+  // Final budget: per-variant cost × variantCount + envelope/safety buffer.
+  // Cap at 16384 to stay within Gemini Flash output ceiling.
+  const computed = perVariantTokens * input.variantCount + 512;
+  return Math.min(Math.max(computed, 2048), 16384);
+}
+
+
 export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCaptionTaskInput) {
   const serviceClient = createSupabaseServiceRoleClient();
 
@@ -277,6 +564,14 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
   }
 
   const userId = generation.user_id as string;
+
+  void logDiagnostic({
+    userId,
+    context: "share_generation",
+    level: "info",
+    message: "Generation started",
+    metadata: { task_id: taskId, share_generation_id: taskInput.generationId, platform: taskInput.platform },
+  });
 
   try {
     await serviceClient
@@ -319,6 +614,15 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
           .update({ status: "WAITING_FOR_KEY", error_message: errorMsg, finished_at: null })
           .eq("id", taskId)
           .eq("user_id", userId);
+
+        void logDiagnostic({
+          userId,
+          context: "share_generation",
+          level: "warn",
+          message: "No keys available, task waiting",
+          metadata: { task_id: taskId, share_generation_id: taskInput.generationId, reason: "no_keys_available" },
+        });
+
         return;
       }
 
@@ -341,6 +645,14 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
           .eq("id", taskId)
           .eq("user_id", userId);
 
+        void logDiagnostic({
+          userId,
+          context: "key_routing",
+          level: "debug",
+          message: "Key selected",
+          metadata: { task_id: taskId, key_id: key.id, role: key.role, model: key.model_name },
+        });
+
         await serviceClient
           .from("share_generations")
           .update({ status: "generating" })
@@ -349,6 +661,7 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
 
         try {
           const prompt = buildShareCaptionPrompt(taskInput);
+          const maxOutputTokens = computeShareCaptionMaxTokens(taskInput);
 
           const response = await generateTrackedGeminiJsonText({
             aiTaskId: taskId,
@@ -361,7 +674,7 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
               systemInstruction: "You are an expert Indonesian affiliate marketing copywriter.",
               prompt,
               temperature: 0.7,
-              maxOutputTokens: 2048,
+              maxOutputTokens,
               timeoutMs: 60_000,
               responseJsonSchema: GEMINI_SHARE_CAPTION_RESPONSE_SCHEMA,
               enableGoogleSearchGrounding: false,
@@ -371,13 +684,40 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
           let parsed: ShareCaptionResponse;
           try {
             parsed = JSON.parse(response.text) as ShareCaptionResponse;
-          } catch {
-            throw new Error("Gemini response was not valid JSON.");
+          } catch (parseError) {
+            const responseLength = response.text.length;
+            const headSnippet = response.text.slice(0, 500);
+            const tailSnippet = response.text.slice(-500);
+            const parseErrorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+
+            void logDiagnostic({
+              userId,
+              context: "share_generation",
+              level: "error",
+              message: "Gemini JSON parse failed",
+              metadata: {
+                task_id: taskId,
+                share_generation_id: taskInput.generationId,
+                platform: taskInput.platform,
+                variant_count: taskInput.variantCount,
+                max_output_tokens: maxOutputTokens,
+                response_length: responseLength,
+                response_head: headSnippet,
+                response_tail: tailSnippet,
+                parse_error: parseErrorMessage,
+              },
+            });
+
+            throw new Error(
+              `Gemini response was not valid JSON (length=${responseLength}, parse_error=${parseErrorMessage}).`,
+            );
           }
 
           if (!parsed.variants || !Array.isArray(parsed.variants) || parsed.variants.length !== taskInput.variantCount) {
             throw new Error(`Expected ${taskInput.variantCount} variants, got ${parsed.variants?.length ?? 0}.`);
           }
+
+          normalizeAndValidateShareCaptionResponse(taskInput, parsed);
 
           const charLimit = PLATFORM_CHAR_LIMITS[taskInput.platform];
           for (const [index, variant] of parsed.variants.entries()) {
@@ -409,12 +749,31 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
             .eq("user_id", userId);
           await markGeminiKeySuccess({ serviceClient, userId, key });
 
+          void logDiagnostic({
+            userId,
+            context: "share_generation",
+            level: "info",
+            message: "Generation succeeded",
+            metadata: { task_id: taskId, share_generation_id: taskInput.generationId, variant_count: parsed.variants.length },
+          });
+
           return;
         } catch (error) {
           lastErrorMessage = error instanceof Error ? error.message : "Gemini request failed.";
 
           if (error instanceof GeminiClientError) {
             const status = error.status;
+
+            if (status === 400) {
+              await failShareCaptionTask({
+                errorMessage: `Request Gemini untuk share caption ${taskInput.platform} ditolak karena kontrak runtime/schema tidak valid: ${lastErrorMessage}`,
+                generationId: taskInput.generationId,
+                serviceClient,
+                taskId,
+                userId,
+              });
+              return;
+            }
 
             if (status === 429) {
               const retryAfter = error.retryAfterSeconds ?? 60;
@@ -430,7 +789,7 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
               continue;
             }
 
-            if (status === 400 || status === 401 || status === 403) {
+            if (status === 401 || status === 403) {
               await markGeminiQuotaGroupError({ serviceClient, userId, key }).catch(() => undefined);
               excludedQuotaGroups.add(getGeminiQuotaGroupKey(key));
               continue;
@@ -442,7 +801,14 @@ export async function runRealShareCaptionTask(taskId: string, taskInput: ShareCa
             }
           }
 
-          excludedKeyIds.add(key.id);
+          await failShareCaptionTask({
+            errorMessage: `Runtime share caption ${taskInput.platform} gagal memproses output Gemini: ${lastErrorMessage}`,
+            generationId: taskInput.generationId,
+            serviceClient,
+            taskId,
+            userId,
+          });
+          return;
         }
       }
 

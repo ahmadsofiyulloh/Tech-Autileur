@@ -37,6 +37,8 @@ type GeminiCandidate = {
       text?: string;
     }>;
   };
+  finishReason?: string;
+  finish_reason?: string;
   groundingMetadata?: unknown;
   grounding_metadata?: unknown;
 };
@@ -91,6 +93,21 @@ function readRetryAfterSeconds(value: string | null) {
 
   const delta = Math.ceil((retryDate.getTime() - Date.now()) / 1000);
   return delta > 0 ? delta : 0;
+}
+
+function extractFinishReasonFromResponse(body: unknown): string | null {
+  if (!isRecord(body) || !Array.isArray(body.candidates)) {
+    return null;
+  }
+
+  for (const candidate of body.candidates as GeminiCandidate[]) {
+    const reason = candidate.finishReason ?? candidate.finish_reason;
+    if (typeof reason === "string" && reason.trim()) {
+      return reason.trim().toUpperCase();
+    }
+  }
+
+  return null;
 }
 
 function extractTextFromResponse(body: unknown) {
@@ -316,6 +333,15 @@ export async function generateGeminiJsonText(options: GeminiGenerateContentOptio
 
   const body = (await response.json()) as unknown;
   const text = extractTextFromResponse(body);
+  const finishReason = extractFinishReasonFromResponse(body);
+
+  if (finishReason === "MAX_TOKENS") {
+    throw new GeminiClientError(
+      "Gemini output truncated: response hit maxOutputTokens limit before completing the JSON. Increase maxOutputTokens or reduce request scope.",
+      502,
+      retryAfterSeconds,
+    );
+  }
 
   if (!text) {
     throw new GeminiClientError("Gemini response did not include structured text.", 502, retryAfterSeconds);
