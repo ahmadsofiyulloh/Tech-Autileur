@@ -5,71 +5,102 @@
 
 Range: `origin/main..HEAD`
 
-### 2026-05-20
+### 2026-05-26
 
-- `46ca253` feat: add AI Media Lab frontend and shell polish
-- `7f2923a` feat: expand dashboard quick actions
-- `293b99d` fix: stabilize dashboard badge token and next-env routes
-- `adaff51` docs: sync AI Media audit and backlog
-
-### 2026-05-21
-
-- `bf6d3ed` Fixing Mdularisasi css global
-- `9b2d6b4` docs: add workflow and AI Media Lab backend guides
-- `660e099` feat: add AI Media Lab backend and settings surface
-
-### 2026-05-22
-
-- `d749f2c` feat: enforce neutral action tokens
-- `3b75d03` docs: lock neutral action UI rules
-- `fba4134` fix: neutralize non-badge status tokens
-- `4348d30` fix: align settings drawer desktop layout
-- `41d5391` feat: add prompt generator flexibility options
-- `b34a99f` feat: polish product detail panel and regeneration
-- `ead98c6` feat: unified connected-table nav tabs globally
-- `0b2a511` feat: add custom branded scrollbar tokens
-- `0e4e668` docs: lock generation options in prompt pipeline
-
-### 2026-05-23
-
-- `1297c19` docs: add Share workspace redesign spec
-- `9f53f8d` docs: update architecture lock, backlog, and pipeline specs
-- `420e5b9` feat: add Share workspace feature scaffold
-- `a8f9324` feat: redesign product list with bulk selection mode
-- `b12bacd` feat: enhance prompt history and workbench list views
-- `a972a0a` chore: update shell config and e2e guard test
-- `dafe517` feat: remove share list header, update topbar per platform
-- `de91743` docs: add Share workspace UX fallback design spec
-- `4aa670b` feat(share): add generation-status polling endpoint
-
-### 2026-05-24
-
-- `2c886fc` docs: add unified generation UX design spec
-- `ddfa13f` docs: add drawer inline notif audit design spec
-- `3b98584` docs: add drawer inline notif implementation plan
-- `05d04d3` feat(ui): add inline-notif CSS with token-driven colors and animations
-- `6d6add6` feat(ui): add InlineNotif shared component with auto-dismiss
-- `0ac9e8f` chore: refresh next-env.d.ts
-- `8944709` docs: add share workspace V1 plan, audit, and mark V1-009 deferred
-- `f4514cb` docs: add superpowers design specs for share workspace UX
-- `a448803` feat(share): SHARE-V1-008 product metadata context for Gemini prompts
-- `734065e` feat(share): SHARE-V1-001-007 share workspace V1 UI
-- `4100386` feat(ui): add unified generating state components
-- `40259d4` feat(prompts): refactor to enqueue-only regeneration pattern
-- `85b3a4d` feat(ui): add InlineNotif shared component with auto-dismiss
-- `b6a7698` feat(products): update intake workflow form
-- `47114c5` feat(gemini): update key routing and add share caption JSON schema
-- `270161d` feat(ui): update navigation config and responsive styles
-- `9312179` feat(share): standardize option controls
-- `06aa4ff` fix(ai): recover stale tasks and refine key routing
-- `4679b03` perf(ui): streamline loading and action states
-- `dc97e51` perf(settings): parallelize overview reads
-- `108505b` docs(perf): add page load performance plan
-- `1903c19` feat(formalization): add app release metadata
-- `b7ed263` feat(release): automate Banplex OS identity metadata
-- `c93df74` docs(release): enforce changelog and deploy runbook
-- `7afdfc4` fix(db): grant share workspace data api access
+- `087a117` feat(admin): add diagnostic dashboard and dashboard entrypoint
+- `236d70a` feat(prompts): inline single-generate, remove queue
+- `90b1f79` fix(share): prevent caption JSON truncation
+- `6e489ab` feat(share): generation recovery and status polling
+- `da38f2d` feat(db): diagnostic logs, share recovery, prompt variants
+- `7193790` chore(scripts): add supabase CLI wrapper
+- `753aff5` test(e2e): align specs with prompt and share refactors
 <!-- changelog:generated:end -->
+
+## 2026-05-25 - DIAGNOSTIC-DASHBOARD-01
+
+- Menambahkan halaman `/admin/diagnostics` dengan 4 section: KPI summary (stuck tasks, key pool active, failed 24h, antrian real), stuck tasks table dengan bulk selection, key pool status, dan recent errors.
+- Menambahkan 4 API endpoint diagnostik: `/api/admin/diagnostics/stuck-tasks`, `/api/admin/diagnostics/key-pool`, `/api/admin/diagnostics/recent-errors`, dan `/api/admin/recovery/mark-failed` untuk recovery manual per-task.
+- Menambahkan server actions di `src/app/admin/diagnostics/actions.ts` yang query Supabase langsung via Promise.all untuk fetch data diagnostik dan mark-failed bulk action.
+- Menambahkan tabel `diagnostic_logs` di Supabase dengan RLS owner-only untuk persistent audit trail generation lifecycle (start, success, fail, key selection, recovery).
+- Mengintegrasikan logging di `src/lib/server/share-caption-task.ts` untuk WAITING_FOR_KEY warn log dan failure log di dalam `failShareCaptionTask`.
+- Menambahkan CSS diagnostik di `src/styles/05-features/diagnostics.css` menggunakan semantic design tokens (surface-flat, border-flat, badge variants, spacing, typography) tanpa hardcoded values.
+
+## 2026-05-25 - PROMPT-OUTPUT-MULTI-VARIANT-UI-01
+
+- Memperbaiki tab Output drawer Prompt agar `output_variants_json` yang berisi lebih dari satu varian tampil sebagai pilihan varian eksplisit.
+- Menambahkan tab varian di renderer output prompt sehingga operator bisa berpindah antara Varian 1-4 tanpa kehilangan copy-ready field per varian.
+
+## 2026-05-25 - PROMPT-SHARE-FB-REGENERATE-RUNTIME-01
+
+- Memperbaiki UX regenerate prompt agar versi `DRAFT`, `QUEUED`, `GENERATING`, `WAITING_FOR_KEY`, `RETRYING`, atau `ERROR` tidak dianggap output siap meskipun masih menyimpan field prompt lama dari versi sumber; drawer sekarang menampilkan skeleton polling saat pending/proses dan empty/error state saat output belum tersedia.
+- Memperbaiki runtime Share Caption Facebook agar response Gemini yang sukses tetapi kurang field struktural dinormalisasi menjadi `main_caption`, `first_comment`, dan `image_prompt` fallback sesuai opsi yang dipilih, bukan langsung membakar retry key.
+- Memperjelas klasifikasi error Share Caption: error JSON/validasi/runtime dan Gemini 400 sekarang disimpan sebagai kegagalan kontrak runtime/schema, sementara 429/5xx tetap mengikuti jalur quota/provider retry.
+
+## 2026-05-25 - PROMPT-SHARE-POLLING-RECOVERY-01
+
+- Memperbaiki polling prompt generate/regenerate agar membaca response API yang terbungkus, memprioritaskan output prompt yang sudah siap, dan mengganti skeleton lewat `router.refresh()` tanpa full reload.
+- Menambahkan recovery Share Caption untuk generation yang orphan/stale melalui `share_generations.ai_task_id`, `updated_at`, dan status endpoint yang menandai antrean buntu sebagai `error`.
+- Menambahkan kompensasi saat task/worker Share Caption gagal dibuat, preserve opsi regenerate/retry, dan validasi output Facebook first comment/image prompt agar kegagalan muncul sebagai error yang bisa diulang.
+
+## 2026-05-25 - SUPABASE-LOCAL-TOKEN-WRAPPER-01
+
+- Menambahkan wrapper repo-local `scripts/supabase.ps1` yang membaca token dari `.env.supabase.local` dan mengeksekusi `supabase-go.exe` tanpa menyimpan sesi global.
+- Menambahkan command `set-token`, `login`, `clear-token`, dan `logout` pada wrapper untuk menyimpan atau menghapus token repo-local secara eksplisit.
+- Memperbarui `docs/RELEASE_AND_DEPLOY_RUNBOOK.md` agar alur `link` dan `db push` memakai wrapper repo-local, bukan login session global.
+
+## 2026-05-25 - PROMPT-SINGLE-GEN-01
+
+- Mengunci refactor `/prompts` menjadi single-product drawer `Output / Generate / History` seperti Share Caption dan menghapus prompt bulk queue dari surface operator.
+- Menambahkan migration `prompt_packs` untuk `angle`, `variant_count`, `input_params_json`, dan `output_variants_json`.
+- Menyiapkan prompt generate/regenerate agar memakai setting ringan: angle Share Caption, mode video, VO on/off, dan jumlah varian 1-4.
+- Menghapus drawer/API/lib kontrak prompt queue dan mengganti `Buat Prompt` menjadi link langsung ke `?detail=<productId>&tab=generate`.
+- Mengubah renderer output dan export TXT agar satu versi prompt dapat memuat 1-4 varian melalui `output_variants_json` dengan fallback data lama.
+- Memperbarui smoke prompt workbench agar memvalidasi drawer generate tunggal, bukan bulk queue.
+
+## 2026-05-25 - PROMPT-DRAWER-REFRESH-POLISH
+
+- Memperbaiki monitor generate/regenerate prompt agar refresh UI mengikuti perubahan status task setiap 3 detik dan output prompt muncul tanpa pindah tab manual.
+- Memisahkan picker `Mode video` dari tombol generate/antrikan pada drawer setup prompt single dan bulk.
+- Menghapus summary duplikat di drawer bulk prompt karena jumlah pilihan sudah tampil di topbar drawer.
+
+## 2026-05-25 - PROMPT-REGEN-KEY-ELIGIBILITY-01
+
+- Memperbaiki runner generate/regenerate prompt pack agar error runtime non-Gemini tidak lagi diperlakukan sebagai rotasi key hingga berakhir sebagai `No eligible Gemini key`.
+- Menambahkan diagnostic server-side terstruktur untuk kondisi no eligible Gemini key pada prompt pack tanpa mengekspos secret key.
+- Menjaga persistence hasil generate dari kegagalan `revalidatePath` saat runner dipanggil melalui polling/API; client tetap refresh melalui monitor prompt.
+- Mengubah legacy `Generate Ulang Prompt` dari detail produk menjadi enqueue-only agar mengikuti jalur regenerate prompt pack yang sama dengan drawer `/prompts`.
+
+## 2026-05-25 - PROMPT-DRAWER-005-008 Setup Bulk dan Output Mode
+
+- Mengubah bulk prompt di `/prompts` agar membuka setup drawer sebelum enqueue, dengan final `bulkEnqueuePromptPacks` hanya berjalan dari drawer.
+- Memperluas kontrak Gemini prompt pack untuk membedakan `frame_to_video` dan `ingredients_to_video` melalui `generation_options.video_mode` tanpa migration.
+- Menambahkan rendering output mode-aware: `frame_to_video` tetap menampilkan `First Frame Image` + `I2V Prompt`, sementara `ingredients_to_video` menampilkan `Ingredients Video Prompt`.
+- Menyesuaikan TXT export, source-of-truth prompt pipeline, dan smoke/e2e prompt tests untuk menjaga kompatibilitas prompt pack lama.
+
+## 2026-05-24 - PROMPT-DRAWER-004 Video Mode Selector
+
+- Menambahkan selector `video_mode` di setup drawer prompt dengan opsi `frame_to_video` dan `ingredients_to_video`.
+- Meneruskan pilihan mode video ke `savePromptPack(intent=create_generate)` melalui hidden field form final tanpa mengubah backend, schema database, Gemini builder/schema, output renderer, atau Flow manifest.
+- Menjaga default aman `frame_to_video` untuk setup drawer dan kontrak lama yang tidak memiliki `generation_options.video_mode`.
+
+## 2026-05-24 - PROMPT-DRAWER-003 Setup Drawer
+
+- Mengubah aksi `Buat Prompt` di `/prompts` menjadi link ke setup drawer (`?setup=<productId>`) sehingga klik tombol hanya membuka drawer dan tidak langsung membuat prompt pack atau memicu task generate.
+- Menambahkan komponen `PromptGenerateSetupDrawer` yang membungkus konfirmasi varian konten lewat `VariantSubmitButton`/`savePromptPack(intent=create_generate)` tanpa mengubah backend, schema, Gemini schema/builder, atau flow output.
+- Menambahkan field `promptSetupHref` pada baris workbench server (`src/app/prompts/page.tsx`) dan API workbench (`src/app/api/prompts/workbench/route.ts`) agar tampilan desktop dan mobile load-more sejalan.
+- Tidak mengubah kontrak `savePromptPack`, schema database, Gemini parser/builder, manifest Flow, atau alur bulk `Antrikan`.
+
+## 2026-05-24 - PROMPT-DRAWER-002 Video Mode Contract
+
+- Menambahkan kontrak minimal `video_mode` untuk prompt pack pada `prompt_packs.personalization_json.generation_options` dengan nilai `frame_to_video` dan `ingredients_to_video`.
+- Menetapkan fallback kompatibel untuk data lama tanpa `video_mode` ke `frame_to_video` tanpa migration atau perubahan schema database.
+- Meneruskan opsi `video_mode` pada save, regenerate, bulk enqueue, dan pembacaan prompt pack server-side tanpa mengubah UI drawer, Gemini schema/builder, atau Flow manifest.
+
+## 2026-05-24 - Prompt Generate Drawer Actual Audit
+
+- Menambahkan audit aktual flow Buat Prompt, Buat Ulang, Bulk Prompt, drawer, generation options, output prompt, kontrak Gemini, dan rencana implementasi setup-first prompt generation.
+- Mendokumentasikan penilaian no-migration untuk menyimpan `video_mode` di `prompt_packs.personalization_json.generation_options`.
+- Perubahan ini hanya dokumentasi; tidak ada runtime code, schema, migration, atau logic prompt generation yang diubah.
 
 ## 2026-05-24 - Formalisasi Banplex OS
 

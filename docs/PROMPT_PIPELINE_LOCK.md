@@ -103,8 +103,13 @@ Approved options:
 - `vo_enabled: boolean` (default `true`) — when `false`, both clips produce empty `voiceover_text` and `voiceover_timing: "none"`.
 - `vo_length_preset: "short" | "medium" | "long"` (default `"medium"`) — maps to maxChars 60 / 120 / 200 for `voiceover_text` validation and Gemini schema.
 - `video_model: string` (default `"veo-3.1"`) — used in structured I2V copy output `model` field; must resolve from the approved `VIDEO_MODEL_OPTIONS` constant in `src/lib/prompts/video-model-config.ts`.
+- `video_mode: "frame_to_video" | "ingredients_to_video"` (default `"frame_to_video"`) — controls the setup-first prompt generation output mode without a schema migration.
 
-These options do not override character/environment locks, readiness gates, or I2V duration (still fixed at 8 seconds). They are backward-compatible: existing prompt packs without `generation_options` default to `vo_enabled: true`, `vo_length_preset: "medium"`, and `video_model: "veo-3.1"`, which is identical to prior behavior.
+These options do not override character/environment locks, readiness gates, or I2V duration (still fixed at 8 seconds for the stored compatibility contract). They are backward-compatible: existing prompt packs without `generation_options` default to `vo_enabled: true`, `vo_length_preset: "medium"`, `video_model: "veo-3.1"`, and `video_mode: "frame_to_video"`, which is identical to prior behavior.
+
+`frame_to_video` keeps the existing visible output path: `First Frame Image` plus `I2V Prompt`.
+
+`ingredients_to_video` keeps legacy `i2i_prompts` and `i2v_prompts` storage readable, but the operator-facing output hides first/last-frame prompt fields and shows a direct `Ingredients Video Prompt`. The app must not add duration, aspect ratio, or model setup controls for this mode; those choices are made manually inside Google Flow.
 
 2026-05-06 strict readiness guards before `Buat Prompt` or `Buat Ulang`:
 
@@ -152,16 +157,28 @@ Buat Prompt
 Buat Ulang
 ```
 
-Destructive action guardrail (approved 2026-05-22):
+Single generate refactor lock (approved 2026-05-25):
+
+- `/prompts` is product-centric. `?detail=<productId>&tab=generate|output|history` opens the prompt drawer for one product.
+- Prompt generation supports single-product only. Prompt bulk queue UI/API is removed from `/prompts`.
+- `ai_tasks` remains allowed only as an internal single-generation task ledger and Gemini usage link, not as a bulk prompt queue surface.
+- Drawer tabs are exactly `Output`, `Generate`, and `History`.
+- `Buat Prompt` on a prompt-ready product opens the drawer directly on `Generate`.
+- `Generate` shows only `Angle`, `Mode video`, `Voiceover`, and `Jumlah varian` for a new prompt.
+- Regenerate is done from the same `Generate` tab, prefilled from an existing version and with `Instruksi Revisi`.
+- Prompt `Angle` uses the Share Caption angle set: `benefit_focused`, `problem_solution`, `social_proof`, `urgency_scarcity`, `educational`, and `storytelling`.
+- Prompt `Jumlah varian` is `1` through `4`. One generated prompt version may contain multiple output variants, while the first variant remains mirrored into legacy prompt fields for Flow/export compatibility.
+
+Destructive action guardrail (approved 2026-05-22, updated 2026-05-25):
 
 - Delete/archive actions must not appear on the main `/prompts` page.
 - Destructive prompt version cleanup belongs only in `/prompts/[id]/history`.
 - History cleanup is archive-first (`prompt_packs.status = 'ARCHIVED'`) unless hard delete is separately approved.
-- Bulk queue on main `/prompts` uses existing `ai_tasks` and `bulkEnqueuePromptPacks`; no delete/archive bulk action is allowed on main page.
+- Prompt bulk queue actions must not appear on the main `/prompts` page.
 
 Prompt set structure:
 
-- `/prompts` is a list/launcher surface.
+- `/prompts` is a list/launcher surface with single-product drawer detail.
 - `/prompts/[id]` is the prompt detail/editor surface.
 - `/prompts/[id]/history` is the prompt-only generation history surface, grouped by `prompt_code`.
 - Prompt Clip 1 and Prompt Clip 2 are separate collapsed clip panels that can expand.

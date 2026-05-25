@@ -244,19 +244,13 @@ Source request: operator UI polish follow-up, 2026-05-20. These tasks are scoped
 ### UI-OP-POLISH-09 - Prompts bulk queue selection parity
 **Goal:** Polish existing prompts bulk selection for queue parity with products selection grammar, add mobile long-press, and enforce main-page delete guardrail.
 **Owner:** Codex
+**Status:** SUPERSEDED by `PROMPT-SINGLE-GEN-01` on 2026-05-25. Prompt bulk queue is removed from `/prompts`; do not implement this task.
 **Scope:** `/prompts` workbench selection UX, mobile long-press, clear selection, disabled/guarded states, and main-page destructive action removal.
 **Constraints:**
-- Bulk queue keeps using existing `ai_tasks` and `bulkEnqueuePromptPacks`.
-- No delete/archive action on main `/prompts` page.
-- Prompt destructive cleanup belongs to `/prompts/[id]/history` only.
-- Prompt history cleanup is archive-first unless hard delete is separately approved.
-- Server must revalidate prompt readiness; do not trust client selected IDs.
+- Obsolete: `bulkEnqueuePromptPacks`, prompt queue drawer, and prompt queue API routes must not be restored for MVP.
+- `ai_tasks` remains allowed only as an internal single-generation ledger for one prompt version.
 **Acceptance:**
-- Existing `Antrikan` flow still works.
-- Mobile long-press added for eligible prompt cards.
-- Clear selection and disabled states match Products grammar.
-- Main `/prompts` page has no delete/archive destructive action.
-- `/prompts/[id]/history` is the only path for destructive version cleanup (archive-first).
+- Superseded by `PROMPT-SINGLE-GEN-01` acceptance.
 
 ## Controller UI Polish Runtime Mapping
 
@@ -754,6 +748,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### P2-S2-001 - AI task queue prompt enqueue contract _(DONE)_
 **Goal:** Use existing `ai_tasks` for durable bulk prompt generation jobs.
 **Owner:** Codex
+**Status:** SUPERSEDED for prompt operator UI by `PROMPT-SINGLE-GEN-01` on 2026-05-25. Keep `ai_tasks` only as an internal single-generation ledger; do not restore prompt bulk queue UI/API.
 **Scope:** enqueue server action/route, validation, idempotency, and tests; no Supabase Queues and no dedicated prompt batch table in this wave.
 **Acceptance:** selected ready products enqueue prompt-generation tasks with owner scope, selected Gemini routing metadata, retry counters, and cancel-before-run support.
 **Implementation note:** Verified by `tests/e2e/prompt-workbench.spec.ts`; ready products enqueue owner-scoped `ai_tasks` with Gemini metadata and cancel-before-run support.
@@ -761,6 +756,7 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 ### P2-S2-002 - Prompt queue runner and progress _(DONE)_
 **Goal:** Execute queued prompt jobs with quota-aware Gemini routing and observable progress.
 **Owner:** Codex
+**Status:** SUPERSEDED for prompt operator UI by `PROMPT-SINGLE-GEN-01` on 2026-05-25. Single prompt generation may still use `ai_tasks` status/polling internally.
 **Scope:** server runner, retry/failure handling, progress polling, and targeted tests.
 **Acceptance:** jobs move through queued/running/success/failed/retrying/waiting states, preserve prompt pack versioning, and show progress without keeping prompt detail open.
 **Implementation note:** Verified by `tests/e2e/prompt-workbench.spec.ts`; queue rows expose selected Gemini keys, retry/cancel actions, and live progress without requiring prompt-detail focus.
@@ -770,6 +766,19 @@ Legacy note: S3-001 reflects the earlier workspace-scoped phase. The revised top
 **Owner:** Codex
 **Scope:** product/prompt list query helpers, pagination/search contracts, and index review.
 **Acceptance:** thousands of products can be paged and filtered by readiness/search without loading all rows client-side.
+
+### PROMPT-SINGLE-GEN-01 - Prompt single generate drawer refactor
+**Goal:** Remove prompt bulk queue dependencies and refactor `/prompts` into the single-product `Output / Generate / History` drawer flow used by Share Caption.
+**Owner:** Codex
+**Scope:** prompt docs, prompt_packs migration, `/prompts` workbench/drawer UI, prompt generation/regeneration server actions, Gemini prompt output variant contract, output renderer, and targeted prompt tests.
+**Constraints:**
+- No prompt bulk selection, bulk setup drawer, queue drawer, or queue run-next API on `/prompts`.
+- Do not remove the shared `ai_tasks` table; it remains available for single generation task status and Gemini usage events.
+- New prompt generate UI fields are only `Angle`, `Mode video`, `Voiceover`, and `Jumlah varian`; regenerate adds `Instruksi Revisi`.
+- Angle uses the Share Caption angle set.
+- Variant count is 1-4 and persists on `prompt_packs`.
+- First generated variant is mirrored to legacy prompt JSON fields for Flow/export compatibility.
+**Acceptance:** `Buat Prompt` opens `?detail=<productId>&tab=generate`; generation creates one prompt version with 1-4 output variants; Output shows variants; History preserves versions; regenerate returns to Generate with previous settings; bulk prompt queue UI/API is gone.
 
 ### P2-S3-001A - Stage-aware manifest foundation _(DONE)_
 **Goal:** Add manifest/callback foundations for `FIRST_FRAME`, `LAST_FRAME`, and `VIDEO` without reactivating `/controller` UI.

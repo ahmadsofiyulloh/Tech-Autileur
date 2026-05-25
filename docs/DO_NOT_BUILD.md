@@ -40,6 +40,7 @@ Codex must not implement these items during MVP unless the user explicitly updat
 - Drive multi-select remains client-side only; do not add Drive batch archive/delete mutations while this guard is active.
 - Hard delete as the default lifecycle for mutable master data.
 - Products bulk cleanup may only use backlog-approved archive-first behavior (`products.status = 'ARCHIVED'`); permanent product delete is out of scope.
+- Prompt bulk queue UI, prompt bulk setup drawer, prompt bulk queue drawer, and prompt bulk queue runner on `/prompts`.
 - Delete/archive actions on the main `/prompts` page; destructive prompt version cleanup belongs only in `/prompts/[id]/history` and is archive-first unless hard delete is separately approved.
 - Claims of visual parsing from marketplace links when image bytes are not available.
 - Supabase Storage for large video/image assets.

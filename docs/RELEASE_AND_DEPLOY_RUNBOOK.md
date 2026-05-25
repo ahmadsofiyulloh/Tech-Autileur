@@ -43,40 +43,40 @@ Dev:        czpjccljowyldtvycxlq
 Production: laychawloumnhvzgegmj
 ```
 
-Login CLI:
+Repo-local token file:
 
 ```powershell
-npx supabase login --no-browser
+.\scripts\supabase.ps1 set-token <SUPABASE_ACCESS_TOKEN>
 ```
 
-Jika CLI meminta token, buat personal access token dari Supabase Dashboard, lalu paste ke prompt terminal. Jangan simpan token di repo.
+Token disimpan di `.env.supabase.local` pada root repo dan file itu sudah diabaikan oleh `.gitignore` melalui pola `.env.*.local`. Wrapper ini hanya menyuntikkan token ke proses Supabase yang sedang berjalan, tanpa menyimpan sesi CLI global.
 
 Apply ke dev lebih dulu:
 
 ```powershell
-npx supabase link --project-ref czpjccljowyldtvycxlq
+.\scripts\supabase.ps1 link --project-ref czpjccljowyldtvycxlq
 Get-Content supabase/.temp/project-ref
-npx supabase migration list --linked
-npx supabase db push --dry-run --linked
-npx supabase db push --linked
-npx supabase db lint --linked --fail-on warning
+.\scripts\supabase.ps1 migration list --linked
+.\scripts\supabase.ps1 db push --dry-run --linked
+.\scripts\supabase.ps1 db push --linked
+.\scripts\supabase.ps1 db lint --linked --fail-on warning
 ```
 
 Apply ke production setelah dev pass:
 
 ```powershell
-npx supabase link --project-ref laychawloumnhvzgegmj
+.\scripts\supabase.ps1 link --project-ref laychawloumnhvzgegmj
 Get-Content supabase/.temp/project-ref
-npx supabase migration list --linked
-npx supabase db push --dry-run --linked
-npx supabase db push --linked
-npx supabase migration list --linked
+.\scripts\supabase.ps1 migration list --linked
+.\scripts\supabase.ps1 db push --dry-run --linked
+.\scripts\supabase.ps1 db push --linked
+.\scripts\supabase.ps1 migration list --linked
 ```
 
 Verify RLS dan grants:
 
 ```powershell
-npx supabase db query --linked --agent=no "select tablename, rowsecurity from pg_tables where schemaname = 'public' and tablename in ('external_api_keys','external_api_key_secrets','external_generation_tasks','share_product_links','share_generations');"
+.\scripts\supabase.ps1 db query --linked --agent=no "select tablename, rowsecurity from pg_tables where schemaname = 'public' and tablename in ('external_api_keys','external_api_key_secrets','external_generation_tasks','share_product_links','share_generations');"
 ```
 
 Catatan: Supabase mulai mengetatkan Data API exposure untuk tabel baru, jadi migration Share Workspace menambahkan grants eksplisit untuk role `authenticated` dan tetap revoke `anon`.

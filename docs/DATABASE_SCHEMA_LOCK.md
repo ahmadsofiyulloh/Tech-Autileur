@@ -558,12 +558,24 @@ i2v_prompts_json jsonb
 consistency_rules_json jsonb
 negative_rules_json jsonb
 personalization_json jsonb
+angle text
+variant_count int
+input_params_json jsonb
+output_variants_json jsonb nullable
 status prompt_pack_status
 created_at timestamptz
 updated_at timestamptz
 ```
 
 `personalization_json` must include `prompt_context` for the generated version. Prompt pack versions must be preserved.
+
+2026-05-25 single generate refactor:
+
+- `angle` stores the operator-selected prompt angle and must be one of `benefit_focused`, `problem_solution`, `social_proof`, `urgency_scarcity`, `educational`, or `storytelling`.
+- `variant_count` stores the requested output variant count and must be between `1` and `4`.
+- `input_params_json` stores the normalized generate form settings, including angle, video mode, VO enabled, and variant count.
+- `output_variants_json` stores generated prompt variants for the version. Legacy `product_analysis_json`, `i2i_prompts_json`, `i2v_prompts_json`, `consistency_rules_json`, and `negative_rules_json` remain populated from the first variant for compatibility.
+- Prompt bulk queue is removed from the operator `/prompts` surface. `ai_tasks` remains available as a single generation task ledger and Gemini usage link.
 
 `prompt_context` must retain the active workspace context, active affiliate profile snapshot, and the character/environment Drive references that were used for generation.
 
@@ -743,6 +755,43 @@ updated_at timestamptz
 
 Output package must use Drive links. No server-side ZIP generation in Phase awal.
 
+### `share_product_links`
+
+One affiliate URL per product for manual Share Caption generation.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+product_id uuid fk products
+affiliate_url text
+created_at timestamptz
+updated_at timestamptz
+```
+
+Rows are unique per `(user_id, product_id)`. RLS is owner-only.
+
+### `share_generations`
+
+Share Caption generation history per product and platform.
+
+```text
+id uuid pk
+user_id uuid fk auth.users
+product_id uuid fk products
+ai_task_id uuid nullable composite fk ai_tasks(id, user_id)
+platform text check in ('facebook', 'threads', 'x', 'pinterest')
+angle text check in ('benefit_focused', 'problem_solution', 'social_proof', 'urgency_scarcity', 'educational', 'storytelling')
+variant_count int check between 1 and 4
+input_params jsonb nullable
+output_json jsonb nullable
+status text check in ('generating', 'generated', 'error')
+error_message text nullable
+created_at timestamptz
+updated_at timestamptz
+```
+
+`ai_task_id` links the row to the internal `ai_tasks` ledger so polling can recover orphaned or stale generation rows instead of leaving the operator in a permanent generating state.
+
 ### `performance_metrics`
 
 ```text
@@ -787,6 +836,10 @@ Minimum indexes:
 - `gemini_api_usage_events (user_id, request_started_at desc)`.
 - `gemini_api_usage_events (user_id, gemini_api_key_id, request_started_at desc)`.
 - `gemini_api_usage_events (user_id, project_label, model_name, request_started_at desc)`.
+- `share_product_links (user_id, product_id)` unique.
+- `share_generations (user_id, product_id, platform, created_at desc)`.
+- `share_generations (user_id, ai_task_id)` where `ai_task_id is not null`.
+- `share_generations (user_id, status, updated_at desc)`.
 - `bulk_import_jobs (user_id, status, updated_at desc)`.
 - `bulk_import_jobs (user_id, workspace_id)`.
 - `bulk_import_job_rows (user_id, job_id, row_number)`.
@@ -815,6 +868,7 @@ Minimum foreign keys:
 - `bulk_import_job_rows (drive_item_id, user_id)` -> `drive_items (id, user_id)`.
 - `bulk_import_job_logs (job_id, user_id)` -> `bulk_import_jobs (id, user_id)`.
 - `bulk_import_job_logs (row_id, user_id)` -> `bulk_import_job_rows (id, user_id)`.
+- `share_generations (ai_task_id, user_id)` -> `ai_tasks (id, user_id)`.
 
 ## RLS Policy Pattern
 
