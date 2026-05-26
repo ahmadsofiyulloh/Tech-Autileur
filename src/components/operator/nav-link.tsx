@@ -2,7 +2,7 @@
 
 import Link, { type LinkProps } from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, type ComponentProps } from "react";
 
 const HOVER_PREFETCH_DEBOUNCE_MS = 150;
 
@@ -28,10 +28,13 @@ export function NavLink({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startPrefetch = useCallback(() => {
+    // Only prefetch string hrefs; UrlObject hrefs are handled by Link itself.
+    if (typeof href !== "string") return;
+    const target = href;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       try {
-        router.prefetch(typeof href === "string" ? href : (href as LinkProps["href"]).toString());
+        router.prefetch(target);
       } catch {
         // router.prefetch is best-effort; ignore failures.
       }
@@ -43,6 +46,12 @@ export function NavLink({
       clearTimeout(timer.current);
       timer.current = null;
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, []);
 
   return (
