@@ -936,7 +936,7 @@
 .share-detail-panel {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-1);
   color: var(--text-flat-muted);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line);
@@ -948,7 +948,7 @@
 
 .share-input-form {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .share-input-hero {
@@ -1166,7 +1166,7 @@
 
 .share-detail-panel {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 /* Override legacy .tab-nav constraints to stretch full width inside drawer */
