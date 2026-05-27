@@ -14,7 +14,7 @@
   outline: 0;
   border-radius: 0;
   background: var(--color-surface-base);
-  gap: 1px;
+  gap: var(--space-2);
   overflow: hidden;
 }
 
@@ -24,6 +24,7 @@
   box-shadow: none;
   background: var(--color-surface-base);
   padding: var(--space-2);
+  margin: auto;
 }
 
 .operator-detail-panel--flush .section-card.panel + .section-card.panel {

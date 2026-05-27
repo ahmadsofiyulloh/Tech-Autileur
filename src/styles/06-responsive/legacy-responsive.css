@@ -43,6 +43,5 @@
 .mobile-desktop-required h2{font-size:var(--type-card-size);line-height:var(--type-card-line);margin:0}
 .feedback-dock{right:var(--space-3);bottom:calc(var(--shell-bottom-sheet-offset) + var(--space-2) + env(safe-area-inset-bottom));left:var(--space-3);width:auto}
 .toast-viewport{width:100%}
-.section-card__header{display:grid}
 .auth-hero__main,.section-card__title-row,.empty-state__body{gap:10px}
 }
