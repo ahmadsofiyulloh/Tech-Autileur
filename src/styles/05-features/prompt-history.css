@@ -13,4 +13,3 @@
 .prompt-history-row__actions{display:flex;align-items:center;gap:6px;justify-self:end}
 .prompt-history-row__actions form{display:contents}
 .prompt-history-row .error-box{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line);padding:10px 12px}
-

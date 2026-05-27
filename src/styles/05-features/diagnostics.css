@@ -8,13 +8,14 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: nowrap;
-  gap: var(--space-4);
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
 }
 
 .diagnostics-header__title {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0;
   min-width: 0;
 }
 
@@ -258,4 +259,12 @@
   .diagnostics-modal__actions button {
     width: 100%;
   }
+}
+
+.operator-page__title {
+  margin:0;
+}
+.diagnostics-header__refresh .icon {
+width: 12px;
+height: 12px;
 }
