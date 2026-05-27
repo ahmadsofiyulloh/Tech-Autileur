@@ -16,6 +16,12 @@ Range: `origin/main..HEAD`
 - `753aff5` test(e2e): align specs with prompt and share refactors
 <!-- changelog:generated:end -->
 
+## 2026-05-27 - PROMPT-VOICEOVER-NONE-VALIDATION-01
+
+- Memperbaiki parser kontrak prompt I2V agar `audio.voiceover_timing: "none"` diterima ketika `voiceover_text` kosong pada mode Voice Over nonaktif.
+- Menjaga validasi tetap ketat untuk kombinasi `voiceover_text` aktif dengan timing selain `00:00-00:02`, termasuk `none`.
+- Menambahkan regresi test untuk kasus Voice Over nonaktif pada clip I2V dan kombinasi timing `none` yang tetap invalid saat voiceover text terisi.
+
 ## 2026-05-25 - DIAGNOSTIC-DASHBOARD-01
 
 - Menambahkan halaman `/admin/diagnostics` dengan 4 section: KPI summary (stuck tasks, key pool active, failed 24h, antrian real), stuck tasks table dengan bulk selection, key pool status, dan recent errors.
