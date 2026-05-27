@@ -1484,6 +1484,37 @@ test("prompt pack parser accepts max-length clip voiceover text", () => {
   expect(parsed.i2v_prompts.clip_1.audio?.voiceover_timing).toBe("00:00-00:02");
 });
 
+test("prompt pack parser accepts voiceover-disabled clip audio timing none", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  output.i2v_prompts.clip_2.audio.voiceover_text = "";
+  output.i2v_prompts.clip_2.audio.voiceover_timing = "none";
+
+  const parsed = parsePromptPackGenerationOutput(JSON.stringify(output), {
+    fallbackProductStatus: "IMAGE_ANALYZED",
+    serverPromptContext: buildPromptPackServerContextFixture(),
+  });
+
+  expect(parsed.i2v_prompts.clip_2.audio).toMatchObject({
+    voiceover_timing: "none",
+    voice_style: "natural Indonesian UGC",
+    sfx_cues: "soft camera handling",
+    ambient_cues: "quiet indoor room tone",
+  });
+  expect(parsed.i2v_prompts.clip_2.audio?.voiceover_text).toBeUndefined();
+});
+
+test("prompt pack parser rejects voiceover text paired with none timing", () => {
+  const output = buildPromptPackCompactFixture() as any;
+  output.i2v_prompts.clip_2.audio.voiceover_timing = "none";
+
+  expect(() =>
+    parsePromptPackGenerationOutput(JSON.stringify(output), {
+      fallbackProductStatus: "IMAGE_ANALYZED",
+      serverPromptContext: buildPromptPackServerContextFixture(),
+    }),
+  ).toThrow("i2v_prompts.clip_2.audio.voiceover_timing must equal 00:00-00:02.");
+});
+
 test("prompt pack parser rejects invalid clip voiceover timing", () => {
   const output = buildPromptPackCompactFixture() as any;
   output.i2v_prompts.clip_1.audio.voiceover_timing = "00:00-00:03";

@@ -170,7 +170,7 @@ export type PromptPackI2VTimelineSegmentJson = {
 
 export type PromptPackI2VAudioEnvelopeJson = {
   voiceover_text?: string;
-  voiceover_timing?: "00:00-00:02";
+  voiceover_timing?: "00:00-00:02" | "none";
   voice_style?: string;
   sfx_cues?: string;
   ambient_cues?: string;
@@ -1280,7 +1280,7 @@ function buildPromptFramePromptJson(input: {
 
 function buildPromptI2VAudioEnvelope(input: {
   voiceoverText?: string | null;
-  voiceoverTiming?: "00:00-00:02" | null;
+  voiceoverTiming?: "00:00-00:02" | "none" | null;
   voiceStyle?: string | null;
   sfxCues?: string | null;
   ambientCues?: string | null;
@@ -1327,7 +1327,7 @@ function buildPromptI2VPromptJson(input: {
   cameraMotion?: string | null;
   negativePrompt?: string | null;
   voiceoverText?: string | null;
-  voiceoverTiming?: "00:00-00:02" | null;
+  voiceoverTiming?: "00:00-00:02" | "none" | null;
   voiceStyle?: string | null;
   sfxCues?: string | null;
   ambientCues?: string | null;
@@ -2269,11 +2269,18 @@ function readOptionalPromptString(value: unknown, label: string) {
   return text.length > 0 ? text : undefined;
 }
 
-function readOptionalVoiceoverTiming(value: unknown, label: string) {
+function readOptionalVoiceoverTiming(
+  value: unknown,
+  label: string,
+): "00:00-00:02" | "none" | undefined {
   const timing = readOptionalPromptString(value, label);
 
   if (!timing) {
     return undefined;
+  }
+
+  if (timing === "none") {
+    return "none";
   }
 
   if (timing !== "00:00-00:02") {
@@ -2283,7 +2290,17 @@ function readOptionalVoiceoverTiming(value: unknown, label: string) {
   return timing as "00:00-00:02";
 }
 
-function readI2VAudioFields(record: Record<string, unknown>, label: string, maxVoChars?: number) {
+function readI2VAudioFields(
+  record: Record<string, unknown>,
+  label: string,
+  maxVoChars?: number,
+): {
+  voiceoverText?: string;
+  voiceoverTiming?: "00:00-00:02" | "none";
+  voiceStyle?: string;
+  sfxCues?: string;
+  ambientCues?: string;
+} {
   if (record.audio !== undefined && record.audio !== null && !isRecord(record.audio)) {
     throw new Error(`${label}.audio must be an object when present.`);
   }
@@ -2297,7 +2314,7 @@ function readI2VAudioFields(record: Record<string, unknown>, label: string, maxV
   const ambientCues = readOptionalPromptString(audioRecord.ambient_cues, `${audioLabel}.ambient_cues`);
   const resolvedMaxVoChars = maxVoChars ?? PROMPT_PACK_VO_MAX_CHARS;
 
-  if (voiceoverText && !voiceoverTiming) {
+  if (voiceoverText && voiceoverTiming !== "00:00-00:02") {
     throw new Error(`${audioLabel}.voiceover_timing must equal 00:00-00:02.`);
   }
 
