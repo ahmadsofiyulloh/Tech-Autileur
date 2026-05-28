@@ -54,6 +54,44 @@ Range: `origin/main..HEAD`
 - Menambahkan command `set-token`, `login`, `clear-token`, dan `logout` pada wrapper untuk menyimpan atau menghapus token repo-local secara eksplisit.
 - Memperbarui `docs/RELEASE_AND_DEPLOY_RUNBOOK.md` agar alur `link` dan `db push` memakai wrapper repo-local, bukan login session global.
 
+## 2026-05-27 - PERF-02 Prompt Workbench Read Model
+
+- Menambahkan `listPromptWorkbenchPageForUser` pada [src/lib/server/prompt-workbench.ts](C:/Project/Tech%20Autiluer/src/lib/server/prompt-workbench.ts) dan membuat helper itu mengembalikan konteks workspace serta affiliate profile yang dipakai UI.
+- Menghapus query workspace dan affiliate profile yang diduplikasi dari [src/app/prompts/page.tsx](C:/Project/Tech%20Autiluer/src/app/prompts/page.tsx) dan [src/app/api/prompts/workbench/route.ts](C:/Project/Tech%20Autiluer/src/app/api/prompts/workbench/route.ts), sehingga page dan API route memakai satu hasil read model per request.
+- Memperbaiki cleanup smoke test pada [tests/e2e/prompt-workbench.spec.ts](C:/Project/Tech%20Autiluer/tests/e2e/prompt-workbench.spec.ts) agar menghapus `contents`, `clip_jobs`, dan `generated_files` yang bergantung pada prompt pack sebelum prompt pack dihapus.
+- Memecah `/prompts` menjadi shell cepat + Suspense section lewat [src/app/prompts/page.tsx](C:/Project/Tech%20Autiluer/src/app/prompts/page.tsx) dan [src/app/prompts/prompt-workbench-section.tsx](C:/Project/Tech%20Autiluer/src/app/prompts/prompt-workbench-section.tsx), serta menghapus angka count dari filter tabs supaya frame tidak menunggu read model penuh.
+
+## 2026-05-27 - PERF-03 Product Detail Tab Streaming
+
+- Memecah [src/app/products/product-detail-panel.tsx](C:/Project/Tech%20Autiluer/src/app/products/product-detail-panel.tsx) menjadi shell detail cepat + `Suspense`, sehingga rail tab tetap langsung tampil sementara konten tab aktif dirender terpisah.
+- Memindahkan fetch dan render `Output`, `Metadata`, dan `History` ke helper per-tab, sehingga pembukaan atau pergantian tab hanya memuat data yang dibutuhkan tab aktif.
+- Menambahkan loading state tab-spesifik yang menjaga layout detail tetap stabil saat data tab aktif masih diproses, tanpa memaksa tab lain ikut dimuat.
+- Menyelaraskan smoke spec [tests/e2e/product-output-detail.spec.ts](C:/Project/Tech%20Autiluer/tests/e2e/product-output-detail.spec.ts) dengan label status UI Indonesia `Metadata Siap` dan mempersempit assertion nama produk ke panel detail yang visible, supaya verifikasi detail produk tetap mengikuti copy yang memang tampil di panel.
+
+## 2026-05-27 - PERF-04 Prompt Detail Tab Streaming
+
+- Memecah [src/app/prompts/prompt-detail-panel.tsx](C:/Project/Tech%20Autiluer/src/app/prompts/prompt-detail-panel.tsx) menjadi shell tab cepat + `Suspense`, sehingga rail tab prompt tetap langsung tampil sementara konten aktif dimuat per-tab.
+- Memisahkan jalur fetch `Output`, `Generate`, dan `History` agar masing-masing tab hanya mengambil data yang diperlukan saat tab tersebut aktif, tanpa lagi menyalakan seluruh section prompt detail sekaligus.
+- Menambahkan loading state per-tab untuk output, generate, dan history supaya layout drawer tetap stabil saat data tab aktif masih diproses.
+- Menambahkan regresi [tests/e2e/prompt-workbench.spec.ts](C:/Project%20Autiluer/tests/e2e/prompt-workbench.spec.ts) yang memverifikasi URL tab prompt hanya merender konten tab aktif dan tidak membawa section tab lain ke HTML aktif.
+
+## 2026-05-27 - PERF-05 Drive Initial Payload Reduction
+
+- Mengganti fetch awal [src/app/drive/page.tsx](C:/Project%20Autiluer/src/app/drive/page.tsx) dari blanket limit 1000 ke limit awal 500 lewat `getActiveWorkspaceDriveScope`, sehingga payload server untuk render pertama Drive lebih ringan.
+- Menjaga `uploadTarget`, preview URL, dan visual item tetap sama, tetapi menghindari pengiriman dataset Drive yang lebih besar dari yang dibutuhkan untuk first paint.
+
+## 2026-05-27 - PROMPT-DETAIL-DRAWER-LAYOUT-REGRESSION-01
+
+- Memperbaiki struktur [src/app/prompts/page.tsx](C:/Project%20Autiluer/src/app/prompts/page.tsx) supaya search/filter chrome tetap full-width, sementara list prompt dan drawer detail kembali menjadi sibling grid seperti detail produk.
+- Menyesuaikan [src/app/prompts/loading.tsx](C:/Project%20Autiluer/src/app/prompts/loading.tsx) dan CSS desktop prompt workbench agar skeleton dan drawer tetap konsisten dengan layout dua kolom saat detail aktif.
+- Menambahkan regresi posisi di [tests/e2e/prompt-workbench.spec.ts](C:/Project%20Autiluer/tests/e2e/prompt-workbench.spec.ts) untuk memastikan drawer prompt desktop tampil di kolom kanan, bukan turun di bawah tabel.
+
+## 2026-05-27 - PERF-01 Product List Read Model
+
+- Mengubah read model `/products` agar pagination server-side hanya memuat page aktif dan relasi yang diperlukan untuk baris visible, bukan seluruh dataset workspace dulu.
+- Memisahkan jalur `listProductListPageForUser` dari fallback legacy supaya query count dan page fetch bisa dioptimalkan tanpa mengubah perilaku `uploadFilter`.
+- Menyesuaikan smoke test pagination produk agar mengikuti UI aktual yang memang tidak menampilkan label total hasil.
+
 ## 2026-05-25 - PROMPT-SINGLE-GEN-01
 
 - Mengunci refactor `/prompts` menjadi single-product drawer `Output / Generate / History` seperti Share Caption dan menghapus prompt bulk queue dari surface operator.
