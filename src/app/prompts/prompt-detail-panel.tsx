@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { FileText, History as HistoryIcon, WandSparkles } from "lucide-react";
 import { EmptyState } from "@/components/operator/empty-state";
+import { ErrorState } from "@/components/operator/error-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { PendingActionButton } from "@/components/operator/pending-action-button";
 import { PromptGeneratingState } from "@/components/operator/prompt-generating-state";
+import { SkeletonButton, SkeletonLine, SkeletonPromptDetailContent } from "@/components/operator/loading-skeleton";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listIntakeSessions } from "@/lib/server/intake";
@@ -180,6 +183,406 @@ function findDefaultAffiliateProfile(
     : null;
 }
 
+type PromptDetailTabContentProps = {
+  activeTab: PromptDetailTab;
+  detailHref: string;
+  productId: string;
+  selectedVersion?: string | null;
+  userId: string;
+};
+
+type PromptDetailPackState = {
+  activePromptPacks: SiblingPromptPackRecord[];
+  latestPromptPack: SiblingPromptPackRecord | null;
+  selectedVersionPack: SiblingPromptPackRecord | null;
+  pendingPromptPack: SiblingPromptPackRecord | null;
+  displayedPack: SiblingPromptPackRecord | null;
+  sourcePackForGenerate: SiblingPromptPackRecord | null;
+  isViewingOldVersion: boolean;
+};
+
+function resolvePromptDetailPackState(promptPacks: SiblingPromptPackRecord[], selectedVersion: string | null): PromptDetailPackState {
+  const activePromptPacks = promptPacks
+    .filter((pack) => pack.status !== "ARCHIVED")
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  const latestPromptPack = activePromptPacks[0] ?? null;
+  const selectedVersionPack = selectedVersion ? activePromptPacks.find((pack) => pack.id === selectedVersion) ?? null : null;
+  const pendingPromptPack = activePromptPacks.find((pack) => isPromptGenerationStatusPending(pack.status)) ?? null;
+  const displayedPack = selectedVersionPack ?? pendingPromptPack ?? latestPromptPack;
+  const sourcePackForGenerate = selectedVersionPack ?? latestPromptPack;
+
+  return {
+    activePromptPacks,
+    latestPromptPack,
+    selectedVersionPack,
+    pendingPromptPack,
+    displayedPack,
+    sourcePackForGenerate,
+    isViewingOldVersion: Boolean(selectedVersionPack && latestPromptPack && selectedVersionPack.id !== latestPromptPack.id),
+  };
+}
+
+function PromptDetailFetchErrorState({ description = "Coba lagi." }: { description?: string }) {
+  return (
+    <div className="stack">
+      <ErrorState icon={FileText} title="Detail prompt tidak tersedia." description={description} />
+    </div>
+  );
+}
+
+function PromptDetailProductUnavailableState() {
+  return (
+    <SectionCard icon={FileText} title="Produk tidak tersedia.">
+      <EmptyState icon={FileText} title="Produk tidak tersedia." description="Produk untuk prompt ini tidak tersedia di workspace aktif." />
+    </SectionCard>
+  );
+}
+
+function PromptDetailStatusBanners({ errorMessage, waitingForKey }: { errorMessage: string | null; waitingForKey: boolean }) {
+  return (
+    <>
+      {errorMessage ? <section className="error-box">{errorMessage}</section> : null}
+      {waitingForKey ? (
+        <section className="helper-text" role="status">
+          Semua Gemini key sedang cooldown atau melebihi kuota. Sistem otomatis mencoba ulang saat generate berjalan.
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function PromptDetailOutputLoadingState() {
+  return (
+    <SectionCard className="prompt-detail-section prompt-detail-section--output" icon={FileText} title="Output Siap Copy">
+      <SkeletonPromptDetailContent />
+    </SectionCard>
+  );
+}
+
+function PromptDetailGenerateLoadingState() {
+  return (
+    <SectionCard className="prompt-detail-section prompt-detail-section--generate" icon={WandSparkles} title="Generate Prompt">
+      <div className="stack loading-skeleton-static" aria-hidden="true">
+        <div className="share-input-grid">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div className="share-input-field stack-tight" key={index}>
+              <SkeletonLine size="short" />
+              <SkeletonLine size="long" />
+            </div>
+          ))}
+          <div className="share-input-field stack-tight">
+            <SkeletonLine size="short" />
+            <div className="share-input-variant__options">
+              {Array.from({ length: 4 }).map((__, index) => (
+                <span className="skeleton-pill" key={index} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="share-input-form__footer">
+          <SkeletonButton />
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+function PromptDetailHistoryLoadingState() {
+  return (
+    <SectionCard className="prompt-detail-section prompt-detail-section--history" icon={HistoryIcon} title="History Generate">
+      <ul className="list prompt-history-list loading-skeleton-static" aria-hidden="true">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <li className="prompt-history-row" key={index}>
+            <div className="prompt-history-row__body">
+              <SkeletonLine size="medium" />
+              <SkeletonLine size="long" />
+              <SkeletonLine size="short" />
+            </div>
+            <div className="prompt-history-row__actions">
+              <span className="skeleton-pill" />
+              <SkeletonButton />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  );
+}
+
+function PromptDetailTabLoadingState({ activeTab }: { activeTab: PromptDetailTab }) {
+  switch (activeTab) {
+    case "generate":
+      return <PromptDetailGenerateLoadingState />;
+    case "history":
+      return <PromptDetailHistoryLoadingState />;
+    default:
+      return <PromptDetailOutputLoadingState />;
+  }
+}
+
+function PromptDetailTabContent({ activeTab, detailHref, productId, selectedVersion, userId }: PromptDetailTabContentProps) {
+  switch (activeTab) {
+    case "generate":
+      return (
+        <PromptDetailGenerateTab detailHref={detailHref} productId={productId} selectedVersion={selectedVersion ?? null} userId={userId} />
+      );
+    case "history":
+      return (
+        <PromptDetailHistoryTab detailHref={detailHref} productId={productId} selectedVersion={selectedVersion ?? null} userId={userId} />
+      );
+    default:
+      return <PromptDetailOutputTab detailHref={detailHref} productId={productId} selectedVersion={selectedVersion ?? null} userId={userId} />;
+  }
+}
+
+async function PromptDetailOutputTab({
+  detailHref,
+  productId,
+  selectedVersion,
+  userId,
+}: {
+  detailHref: string;
+  productId: string;
+  selectedVersion: string | null;
+  userId: string;
+}) {
+  let product: ProductRecord | null = null;
+  let promptPacks: SiblingPromptPackRecord[] = [];
+
+  try {
+    [product, promptPacks] = await Promise.all([getProductById(productId), listPromptPacks({ productId, limit: 200 })]);
+  } catch (error) {
+    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
+    return <PromptDetailFetchErrorState description={description} />;
+  }
+
+  if (!product || product.status === "ARCHIVED") {
+    return <PromptDetailProductUnavailableState />;
+  }
+
+  const { latestPromptPack, selectedVersionPack, displayedPack, isViewingOldVersion } = resolvePromptDetailPackState(promptPacks, selectedVersion);
+  let promptTask: PromptTaskRecord | null = null;
+
+  try {
+    promptTask = await readPromptTask(displayedPack, userId);
+  } catch (error) {
+    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
+    return <PromptDetailFetchErrorState description={description} />;
+  }
+
+  const promptErrorMessage = displayedPack?.error_message ?? promptTask?.error_message ?? null;
+  const promptTaskStatus = promptTask?.status ?? displayedPack?.status ?? null;
+  const isPromptOutputReady = hasGeneratedPromptOutput(displayedPack);
+  const isPromptGenerationPending =
+    !isPromptOutputReady && (isPromptGenerationStatusPending(promptTaskStatus) || isPromptGenerationStatusPending(displayedPack?.status));
+  const isPromptOutputUnavailable = Boolean(displayedPack) && !isPromptOutputReady && !isPromptGenerationPending;
+  const isWaitingForKey = promptTaskStatus === "WAITING_FOR_KEY";
+  const latestHrefForOutput = buildTabHref(detailHref, "output", null);
+
+  return (
+    <section className="stack product-detail-tab-content">
+      <PromptDetailStatusBanners errorMessage={promptErrorMessage} waitingForKey={isWaitingForKey} />
+      {!displayedPack ? (
+        <EmptyState icon={FileText} title="Belum ada output." description="Generate prompt dari tab Generate." />
+      ) : (
+        <>
+          {isViewingOldVersion && selectedVersionPack && latestPromptPack ? (
+            <div className="output-version-banner" role="status">
+              <span className="output-version-banner__label">
+                Versi v{selectedVersionPack.version} - {formatAppDateTime(selectedVersionPack.created_at, "-")}
+              </span>
+              <Link className="compact" href={latestHrefForOutput}>
+                Kembali ke Terbaru
+              </Link>
+            </div>
+          ) : null}
+
+          {isPromptGenerationPending ? (
+            <PromptGeneratingState promptPackId={displayedPack.id} />
+          ) : isPromptOutputUnavailable ? (
+            <EmptyState icon={FileText} title="Output belum tersedia." description="Generate ulang dari tab Generate." />
+          ) : (
+            <>
+              <PromptOutputFields pack={displayedPack} />
+              <form className="section-card__actions desktop-action-set" action={savePromptPack}>
+                <input type="hidden" name="id" value={displayedPack.id} />
+                <input type="hidden" name="return_to" value={detailHref} />
+                <input type="hidden" name="product_id" value={displayedPack.product_id} />
+                <PendingActionButton className="compact tertiary" pendingLabel="Menyimpan" name="intent" value="export_prompt_txt">
+                  Simpan TXT Drive
+                </PendingActionButton>
+              </form>
+              <div className="mobile-action-set">
+                <form action={savePromptPack}>
+                  <input type="hidden" name="id" value={displayedPack.id} />
+                  <input type="hidden" name="return_to" value={detailHref} />
+                  <input type="hidden" name="product_id" value={displayedPack.product_id} />
+                  <PendingActionButton className="compact tertiary" pendingLabel="Menyimpan" name="intent" value="export_prompt_txt">
+                    Simpan TXT Drive
+                  </PendingActionButton>
+                </form>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+async function PromptDetailGenerateTab({
+  detailHref,
+  productId,
+  selectedVersion,
+  userId,
+}: {
+  detailHref: string;
+  productId: string;
+  selectedVersion: string | null;
+  userId: string;
+}) {
+  let product: ProductRecord | null = null;
+  let promptPacks: SiblingPromptPackRecord[] = [];
+  let intakeSessions: IntakeSessionRecord[] = [];
+  let productImages: ProductImageRecord[] = [];
+  let affiliateProfiles: AffiliateProfileRecord[] = [];
+
+  try {
+    [product, promptPacks, intakeSessions, productImages, affiliateProfiles] = await Promise.all([
+      getProductById(productId),
+      listPromptPacks({ productId, limit: 200 }),
+      listIntakeSessions({ productId, limit: 200 }),
+      listProductImages({ productId, limit: 200 }),
+      listAffiliateProfiles({ limit: 200 }),
+    ]);
+  } catch (error) {
+    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
+    return <PromptDetailFetchErrorState description={description} />;
+  }
+
+  if (!product || product.status === "ARCHIVED") {
+    return <PromptDetailProductUnavailableState />;
+  }
+
+  const { displayedPack, sourcePackForGenerate } = resolvePromptDetailPackState(promptPacks, selectedVersion);
+  let promptTask: PromptTaskRecord | null = null;
+
+  try {
+    promptTask = await readPromptTask(displayedPack, userId);
+  } catch (error) {
+    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
+    return <PromptDetailFetchErrorState description={description} />;
+  }
+
+  const promptErrorMessage = displayedPack?.error_message ?? promptTask?.error_message ?? null;
+  const promptTaskStatus = promptTask?.status ?? displayedPack?.status ?? null;
+  const isPromptOutputReady = hasGeneratedPromptOutput(displayedPack);
+  const isPromptGenerationPending =
+    !isPromptOutputReady && (isPromptGenerationStatusPending(promptTaskStatus) || isPromptGenerationStatusPending(displayedPack?.status));
+  const generationOptions = readGenerationOptions(sourcePackForGenerate);
+  const intakeSession = findDefaultIntakeSession(sourcePackForGenerate, intakeSessions);
+  const affiliateProfile = findDefaultAffiliateProfile(sourcePackForGenerate, affiliateProfiles);
+  const sourceImage = findDefaultSourceImage(sourcePackForGenerate, productImages);
+
+  return (
+    <section className="stack product-detail-tab-content">
+      <PromptDetailStatusBanners errorMessage={promptErrorMessage} waitingForKey={promptTaskStatus === "WAITING_FOR_KEY"} />
+      {displayedPack && isPromptGenerationPending ? (
+        <PromptGeneratingState promptPackId={displayedPack.id} />
+      ) : (
+        <PromptGenerateForm
+          action={savePromptPack}
+          affiliateProfileId={sourcePackForGenerate?.affiliate_profile_id ?? affiliateProfile?.id ?? null}
+          angle={sourcePackForGenerate?.angle ?? null}
+          intakeSessionId={sourcePackForGenerate?.intake_session_id ?? intakeSession?.id ?? null}
+          mode={sourcePackForGenerate ? "regenerate" : "create"}
+          productId={product.id}
+          promptPackId={sourcePackForGenerate?.id ?? null}
+          returnHref={buildTabHref(detailHref, "generate", sourcePackForGenerate?.id ?? null)}
+          sourceImageId={sourcePackForGenerate?.source_product_image_id ?? sourceImage?.id ?? null}
+          variantCount={sourcePackForGenerate?.variant_count ?? 1}
+          videoMode={generationOptions.video_mode}
+          voEnabled={generationOptions.vo_enabled}
+        />
+      )}
+    </section>
+  );
+}
+
+async function PromptDetailHistoryTab({
+  detailHref,
+  productId,
+  selectedVersion,
+  userId,
+}: {
+  detailHref: string;
+  productId: string;
+  selectedVersion: string | null;
+  userId: string;
+}) {
+  let product: ProductRecord | null = null;
+  let promptPacks: SiblingPromptPackRecord[] = [];
+
+  try {
+    [product, promptPacks] = await Promise.all([getProductById(productId), listPromptPacks({ productId, limit: 200 })]);
+  } catch (error) {
+    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
+    return <PromptDetailFetchErrorState description={description} />;
+  }
+
+  if (!product || product.status === "ARCHIVED") {
+    return <PromptDetailProductUnavailableState />;
+  }
+
+  const { activePromptPacks, displayedPack } = resolvePromptDetailPackState(promptPacks, selectedVersion);
+  let promptTask: PromptTaskRecord | null = null;
+
+  try {
+    promptTask = await readPromptTask(displayedPack, userId);
+  } catch (error) {
+    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
+    return <PromptDetailFetchErrorState description={description} />;
+  }
+
+  const promptErrorMessage = displayedPack?.error_message ?? promptTask?.error_message ?? null;
+  const promptTaskStatus = promptTask?.status ?? displayedPack?.status ?? null;
+  const isWaitingForKey = promptTaskStatus === "WAITING_FOR_KEY";
+
+  return (
+    <section className="stack product-detail-tab-content">
+      <PromptDetailStatusBanners errorMessage={promptErrorMessage} waitingForKey={isWaitingForKey} />
+      <SectionCard className="prompt-detail-section prompt-detail-section--history" icon={HistoryIcon} title="History Generate">
+        {activePromptPacks.length ? (
+          <ul className="list prompt-history-list">
+            {activePromptPacks.map((pack) => {
+              const regenerationNote = readRegenerationNote(pack);
+              const meta = [`v${pack.version}`, pack.status, SHARE_ANGLE_LABELS[pack.angle]].filter(Boolean).join(" - ");
+              const viewHref = buildTabHref(detailHref, "output", pack.id);
+
+              return (
+                <li className="prompt-history-row" data-active={displayedPack?.id === pack.id ? "true" : undefined} key={pack.id}>
+                  <div className="prompt-history-row__body">
+                    <span className="prompt-history-row__meta">{meta}</span>
+                    <strong className="prompt-history-row__note">{regenerationNote || `${pack.variant_count} varian`}</strong>
+                    <span className="prompt-history-row__date">{formatAppDateTime(pack.created_at, "-")}</span>
+                  </div>
+                  <div className="prompt-history-row__actions">
+                    <NativeLinkButton className="compact prompt-history-row__action" href={viewHref}>
+                      Lihat
+                    </NativeLinkButton>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState icon={HistoryIcon} title="Belum ada history." description="Generate pertama akan muncul di sini." />
+        )}
+      </SectionCard>
+    </section>
+  );
+}
+
 export async function PromptDetailPanel({
   detailHref,
   productId,
@@ -199,206 +602,25 @@ export async function PromptDetailPanel({
     );
   }
 
-  let product: ProductRecord | null = null;
-  let promptPacks: SiblingPromptPackRecord[] = [];
-  let intakeSessions: IntakeSessionRecord[] = [];
-  let productImages: ProductImageRecord[] = [];
-  let affiliateProfiles: AffiliateProfileRecord[] = [];
-
-  try {
-    product = await getProductById(productId);
-
-    if (product) {
-      [promptPacks, intakeSessions, productImages, affiliateProfiles] = await Promise.all([
-        listPromptPacks({ productId: product.id, limit: 200 }),
-        listIntakeSessions({ productId: product.id, limit: 200 }),
-        listProductImages({ productId: product.id, limit: 200 }),
-        listAffiliateProfiles({ limit: 200 }),
-      ]);
-    }
-  } catch (error) {
-    const description = error instanceof Error ? error.message : "Detail prompt tidak tersedia.";
-
-    return (
-      <SectionCard icon={FileText} title="Detail prompt tidak tersedia." description={description}>
-        <EmptyState icon={FileText} title="Detail prompt tidak tersedia." description="Coba lagi." />
-      </SectionCard>
-    );
-  }
-
-  if (!product || product.status === "ARCHIVED") {
-    return (
-      <SectionCard icon={FileText} title="Produk tidak tersedia.">
-        <EmptyState icon={FileText} title="Produk tidak tersedia." description="Produk untuk prompt ini tidak tersedia di workspace aktif." />
-      </SectionCard>
-    );
-  }
-
-  const activePromptPacks = promptPacks
-    .filter((pack) => pack.status !== "ARCHIVED")
-    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
-  const latestPromptPack = activePromptPacks[0] ?? null;
-  const selectedVersionPack = selectedVersion
-    ? activePromptPacks.find((pack) => pack.id === selectedVersion) ?? null
-    : null;
-  const pendingPromptPack = activePromptPacks.find((pack) => isPromptGenerationStatusPending(pack.status)) ?? null;
-  const displayedPack = selectedVersionPack ?? pendingPromptPack ?? latestPromptPack;
-  const sourcePackForGenerate = selectedVersionPack ?? latestPromptPack;
-  const isViewingOldVersion = Boolean(selectedVersionPack && latestPromptPack && selectedVersionPack.id !== latestPromptPack.id);
-  const effectiveTab: PromptDetailTab = !latestPromptPack && selectedTab !== "generate" ? "generate" : selectedTab;
-  const promptTask = await readPromptTask(displayedPack, user.id);
-  const promptErrorMessage = displayedPack?.error_message ?? promptTask?.error_message ?? null;
-  const promptTaskStatus = promptTask?.status ?? displayedPack?.status ?? null;
-  const isPromptOutputReady = hasGeneratedPromptOutput(displayedPack);
-  const isPromptGenerationPending =
-    !isPromptOutputReady && (isPromptGenerationStatusPending(promptTaskStatus) || isPromptGenerationStatusPending(displayedPack?.status));
-  const isPromptOutputUnavailable = Boolean(displayedPack) && !isPromptOutputReady && !isPromptGenerationPending;
-  const isWaitingForKey = promptTaskStatus === "WAITING_FOR_KEY";
-  const generationOptions = readGenerationOptions(sourcePackForGenerate);
-  const intakeSession = findDefaultIntakeSession(sourcePackForGenerate, intakeSessions);
-  const affiliateProfile = findDefaultAffiliateProfile(sourcePackForGenerate, affiliateProfiles);
-  const sourceImage = findDefaultSourceImage(sourcePackForGenerate, productImages);
-  const latestHrefForOutput = buildTabHref(detailHref, "output", null);
+  const generateVersion = selectedVersion ?? null;
 
   return (
     <div className="stack operator-detail-panel operator-detail-panel--flush prompt-detail-panel">
-      {promptErrorMessage ? <section className="error-box">{promptErrorMessage}</section> : null}
-
-      {isWaitingForKey ? (
-        <section className="helper-text" role="status">
-          Semua Gemini key sedang cooldown atau melebihi kuota. Sistem otomatis mencoba ulang saat generate berjalan.
-        </section>
-      ) : null}
-
       <nav className="tab-nav tab-nav--flush" aria-label="Tab detail prompt">
         {promptDetailTabs.map((tab) => {
-          const href = buildTabHref(detailHref, tab.key, tab.key === "generate" ? displayedPack?.id ?? null : null);
+          const href = buildTabHref(detailHref, tab.key, tab.key === "generate" ? generateVersion : null);
+
           return (
-            <Link
-              aria-current={effectiveTab === tab.key ? "page" : undefined}
-              className="tab-link"
-              data-active={effectiveTab === tab.key ? "true" : undefined}
-              href={href}
-              key={tab.key}
-            >
+            <Link aria-current={selectedTab === tab.key ? "page" : undefined} className="tab-link" data-active={selectedTab === tab.key ? "true" : undefined} href={href} key={tab.key}>
               {tab.label}
             </Link>
           );
         })}
       </nav>
 
-      {effectiveTab === "output" ? (
-        <SectionCard className="prompt-detail-section prompt-detail-section--output" icon={FileText} title="Output Siap Copy">
-          {!displayedPack ? (
-            <EmptyState icon={FileText} title="Belum ada output." description="Generate prompt dari tab Generate." />
-          ) : (
-            <>
-              {isViewingOldVersion ? (
-                <div className="output-version-banner" role="status">
-                  <span className="output-version-banner__label">
-                    Versi v{displayedPack.version} - {formatAppDateTime(displayedPack.created_at, "-")}
-                  </span>
-                  <Link className="compact" href={latestHrefForOutput}>
-                    Kembali ke Terbaru
-                  </Link>
-                </div>
-              ) : null}
-
-              {isPromptGenerationPending ? (
-                <PromptGeneratingState promptPackId={displayedPack.id} />
-              ) : isPromptOutputUnavailable ? (
-                <EmptyState icon={FileText} title="Output belum tersedia." description="Generate ulang dari tab Generate." />
-              ) : (
-                <>
-                  <PromptOutputFields pack={displayedPack} />
-                  <form className="section-card__actions desktop-action-set" action={savePromptPack}>
-                    <input type="hidden" name="id" value={displayedPack.id} />
-                    <input type="hidden" name="return_to" value={detailHref} />
-                    <input type="hidden" name="product_id" value={displayedPack.product_id} />
-                    <PendingActionButton
-                      className="compact tertiary"
-                      pendingLabel="Menyimpan"
-                      name="intent"
-                      value="export_prompt_txt"
-                    >
-                      Simpan TXT Drive
-                    </PendingActionButton>
-                  </form>
-                  <div className="mobile-action-set">
-                    <form action={savePromptPack}>
-                      <input type="hidden" name="id" value={displayedPack.id} />
-                      <input type="hidden" name="return_to" value={detailHref} />
-                      <input type="hidden" name="product_id" value={displayedPack.product_id} />
-                      <PendingActionButton
-                        className="compact tertiary"
-                        pendingLabel="Menyimpan"
-                        name="intent"
-                        value="export_prompt_txt"
-                      >
-                        Simpan TXT Drive
-                      </PendingActionButton>
-                    </form>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </SectionCard>
-      ) : null}
-
-      {effectiveTab === "generate" ? (
-        <SectionCard className="prompt-detail-section prompt-detail-section--generate" icon={WandSparkles} title="Generate Prompt">
-          {displayedPack && isPromptGenerationPending ? (
-            <PromptGeneratingState promptPackId={displayedPack.id} />
-          ) : (
-            <PromptGenerateForm
-              action={savePromptPack}
-              affiliateProfileId={sourcePackForGenerate?.affiliate_profile_id ?? affiliateProfile?.id ?? null}
-              angle={sourcePackForGenerate?.angle ?? null}
-              intakeSessionId={sourcePackForGenerate?.intake_session_id ?? intakeSession?.id ?? null}
-              mode={sourcePackForGenerate ? "regenerate" : "create"}
-              productId={product.id}
-              promptPackId={sourcePackForGenerate?.id ?? null}
-              returnHref={buildTabHref(detailHref, "generate", sourcePackForGenerate?.id ?? null)}
-              sourceImageId={sourcePackForGenerate?.source_product_image_id ?? sourceImage?.id ?? null}
-              variantCount={sourcePackForGenerate?.variant_count ?? 1}
-              videoMode={generationOptions.video_mode}
-              voEnabled={generationOptions.vo_enabled}
-            />
-          )}
-        </SectionCard>
-      ) : null}
-
-      {effectiveTab === "history" ? (
-        <SectionCard className="prompt-detail-section prompt-detail-section--history" icon={HistoryIcon} title="History Generate">
-          {activePromptPacks.length ? (
-            <ul className="list prompt-history-list">
-              {activePromptPacks.map((pack) => {
-                const regenerationNote = readRegenerationNote(pack);
-                const meta = [`v${pack.version}`, pack.status, SHARE_ANGLE_LABELS[pack.angle]].filter(Boolean).join(" - ");
-                const viewHref = buildTabHref(detailHref, "output", pack.id);
-
-                return (
-                  <li className="prompt-history-row" data-active={displayedPack?.id === pack.id ? "true" : undefined} key={pack.id}>
-                    <div className="prompt-history-row__body">
-                      <span className="prompt-history-row__meta">{meta}</span>
-                      <strong className="prompt-history-row__note">{regenerationNote || `${pack.variant_count} varian`}</strong>
-                      <span className="prompt-history-row__date">{formatAppDateTime(pack.created_at, "-")}</span>
-                    </div>
-                    <div className="prompt-history-row__actions">
-                      <NativeLinkButton className="compact prompt-history-row__action" href={viewHref}>
-                        Lihat
-                      </NativeLinkButton>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <EmptyState icon={HistoryIcon} title="Belum ada history." description="Generate pertama akan muncul di sini." />
-          )}
-        </SectionCard>
-      ) : null}
+      <Suspense fallback={<PromptDetailTabLoadingState activeTab={selectedTab} />}>
+        <PromptDetailTabContent activeTab={selectedTab} detailHref={detailHref} productId={productId} selectedVersion={selectedVersion} userId={user.id} />
+      </Suspense>
     </div>
   );
 }

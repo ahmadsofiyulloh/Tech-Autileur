@@ -220,7 +220,7 @@ test("product output tab is primary and renders partial copy-ready data", async 
     await page.goto(`/products?detail=${state.product.id}`);
     await expect(page.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toBeVisible();
     await expect(page.getByRole("link", { name: "Output" })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByText("Metadata Ready")).toBeVisible();
+    await expect(page.getByText("Metadata Siap")).toBeVisible();
     await expect(page.getByRole("button", { name: "Salin" })).toHaveCount(5);
     await expect(page.getByText("Nama Produk").first()).toBeVisible();
     await expect(page.getByText("Keyword Etalase").first()).toBeVisible();
@@ -231,7 +231,7 @@ test("product output tab is primary and renders partial copy-ready data", async 
 
     await expect(page.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toBeVisible();
     await expect(page.getByText("Output Siap", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText(state.product.name, { exact: true }).first()).toBeVisible();
+    await expect(page.locator('aside[aria-label="Detail produk"]').getByText(state.product.name, { exact: true }).first()).toBeVisible();
     await expect(page.getByText(seeded.caption, { exact: true })).toBeVisible();
     await expect(page.getByText(seeded.tags, { exact: true })).toBeVisible();
     await expect(page.getByText(seeded.folderDriveUrl, { exact: true })).toBeVisible();

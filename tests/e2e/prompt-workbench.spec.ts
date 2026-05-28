@@ -17,6 +17,39 @@ async function cleanupPromptWorkbenchArtifacts(state: SmokeBootstrapState) {
 
   const promptPackIds = (data ?? []).map((row) => row.id);
   const taskIds = Array.from(new Set((data ?? []).map((row) => row.ai_task_id).filter((value): value is string => Boolean(value))));
+  const { data: clipJobs, error: clipJobError } = await client
+    .from("clip_jobs")
+    .select("id")
+    .eq("user_id", state.user.id)
+    .in("prompt_pack_id", promptPackIds);
+
+  if (clipJobError) {
+    throw new Error(clipJobError.message);
+  }
+
+  const clipJobIds = (clipJobs ?? []).map((row) => row.id);
+
+  if (clipJobIds.length) {
+    const { error: generatedFileError } = await client.from("generated_files").delete().in("clip_job_id", clipJobIds);
+
+    if (generatedFileError) {
+      throw new Error(generatedFileError.message);
+    }
+
+    const { error: clipJobDeleteError } = await client.from("clip_jobs").delete().in("id", clipJobIds);
+
+    if (clipJobDeleteError) {
+      throw new Error(clipJobDeleteError.message);
+    }
+  }
+
+  if (promptPackIds.length) {
+    const { error: contentError } = await client.from("contents").delete().in("prompt_pack_id", promptPackIds);
+
+    if (contentError) {
+      throw new Error(contentError.message);
+    }
+  }
 
   if (promptPackIds.length) {
     const { error: promptPackError } = await client.from("prompt_packs").delete().in("id", promptPackIds);
@@ -313,6 +346,57 @@ test("desktop prompt workbench opens single generate drawer for a ready product"
   }
 });
 
+test("desktop prompt detail drawer streams only the active tab content", async ({ page }) => {
+  const state = await readSmokeBootstrapState();
+
+  try {
+    await cleanupPromptWorkbenchArtifacts(state);
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const drawer = page.locator('aside[aria-label="Detail prompt"]');
+
+    await page.goto(`/prompts?detail=${state.product.id}&tab=output`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(drawer).toBeVisible();
+    const promptListSurface = page.locator('section[aria-label="Paket Prompt"]').first();
+    await expect(promptListSurface).toBeVisible();
+    const promptListBox = await promptListSurface.boundingBox();
+    const drawerBox = await drawer.boundingBox();
+
+    if (!promptListBox || !drawerBox) {
+      throw new Error("Prompt detail layout boxes were not available.");
+    }
+
+    expect(Math.abs(drawerBox.y - promptListBox.y)).toBeLessThan(80);
+    expect(drawerBox.x).toBeGreaterThan(promptListBox.x + 150);
+    await expect(drawer.getByText("Belum ada output.")).toBeVisible();
+    await expect(drawer.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toHaveCount(0);
+    await expect(drawer.getByRole("heading", { name: "History Generate", level: 3 })).toHaveCount(0);
+    await expect(drawer.getByRole("button", { name: "Generate Prompt" })).toHaveCount(0);
+
+    await page.goto(`/prompts?detail=${state.product.id}&tab=generate`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Generate Prompt" })).toBeVisible();
+    await expect(drawer.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toHaveCount(0);
+    await expect(drawer.getByRole("heading", { name: "History Generate", level: 3 })).toHaveCount(0);
+
+    await page.goto(`/prompts?detail=${state.product.id}&tab=history`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("heading", { name: "History Generate", level: 3 })).toBeVisible();
+    await expect(drawer.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toHaveCount(0);
+    await expect(drawer.getByRole("button", { name: "Generate Prompt" })).toHaveCount(0);
+  } catch (error) {
+    throw classifySmokeError("prompt detail tab streaming", error);
+  } finally {
+    await cleanupPromptWorkbenchArtifacts(state);
+  }
+});
+
 test("desktop prompt workbench paginates and searches server-side", async ({ page }) => {
   const state = await readSmokeBootstrapState();
   const seededProducts = await seedPromptWorkbenchProducts(state, 120);
@@ -336,6 +420,7 @@ test("desktop prompt workbench paginates and searches server-side", async ({ pag
 
     await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.get("q") === targetName, {
       timeout: 30_000,
+      waitUntil: "domcontentloaded",
     });
 
     await expect(page.locator(".prompt-list-card").filter({ hasText: targetName })).toHaveCount(1);
@@ -344,11 +429,13 @@ test("desktop prompt workbench paginates and searches server-side", async ({ pag
     await page.getByRole("link", { name: "Bersihkan pencarian" }).click();
     await page.waitForURL((url) => url.pathname === "/prompts" && !url.searchParams.has("q"), {
       timeout: 30_000,
+      waitUntil: "domcontentloaded",
     });
 
     await promptPagination.getByRole("link", { name: "Berikutnya" }).click();
     await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.get("page") === "2", {
       timeout: 30_000,
+      waitUntil: "domcontentloaded",
     });
 
     await expect(promptPagination.getByText("Halaman 2/")).toBeVisible();
@@ -357,6 +444,7 @@ test("desktop prompt workbench paginates and searches server-side", async ({ pag
     await promptPagination.getByRole("link", { name: "Sebelumnya" }).click();
     await page.waitForURL((url) => url.pathname === "/prompts" && (!url.searchParams.has("page") || url.searchParams.get("page") === "1"), {
       timeout: 30_000,
+      waitUntil: "domcontentloaded",
     });
   } catch (error) {
     throw classifySmokeError("prompt workbench pagination/search", error);

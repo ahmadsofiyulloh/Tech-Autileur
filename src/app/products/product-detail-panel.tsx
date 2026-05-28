@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { Clock3, ExternalLink, FileText, Package, RefreshCcw } from "lucide-react";
 import { CopyableReadOnlyField } from "@/components/operator/copyable-readonly-field";
 import { EmptyState } from "@/components/operator/empty-state";
 import { ErrorState } from "@/components/operator/error-state";
+import { SkeletonButton, SkeletonLine } from "@/components/operator/loading-skeleton";
 import { SectionCard } from "@/components/operator/section-card";
 import { StatusBadge } from "@/components/operator/status-badge";
 import { NativeAnchorButton, NativeLinkButton } from "@/components/ui/native-button";
@@ -235,73 +237,189 @@ function resolveOutputSummaryStatus(input: {
   return "Output Parsial";
 }
 
-export async function ProductDetailPanel({ activeTab, detailHrefBase, productId }: ProductDetailPanelProps) {
-  const id = productId;
+type ProductDetailTabContentProps = {
+  activeTab: ProductDetailTab;
+  productId: string;
+};
+
+function ProductDetailErrorState() {
+  return (
+    <div className="stack">
+      <ErrorState icon={Package} title="Detail produk tidak bisa dimuat." description="Coba lagi." />
+    </div>
+  );
+}
+
+function ProductDetailUnavailableState() {
+  return (
+    <SectionCard icon={Package} title="Produk tidak tersedia.">
+      <EmptyState icon={Package} title="Produk tidak tersedia." description="Data ini mungkin sudah dihapus atau tidak tersedia di workspace aktif." />
+    </SectionCard>
+  );
+}
+
+function ProductDetailReadonlyFieldSkeleton() {
+  return (
+    <div className="prompt-readonly-field">
+      <div className="prompt-readonly-field__header">
+        <SkeletonLine size="short" />
+        <SkeletonButton />
+      </div>
+      <div className="prompt-readonly-field__body">
+        <SkeletonLine size="long" />
+        <SkeletonLine size="medium" />
+      </div>
+    </div>
+  );
+}
+
+function ProductDetailOutputLoadingState() {
+  return (
+    <section className="stack product-detail-tab-content loading-skeleton-static" aria-hidden="true">
+      <SectionCard icon={FileText} title="Output Siap Copy">
+        <section className="prompt-output-grid loading-skeleton-static">
+          <div className="prompt-output-section">
+            <ProductDetailReadonlyFieldSkeleton />
+            <ProductDetailReadonlyFieldSkeleton />
+          </div>
+          <div className="prompt-output-section">
+            <div className="prompt-output-section__body">
+              <ProductDetailReadonlyFieldSkeleton />
+              <ProductDetailReadonlyFieldSkeleton />
+              <ProductDetailReadonlyFieldSkeleton />
+            </div>
+          </div>
+        </section>
+      </SectionCard>
+    </section>
+  );
+}
+
+function ProductDetailMetadataLoadingState() {
+  return (
+    <section className="stack product-detail-tab-content loading-skeleton-static" aria-hidden="true">
+      <section className="prompt-output-grid metadata-ocr-fields" aria-label="OCR screenshot">
+        <div className="prompt-output-section">
+          <div className="prompt-output-section__body">
+            <ProductDetailReadonlyFieldSkeleton />
+            <ProductDetailReadonlyFieldSkeleton />
+          </div>
+        </div>
+        <div className="prompt-output-section">
+          <div className="prompt-output-section__body">
+            <ProductDetailReadonlyFieldSkeleton />
+            <ProductDetailReadonlyFieldSkeleton />
+          </div>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function ProductDetailHistoryLoadingState() {
+  return (
+    <section className="stack product-detail-tab-content loading-skeleton-static" aria-hidden="true">
+      <SectionCard icon={Clock3} title="History">
+        <ol className="timeline">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <li className="timeline-item" key={index}>
+              <div className="timeline-item__body">
+                <SkeletonLine size="medium" />
+                <SkeletonLine size="long" />
+                <SkeletonLine size="short" />
+              </div>
+              <span className="skeleton-pill" />
+            </li>
+          ))}
+        </ol>
+      </SectionCard>
+
+      <SectionCard icon={RefreshCcw} title="Generate Ulang Prompt">
+        <div className="stack-tight">
+          <SkeletonLine size="medium" />
+          <SkeletonLine size="long" />
+        </div>
+        <div className="button-row">
+          <SkeletonButton />
+        </div>
+        <SkeletonLine size="short" />
+      </SectionCard>
+
+      <SectionCard icon={FileText} title="Versi Paket Prompt">
+        <ul className="list">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <li key={index}>
+              <div className="stack-tight">
+                <SkeletonLine size="medium" />
+                <SkeletonLine size="long" />
+                <SkeletonLine size="short" />
+              </div>
+              <div className="section-card__actions">
+                <span className="skeleton-pill" />
+                <SkeletonButton />
+                <SkeletonButton />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
+    </section>
+  );
+}
+
+function ProductDetailTabLoadingState({ activeTab }: { activeTab: ProductDetailTab }) {
+  switch (activeTab) {
+    case "metadata":
+      return <ProductDetailMetadataLoadingState />;
+    case "history":
+      return <ProductDetailHistoryLoadingState />;
+    default:
+      return <ProductDetailOutputLoadingState />;
+  }
+}
+
+function ProductDetailTabContent({ activeTab, productId }: ProductDetailTabContentProps) {
+  switch (activeTab) {
+    case "metadata":
+      return <ProductDetailMetadataTab productId={productId} />;
+    case "history":
+      return <ProductDetailHistoryTab productId={productId} />;
+    default:
+      return <ProductDetailOutputTab productId={productId} />;
+  }
+}
+
+async function ProductDetailOutputTab({ productId }: { productId: string }) {
   let product: ProductRecord | null = null;
-  let productImages: ProductImageRecord[] = [];
   let driveItems: DriveItemRecord[] = [];
   let intakeSessions: IntakeSessionRecord[] = [];
-  let marketplaceSources: MarketplaceSourceRecord[] = [];
-  let anchors: ProductAnchorRecord[] = [];
   let promptPacks: PromptPackRecord[] = [];
   let flowBatches: FlowBatchRecord[] = [];
-  let affiliateProfiles: AffiliateProfileRecord[] = [];
   let contents: ContentRecord[] = [];
   let clipJobs: ClipJobRecord[] = [];
   let generatedFiles: GeneratedFileRecord[] = [];
 
   try {
-    [
-      product,
-      productImages,
-      driveItems,
-      intakeSessions,
-      marketplaceSources,
-      anchors,
-      promptPacks,
-      flowBatches,
-      affiliateProfiles,
-      contents,
-      clipJobs,
-      generatedFiles,
-    ] = await Promise.all([
-      getProductById(id),
-      listProductImages({ productId: id, limit: 200 }),
+    [product, driveItems, intakeSessions, promptPacks, flowBatches, contents, clipJobs, generatedFiles] = await Promise.all([
+      getProductById(productId),
       listDriveItems({ limit: 200 }),
-      listIntakeSessions({ productId: id, limit: 200 }),
-      listProductMarketplaceSources({ productId: id, limit: 200 }),
-      listProductAnchors({ productId: id, limit: 200 }),
-      listPromptPacks({ productId: id, limit: 200 }),
-      listFlowBatches({ productId: id, limit: 200 }),
-      listAffiliateProfiles({ limit: 200 }),
-      listContents({ productId: id, limit: 200 }),
+      listIntakeSessions({ productId, limit: 200 }),
+      listPromptPacks({ productId, limit: 200 }),
+      listFlowBatches({ productId, limit: 200 }),
+      listContents({ productId, limit: 200 }),
       listClipJobs({ limit: 200 }),
       listGeneratedFiles({ limit: 200 }),
     ]);
   } catch {
-    return (
-      <div className="stack">
-        <ErrorState icon={Package} title="Detail produk tidak bisa dimuat." description="Coba lagi." />
-      </div>
-    );
+    return <ProductDetailErrorState />;
   }
 
   if (!product || product.status === "ARCHIVED") {
-    return (
-      <SectionCard icon={Package} title="Produk tidak tersedia.">
-        <EmptyState icon={Package} title="Produk tidak tersedia." description="Data ini mungkin sudah dihapus atau tidak tersedia di workspace aktif." />
-      </SectionCard>
-    );
+    return <ProductDetailUnavailableState />;
   }
 
   const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
   const visiblePromptPacks = promptPacks.filter((pack) => pack.status !== "ARCHIVED");
-  const visibleAffiliateProfiles = affiliateProfiles.filter((profile) => profile.status !== "ARCHIVED");
-  const productWorkspaceId = product.workspace_id;
-  const scopedAffiliateProfiles = productWorkspaceId
-    ? visibleAffiliateProfiles.filter((profile) => profile.workspace_ids.includes(productWorkspaceId))
-    : visibleAffiliateProfiles;
-  const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
   const marketplaceProductLink = product.marketplace_product_link?.trim() ?? "";
   const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
   const latestPromptPack = visiblePromptPacks[0] ?? null;
@@ -315,11 +433,6 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
   const reviewedMetadata = (latestIntakeSession?.reviewed_metadata_json ?? latestIntakeSession?.parsed_metadata_json ?? null) as
     | Record<string, unknown>
     | null;
-  const shopeeOcrEvidence =
-    readMetadataOcrEvidence(reviewedMetadata, "shopee_screenshot") ?? readMarketplaceSourceOcrEvidence(marketplaceSources, "SHOPEE");
-  const tiktokOcrEvidence =
-    readMetadataOcrEvidence(reviewedMetadata, "tiktok_screenshot") ?? readMarketplaceSourceOcrEvidence(marketplaceSources, "TIKTOK");
-  const hasMetadataOcrEvidence = Boolean(shopeeOcrEvidence || tiktokOcrEvidence);
   const orderedContents = [...contents].sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
   const outputContents = orderedContents.slice(0, 2);
   const promptOutputSet = readPromptPackEditorPromptSet(latestPromptPack ?? {});
@@ -346,8 +459,6 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
     existing.push(generatedFile);
     generatedFilesByClipJobId.set(generatedFile.clip_job_id, existing);
   }
-
-  const relevantGeneratedFiles = generatedFiles.filter((generatedFile) => generatedFile.clip_job_id && clipJobMap.has(generatedFile.clip_job_id));
 
   const legacyClipRows = [0, 1].map((slotIndex) => {
     const content = outputContents[slotIndex] ?? null;
@@ -393,6 +504,147 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
     hasFolderDrive: Boolean(outputFolderDrive),
   });
   const hasLegacyClipData = outputContents.length > 0;
+
+  return (
+    <section className="stack product-detail-tab-content">
+      <SectionCard
+        actions={
+          marketplaceProductLink ? (
+            <NativeAnchorButton className="compact" href={marketplaceProductLink} target="_blank" rel="noreferrer">
+              <ExternalLink size={16} aria-hidden="true" />
+              Buka link
+            </NativeAnchorButton>
+          ) : null
+        }
+        icon={FileText}
+        title="Output Siap Copy"
+      >
+        <ProductOutputFields
+          caption={outputCaption}
+          folderDrive={outputFolderDrive}
+          keyword={outputKeyword}
+          legacyClipRows={hasLegacyClipData ? legacyClipRows : []}
+          productName={outputProductName}
+          status={outputSummaryStatus}
+          tags={outputTags}
+        />
+      </SectionCard>
+    </section>
+  );
+}
+
+async function ProductDetailMetadataTab({ productId }: { productId: string }) {
+  let product: ProductRecord | null = null;
+  let intakeSessions: IntakeSessionRecord[] = [];
+  let marketplaceSources: MarketplaceSourceRecord[] = [];
+
+  try {
+    [product, intakeSessions, marketplaceSources] = await Promise.all([
+      getProductById(productId),
+      listIntakeSessions({ productId, limit: 200 }),
+      listProductMarketplaceSources({ productId, limit: 200 }),
+    ]);
+  } catch {
+    return <ProductDetailErrorState />;
+  }
+
+  if (!product || product.status === "ARCHIVED") {
+    return <ProductDetailUnavailableState />;
+  }
+
+  const latestIntakeSession = intakeSessions.find((session) => session.reviewed_metadata_json || session.parsed_metadata_json) ?? null;
+  const reviewedMetadata = (latestIntakeSession?.reviewed_metadata_json ?? latestIntakeSession?.parsed_metadata_json ?? null) as
+    | Record<string, unknown>
+    | null;
+  const shopeeOcrEvidence =
+    readMetadataOcrEvidence(reviewedMetadata, "shopee_screenshot") ?? readMarketplaceSourceOcrEvidence(marketplaceSources, "SHOPEE");
+  const tiktokOcrEvidence =
+    readMetadataOcrEvidence(reviewedMetadata, "tiktok_screenshot") ?? readMarketplaceSourceOcrEvidence(marketplaceSources, "TIKTOK");
+  const hasMetadataOcrEvidence = Boolean(shopeeOcrEvidence || tiktokOcrEvidence);
+
+  return (
+    <section className="stack product-detail-tab-content">
+      {hasMetadataOcrEvidence ? (
+        <section className="prompt-output-grid metadata-ocr-fields" aria-label="OCR screenshot">
+          {shopeeOcrEvidence ? <OcrCopyFields evidence={shopeeOcrEvidence} platform="Shopee" /> : null}
+          {tiktokOcrEvidence ? <OcrCopyFields evidence={tiktokOcrEvidence} platform="TikTok" /> : null}
+        </section>
+      ) : (
+        <EmptyState icon={Package} title="OCR screenshot belum ada." description="Jalankan Analisis Metadata." />
+      )}
+    </section>
+  );
+}
+
+async function ProductDetailHistoryTab({ productId }: { productId: string }) {
+  let product: ProductRecord | null = null;
+  let productImages: ProductImageRecord[] = [];
+  let driveItems: DriveItemRecord[] = [];
+  let intakeSessions: IntakeSessionRecord[] = [];
+  let promptPacks: PromptPackRecord[] = [];
+  let affiliateProfiles: AffiliateProfileRecord[] = [];
+  let contents: ContentRecord[] = [];
+  let clipJobs: ClipJobRecord[] = [];
+  let generatedFiles: GeneratedFileRecord[] = [];
+  let anchors: ProductAnchorRecord[] = [];
+
+  try {
+    [product, productImages, driveItems, intakeSessions, promptPacks, affiliateProfiles, contents, clipJobs, generatedFiles, anchors] =
+      await Promise.all([
+        getProductById(productId),
+        listProductImages({ productId, limit: 200 }),
+        listDriveItems({ limit: 200 }),
+        listIntakeSessions({ productId, limit: 200 }),
+        listPromptPacks({ productId, limit: 200 }),
+        listAffiliateProfiles({ limit: 200 }),
+        listContents({ productId, limit: 200 }),
+        listClipJobs({ limit: 200 }),
+        listGeneratedFiles({ limit: 200 }),
+        listProductAnchors({ productId, limit: 200 }),
+      ]);
+  } catch {
+    return <ProductDetailErrorState />;
+  }
+
+  if (!product || product.status === "ARCHIVED") {
+    return <ProductDetailUnavailableState />;
+  }
+
+  const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
+  const visiblePromptPacks = promptPacks.filter((pack) => pack.status !== "ARCHIVED");
+  const visibleAffiliateProfiles = affiliateProfiles.filter((profile) => profile.status !== "ARCHIVED");
+  const productWorkspaceId = product.workspace_id;
+  const scopedAffiliateProfiles = productWorkspaceId
+    ? visibleAffiliateProfiles.filter((profile) => profile.workspace_ids.includes(productWorkspaceId))
+    : visibleAffiliateProfiles;
+  const affiliateProfileMap = new Map(scopedAffiliateProfiles.map((profile) => [profile.id, profile]));
+  const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
+  const latestPromptPack = visiblePromptPacks[0] ?? null;
+  const relevantContentIds = new Set(contents.map((content) => content.id));
+  const relevantClipJobs = clipJobs.filter((clipJob) => relevantContentIds.has(clipJob.content_id));
+  const clipJobsByContentId = new Map<string, ClipJobRecord[]>();
+  const clipJobMap = new Map<string, ClipJobRecord>();
+
+  for (const clipJob of relevantClipJobs) {
+    clipJobMap.set(clipJob.id, clipJob);
+    const existing = clipJobsByContentId.get(clipJob.content_id) ?? [];
+    existing.push(clipJob);
+    clipJobsByContentId.set(clipJob.content_id, existing);
+  }
+
+  const generatedFilesByClipJobId = new Map<string, GeneratedFileRecord[]>();
+
+  for (const generatedFile of generatedFiles) {
+    if (!generatedFile.clip_job_id || !clipJobMap.has(generatedFile.clip_job_id)) {
+      continue;
+    }
+
+    const existing = generatedFilesByClipJobId.get(generatedFile.clip_job_id) ?? [];
+    existing.push(generatedFile);
+    generatedFilesByClipJobId.set(generatedFile.clip_job_id, existing);
+  }
+
+  const relevantGeneratedFiles = generatedFiles.filter((generatedFile) => generatedFile.clip_job_id && clipJobMap.has(generatedFile.clip_job_id));
   const timelineItems = [
     {
       at: product.created_at,
@@ -443,11 +695,104 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
   ].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
 
   return (
+    <section className="stack product-detail-tab-content">
+      <SectionCard icon={Clock3} title="History">
+        <ol className="timeline">
+          {timelineItems.map((item, index) => (
+            <li className="timeline-item" key={`${item.title}-${item.at}-${index}`}>
+              <div className="timeline-item__body">
+                <strong>{item.title}</strong>
+                <p>{item.description}</p>
+                <span className="timeline-item__date">{formatDate(item.at)}</span>
+              </div>
+              <StatusBadge status={item.status} />
+            </li>
+          ))}
+        </ol>
+      </SectionCard>
+
+      {latestPromptPack ? (
+        <SectionCard icon={RefreshCcw} title="Generate Ulang Prompt">
+          <form action={regenerateProductPrompt} className="stack">
+            <input type="hidden" name="product_id" value={product.id} />
+
+            <label className="stack auth-field" htmlFor="revision_instruction">
+              <span>Catatan Perubahan</span>
+              <textarea
+                id="revision_instruction"
+                name="revision_instruction"
+                rows={3}
+                placeholder="Opsional. Jelaskan perubahan yang ingin diterapkan."
+                maxLength={500}
+              />
+            </label>
+
+            <div className="button-row">
+              <PendingActionButton
+                className="primary"
+                pendingLabel="Membuat versi baru..."
+                disabled={latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING"}
+              >
+                Generate Ulang
+              </PendingActionButton>
+            </div>
+
+            {latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING" ? (
+              <p className="helper-text">Prompt sedang diproses. Tunggu hingga selesai.</p>
+            ) : null}
+          </form>
+        </SectionCard>
+      ) : null}
+
+      <SectionCard icon={FileText} title="Versi Paket Prompt">
+        {visiblePromptPacks.length ? (
+          <ul className="list">
+            {visiblePromptPacks.map((pack) => {
+              const intakeSession = pack.intake_session_id ? intakeSessions.find((session) => session.id === pack.intake_session_id) ?? null : null;
+              const affiliateProfile = pack.affiliate_profile_id ? affiliateProfileMap.get(pack.affiliate_profile_id) ?? null : null;
+              const sourceImage = pack.source_product_image_id ? productImages.find((image) => image.id === pack.source_product_image_id) ?? null : null;
+              const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
+              const description =
+                [intakeSession ? "Intake reviewed" : null, affiliateProfile ? affiliateProfile.profile_name : null, sourceDriveItem?.name ?? null]
+                  .filter(Boolean)
+                  .join(" - ") || "Gambar sumber belum dipilih.";
+
+              return (
+                <li key={pack.id}>
+                  <div className="stack-tight">
+                    <strong>{`Versi ${pack.version}`}</strong>
+                    <span className="subtle">{description}</span>
+                    {pack.error_message ? <span className="error-box">{pack.error_message}</span> : null}
+                  </div>
+                  <div className="section-card__actions">
+                    <StatusBadge status={pack.status} />
+                    <NativeLinkButton className="compact primary" href={`/prompts?detail=${pack.id}`}>
+                      Buka
+                    </NativeLinkButton>
+                    <NativeLinkButton className="compact tertiary" href={`/prompts/${pack.id}/history`}>
+                      History
+                    </NativeLinkButton>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState icon={FileText} title="Belum ada paket prompt." description="Buat prompt dari produk ini." />
+        )}
+      </SectionCard>
+    </section>
+  );
+}
+
+export function ProductDetailPanel({ activeTab, detailHrefBase, productId }: ProductDetailPanelProps) {
+  const [detailHrefPathname, detailHrefQuery = ""] = detailHrefBase.split("?");
+
+  return (
     <div className="stack operator-detail-panel operator-detail-panel--flush">
       <nav className="tab-nav tab-nav--flush" aria-label="Tab detail produk">
         {productDetailTabs.map((tab) => {
-          const tabSearchParams = new URLSearchParams(detailHrefBase.split("?")[1] ?? "");
-          const pathname = detailHrefBase.split("?")[0] || "/products";
+          const tabSearchParams = new URLSearchParams(detailHrefQuery);
           tabSearchParams.set("tab", tab.key);
 
           return (
@@ -455,7 +800,7 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
               aria-current={activeTab === tab.key ? "page" : undefined}
               className="tab-link"
               data-active={activeTab === tab.key ? "true" : undefined}
-              href={`${pathname}?${tabSearchParams.toString()}`}
+              href={`${detailHrefPathname || "/products"}?${tabSearchParams.toString()}`}
               key={tab.key}
             >
               {tab.label}
@@ -464,145 +809,9 @@ export async function ProductDetailPanel({ activeTab, detailHrefBase, productId 
         })}
       </nav>
 
-      {activeTab === "output" ? (
-        <section className="stack product-detail-tab-content">
-          <SectionCard
-            actions={
-              marketplaceProductLink ? (
-                <NativeAnchorButton className="compact" href={marketplaceProductLink} target="_blank" rel="noreferrer">
-                  <ExternalLink size={16} aria-hidden="true" />
-                  Buka link
-                </NativeAnchorButton>
-              ) : null
-            }
-            icon={FileText}
-            title="Output Siap Copy"
-          >
-            <ProductOutputFields
-              caption={outputCaption}
-              folderDrive={outputFolderDrive}
-              keyword={outputKeyword}
-              legacyClipRows={hasLegacyClipData ? legacyClipRows : []}
-              productName={outputProductName}
-              status={outputSummaryStatus}
-              tags={outputTags}
-            />
-          </SectionCard>
-        </section>
-      ) : null}
-
-      {activeTab === "metadata" ? (
-        <section className="stack product-detail-tab-content">
-          {hasMetadataOcrEvidence ? (
-            <section className="prompt-output-grid metadata-ocr-fields" aria-label="OCR screenshot">
-              {shopeeOcrEvidence ? <OcrCopyFields evidence={shopeeOcrEvidence} platform="Shopee" /> : null}
-              {tiktokOcrEvidence ? <OcrCopyFields evidence={tiktokOcrEvidence} platform="TikTok" /> : null}
-            </section>
-          ) : (
-            <EmptyState icon={Package} title="OCR screenshot belum ada." description="Jalankan Analisis Metadata." />
-          )}
-        </section>
-      ) : null}
-
-      {activeTab === "history" ? (
-        <section className="stack product-detail-tab-content">
-          <SectionCard icon={Clock3} title="History">
-            <ol className="timeline">
-              {timelineItems.map((item, index) => (
-                <li className="timeline-item" key={`${item.title}-${item.at}-${index}`}>
-                  <div className="timeline-item__body">
-                    <strong>{item.title}</strong>
-                    <p>{item.description}</p>
-                    <span className="timeline-item__date">{formatDate(item.at)}</span>
-                  </div>
-                  <StatusBadge status={item.status} />
-                </li>
-              ))}
-            </ol>
-          </SectionCard>
-
-          {latestPromptPack ? (
-            <SectionCard icon={RefreshCcw} title="Generate Ulang Prompt">
-              <form action={regenerateProductPrompt} className="stack">
-                <input type="hidden" name="product_id" value={product.id} />
-
-                <label className="stack auth-field" htmlFor="revision_instruction">
-                  <span>Catatan Perubahan</span>
-                  <textarea
-                    id="revision_instruction"
-                    name="revision_instruction"
-                    rows={3}
-                    placeholder="Opsional. Jelaskan perubahan yang ingin diterapkan."
-                    maxLength={500}
-                  />
-                </label>
-
-                <div className="button-row">
-                  <PendingActionButton
-                    className="primary"
-                    pendingLabel="Membuat versi baru..."
-                    disabled={latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING"}
-                  >
-                    Generate Ulang
-                  </PendingActionButton>
-                </div>
-
-                {latestPromptPack.status === "QUEUED" || latestPromptPack.status === "GENERATING" ? (
-                  <p className="helper-text">Prompt sedang diproses. Tunggu hingga selesai.</p>
-                ) : null}
-              </form>
-            </SectionCard>
-          ) : null}
-
-          <SectionCard icon={FileText} title="Versi Paket Prompt">
-            {visiblePromptPacks.length ? (
-              <ul className="list">
-                {visiblePromptPacks.map((pack) => {
-                  const intakeSession = pack.intake_session_id
-                    ? intakeSessions.find((session) => session.id === pack.intake_session_id) ?? null
-                    : null;
-                  const affiliateProfile = pack.affiliate_profile_id
-                    ? affiliateProfileMap.get(pack.affiliate_profile_id) ?? null
-                    : null;
-                  const sourceImage = pack.source_product_image_id
-                    ? productImages.find((image) => image.id === pack.source_product_image_id) ?? null
-                    : null;
-                  const sourceDriveItem = sourceImage ? driveItemMap.get(sourceImage.drive_item_ref_id) ?? null : null;
-                  const description =
-                    [
-                      intakeSession ? "Intake reviewed" : null,
-                      affiliateProfile ? affiliateProfile.profile_name : null,
-                      sourceDriveItem?.name ?? null,
-                    ]
-                      .filter(Boolean)
-                      .join(" - ") || "Gambar sumber belum dipilih.";
-
-                  return (
-                    <li key={pack.id}>
-                      <div className="stack-tight">
-                        <strong>{`Versi ${pack.version}`}</strong>
-                        <span className="subtle">{description}</span>
-                        {pack.error_message ? <span className="error-box">{pack.error_message}</span> : null}
-                      </div>
-                      <div className="section-card__actions">
-                        <StatusBadge status={pack.status} />
-                        <NativeLinkButton className="compact primary" href={`/prompts?detail=${pack.id}`}>
-                          Buka
-                        </NativeLinkButton>
-                        <NativeLinkButton className="compact tertiary" href={`/prompts/${pack.id}/history`}>
-                          History
-                        </NativeLinkButton>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <EmptyState icon={FileText} title="Belum ada paket prompt." description="Buat prompt dari produk ini." />
-            )}
-          </SectionCard>
-        </section>
-      ) : null}
+      <Suspense fallback={<ProductDetailTabLoadingState activeTab={activeTab} />}>
+        <ProductDetailTabContent activeTab={activeTab} productId={productId} />
+      </Suspense>
     </div>
   );
 }
