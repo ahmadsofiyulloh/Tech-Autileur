@@ -7,6 +7,7 @@ import { getActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+const DRIVE_INITIAL_SCOPE_LIMIT = 500;
 
 export default async function DrivePage() {
   const supabase = await createSupabaseServerClient();
@@ -19,7 +20,7 @@ export default async function DrivePage() {
   }
 
   try {
-    const { rootFolder, items: driveItems } = await getActiveWorkspaceDriveScope({ limit: 1000 });
+    const { rootFolder, items: driveItems } = await getActiveWorkspaceDriveScope({ limit: DRIVE_INITIAL_SCOPE_LIMIT });
     const uploadTarget = {
       id: rootFolder.id,
       name: rootFolder.name,
