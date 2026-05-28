@@ -13,7 +13,7 @@ import { getPromptPackById, listPromptPacks } from "@/lib/server/prompt-packs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatAppDateTime } from "@/lib/app-time";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 const IN_FLIGHT_STATUSES = new Set(["QUEUED", "GENERATING"]);
 

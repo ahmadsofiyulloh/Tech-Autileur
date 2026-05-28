@@ -3,7 +3,7 @@ import { Bot, Code2, Database, Globe2, LockKeyhole, Sparkles, UserRound } from "
 import { LoginForm } from "./login-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type LoginPageProps = {
   searchParams?: Promise<{

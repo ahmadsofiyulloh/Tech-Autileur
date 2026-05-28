@@ -1,9 +1,13 @@
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
-import { UpscalerSteps } from "../_components/upscaler-steps";
 
-export const dynamic = "force-dynamic";
+const UpscalerSteps = nextDynamic(() => import("../_components/upscaler-steps").then((mod) => mod.UpscalerSteps), {
+  loading: () => <div className="stack skeleton-block" style={{ minHeight: "320px" }} />,
+});
+
+export const revalidate = 60;
 
 export default async function UpscalerPage() {
   const supabase = await createSupabaseServerClient();

@@ -1,12 +1,17 @@
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { HardDrive } from "lucide-react";
-import { DriveVisualManager } from "./drive-visual-manager";
 import { EmptyState } from "@/components/operator/empty-state";
+import { SkeletonDriveGrid } from "@/components/operator/loading-skeleton";
 import { resolveDriveImageDetailUrl, resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getActiveWorkspaceDriveScope } from "@/lib/server/drive-workspace-scope";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+const DriveVisualManager = nextDynamic(() => import("./drive-visual-manager").then((mod) => mod.DriveVisualManager), {
+  loading: () => <SkeletonDriveGrid count={12} />,
+});
+
+export const revalidate = 30;
 const DRIVE_INITIAL_SCOPE_LIMIT = 500;
 
 export default async function DrivePage() {

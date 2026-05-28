@@ -23,7 +23,7 @@ import { ControllerMobileRedirect } from "./controller-mobile-redirect";
 import { ControllerWorkflowStepper, type ControllerWorkflowStepperStep } from "./controller-workflow-stepper";
 import { formatAppDateKey, formatAppDateTime } from "@/lib/app-time";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const PROMPT_READY_BATCH_STATUSES = new Set<FlowBatchStatus>(["READY_TO_EXPORT", "EXPORTED"]);
 const FLOW_RUNNING_BATCH_STATUSES = new Set<FlowBatchStatus>(["RUNNING"]);

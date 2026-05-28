@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AiMediaUsageContent } from "./usage-content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function AiMediaUsagePage() {
   const supabase = await createSupabaseServerClient();

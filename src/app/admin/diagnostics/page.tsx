@@ -6,7 +6,7 @@ import { DiagnosticsStuckTasksTable } from "./stuck-tasks-table";
 import { DiagnosticsKeyPoolTable } from "./key-pool-table";
 import { DiagnosticsRecentErrorsList } from "./recent-errors-list";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 15;
 
 export default async function DiagnosticsPage() {
   const data = await fetchDiagnosticsData();

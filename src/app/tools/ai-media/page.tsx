@@ -1,8 +1,12 @@
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { AiMediaOverviewContent } from "./_components/ai-media-overview-content";
 
-export const dynamic = "force-dynamic";
+const AiMediaOverviewContent = nextDynamic(() => import("./_components/ai-media-overview-content").then((mod) => mod.AiMediaOverviewContent), {
+  loading: () => <div className="stack skeleton-block" style={{ minHeight: "400px" }} />,
+});
+
+export const revalidate = 60;
 
 export default async function AiMediaPage() {
   const supabase = await createSupabaseServerClient();

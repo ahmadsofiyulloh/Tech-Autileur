@@ -5,7 +5,7 @@ import type { ExternalGenerationToolType, ExternalTaskStatus } from "@/lib/serve
 import { AiMediaPageHeader } from "../_components/ai-media-page-header";
 import { AiMediaHistoryBoard } from "./history-board";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const VALID_TOOL_TYPES: ExternalGenerationToolType[] = ["MOTION_CONTROL", "IMAGE_TO_VIDEO", "UPSCALER"];
 const VALID_STATUSES: ExternalTaskStatus[] = [

@@ -19,7 +19,7 @@ import { ShareDetailPanel } from "./share-detail-panel";
 import { ShareProductList } from "./share-product-list";
 import { generateShareCaption } from "./actions";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 type SharePlatformPageProps = {
   params: Promise<{
@@ -115,19 +115,18 @@ export default async function SharePlatformPage({ params, searchParams }: ShareP
   const fromParam = firstParam(query.from);
   const versionParam = firstParam(query.version);
 
-  const latestGeneration = selectedRow
-    ? await getLatestShareGeneration({
-        productId: selectedRow.id,
-        platform,
-      })
-    : null;
-
-  const generations = selectedRow && latestGeneration
-    ? await listShareGenerationHistory({
-        productId: selectedRow.id,
-        platform,
-      })
-    : [];
+  const [latestGeneration, generations] = selectedRow
+    ? await Promise.all([
+        getLatestShareGeneration({
+          productId: selectedRow.id,
+          platform,
+        }),
+        listShareGenerationHistory({
+          productId: selectedRow.id,
+          platform,
+        }),
+      ])
+    : [null, []];
 
   const prefillGeneration = fromParam
     ? generations.find((g) => g.id === fromParam) ?? null

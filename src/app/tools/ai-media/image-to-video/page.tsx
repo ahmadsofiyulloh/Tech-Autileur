@@ -1,9 +1,13 @@
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
-import { ImageToVideoSteps } from "../_components/image-to-video-steps";
 
-export const dynamic = "force-dynamic";
+const ImageToVideoSteps = nextDynamic(() => import("../_components/image-to-video-steps").then((mod) => mod.ImageToVideoSteps), {
+  loading: () => <div className="stack skeleton-block" style={{ minHeight: "320px" }} />,
+});
+
+export const revalidate = 60;
 
 export default async function ImageToVideoPage() {
   const supabase = await createSupabaseServerClient();

@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { SectionCard } from "@/components/operator/section-card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function OutputsPage() {
   const supabase = await createSupabaseServerClient();

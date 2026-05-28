@@ -1,9 +1,13 @@
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAiMediaOverviewSnapshot } from "@/lib/server/ai-media";
-import { MotionControlSteps } from "../_components/motion-control-steps";
 
-export const dynamic = "force-dynamic";
+const MotionControlSteps = nextDynamic(() => import("../_components/motion-control-steps").then((mod) => mod.MotionControlSteps), {
+  loading: () => <div className="stack skeleton-block" style={{ minHeight: "320px" }} />,
+});
+
+export const revalidate = 60;
 
 export default async function MotionControlPage() {
   const supabase = await createSupabaseServerClient();

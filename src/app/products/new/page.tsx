@@ -1,8 +1,8 @@
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
-import { BulkImportPanel } from "./bulk-import-panel";
-import { IntakeWorkflowForm } from "./intake-workflow-form";
 import { EmptyState } from "@/components/operator/empty-state";
+import { SkeletonIntakeStepper } from "@/components/operator/loading-skeleton";
 import { SectionCard } from "@/components/operator/section-card";
 import { listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { resolveAffiliateProfileAvatar } from "@/lib/server/affiliate-profile-avatars";
@@ -16,7 +16,15 @@ import { listProductMarketplaceSources } from "@/lib/server/product-marketplace-
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatAppDateTime } from "@/lib/app-time";
 
-export const dynamic = "force-dynamic";
+const IntakeWorkflowForm = nextDynamic(() => import("./intake-workflow-form").then((mod) => mod.IntakeWorkflowForm), {
+  loading: () => <SkeletonIntakeStepper />,
+});
+
+const BulkImportPanel = nextDynamic(() => import("./bulk-import-panel").then((mod) => mod.BulkImportPanel), {
+  loading: () => <div className="skeleton-block" style={{ minHeight: "200px" }} />,
+});
+
+export const revalidate = 60;
 
 type NewProductPageProps = {
   searchParams: Promise<{
@@ -99,8 +107,9 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   let driveItems: Awaited<ReturnType<typeof listDriveItems>> = [];
   let intakeSessions: Awaited<ReturnType<typeof listIntakeSessions>> = [];
   let products: Awaited<ReturnType<typeof listProducts>> = [];
-  let promptSourceImages: Awaited<ReturnType<typeof listProductImages>> = [];
-  let marketplaceSources: Awaited<ReturnType<typeof listProductMarketplaceSources>> = [];
+  let selectedSessionSourceImages: Awaited<ReturnType<typeof listProductImages>> = [];
+  let selectedSessionMarketplaceSources: Awaited<ReturnType<typeof listProductMarketplaceSources>> = [];
+  let draftQueueMarketplaceSources: Awaited<ReturnType<typeof listProductMarketplaceSources>> = [];
 
   try {
     [currentWorkspace, selectedSession, workspaces] = await Promise.all([
@@ -111,20 +120,31 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
     const workspaceId = currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined;
 
-    [affiliateProfiles, driveItems, intakeSessions, products, marketplaceSources] = await Promise.all([
+    [affiliateProfiles, driveItems] = await Promise.all([
       listAffiliateProfiles({
         workspaceId: currentWorkspace?.id ?? undefined,
         status: "ACTIVE",
-        limit: 50,
+        limit: 25,
       }),
-      listDriveItems({ limit: 200 }),
-      listIntakeSessions({ workspaceId, limit: 50 }),
-      listProducts({ workspaceId, limit: 200 }),
-      listProductMarketplaceSources({ workspaceId, limit: 200 }),
+      listDriveItems({ limit: 100 }),
     ]);
 
     if (selectedSession?.product_id) {
-      promptSourceImages = await listProductImages({ productId: selectedSession.product_id, limit: 50 });
+      const [sourceImages, marketplaceSources] = await Promise.all([
+        listProductImages({ productId: selectedSession.product_id, limit: 20 }),
+        listProductMarketplaceSources({ productId: selectedSession.product_id, limit: 20 }),
+      ]);
+
+      selectedSessionSourceImages = sourceImages;
+      selectedSessionMarketplaceSources = marketplaceSources;
+    }
+
+    if (!selectedSession) {
+      [intakeSessions, products, draftQueueMarketplaceSources] = await Promise.all([
+        listIntakeSessions({ workspaceId, limit: 20 }),
+        listProducts({ workspaceId, limit: 100 }),
+        listProductMarketplaceSources({ workspaceId, limit: 100 }),
+      ]);
     }
 
     const referencedDriveItems = await listDriveItemsByIds([
@@ -134,8 +154,8 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
       ]),
       selectedSession?.product_photo_drive_item_ref_id,
       selectedSession?.screenshot_drive_item_ref_id,
-      ...promptSourceImages.map((image) => image.drive_item_ref_id),
-      ...marketplaceSources.map((source) => source.screenshot_drive_item_ref_id),
+      ...selectedSessionSourceImages.map((image) => image.drive_item_ref_id),
+      ...(selectedSession ? selectedSessionMarketplaceSources : draftQueueMarketplaceSources).map((source) => source.screenshot_drive_item_ref_id),
     ]);
     driveItems = mergeDriveItemsById(driveItems, referencedDriveItems);
   } catch (error) {
@@ -150,11 +170,6 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   const visibleWorkspaces = workspaces.filter((workspace) => workspace.status !== "ARCHIVED");
   const visibleDriveItems = driveItems.filter((item) => item.status !== "ARCHIVED");
-  const activeProductIds = new Set(products.filter((product) => product.status !== "ARCHIVED").map((product) => product.id));
-
-  if (selectedSession?.product_id && !activeProductIds.has(selectedSession.product_id)) {
-    selectedSession = null;
-  }
 
   const workspaceMap = new Map(visibleWorkspaces.map((workspace) => [workspace.id, workspace]));
   const driveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
@@ -176,23 +191,13 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   const selectedPromptAffiliateProfile = selectedAffiliateProfileId
     ? affiliateProfiles.find((profile) => profile.id === selectedAffiliateProfileId) ?? null
     : null;
-  const selectedSourceImage = promptSourceImages.find((image) => image.is_primary) ?? promptSourceImages[0] ?? null;
+  const selectedSourceImage = selectedSessionSourceImages.find((image) => image.is_primary) ?? selectedSessionSourceImages[0] ?? null;
   const selectedSessionDriveItemMap = new Map(visibleDriveItems.map((item) => [item.id, item]));
-  const marketplaceSourcesByProductId = new Map<string, Array<(typeof marketplaceSources)[number]>>();
-
-  for (const source of marketplaceSources) {
-    const sources = marketplaceSourcesByProductId.get(source.product_id) ?? [];
-    sources.push(source);
-    marketplaceSourcesByProductId.set(source.product_id, sources);
-  }
 
   const selectedSessionProductPreviewUrl =
-    selectedSession?.product_photo_drive_item_ref_id
+      selectedSession?.product_photo_drive_item_ref_id
       ? resolveDriveImagePreviewUrl(selectedSessionDriveItemMap.get(selectedSession.product_photo_drive_item_ref_id) ?? null)
       : null;
-  const selectedSessionMarketplaceSources = selectedSession?.product_id
-    ? marketplaceSourcesByProductId.get(selectedSession.product_id) ?? []
-    : [];
   const selectedSessionShopeeSource = selectedSessionMarketplaceSources.find((source) => source.platform === "SHOPEE") ?? null;
   const selectedSessionTiktokSource = selectedSessionMarketplaceSources.find((source) => source.platform === "TIKTOK") ?? null;
   const selectedSessionShopeePreviewUrl =
@@ -220,44 +225,47 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
   const initialStep = requestedStep === "prompt" && selectedSession ? "prompt" : "intake";
   const postSaveDecisionOpen = requestedPostSave === "1" && Boolean(selectedSession);
   const savedSessionWorkspaceName = selectedSession ? workspaceLabel(selectedSession.workspace_id, workspaceMap) : null;
-  const draftQueue = intakeSessions
-    .filter((session) => {
-      if (session.id === selectedSession?.id || !session.product_id) {
-        return false;
-      }
+  const activeProductIds = !selectedSession ? new Set(products.filter((product) => product.status !== "ARCHIVED").map((product) => product.id)) : null;
+  const draftQueue = !selectedSession
+    ? intakeSessions
+        .filter((session) => {
+          if (!session.product_id) {
+            return false;
+          }
 
-      if (!activeProductIds.has(session.product_id)) {
-        return false;
-      }
+          if (!activeProductIds?.has(session.product_id)) {
+            return false;
+          }
 
-      return session.status === "DRAFT" || session.status === "SUBMITTED" || session.status === "NEEDS_REVIEW" || session.status === "ERROR";
-    })
-    .slice(0, 5)
-    .map((session) => {
-      const sessionSources = session.product_id ? marketplaceSourcesByProductId.get(session.product_id) ?? [] : [];
-      const shopeeSource = sessionSources.find((source) => source.platform === "SHOPEE") ?? null;
-      const tiktokSource = sessionSources.find((source) => source.platform === "TIKTOK") ?? null;
-      const productImagePreviewUrl = session.product_photo_drive_item_ref_id
-        ? resolveDriveImagePreviewUrl(selectedSessionDriveItemMap.get(session.product_photo_drive_item_ref_id) ?? null)
-        : null;
+          return session.status === "DRAFT" || session.status === "SUBMITTED" || session.status === "NEEDS_REVIEW" || session.status === "ERROR";
+        })
+        .slice(0, 5)
+        .map((session) => {
+          const sessionSources = session.product_id ? draftQueueMarketplaceSources.filter((source) => source.product_id === session.product_id) : [];
+          const shopeeSource = sessionSources.find((source) => source.platform === "SHOPEE") ?? null;
+          const tiktokSource = sessionSources.find((source) => source.platform === "TIKTOK") ?? null;
+          const productImagePreviewUrl = session.product_photo_drive_item_ref_id
+            ? resolveDriveImagePreviewUrl(selectedSessionDriveItemMap.get(session.product_photo_drive_item_ref_id) ?? null)
+            : null;
 
-      return {
-        id: session.id,
-        productId: session.product_id,
-        title: session.product_title || session.intake_code,
-        status: session.status,
-        errorMessage: session.error_message,
-        createdAtLabel: formatQueueDate(session.created_at),
-        productImagePreviewUrl,
-        shopeeReady: Boolean(shopeeSource?.screenshot_drive_item_ref_id || session.screenshot_drive_item_ref_id),
-        tiktokReady: Boolean(tiktokSource?.screenshot_drive_item_ref_id),
-        continueHref: intakeContinueHref({
-          affiliateProfileId: selectedAffiliateProfileId,
-          intakeId: session.id,
-          showAllWorkspaces,
-        }),
-      };
-    });
+          return {
+            id: session.id,
+            productId: session.product_id,
+            title: session.product_title || session.intake_code,
+            status: session.status,
+            errorMessage: session.error_message,
+            createdAtLabel: formatQueueDate(session.created_at),
+            productImagePreviewUrl,
+            shopeeReady: Boolean(shopeeSource?.screenshot_drive_item_ref_id || session.screenshot_drive_item_ref_id),
+            tiktokReady: Boolean(tiktokSource?.screenshot_drive_item_ref_id),
+            continueHref: intakeContinueHref({
+              affiliateProfileId: selectedAffiliateProfileId,
+              intakeId: session.id,
+              showAllWorkspaces,
+            }),
+          };
+        })
+    : [];
 
   return (
     <div className="stack intake-native-page">

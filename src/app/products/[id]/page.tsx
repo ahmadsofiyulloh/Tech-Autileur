@@ -4,7 +4,7 @@ import { NativeLinkButton } from "@/components/ui/native-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProductDetailPanel, resolveProductDetailTab } from "../product-detail-panel";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 type ProductDetailPageProps = {
   params: Promise<{ id: string }>;

@@ -13,7 +13,7 @@ import { resolveDriveImagePreviewUrl } from "@/lib/server/drive-image-previews";
 import { getWorkspaceSelectionState, isWorkspaceSchemaMissingError, type WorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Akun Affiliate tidak tersedia.";
