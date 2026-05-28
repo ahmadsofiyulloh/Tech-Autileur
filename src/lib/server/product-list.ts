@@ -464,6 +464,30 @@ function matchesUploadFilter(product: ProductListRow, filter: Exclude<ProductUpl
   return product.workflow_stage === "upload" && product.upload_scope === filter;
 }
 
+const PRODUCT_LIST_QUERY_COLUMNS =
+  "id, user_id, workspace_id, product_code, product_name, niche, marketplace, marketplace_product_link, status, workflow_status_json, created_at, updated_at";
+
+function sanitizeProductListSearch(search: string) {
+  return search.replace(/[%(),]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildProductListSearchFilter(search: string) {
+  const sanitized = sanitizeProductListSearch(search);
+
+  if (!sanitized) {
+    return null;
+  }
+
+  const pattern = `%${sanitized}%`;
+  return [
+    `product_name.ilike.${pattern}`,
+    `product_code.ilike.${pattern}`,
+    `niche.ilike.${pattern}`,
+    `marketplace.ilike.${pattern}`,
+    `marketplace_product_link.ilike.${pattern}`,
+  ].join(",");
+}
+
 async function loadAllProducts(input: {
   supabase: SupabaseServerClient;
   userId: string;
@@ -856,55 +880,50 @@ async function hydrateThumbnails(input: {
   });
 }
 
-export async function listProductListPage(input?: ProductListPageInput): Promise<ProductListPageResult> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Authentication required.");
-  }
-
-  const filter = input?.filter ?? "all";
-  const pageSize = Math.min(Math.max(input?.pageSize ?? PRODUCT_LIST_DESKTOP_PAGE_SIZE, 1), 50);
-  const requestedPage = Math.max(input?.page ?? 1, 1);
-  const search = (input?.search ?? "").trim().toLowerCase();
+async function listProductListPageLegacyForUser(input: {
+  supabase: SupabaseServerClient;
+  userId: string;
+  input?: ProductListPageInput;
+}): Promise<ProductListPageResult> {
+  const filter = input.input?.filter ?? "all";
+  const pageSize = Math.min(Math.max(input.input?.pageSize ?? PRODUCT_LIST_DESKTOP_PAGE_SIZE, 1), 50);
+  const requestedPage = Math.max(input.input?.page ?? 1, 1);
+  const search = (input.input?.search ?? "").trim().toLowerCase();
   const products = await loadAllProducts({
-    supabase,
-    userId: user.id,
-    workspaceId: input?.workspaceId,
+    supabase: input.supabase,
+    userId: input.userId,
+    workspaceId: input.input?.workspaceId,
   });
   const productIds = products.map((product) => product.id);
   const [workspaces, intakeSessions, promptPacks, contents] = await Promise.all([
-    loadWorkspaces({ supabase, userId: user.id }),
-    loadIntakeSessions({ supabase, userId: user.id, productIds }),
-    loadPromptPacks({ supabase, userId: user.id, productIds }),
-    loadContents({ supabase, userId: user.id, productIds }),
+    loadWorkspaces({ supabase: input.supabase, userId: input.userId }),
+    loadIntakeSessions({ supabase: input.supabase, userId: input.userId, productIds }),
+    loadPromptPacks({ supabase: input.supabase, userId: input.userId, productIds }),
+    loadContents({ supabase: input.supabase, userId: input.userId, productIds }),
   ]);
   const clipJobs = await loadClipJobs({
-    supabase,
-    userId: user.id,
+    supabase: input.supabase,
+    userId: input.userId,
     contentIds: contents.map((content) => content.id),
   });
   const aiTasks = await loadAiTasks({
-    supabase,
-    userId: user.id,
+    supabase: input.supabase,
+    userId: input.userId,
     taskIds: uniqueTextValues(promptPacks.map((pack) => pack.ai_task_id)),
   });
   const projectedRows = buildRows({
-    affiliateProfileId: input?.affiliateProfileId ?? null,
+    affiliateProfileId: input.input?.affiliateProfileId ?? null,
     aiTasks,
     clipJobs,
     contents,
     intakeSessions,
     promptPacks,
     products,
-    showAllWorkspaces: input?.showAllWorkspaces ?? false,
+    showAllWorkspaces: input.input?.showAllWorkspaces ?? false,
     workspaces,
   });
   const searchedRows = search ? projectedRows.filter((row) => row.search_text.includes(search)) : projectedRows;
-  const filteredRows = searchedRows.filter((row) => matchesProductFilter(row, filter) && matchesUploadFilter(row, input?.uploadFilter ?? null));
+  const filteredRows = searchedRows.filter((row) => matchesProductFilter(row, filter) && matchesUploadFilter(row, input.input?.uploadFilter ?? null));
 
   filteredRows.sort((left, right) => {
     const activityDiff = timestampOf(right.latest_activity_at) - timestampOf(left.latest_activity_at);
@@ -925,6 +944,197 @@ export async function listProductListPage(input?: ProductListPageInput): Promise
   const pageRows = filteredRows.slice(from, from + pagination.pageSize).map((row) => ({
     ...row,
     href: buildProductListHref({
+      affiliateProfileId: input.input?.affiliateProfileId,
+      detailId: row.id,
+      filter,
+      page: pagination.page,
+      search: input.input?.search,
+      showAllWorkspaces: input.input?.showAllWorkspaces,
+      tab: "output",
+      uploadFilter: input.input?.uploadFilter,
+    }),
+  }));
+  const rows = await hydrateThumbnails({
+    rows: pageRows,
+    supabase: input.supabase,
+    userId: input.userId,
+  });
+
+  return {
+    rows,
+    pagination,
+    totalProductCount: products.length,
+  };
+}
+
+export async function listProductListPageForUser(
+  userId: string,
+  input?: ProductListPageInput,
+  supabase?: SupabaseServerClient,
+): Promise<ProductListPageResult> {
+  const client = supabase ?? (await createSupabaseServerClient());
+
+  if (input?.uploadFilter) {
+    return listProductListPageLegacyForUser({
+      supabase: client,
+      userId,
+      input,
+    });
+  }
+
+  const filter = input?.filter ?? "all";
+  const pageSize = Math.min(Math.max(input?.pageSize ?? PRODUCT_LIST_DESKTOP_PAGE_SIZE, 1), 50);
+  const requestedPage = Math.max(input?.page ?? 1, 1);
+  const search = (input?.search ?? "").trim().toLowerCase();
+  const searchFilter = search ? buildProductListSearchFilter(search) : null;
+
+  let countQuery = client
+    .from("products")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .neq("status", "ARCHIVED");
+
+  if (input?.workspaceId) {
+    countQuery = countQuery.eq("workspace_id", input.workspaceId);
+  }
+
+  if (searchFilter) {
+    countQuery = countQuery.or(searchFilter);
+  }
+
+  if (filter !== "all") {
+    switch (filter) {
+      case "draft":
+        countQuery = countQuery.eq("status", "DRAFT");
+        break;
+      case "analysis":
+        countQuery = countQuery.in("status", ["IMAGE_ATTACHED", "IMAGE_ANALYZED"]);
+        break;
+      case "prompt":
+        countQuery = countQuery.eq("status", "PROMPT_READY");
+        break;
+      case "video":
+        countQuery = countQuery.in("status", ["IN_PRODUCTION", "READY_FOR_UPLOAD"]);
+        break;
+      case "upload":
+        countQuery = countQuery.eq("status", "UPLOADED");
+        break;
+      default:
+        break;
+    }
+  }
+
+  const { count, error: countError } = await countQuery;
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  const pagination = createPaginationState({
+    page: requestedPage,
+    pageSize,
+    totalCount: count ?? 0,
+  });
+
+  if (!count) {
+    return {
+      rows: [],
+      pagination,
+      totalProductCount: 0,
+    };
+  }
+
+  let productQuery = client
+    .from("products")
+    .select(PRODUCT_LIST_QUERY_COLUMNS)
+    .eq("user_id", userId)
+    .neq("status", "ARCHIVED");
+
+  if (input?.workspaceId) {
+    productQuery = productQuery.eq("workspace_id", input.workspaceId);
+  }
+
+  if (searchFilter) {
+    productQuery = productQuery.or(searchFilter);
+  }
+
+  if (filter !== "all") {
+    switch (filter) {
+      case "draft":
+        productQuery = productQuery.eq("status", "DRAFT");
+        break;
+      case "analysis":
+        productQuery = productQuery.in("status", ["IMAGE_ATTACHED", "IMAGE_ANALYZED"]);
+        break;
+      case "prompt":
+        productQuery = productQuery.eq("status", "PROMPT_READY");
+        break;
+      case "video":
+        productQuery = productQuery.in("status", ["IN_PRODUCTION", "READY_FOR_UPLOAD"]);
+        break;
+      case "upload":
+        productQuery = productQuery.eq("status", "UPLOADED");
+        break;
+      default:
+        break;
+    }
+  }
+
+  const from = (pagination.page - 1) * pagination.pageSize;
+  const to = from + pagination.pageSize - 1;
+  const { data: visibleProducts, error: productsError } = await productQuery
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+
+  if (productsError) {
+    throw new Error(productsError.message);
+  }
+
+  const products = (visibleProducts ?? []) as ProductRecord[];
+  const productIds = products.map((product) => product.id);
+  const [workspaces, intakeSessions, promptPacks, contents] = await Promise.all([
+    loadWorkspaces({ supabase: client, userId }),
+    loadIntakeSessions({ supabase: client, userId, productIds }),
+    loadPromptPacks({ supabase: client, userId, productIds }),
+    loadContents({ supabase: client, userId, productIds }),
+  ]);
+  const clipJobs = await loadClipJobs({
+    supabase: client,
+    userId,
+    contentIds: contents.map((content) => content.id),
+  });
+  const aiTasks = await loadAiTasks({
+    supabase: client,
+    userId,
+    taskIds: uniqueTextValues(promptPacks.map((pack) => pack.ai_task_id)),
+  });
+  const projectedRows = buildRows({
+    affiliateProfileId: input?.affiliateProfileId ?? null,
+    aiTasks,
+    clipJobs,
+    contents,
+    intakeSessions,
+    promptPacks,
+    products,
+    showAllWorkspaces: input?.showAllWorkspaces ?? false,
+    workspaces,
+  });
+
+  projectedRows.sort((left, right) => {
+    const activityDiff = timestampOf(right.latest_activity_at) - timestampOf(left.latest_activity_at);
+
+    if (activityDiff !== 0) {
+      return activityDiff;
+    }
+
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
+
+  const pageRows = projectedRows.map((row) => ({
+    ...row,
+    href: buildProductListHref({
       affiliateProfileId: input?.affiliateProfileId,
       detailId: row.id,
       filter,
@@ -937,13 +1147,26 @@ export async function listProductListPage(input?: ProductListPageInput): Promise
   }));
   const rows = await hydrateThumbnails({
     rows: pageRows,
-    supabase,
-    userId: user.id,
+    supabase: client,
+    userId,
   });
 
   return {
     rows,
     pagination,
-    totalProductCount: products.length,
+    totalProductCount: count ?? 0,
   };
+}
+
+export async function listProductListPage(input?: ProductListPageInput): Promise<ProductListPageResult> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Authentication required.");
+  }
+
+  return listProductListPageForUser(user.id, input, supabase);
 }

@@ -3,14 +3,14 @@ import { SkeletonFilterTabs, SkeletonInlineSummary, SkeletonPromptCards, Skeleto
 export default function LoadingPromptsPage() {
   return (
     <div className="operator-detail-layout" aria-busy="true">
-      <div className="operator-detail-layout__list stack prompt-page-stack">
+      <div className="stack prompt-page-stack prompt-workbench-layout__chrome">
         <SkeletonSearchToolbar />
         <SkeletonInlineSummary action={true} />
         <SkeletonFilterTabs count={8} className="desktop-action-set" />
-        <section className="stack" aria-label="Memuat paket prompt">
-          <SkeletonPromptCards count={10} />
-        </section>
       </div>
+      <section className="stack prompt-workbench-section-fallback" aria-label="Memuat paket prompt">
+        <SkeletonPromptCards count={10} />
+      </section>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowLeft, ArrowRight, Check, Edit3, FileText, Package, Plus, Search, Square, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, ArrowRight, Check, Edit3, FileText, Package, Search, Square, Trash2 } from "lucide-react";
 import { ActionToolbar } from "@/components/operator/action-toolbar";
 import { EmptyState } from "@/components/operator/empty-state";
 import { FilterChips } from "@/components/operator/filter-chips";

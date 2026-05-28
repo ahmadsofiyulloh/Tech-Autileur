@@ -7,6 +7,7 @@ import {
   type PromptReadinessProjectionRow,
 } from "@/lib/server/prompt-readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import {
   PROMPT_WORKBENCH_PAGE_SIZE,
   formatPromptWorkbenchActivityLabel,
@@ -38,6 +39,10 @@ export type PromptWorkbenchPageResult = {
   hasPreviousPage: boolean;
   hasNextPage: boolean;
   counts: PromptWorkbenchReadinessCounts;
+  workspaceId: string | null;
+  workspaceLabel: string;
+  affiliateProfiles: Awaited<ReturnType<typeof listAffiliateProfiles>>;
+  currentAffiliateProfile: Awaited<ReturnType<typeof getDefaultAffiliateProfileForWorkspace>>;
 };
 
 const PROMPT_WORKBENCH_PRODUCT_ID_BATCH_SIZE = 500;
@@ -212,31 +217,31 @@ async function collectPromptWorkbenchPageRows(input: {
   return collector.finish();
 }
 
-export async function listPromptWorkbenchPage(input?: PromptWorkbenchPageInput): Promise<PromptWorkbenchPageResult> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Authentication required.");
-  }
-
-  const search = normalizePromptWorkbenchSearch(input?.search);
-  const pageSize = clampPageSize(input?.pageSize);
-  let page = normalizePage(input?.page);
+export async function listPromptWorkbenchPageForUser(
+  userId: string,
+  input?: PromptWorkbenchPageInput,
+  supabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+): Promise<PromptWorkbenchPageResult> {
+  const client = supabase ?? (await createSupabaseServerClient());
+  const resolvedWorkspace =
+    input?.workspaceId === undefined ? await getCurrentWorkspace() : null;
+  const workspaceId = input?.workspaceId ?? resolvedWorkspace?.id ?? null;
+  const workspaceLabel = resolvedWorkspace?.workspace_name ?? "Workspace aktif";
   const [defaultAffiliateProfile, affiliateProfiles] = await Promise.all([
-    getDefaultAffiliateProfileForWorkspace(input?.workspaceId ?? null),
-    listAffiliateProfiles({ workspaceId: input?.workspaceId, status: "ACTIVE", limit: 200 }),
+    getDefaultAffiliateProfileForWorkspace(workspaceId),
+    listAffiliateProfiles({ workspaceId, status: "ACTIVE", limit: 200 }),
   ]);
   const affiliateProfileContext: PromptReadinessProjectionContext = {
     defaultAffiliateProfile,
     affiliateProfiles,
   };
+  const search = normalizePromptWorkbenchSearch(input?.search);
+  const pageSize = clampPageSize(input?.pageSize);
+  let page = normalizePage(input?.page);
   let scanResult = await collectPromptWorkbenchPageRows({
-    supabase,
-    userId: user.id,
-    workspaceId: input?.workspaceId,
+    supabase: client,
+    userId,
+    workspaceId,
     search,
     page,
     pageSize,
@@ -248,9 +253,9 @@ export async function listPromptWorkbenchPage(input?: PromptWorkbenchPageInput):
   if (scanResult.totalCount > 0 && page > totalPages) {
     page = totalPages;
     scanResult = await collectPromptWorkbenchPageRows({
-      supabase,
-      userId: user.id,
-      workspaceId: input?.workspaceId,
+      supabase: client,
+      userId,
+      workspaceId,
       search,
       page,
       pageSize,
@@ -269,5 +274,22 @@ export async function listPromptWorkbenchPage(input?: PromptWorkbenchPageInput):
     hasPreviousPage: page > 1,
     hasNextPage: page < totalPages,
     counts: scanResult.counts,
+    workspaceId,
+    workspaceLabel,
+    affiliateProfiles,
+    currentAffiliateProfile: defaultAffiliateProfile,
   };
+}
+
+export async function listPromptWorkbenchPage(input?: PromptWorkbenchPageInput): Promise<PromptWorkbenchPageResult> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Authentication required.");
+  }
+
+  return listPromptWorkbenchPageForUser(user.id, input, supabase);
 }

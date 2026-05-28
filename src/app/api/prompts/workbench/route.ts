@@ -1,7 +1,5 @@
-import { getDefaultAffiliateProfileForWorkspace, listAffiliateProfiles } from "@/lib/server/affiliate-profiles";
 import { listDriveItemsByIds } from "@/lib/server/drive-items";
-import { listPromptWorkbenchPage } from "@/lib/server/prompt-workbench";
-import { getCurrentWorkspace } from "@/lib/server/workspaces";
+import { listPromptWorkbenchPageForUser } from "@/lib/server/prompt-workbench";
 import {
   normalizePromptWorkbenchPage,
   normalizePromptWorkbenchReadinessFilter,
@@ -118,20 +116,15 @@ export async function GET(request: Request) {
     const requestedProductId = url.searchParams.get("product_id");
     const requestedReadiness = normalizePromptWorkbenchReadinessFilter(url.searchParams.get("readiness") ?? undefined);
     const requestedSearch = normalizePromptWorkbenchSearch(url.searchParams.get("q") ?? undefined);
-    const currentWorkspace = await getCurrentWorkspace();
-    const workspaceId = currentWorkspace?.id ?? undefined;
-    const promptPage = await listPromptWorkbenchPage({
-      workspaceId,
+    const promptPage = await listPromptWorkbenchPageForUser(user.id, {
       readiness: requestedReadiness,
       search: requestedSearch,
       page: normalizePromptWorkbenchPage(url.searchParams.get("page") ?? undefined),
       pageSize: normalizePageSize(url.searchParams.get("page_size")),
-    });
-    const [affiliateProfiles, currentAffiliateProfile] = await Promise.all([
-      listAffiliateProfiles({ workspaceId, status: "ACTIVE", limit: 200 }),
-      getDefaultAffiliateProfileForWorkspace(workspaceId ?? null),
-    ]);
-    const affiliateProfileMap = new Map(affiliateProfiles.map((profile) => [profile.id, profile]));
+    }, supabase);
+    const affiliateProfileMap = new Map(promptPage.affiliateProfiles.map((profile) => [profile.id, profile]));
+    const currentAffiliateProfile = promptPage.currentAffiliateProfile;
+    const currentWorkspaceLabel = promptPage.workspaceLabel ?? "Workspace aktif";
     const promptTaskIds = Array.from(
       new Set(promptPage.rows.map((row) => row.promptPack?.ai_task_id).filter((value): value is string => Boolean(value))),
     );
@@ -178,7 +171,6 @@ export async function GET(request: Request) {
     const driveItems = driveItemIds.length ? await listDriveItemsByIds(driveItemIds) : [];
     const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
     const currentAffiliateProfileLabel = currentAffiliateProfile?.profile_name ?? "Belum ada profile aktif";
-    const currentWorkspaceLabel = currentWorkspace?.workspace_name ?? "Workspace aktif";
     const returnHref = buildPromptsHref({
       affiliateProfileId: requestedAffiliateProfileId,
       intakeId: requestedIntakeId,

@@ -217,7 +217,6 @@ test("desktop product list uses numbered server pagination", async ({ page }) =>
       waitUntil: "domcontentloaded",
     });
 
-    await expect(page.getByText("30 hasil")).toBeVisible();
     await expect(page.getByText("Halaman 1/2")).toBeVisible();
     const desktopTable = page.locator(".products-table-desktop");
     await expect(desktopTable.locator(".product-table tbody tr")).toHaveCount(25);

@@ -5,13 +5,11 @@ import { EmptyState } from "@/components/operator/empty-state";
 import { ErrorState } from "@/components/operator/error-state";
 import { NativeLinkButton } from "@/components/ui/native-button";
 import { buildProductListHref, PRODUCT_LIST_DESKTOP_PAGE_SIZE, normalizeProductListFilter, normalizeProductListPage, normalizeProductListSearch, normalizeProductUploadFilter } from "@/lib/products/product-list-contract";
-import { listProductListPage } from "@/lib/server/product-list";
+import { listProductListPageForUser } from "@/lib/server/product-list";
 import { getCurrentWorkspace } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProductDetailPanel, resolveProductDetailTab } from "./product-detail-panel";
 import { ProductList } from "./product-list";
-
-export const dynamic = "force-dynamic";
 
 type ProductsPageProps = {
   searchParams: Promise<{
@@ -51,11 +49,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const showAllWorkspaces = firstParam(query.workspace) === "all";
 
   let currentWorkspace: Awaited<ReturnType<typeof getCurrentWorkspace>> | null = null;
-  let productPage: Awaited<ReturnType<typeof listProductListPage>> | null = null;
+  let productPage: Awaited<ReturnType<typeof listProductListPageForUser>> | null = null;
 
   try {
     currentWorkspace = await getCurrentWorkspace();
-    productPage = await listProductListPage({
+    productPage = await listProductListPageForUser(user.id, {
       affiliateProfileId: requestedAffiliateProfileId,
       filter: requestedFilter,
       page: requestedPage,
@@ -64,7 +62,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       showAllWorkspaces,
       uploadFilter: requestedUploadFilter,
       workspaceId: currentWorkspace && !showAllWorkspaces ? currentWorkspace.id : undefined,
-    });
+    }, supabase);
   } catch {
     return (
       <ErrorState icon={Package} title="Produk tidak bisa dimuat." description="Coba lagi." />
