@@ -16,6 +16,28 @@ Range: `origin/main..HEAD`
 - `753aff5` test(e2e): align specs with prompt and share refactors
 <!-- changelog:generated:end -->
 
+## 2026-05-28 - Next Typegen Route Reference Normalization
+
+- Mengarahkan [next-env.d.ts](C:/Project%20Autiluer/next-env.d.ts) ke `.next/types/routes.d.ts` agar typecheck memakai output build yang stabil, bukan referensi `.next/dev` yang bisa berisi artefak generated rusak saat cache dev bergeser.
+
+## 2026-05-28 - PERF-08 Shell Context Deferral
+
+- Memindahkan lookup profile shell dari [src/app/layout.tsx](C:/Project%20Autiluer/src/app/layout.tsx) ke endpoint JSON baru [src/app/api/operator/shell-context/route.ts](C:/Project%20Autiluer/src/app/api/operator/shell-context/route.ts), sehingga root shell tidak lagi menunggu data profile sebelum route children dirender.
+- Menambahkan fetch client-side pada [src/components/operator/topbar-global-controls.tsx](C:/Project%20Autiluer/src/components/operator/topbar-global-controls.tsx) agar avatar/menu profil tetap terisi setelah mount tanpa memblokir shell awal.
+- Menjaga fallback shell tetap aman dengan `currentAffiliateProfile: null` saat data profile belum tersedia atau gagal dimuat.
+
+## 2026-05-28 - PERF-07 Intake Preload Slimming
+
+- Mengubah [src/app/products/new/page.tsx](C:/Project%20Autiluer/src/app/products/new/page.tsx) menjadi loader kondisional: jalur sesi terpilih hanya memuat data product-scope yang sempit, sedangkan jalur tanpa sesi baru memuat daftar draft yang memang dibutuhkan queue.
+- Menurunkan preload limit pada affiliate profiles, Drive, intake sessions, products, dan marketplace sources supaya render awal `/products/new` tidak menarik dataset yang lebih besar dari kebutuhan frame aktif.
+- Menjaga workflow capture, preview evidence, prompt readiness, dan draft queue tetap sama dari sisi UI.
+
+## 2026-05-28 - PERF-06 Drive Thumbnail Pressure Reduction
+
+- Menambahkan gate `deferUntilVisible` pada [src/components/operator/media-thumbnail-frame.tsx](C:/Project%20Autiluer/src/components/operator/media-thumbnail-frame.tsx) agar `<img>` thumbnail baru mount saat item benar-benar masuk viewport.
+- Mengaktifkan gate itu hanya pada tile dan list row Drive di [src/app/drive/drive-visual-manager.tsx](C:/Project%20Autiluer/src/app/drive/drive-visual-manager.tsx), sementara preview drawer tetap memuat media seperti sebelumnya saat item dibuka.
+- Mempertahankan fallback icon sehingga grid/list Drive tetap terasa stabil saat thumbnail belum aktif.
+
 ## 2026-05-27 - PROMPT-VOICEOVER-NONE-VALIDATION-01
 
 - Memperbaiki parser kontrak prompt I2V agar `audio.voiceover_timing: "none"` diterima ketika `voiceover_text` kosong pada mode Voice Over nonaktif.

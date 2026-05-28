@@ -1,0 +1,8 @@
+.shell-main{view-transition-name:shell-main-content}
+::view-transition-old(shell-main-content){animation:vt-fade-out 120ms ease-out}
+::view-transition-new(shell-main-content){animation:vt-fade-in 120ms ease-in}
+@keyframes vt-fade-out{to{opacity:0}}
+@keyframes vt-fade-in{from{opacity:0}}
+@media(prefers-reduced-motion:reduce){
+::view-transition-old(shell-main-content),::view-transition-new(shell-main-content){animation:none}
+}

@@ -5,7 +5,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { GeminiSettingsBoard, type GeminiKeyRecord } from "./gemini-settings-board";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function GeminiSettingsPage() {
   const supabase = await createSupabaseServerClient();

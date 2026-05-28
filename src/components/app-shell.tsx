@@ -2,7 +2,8 @@
 
 import { ChevronDown, LockKeyhole, PanelLeftClose, PanelLeftOpen, Workflow } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { NavLink } from "@/components/operator/nav-link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { BulkImportJobRunner } from "@/components/operator/bulk-import-job-runner";
 import { FeedbackDock } from "@/components/operator/feedback-dock";
@@ -66,9 +67,14 @@ function OperatorShellContent({
   themePreference: ThemePreference;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const shellMainRef = useRef<HTMLElement | null>(null);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  // Clear pending state when navigation completes
+  useEffect(() => { setPendingHref(null); }, [pathname]);
 
   useEffect(() => {
     try {
@@ -82,6 +88,17 @@ function OperatorShellContent({
       }
       setExpandedGroups(parsed);
     } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A3: Prefetch all mobile nav destinations after hydration
+  useEffect(() => {
+    const id = requestIdleCallback(() => {
+      for (const item of mobileNavItems) {
+        try { router.prefetch(item.href); } catch { /* best-effort */ }
+      }
+    });
+    return () => cancelIdleCallback(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -141,7 +158,8 @@ function OperatorShellContent({
             return (
               <div className="sidebar-nav__group" key={item.href} data-has-children={hasChildren ? "true" : undefined}>
                 <div className="sidebar-nav__group-row">
-                  <Link
+                  <NavLink
+                    aria-label={item.label}
                     aria-current={parentActive ? "page" : undefined}
                     className="nav-link sidebar-link sidebar-link--dense"
                     data-active={parentActive ? "true" : undefined}
@@ -152,7 +170,7 @@ function OperatorShellContent({
                       <span className="nav-link__label">{item.label}</span>
                       {item.badge ? <span className="nav-link__badge">{item.badge}</span> : null}
                     </span>
-                  </Link>
+                  </NavLink>
                   {hasChildren ? (
                     <button
                       type="button"
@@ -172,7 +190,8 @@ function OperatorShellContent({
                       const childActive = isActive(child.href);
 
                       return (
-                        <Link
+                        <NavLink
+                          aria-label={child.label}
                           aria-current={childActive ? "page" : undefined}
                           className="nav-link sidebar-link sidebar-link--dense sidebar-link--child"
                           data-active={childActive ? "true" : undefined}
@@ -183,7 +202,7 @@ function OperatorShellContent({
                           <span className="nav-link__label-group">
                             <span className="nav-link__label">{child.label}</span>
                           </span>
-                        </Link>
+                        </NavLink>
                       );
                     })}
                   </div>
@@ -241,21 +260,23 @@ function OperatorShellContent({
           const Icon = item.icon;
 
           return (
-            <Link
+            <NavLink
               aria-current={isActive(item.href) ? "page" : undefined}
               className="bottom-nav__link"
               data-active={isActive(item.href) ? "true" : undefined}
+              data-pending={pendingHref === item.href && !isActive(item.href) ? "true" : undefined}
               href={item.href}
               key={item.href}
+              onClick={() => setPendingHref(item.href)}
             >
               <Icon className="bottom-nav__icon" aria-hidden="true" size={19} />
               <span>{item.label}</span>
-            </Link>
+            </NavLink>
           );
         })}
       </nav>
       <FeedbackDock />
-      <BulkImportJobRunner />
+      {pathname.startsWith("/products") && <BulkImportJobRunner />}
     </div>
   );
 }

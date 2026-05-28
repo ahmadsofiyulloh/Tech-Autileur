@@ -13,7 +13,7 @@ import {
 } from "@/lib/server/dashboard-view-model";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 function progressStyle(percent: number) {
   return { "--dashboard-progress": `${Math.min(100, Math.max(0, percent))}%` } as CSSProperties;

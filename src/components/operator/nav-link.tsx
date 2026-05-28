@@ -22,13 +22,13 @@ export function NavLink({
   onMouseEnter,
   onMouseLeave,
   onFocus,
+  onTouchStart,
   ...rest
 }: NavLinkProps) {
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startPrefetch = useCallback(() => {
-    // Only prefetch string hrefs; UrlObject hrefs are handled by Link itself.
     if (typeof href !== "string") return;
     const target = href;
     if (timer.current) clearTimeout(timer.current);
@@ -39,6 +39,15 @@ export function NavLink({
         // router.prefetch is best-effort; ignore failures.
       }
     }, HOVER_PREFETCH_DEBOUNCE_MS);
+  }, [href, router]);
+
+  const immediatePrefetch = useCallback(() => {
+    if (typeof href !== "string") return;
+    try {
+      router.prefetch(href);
+    } catch {
+      // best-effort
+    }
   }, [href, router]);
 
   const cancelPrefetch = useCallback(() => {
@@ -70,6 +79,10 @@ export function NavLink({
       onMouseLeave={(event) => {
         cancelPrefetch();
         onMouseLeave?.(event);
+      }}
+      onTouchStart={(event) => {
+        immediatePrefetch();
+        onTouchStart?.(event);
       }}
     />
   );

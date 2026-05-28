@@ -7,15 +7,8 @@ import { listDriveItemsByIds } from "@/lib/server/drive-items";
 import { getWorkspaceSelectionState } from "@/lib/server/workspaces";
 import type { OperatorShellContext } from "@/components/operator/operator-shell-context";
 
-export async function getOperatorShellContext(): Promise<OperatorShellContext> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { currentAffiliateProfile: null };
-  }
+export async function loadOperatorShellContextForUser(userId: string): Promise<OperatorShellContext> {
+  void userId;
 
   try {
     const workspaceState = await getWorkspaceSelectionState();
@@ -47,4 +40,17 @@ export async function getOperatorShellContext(): Promise<OperatorShellContext> {
   } catch {
     return { currentAffiliateProfile: null };
   }
+}
+
+export async function getOperatorShellContext(): Promise<OperatorShellContext> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { currentAffiliateProfile: null };
+  }
+
+  return loadOperatorShellContextForUser(user.id);
 }

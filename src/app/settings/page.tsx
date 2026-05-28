@@ -31,7 +31,7 @@ import { APP_RELEASE } from "@/lib/server/app-release";
 import { getWorkspaceSelectionState } from "@/lib/server/workspaces";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Tidak dapat memuat pengaturan.";

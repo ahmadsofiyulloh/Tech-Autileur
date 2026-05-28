@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listMagnificKeys } from "@/lib/server/ai-media/keys";
 import { MagnificSettingsBoard } from "./magnific-settings-board";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function MagnificSettingsPage() {
   const supabase = await createSupabaseServerClient();

@@ -7,7 +7,7 @@ import { HelperApiTokenPanel } from "../helper-api-token-panel";
 import { getHelperApiToken, isHelperApiTokenSchemaMissingError, type HelperApiTokenRecord } from "@/lib/server/helper-api-tokens";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Account tidak tersedia.";

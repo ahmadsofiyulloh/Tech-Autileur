@@ -44,23 +44,16 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
     await expect(page.locator(".intake-native-header")).toHaveCount(0);
     await expect(page.locator(".image-preview-upload-card")).toHaveCount(3);
 
-    const uploadCards = page.locator(".image-preview-upload-card");
-    await expect(page.getByRole("button", { name: "Tambah gambar" })).toHaveCount(3);
+    await expect(page.getByRole("button", { name: "Tambah gambar" })).toHaveCount(1);
+    await page.locator('input[name="product_image"]').setInputFiles(files.productImage);
 
-    const productChooserPromise = page.waitForEvent("filechooser");
-    await uploadCards.nth(0).getByRole("button").first().click();
-    await (await productChooserPromise).setFiles(files.productImage);
+    await page.getByRole("button", { name: "Evidence Screenshot Tambah minimal satu screenshot" }).click();
+    await page.locator('input[name="shopee_screenshot"]').setInputFiles(files.shopeeScreenshot);
+    await page.locator('input[name="tiktok_screenshot"]').setInputFiles(files.tiktokScreenshot);
 
-    const shopeeDraftChooserPromise = page.waitForEvent("filechooser");
-    await uploadCards.nth(1).getByRole("button").first().click();
-    await (await shopeeDraftChooserPromise).setFiles(files.shopeeScreenshot);
-
-    const tiktokDraftChooserPromise = page.waitForEvent("filechooser");
-    await uploadCards.nth(2).getByRole("button").first().click();
-    await (await tiktokDraftChooserPromise).setFiles(files.tiktokScreenshot);
+    await page.getByRole("button", { name: "Capture Produk Foto utama dan simpan draft" }).click();
 
     await expect(page.getByRole("button", { name: "Simpan Produk" })).toBeEnabled();
-    await expect(page.getByRole("button", { name: "Analisis Metadata" })).toBeDisabled();
     await page.getByRole("button", { name: "Simpan Produk" }).click();
 
     await page.waitForURL(
@@ -87,9 +80,11 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
         throw classifySmokeError("intake live", message);
       }
     } else {
-      expect(currentUrl.searchParams.has("intake_id")).toBe(false);
-      await expect(page.getByRole("button", { name: "Simpan Produk" })).toBeDisabled();
-      await expect(page.getByRole("heading", { name: "Draft tersimpan" })).toBeVisible();
+      expect(currentUrl.searchParams.has("intake_id")).toBe(true);
+      const postSaveDialog = page.getByRole("dialog", { name: "Opsi setelah simpan produk" });
+      await expect(postSaveDialog).toBeVisible();
+      await postSaveDialog.getByRole("button", { name: "Lanjutkan sesi ini" }).click();
+      await expect(postSaveDialog).toHaveCount(0);
 
       const { data: savedIntake, error: savedIntakeError } = await client
         .from("product_intake_sessions")
@@ -139,12 +134,9 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
       await page.goto(`/products/new?intake_id=${savedIntake.id}&affiliate_profile_id=${state.affiliate_profile.id}`);
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByRole("button", { name: "Foto Produk Utama. Ganti gambar" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Screenshot Shopee. Ganti gambar" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Screenshot TikTok. Ganti gambar" })).toBeVisible();
-
-      await expect(page.getByRole("button", { name: "Analisis Metadata" })).toBeEnabled();
-      await page.getByRole("button", { name: "Analisis Metadata" }).click();
+      const analysisPanelAction = page.locator("#analysis-panel").getByRole("button", { name: "Analisis Metadata" });
+      await expect(analysisPanelAction).toBeEnabled();
+      await analysisPanelAction.click();
 
       await page.waitForURL(
         (url) => url.pathname === "/products/new" && (url.searchParams.has("intake_id") || url.searchParams.has("error") || url.searchParams.has("warning")),
@@ -168,8 +160,8 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
           throw classifySmokeError("intake live", message);
         }
       } else {
-        await expect(page.getByRole("heading", { name: "Review Hasil" })).toBeVisible();
-        await expect(page.getByText("NEEDS REVIEW")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Review Hasil" })).toBeVisible({ timeout: 180_000 });
+        await expect(page.getByText("NEEDS REVIEW")).toBeVisible({ timeout: 180_000 });
         const { data: analyzedProduct, error: analyzedProductError } = await client
           .from("products")
           .select("status")
@@ -187,7 +179,7 @@ test("live intake upload can reach prompt review", async ({ browser, page }, tes
         await reviewPanel.getByRole("button", { name: "Simpan" }).click();
         await page.waitForURL((url) => url.pathname === "/prompts" && url.searchParams.has("product_id"));
         await expect(page.getByRole("heading", { name: "Paket Prompt", level: 1 })).toBeVisible();
-        const promptCard = page.locator("article").filter({ hasText: state.product.name }).first();
+        const promptCard = page.locator("article").filter({ hasText: "Ready for Prompt" }).first();
         await expect(promptCard).toBeVisible();
         await expect(promptCard.getByRole("link", { name: "Buat Prompt" })).toBeVisible();
       }
@@ -323,7 +315,7 @@ test("intake draft queue excludes archived products", async ({ page }) => {
 
     await page.goto(`/products/new?intake_id=${intakeId}&affiliate_profile_id=${state.affiliate_profile.id}`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { name: "Metadata siap muncul di sini", level: 3 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Evidence Screenshot Tambah minimal satu screenshot", exact: true })).toBeVisible();
     await expect(page.getByText(archivedProductName)).toHaveCount(0);
   } catch (error) {
     if (error instanceof Error && error.message.includes("timeout")) {

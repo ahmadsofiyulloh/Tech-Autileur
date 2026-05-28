@@ -6,7 +6,6 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { APP_RELEASE } from "@/lib/server/app-release";
-import { getOperatorShellContext } from "@/lib/server/operator-shell";
 import {
   DEFAULT_RESOLVED_THEME,
   THEME_COOKIE_NAME,
@@ -169,7 +168,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const [cookieStore, shellContext] = await Promise.all([cookies(), getOperatorShellContext()]);
+  const cookieStore = await cookies();
   const themePreference = readThemePreference(cookieStore.get(THEME_COOKIE_NAME)?.value);
   const initialResolvedTheme: ResolvedTheme = resolveThemePreference(themePreference, DEFAULT_RESOLVED_THEME);
 
@@ -195,7 +194,7 @@ export default async function RootLayout({
         <AppShell
           appBuildNumber={APP_RELEASE.buildNumber}
           appCopyrightLine={APP_RELEASE.copyrightLine}
-          shellContext={shellContext}
+          shellContext={{ currentAffiliateProfile: null }}
           themePreference={themePreference}
         >
           {children}

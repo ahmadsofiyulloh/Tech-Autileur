@@ -200,6 +200,35 @@ test("operator shell and settings surfaces stay reachable", async ({ page }) => 
   }
 });
 
+test("operator shell profile menu stays interactive while shell context resolves", async ({ page }) => {
+  let releaseShellContext: (() => void) | undefined;
+
+  try {
+    await page.route("**/api/operator/shell-context", async (route) => {
+      await new Promise<void>((resolve) => {
+        releaseShellContext = resolve;
+      });
+
+      await route.continue();
+    });
+
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Buka menu profil" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Buka menu profil" }).click();
+    const profilePanel = page.getByRole("dialog", { name: "Menu profil" });
+    await expect(profilePanel).toBeVisible();
+    await expect(profilePanel).toContainText("Ganti Akun");
+    await expect(profilePanel).toContainText("Pengaturan");
+  } catch (error) {
+    throw classifySmokeError("shell profile deferral", error);
+  } finally {
+    if (releaseShellContext) {
+      releaseShellContext();
+    }
+  }
+});
+
 test("operator sidebar uses compact rail on tablet widths", async ({ page }) => {
   try {
     await page.setViewportSize({ width: 900, height: 900 });

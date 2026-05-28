@@ -7,7 +7,7 @@ import { SectionCard } from "@/components/operator/section-card";
 import { APP_RELEASE, APP_RELEASE_CHANGELOG, APP_RELEASE_FAQ } from "@/lib/server/app-release";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type AboutRowProps = {
   detail: string;

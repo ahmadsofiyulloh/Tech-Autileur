@@ -389,6 +389,7 @@ function DriveTile({
         alt={item.name}
         className="drive-tile__thumb"
         fallback={<DriveIcon item={item} />}
+        deferUntilVisible
         src={item.preview_url}
       />
       <span className="drive-tile__header">
@@ -456,6 +457,7 @@ function DriveListRow({
         alt={item.name}
         className="drive-list-row__thumb"
         fallback={<DriveIcon item={item} />}
+        deferUntilVisible
         src={item.preview_url}
       />
       <span className="drive-list-row__copy">

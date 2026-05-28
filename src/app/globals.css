@@ -151,6 +151,7 @@
 @import "../styles/05-features/ai-media-visual-sizing.css";
 @import "../styles/05-features/inline-notif.css";
 @import "../styles/05-features/diagnostics.css";
+@import "../styles/05-features/view-transitions.css";
 @import "../styles/99-overrides/vercel-flat-sidebar-responsive.css";
 @import "../styles/99-overrides/unified-nav-tabs.css";
 @import "../styles/99-overrides/neutral-action-system.css";

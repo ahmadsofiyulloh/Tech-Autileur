@@ -24,7 +24,7 @@ import {
   type ReactNode,
 } from "react";
 import { AvatarThumbnailFrame } from "@/components/operator/avatar-thumbnail-frame";
-import type { OperatorShellAffiliateProfile } from "@/components/operator/operator-shell-context";
+import type { OperatorShellAffiliateProfile, OperatorShellContext } from "@/components/operator/operator-shell-context";
 import { ThemeToggle } from "@/components/operator/theme-toggle";
 import {
   readJsonApiErrorMessage,
@@ -138,6 +138,24 @@ async function fetchActivityFeed(signal: AbortSignal) {
     ...data,
     items: Array.isArray(data.items) ? data.items : [],
   };
+}
+
+async function fetchShellContext(signal: AbortSignal) {
+  const response = await fetch("/api/operator/shell-context", {
+    cache: "no-store",
+    signal,
+  });
+  const payload = (await response.json().catch(() => null)) as unknown;
+
+  if (!response.ok) {
+    throw new Error(readJsonApiErrorMessage(payload, "Tidak dapat memuat profil."));
+  }
+
+  const data = unwrapJsonApiData<OperatorShellContext>(
+    payload as OperatorShellContext | JsonApiResponse<OperatorShellContext>,
+  );
+
+  return data.currentAffiliateProfile ?? null;
 }
 
 function PanelHeader({
@@ -309,12 +327,41 @@ export function TopbarGlobalControls({
   const [position, setPosition] = useState<PanelPosition | null>(null);
   const [activityItems, setActivityItems] = useState<ActivityFeedItem[]>([]);
   const [activityState, setActivityState] = useState<ActivityPanelState>("empty");
+  const [resolvedAffiliateProfile, setResolvedAffiliateProfile] = useState(currentAffiliateProfile);
   const activityButtonRef = useRef<HTMLButtonElement | null>(null);
   const profileButtonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const profilePanelId = useId();
   const activityPanelId = useId();
   const isMobile = useMobileShellQuery();
+
+  useEffect(() => {
+    if (resolvedAffiliateProfile) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadShellContext() {
+      try {
+        const shellContext = await fetchShellContext(controller.signal);
+
+        if (!controller.signal.aborted) {
+          setResolvedAffiliateProfile(shellContext);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setResolvedAffiliateProfile(null);
+        }
+      }
+    }
+
+    void loadShellContext();
+
+    return () => {
+      controller.abort();
+    };
+  }, [resolvedAffiliateProfile]);
 
   useEffect(() => {
     if (openPanel !== "activity" || activityState !== "loading") {
@@ -482,7 +529,7 @@ export function TopbarGlobalControls({
           fallback="user-round"
           fallbackClassName="topbar-profile-link__avatar--fallback"
           iconSize={18}
-          src={currentAffiliateProfile?.avatarUrl ?? null}
+          src={resolvedAffiliateProfile?.avatarUrl ?? null}
         />
         <span className="topbar-profile-link__label">Profil</span>
       </button>
@@ -510,8 +557,8 @@ export function TopbarGlobalControls({
               ) : (
                 <>
                   <PanelHeader onClose={closePanel} title="Profil" subtitle="Menu operator" />
-                  <ProfileMenuContent
-                    currentAffiliateProfile={currentAffiliateProfile}
+              <ProfileMenuContent
+                    currentAffiliateProfile={resolvedAffiliateProfile}
                     hideSettingsAction={hideSettingsAction}
                     onClose={closePanel}
                     themePreference={themePreference}
