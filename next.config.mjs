@@ -18,7 +18,7 @@ const securityHeaders = [
   },
   {
     key: "X-DNS-Prefetch-Control",
-    value: "off",
+    value: "on",
   },
 ];
 
@@ -26,6 +26,8 @@ const nextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   experimental: {
+    optimizePackageImports: ["recharts", "lucide-react"],
+    viewTransition: true,
     serverActions: {
       bodySizeLimit: "20mb",
     },

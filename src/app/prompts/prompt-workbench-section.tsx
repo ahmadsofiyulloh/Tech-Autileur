@@ -274,13 +274,20 @@ export async function PromptWorkbenchSection({
     ]),
   );
 
-  const promptTaskResult = promptTaskIds.length
-    ? await supabase
-        .from("ai_tasks")
-        .select("id, status, error_message, gemini_api_key_id")
-        .eq("user_id", userId)
-        .in("id", promptTaskIds)
-    : { data: [], error: null };
+  const driveItemIds = Array.from(
+    new Set(visiblePromptReadinessRows.map((row) => row.sourceImage?.drive_item_ref_id).filter((value): value is string => Boolean(value))),
+  );
+
+  const [promptTaskResult, driveItems] = await Promise.all([
+    promptTaskIds.length
+      ? supabase
+          .from("ai_tasks")
+          .select("id, status, error_message, gemini_api_key_id")
+          .eq("user_id", userId)
+          .in("id", promptTaskIds)
+      : Promise.resolve({ data: [], error: null }),
+    driveItemIds.length ? listDriveItemsByIds(driveItemIds) : Promise.resolve([]),
+  ]);
 
   if (promptTaskResult.error) {
     return <ErrorState icon={FileText} title="Paket Prompt tidak tersedia." />;
@@ -312,10 +319,6 @@ export async function PromptWorkbenchSection({
     ]),
   );
 
-  const driveItemIds = Array.from(
-    new Set(visiblePromptReadinessRows.map((row) => row.sourceImage?.drive_item_ref_id).filter((value): value is string => Boolean(value))),
-  );
-  const driveItems = driveItemIds.length ? await listDriveItemsByIds(driveItemIds) : [];
   const driveItemMap = new Map(driveItems.map((item) => [item.id, item]));
 
   const displayedPromptProduct = selectedProductId

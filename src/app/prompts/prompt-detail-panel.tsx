@@ -1,3 +1,4 @@
+import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import { Suspense } from "react";
 import { FileText, History as HistoryIcon, WandSparkles } from "lucide-react";
@@ -21,8 +22,11 @@ import {
 import { SHARE_ANGLE_LABELS } from "@/lib/share/share-platform";
 import { formatAppDateTime } from "@/lib/app-time";
 import { savePromptPack } from "./actions";
-import { PromptGenerateForm } from "./prompt-generate-form";
 import { PromptOutputFields } from "./prompt-output-fields";
+
+const PromptGenerateForm = nextDynamic(() => import("./prompt-generate-form").then((mod) => mod.PromptGenerateForm), {
+  loading: () => <SkeletonButton />,
+});
 
 type PromptPackRecord = Awaited<ReturnType<typeof getPromptPackById>>;
 type ProductRecord = NonNullable<Awaited<ReturnType<typeof getProductById>>>;
