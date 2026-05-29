@@ -16,6 +16,11 @@ Range: `origin/main..HEAD`
 - `753aff5` test(e2e): align specs with prompt and share refactors
 <!-- changelog:generated:end -->
 
+## 2026-05-29 - Operator Detail Drawer Mobile Layering Fix
+
+- Menaikkan layer mobile dengan memberi `z-index` pada [`shell-main`](C:/Project/Tech%20Autiluer/src/styles/06-responsive/product-detail-responsive.css) saat detail produk terbuka, sehingga stacking context drawer tidak lagi tertahan di bawah topbar dan bottom nav.
+- Mempertahankan [`operator-detail-drawer`](C:/Project/Tech%20Autiluer/src/styles/06-responsive/product-detail-responsive.css) sebagai overlay fixed full-screen dan menambahkan regresi Playwright di [tests/e2e/product-output-detail.spec.ts](C:/Project/Tech%20Autiluer/tests/e2e/product-output-detail.spec.ts) yang memverifikasi hit-test browser benar-benar jatuh ke drawer di area topbar dan bottom nav.
+
 ## 2026-05-28 - Next Typegen Route Reference Normalization
 
 - Mengarahkan [next-env.d.ts](C:/Project%20Autiluer/next-env.d.ts) ke `.next/types/routes.d.ts` agar typecheck memakai output build yang stabil, bukan referensi `.next/dev` yang bisa berisi artefak generated rusak saat cache dev bergeser.

@@ -231,7 +231,62 @@ test("product output tab is primary and renders partial copy-ready data", async 
 
     await expect(page.getByRole("heading", { name: "Output Siap Copy", level: 3 })).toBeVisible();
     await expect(page.getByText("Output Siap", { exact: true }).first()).toBeVisible();
-    await expect(page.locator('aside[aria-label="Detail produk"]').getByText(state.product.name, { exact: true }).first()).toBeVisible();
+    const drawer = page.locator('aside[aria-label="Detail produk"]');
+    await expect(drawer).toBeVisible();
+    const drawerZIndex = await drawer.evaluate((element) => {
+      const value = window.getComputedStyle(element).zIndex;
+      const parsed = Number.parseInt(value, 10);
+
+      if (Number.isNaN(parsed)) {
+        throw new Error(`Product drawer z-index should be numeric, received ${value}.`);
+      }
+
+      return parsed;
+    });
+    const shellMainZIndex = await page.locator(".shell-main").evaluate((element) => {
+      const value = window.getComputedStyle(element).zIndex;
+      const parsed = Number.parseInt(value, 10);
+
+      if (Number.isNaN(parsed)) {
+        throw new Error(`Shell main z-index should be numeric, received ${value}.`);
+      }
+
+      return parsed;
+    });
+    const topbarZIndex = await page.locator(".operator-topbar").evaluate((element) => {
+      const value = window.getComputedStyle(element).zIndex;
+      const parsed = Number.parseInt(value, 10);
+
+      if (Number.isNaN(parsed)) {
+        throw new Error(`Topbar z-index should be numeric, received ${value}.`);
+      }
+
+      return parsed;
+    });
+    const bottomNavZIndex = await page.locator(".bottom-nav").evaluate((element) => {
+      const value = window.getComputedStyle(element).zIndex;
+      const parsed = Number.parseInt(value, 10);
+
+      if (Number.isNaN(parsed)) {
+        throw new Error(`Bottom nav z-index should be numeric, received ${value}.`);
+      }
+
+      return parsed;
+    });
+    expect(shellMainZIndex).toBeGreaterThan(topbarZIndex);
+    expect(shellMainZIndex).toBeGreaterThan(bottomNavZIndex);
+    const hitTestInsideDrawer = await page.evaluate(() => {
+      const points = [10, 40, 70];
+
+      return points.every((y) => {
+        const element = document.elementFromPoint(20, y);
+
+        return Boolean(element?.closest('aside[aria-label="Detail produk"]'));
+      });
+    });
+    expect(hitTestInsideDrawer).toBe(true);
+    expect(drawerZIndex).toBeGreaterThan(0);
+    await expect(drawer.getByText(state.product.name, { exact: true }).first()).toBeVisible();
     await expect(page.getByText(seeded.caption, { exact: true })).toBeVisible();
     await expect(page.getByText(seeded.tags, { exact: true })).toBeVisible();
     await expect(page.getByText(seeded.folderDriveUrl, { exact: true })).toBeVisible();
